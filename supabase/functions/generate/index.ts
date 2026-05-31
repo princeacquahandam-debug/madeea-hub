@@ -54,6 +54,18 @@ function json(body: unknown, status = 200) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
+    // Auth enforced in-code (so the function can run with Verify JWT off, which
+    // is required for browser CORS preflight to pass).
+    const authHeader0 = req.headers.get("Authorization");
+    if (!authHeader0) return json({ error: "unauthorized" }, 401);
+    const authClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader0 } } },
+    );
+    const { data: authed } = await authClient.auth.getUser();
+    if (!authed?.user) return json({ error: "unauthorized" }, 401);
+
     const { tool, format, inputs = {}, client_id = null } = await req.json();
     if (!tool || !format) return json({ error: "tool and format are required" }, 400);
 

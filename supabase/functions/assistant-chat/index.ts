@@ -33,16 +33,21 @@ function json(body: unknown, status = 200) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
+    // Auth enforced in-code (so the function can run with Verify JWT off, which
+    // is required for browser CORS preflight to pass).
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return json({ error: "unauthorized" }, 401);
     const { messages = [] } = await req.json();
     let context = "";
 
-    const authHeader = req.headers.get("Authorization");
-    if (authHeader) {
+    {
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL")!,
         Deno.env.get("SUPABASE_ANON_KEY")!,
         { global: { headers: { Authorization: authHeader } } },
       );
+      const { data: authed } = await supabase.auth.getUser();
+      if (!authed?.user) return json({ error: "unauthorized" }, 401);
       const [{ data: tasks }, { data: clients }] = await Promise.all([
         supabase.from("tasks").select("title,status,due_label").limit(20),
         supabase.from("clients").select("name,title,company,preferred_channel,tone").limit(20),
