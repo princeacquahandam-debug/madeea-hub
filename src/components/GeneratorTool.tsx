@@ -3,6 +3,7 @@ import { Sparkles, FileText } from "lucide-react";
 import type { StudioFormat } from "@/lib/constants";
 import { generate } from "@/lib/ai";
 import { useClients } from "@/data/hooks";
+import { OutputViewer } from "@/components/OutputViewer";
 
 export function GeneratorTool({
   tool,
@@ -112,7 +113,7 @@ export function GeneratorTool({
         <div className="card p-5">
           <p className="field-label">Output</p>
           {output ? (
-            <pre className="whitespace-pre-wrap text-sm text-zinc-200">{output}</pre>
+            <OutputViewer output={output} title={active.title} />
           ) : (
             <div className="flex flex-col items-center justify-center gap-2 py-10 text-center text-faint">
               <FileText size={28} />

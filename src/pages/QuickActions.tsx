@@ -3,6 +3,7 @@ import { Sparkles, PenLine, Calendar, Search, BarChart3, Workflow } from "lucide
 import { QUICK_ACTION_GROUPS } from "@/lib/constants";
 import { PageHeader, Modal } from "@/components/ui";
 import { generate } from "@/lib/ai";
+import { OutputViewer } from "@/components/OutputViewer";
 
 const GROUP_ICONS = [PenLine, Calendar, Search, BarChart3, Workflow];
 
@@ -60,9 +61,9 @@ export default function QuickActions() {
         </div>
         {busy ? (
           <p className="py-8 text-center text-sm text-faint">Generating with Claude…</p>
-        ) : (
-          <pre className="whitespace-pre-wrap rounded-lg bg-surface-2 p-4 text-sm text-zinc-200">{output}</pre>
-        )}
+        ) : output ? (
+          <OutputViewer output={output} title={active ?? "AI Output"} />
+        ) : null}
       </Modal>
     </div>
   );

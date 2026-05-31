@@ -55,6 +55,26 @@
   }
 }
 
+@layer components {
+  .md-body {
+    @apply text-sm leading-relaxed text-zinc-200;
+  }
+  .md-body h1 { @apply mb-2 mt-2 text-xl font-semibold text-white; }
+  .md-body h2 { @apply mb-2 mt-4 border-b border-border pb-1 text-lg font-semibold text-white; }
+  .md-body h3 { @apply mb-1 mt-3 text-base font-semibold text-zinc-100; }
+  .md-body p { @apply my-2; }
+  .md-body ul { @apply my-2 list-disc space-y-1 pl-5; }
+  .md-body ol { @apply my-2 list-decimal space-y-1 pl-5; }
+  .md-body strong { @apply font-semibold text-white; }
+  .md-body a { @apply text-accent-soft underline; }
+  .md-body code { @apply rounded bg-surface-2 px-1 py-0.5 text-xs; }
+  .md-body blockquote { @apply my-2 border-l-2 border-accent/50 pl-3 text-muted; }
+  .md-body hr { @apply my-3 border-border; }
+  .md-body table { @apply my-3 w-full text-sm; }
+  .md-body th, .md-body td { @apply border border-border px-3 py-1.5 text-left; }
+  .md-body th { @apply bg-surface-2 font-semibold; }
+}
+
 /* thin scrollbars */
 ::-webkit-scrollbar {
   width: 8px;
