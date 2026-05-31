@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 // Invite-only per spec (internal tool, not a public SaaS): sign-in only.
@@ -29,11 +28,8 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-bg p-4">
       <div className="card w-full max-w-sm p-7">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-accent/20 text-accent-soft">
-            <Sparkles size={22} />
-          </div>
-          <h1 className="display text-3xl">MadeEA</h1>
-          <p className="eyebrow mt-1 text-accent/80">Command Center</p>
+          <img src="/logo.png" alt="MadeEA" className="mx-auto mb-3 h-9 w-auto" />
+          <p className="eyebrow text-accent/80">Command Center</p>
         </div>
 
         <form className="space-y-3" onSubmit={submit}>

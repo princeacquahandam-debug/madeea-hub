@@ -10,8 +10,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <aside className="flex h-full w-64 flex-col border-r border-border bg-surface">
       <div className="px-5 py-5">
-        <h1 className="display text-2xl">MadeEA</h1>
-        <p className="eyebrow mt-0.5 text-accent/80">Command Center</p>
+        <img src="/logo.png" alt="MadeEA" className="h-7 w-auto" />
+        <p className="eyebrow mt-2 text-accent/80">Command Center</p>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 space-y-6">
