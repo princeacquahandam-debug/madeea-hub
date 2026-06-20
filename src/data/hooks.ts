@@ -190,7 +190,8 @@ export function useAutomations() {
       const { data, error } = await supabase
         .from("automations")
         .select("id,name,description,status,total_runs,last_run_at,trigger,action,is_custom")
-        .order("created_at", { ascending: true });
+        .order("is_custom", { ascending: true })
+        .order("name", { ascending: true });
       if (error) throw error;
       return (data as any[]).map((a) => ({
         ...a, last_run: a.last_run_at ? new Date(a.last_run_at).toLocaleString() : "Never",
