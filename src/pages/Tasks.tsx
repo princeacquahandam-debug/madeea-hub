@@ -94,9 +94,11 @@ function Column({ status, label, items, blockedIds, onDelete, onEdit }: { status
 }
 
 const BLANK = { title: "", priority: "normal" as Priority, due: "", subtasks: [] as Subtask[], recurrence: "none" as Recurrence, dependsOn: "" };
+const EMPTY_TASKS: Task[] = [];
 
 export default function Tasks() {
-  const { data: tasks = [], isLoading } = useTasks();
+  const { data, isLoading } = useTasks();
+  const tasks = data ?? EMPTY_TASKS;
   const { setStatus, create, update, remove } = useTaskMutations();
   const [board, setBoard] = useState<Board>(group([]));
   const [activeId, setActiveId] = useState<string | null>(null);
