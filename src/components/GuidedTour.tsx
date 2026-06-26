@@ -32,8 +32,11 @@ export function GuidedTour() {
 
   const measure = () => {
     const s = STEPS[step];
-    const el = s?.selector ? document.querySelector(s.selector) : null;
-    setRect(el ? el.getBoundingClientRect() : null);
+    const el = s?.selector ? (document.querySelector(s.selector) as HTMLElement | null) : null;
+    const r = el ? el.getBoundingClientRect() : null;
+    // If the target is hidden/zero-size (e.g. the sidebar or search on mobile),
+    // fall back to a centered bubble instead of a broken spotlight at 0,0.
+    setRect(r && r.width > 0 && r.height > 0 ? r : null);
   };
   useLayoutEffect(() => { if (open) measure(); /* eslint-disable-next-line */ }, [open, step]);
   useEffect(() => {
