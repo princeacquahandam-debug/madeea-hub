@@ -106,6 +106,14 @@ export interface SopRun {
   completed_at: string | null;
 }
 
+export interface Reminder {
+  id: string;
+  label: string;
+  remind_at: string;
+  dismissed: boolean;
+  task_id: string | null;
+}
+
 export interface Generation {
   id: string;
   tool: "quick_action" | "studio" | "bookkeeping";

@@ -5,6 +5,8 @@ import { generate } from "@/lib/ai";
 import { useClients } from "@/data/hooks";
 import { OutputViewer } from "@/components/OutputViewer";
 import { Tooltip } from "@/components/Tooltip";
+import { useSavedPrompts } from "@/store/savedPrompts";
+import { Bookmark } from "lucide-react";
 
 export function GeneratorTool({
   tool,
@@ -21,9 +23,17 @@ export function GeneratorTool({
   const [busy, setBusy] = useState(false);
   const active = formats.find((f) => f.key === activeKey)!;
   const { data: clients = [] } = useClients();
+  const { prompts, save } = useSavedPrompts();
+  const savedForKey = prompts.filter((p) => p.key === active.title);
   // Replace any hardcoded client-list options with the user's real clients.
   const optionsFor = (fieldName: string, fallback?: string[]) =>
     fieldName === "client" ? [...clients.map((c) => c.name), "Internal"] : fallback;
+
+  function saveCurrent() {
+    if (Object.values(values).every((v) => !v)) return;
+    const name = window.prompt("Name this saved prompt:");
+    if (name?.trim()) save({ key: active.title, name: name.trim(), inputs: values });
+  }
 
   function selectFormat(key: string) {
     setActiveKey(key);
@@ -69,8 +79,24 @@ export function GeneratorTool({
             <span className="pill bg-emerald-500/15 text-emerald-400 ml-auto">{badge}</span>
           </div>
           {active.howTo && <p className="mb-1 text-xs text-muted">{active.howTo}</p>}
-          {active.example && <p className="mb-4 text-xs text-faint">Example — {active.example}</p>}
-          {!active.howTo && !active.example && <div className="mb-4" />}
+          {active.example && <p className="mb-3 text-xs text-faint">Example — {active.example}</p>}
+          {!active.howTo && !active.example && <div className="mb-3" />}
+
+          <div className="mb-3 flex items-center gap-2">
+            {savedForKey.length > 0 && (
+              <select
+                className="input py-1 text-xs"
+                defaultValue=""
+                onChange={(e) => { const p = savedForKey.find((x) => x.id === e.target.value); if (p) setValues(p.inputs); e.target.value = ""; }}
+              >
+                <option value="">Load saved…</option>
+                {savedForKey.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            )}
+            <button className="btn-ghost ml-auto border border-border py-1 text-xs" onClick={saveCurrent}>
+              <Bookmark size={12} /> Save inputs
+            </button>
+          </div>
 
           <div className="space-y-3">
             {active.fields.map((field) => (

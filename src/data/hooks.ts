@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, Automation, Sop, SopRun, AutomationRun } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, Automation, Sop, SopRun, AutomationRun, Reminder } from "@/types/db";
 
 // Live Supabase data layer with a read-only seed fallback for demo mode
 // (no creds). owner_id + workspace_id auto-fill via column defaults (migration
@@ -385,6 +385,46 @@ export function useSopMutations() {
   });
 
   return { start, setChecked, complete };
+}
+
+// ---------------- reminders ----------------
+export function useReminders() {
+  return useQuery<Reminder[]>({
+    queryKey: ["reminders"],
+    queryFn: async () => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from("reminders")
+        .select("id,label,remind_at,dismissed,task_id")
+        .eq("dismissed", false)
+        .order("remind_at", { ascending: true });
+      if (error) return []; // table not migrated yet — degrade gracefully
+      return data as Reminder[];
+    },
+    retry: false,
+  });
+}
+
+export function useReminderMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["reminders"] });
+  const create = useMutation({
+    mutationFn: async (input: { label: string; remind_at: string; task_id?: string | null }) => {
+      if (!supabase) return;
+      const { error } = await supabase.from("reminders").insert({ label: input.label, remind_at: input.remind_at, task_id: input.task_id ?? null });
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+  const dismiss = useMutation({
+    mutationFn: async (id: string) => {
+      if (!supabase) return;
+      const { error } = await supabase.from("reminders").update({ dismissed: true }).eq("id", id);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+  return { create, dismiss };
 }
 
 export { live };
