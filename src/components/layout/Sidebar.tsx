@@ -16,7 +16,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       <nav className="flex-1 overflow-y-auto px-3 space-y-6">
         {groups.map((group) => (
-          <div key={group}>
+          <div key={group} data-tour={group === "Operations" ? "nav" : "ai-suite"}>
             <p className="eyebrow px-3 mb-2">{group}</p>
             <div className="space-y-0.5">
               {NAV.filter((n) => n.group === group).map((item) => (

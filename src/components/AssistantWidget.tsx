@@ -33,6 +33,7 @@ export function AssistantWidget() {
   if (!open) {
     return (
       <button
+        data-tour="assistant"
         className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-lg hover:bg-accent-soft"
         onClick={() => setOpen(true)}
         aria-label="Open AI assistant"

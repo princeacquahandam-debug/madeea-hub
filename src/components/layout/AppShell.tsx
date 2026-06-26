@@ -6,6 +6,8 @@ import { QuickActionsRail } from "./QuickActionsRail";
 import { AssistantWidget } from "@/components/AssistantWidget";
 import { FloatingSop } from "@/components/FloatingSop";
 import { GuideCard } from "@/components/GuideCard";
+import { CommandPalette } from "@/components/CommandPalette";
+import { GuidedTour } from "@/components/GuidedTour";
 
 export function AppShell() {
   const [mobileNav, setMobileNav] = useState(false);
@@ -40,6 +42,8 @@ export function AppShell() {
 
       <AssistantWidget />
       <FloatingSop />
+      <CommandPalette />
+      <GuidedTour />
     </div>
   );
 }
