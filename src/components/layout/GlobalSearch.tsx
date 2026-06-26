@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Search, Users, CheckSquare, Mail } from "lucide-react";
+import { Search, Users, CheckSquare, Mail, ClipboardCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useClients, useTasks, useMessages } from "@/data/hooks";
+import { useClients, useTasks, useMessages, useSops } from "@/data/hooks";
 
 export function GlobalSearch() {
   const nav = useNavigate();
@@ -11,6 +11,7 @@ export function GlobalSearch() {
   const { data: clients = [] } = useClients();
   const { data: tasks = [] } = useTasks();
   const { data: messages = [] } = useMessages();
+  const { data: sops = [] } = useSops();
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -24,9 +25,10 @@ export function GlobalSearch() {
         clients: clients.filter((c) => `${c.name} ${c.company} ${c.title}`.toLowerCase().includes(term)).slice(0, 5),
         tasks: tasks.filter((t) => `${t.title} ${t.client_name}`.toLowerCase().includes(term)).slice(0, 5),
         messages: messages.filter((m) => `${m.subject} ${m.sender_name} ${m.preview}`.toLowerCase().includes(term)).slice(0, 5),
+        sops: sops.filter((s) => `${s.title} ${s.description} ${s.category}`.toLowerCase().includes(term)).slice(0, 5),
       }
     : null;
-  const total = r ? r.clients.length + r.tasks.length + r.messages.length : 0;
+  const total = r ? r.clients.length + r.tasks.length + r.messages.length + r.sops.length : 0;
 
   function go(path: string) {
     nav(path);
@@ -53,6 +55,7 @@ export function GlobalSearch() {
               <Group title="Clients" icon={Users} items={r!.clients.map((c) => ({ key: c.id, label: c.name, sub: c.company }))} onPick={() => go("/clients")} />
               <Group title="Tasks" icon={CheckSquare} items={r!.tasks.map((t) => ({ key: t.id, label: t.title, sub: t.client_name }))} onPick={() => go("/tasks")} />
               <Group title="Messages" icon={Mail} items={r!.messages.map((m) => ({ key: m.id, label: m.subject, sub: m.sender_name }))} onPick={() => go("/communication")} />
+              <Group title="SOPs" icon={ClipboardCheck} items={r!.sops.map((s) => ({ key: s.id, label: s.title, sub: s.category }))} onPick={() => go("/sops")} />
             </>
           )}
         </div>

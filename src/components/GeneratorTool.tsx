@@ -4,6 +4,7 @@ import type { StudioFormat } from "@/lib/constants";
 import { generate } from "@/lib/ai";
 import { useClients } from "@/data/hooks";
 import { OutputViewer } from "@/components/OutputViewer";
+import { Tooltip } from "@/components/Tooltip";
 
 export function GeneratorTool({
   tool,
@@ -62,16 +63,22 @@ export function GeneratorTool({
       {/* Form + output */}
       <div className="space-y-5">
         <div className="card p-5">
-          <div className="mb-4 flex items-center gap-2">
+          <div className="mb-1 flex items-center gap-2">
             <Sparkles size={16} className="text-accent-soft" />
             <h2 className="font-semibold">{active.title}</h2>
             <span className="pill bg-emerald-500/15 text-emerald-400 ml-auto">{badge}</span>
           </div>
+          {active.howTo && <p className="mb-1 text-xs text-muted">{active.howTo}</p>}
+          {active.example && <p className="mb-4 text-xs text-faint">Example — {active.example}</p>}
+          {!active.howTo && !active.example && <div className="mb-4" />}
 
           <div className="space-y-3">
             {active.fields.map((field) => (
               <div key={field.name}>
-                <label className="field-label">{field.label}</label>
+                <label className="field-label inline-flex items-center gap-1.5">
+                  {field.label}
+                  {field.help && <Tooltip text={field.help} />}
+                </label>
                 {field.type === "textarea" ? (
                   <textarea
                     className="input min-h-[80px]"

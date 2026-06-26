@@ -47,6 +47,27 @@ export default function Communication() {
     <div>
       <PageHeader title="Communication Center" subtitle="Triage, draft, and manage executive communications" />
 
+      <div className="card mb-4 p-3">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-muted">
+          {[
+            "Connect Gmail in Integrations (or use the samples below)",
+            "Pick a message to triage",
+            "Generate an AI draft reply",
+            "Copy or send your response",
+          ].map((step, i) => (
+            <span key={i} className="flex items-center gap-2">
+              {i > 0 && <span className="text-faint">·</span>}
+              <span className="flex items-center gap-1.5">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent/20 text-[10px] font-semibold text-accent-soft">
+                  {i + 1}
+                </span>
+                {step}
+              </span>
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div className="mb-4 flex gap-2">
         {TABS.map((t) => (
           <button
