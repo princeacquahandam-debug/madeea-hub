@@ -19,10 +19,10 @@ The Command Center is **up, running, and being used** — a secure, branded web 
 
 ## New this round (from the feedback)
 - **Clearer guidance everywhere** — examples, tooltips, and a *"How this page works"* card on every page.
-- **Guided tour** — a first-time walkthrough, and you can **replay it any time** from Settings.
+- **Guided tour** — a first-time walkthrough, and you can **replay it any time** from Settings. The tour now **highlights each area without ever covering it**, and on a phone it **opens the menu for you** so you can see exactly what it's pointing at.
 - **Quick search & launch** — press **⌘K / Ctrl-K** to jump to anything (clients, tasks, SOPs, pages) and pin favorites.
 - **Smarter notifications** — overdue/upcoming deadlines plus your own **reminders and follow-ups**.
-- **Works on mobile** — checked across phones; nothing breaks on a small screen.
+- **Works on mobile** — checked across phones; nothing breaks on a small screen, and the walkthrough now works cleanly on mobile too.
 - **Settings** — replay the tour and sign out.
 
 ## How sign-in works
