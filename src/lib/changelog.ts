@@ -1,6 +1,6 @@
 // Product version history — surfaced in the in-app "What's new" page.
 // Bump APP_VERSION and prepend a release whenever something ships.
-export const APP_VERSION = "1.5.0";
+export const APP_VERSION = "1.6.0";
 
 export interface Release {
   version: string;
@@ -10,6 +10,15 @@ export interface Release {
 }
 
 export const CHANGELOG: Release[] = [
+  {
+    version: "1.6.0",
+    date: "2026-06-26",
+    title: "Shared team workspace",
+    changes: [
+      "Everyone now works in one shared workspace — each EA can see the whole team's tasks, clients, messages and meetings.",
+      "Admins keep the Admin panel for managing accounts and roles.",
+    ],
+  },
   {
     version: "1.5.0",
     date: "2026-06-26",

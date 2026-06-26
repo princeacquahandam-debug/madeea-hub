@@ -100,7 +100,7 @@ export default function Admin() {
       {/* Invite */}
       <section className="card mb-5 p-5">
         <p className="field-label">Invite a team member</p>
-        <p className="mb-3 text-sm text-muted">Send an email invite. They'll join this workspace as an EA and see only their own work.</p>
+        <p className="mb-3 text-sm text-muted">Send an email invite. They join the shared team workspace as an EA and can see the whole team's work.</p>
         <form onSubmit={sendInvite} className="flex flex-col gap-2 sm:flex-row">
           <input
             type="email"

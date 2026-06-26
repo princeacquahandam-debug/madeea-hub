@@ -452,7 +452,8 @@ const DEMO_MEMBERS: Member[] = [
 export function useMyRole() {
   return useQuery<MemberRole>({
     queryKey: ["my-role"],
-    staleTime: 60_000,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       if (!supabase) return "admin"; // demo mode previews the admin UI
       const { data: auth } = await supabase.auth.getUser();
@@ -504,16 +505,20 @@ export function useMemberMutations() {
   const setRole = useMutation({
     mutationFn: async ({ user_id, role }: { user_id: string; role: MemberRole }) => {
       if (!supabase) return;
-      const { error } = await supabase.from("memberships").update({ role }).eq("user_id", user_id);
-      if (error) throw error; // RLS rejects non-admins server-side
+      // .select() so we can tell a real change from a silent RLS no-op (Supabase
+      // returns no error when a policy filters the row out and 0 rows change).
+      const { data, error } = await supabase.from("memberships").update({ role }).eq("user_id", user_id).select("user_id");
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Change not saved — admin rights required, or the member is in another workspace.");
     },
     onSuccess: invalidate,
   });
   const remove = useMutation({
     mutationFn: async ({ user_id }: { user_id: string }) => {
       if (!supabase) return;
-      const { error } = await supabase.from("memberships").delete().eq("user_id", user_id);
+      const { data, error } = await supabase.from("memberships").delete().eq("user_id", user_id).select("user_id");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Not removed — admin rights required, or the member is in another workspace.");
     },
     onSuccess: invalidate,
   });
