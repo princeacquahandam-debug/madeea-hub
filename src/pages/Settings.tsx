@@ -1,13 +1,16 @@
 import { useNavigate } from "react-router-dom";
-import { PlayCircle, LogOut } from "lucide-react";
+import { PlayCircle, LogOut, ShieldCheck, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 import { useTour } from "@/store/tour";
+import { useMyRole } from "@/data/hooks";
+import { APP_VERSION } from "@/lib/changelog";
 
 export default function Settings() {
   const { user, signOut } = useAuth();
   const nav = useNavigate();
   const startTour = useTour((s) => s.start);
+  const { data: role } = useMyRole();
 
   function replay() {
     nav("/");
@@ -29,6 +32,24 @@ export default function Settings() {
               <p className="text-xs text-faint">{user?.email ?? ""}</p>
             </div>
           </div>
+        </section>
+
+        {role === "admin" && (
+          <section className="card p-5">
+            <p className="field-label">Administration</p>
+            <p className="mb-3 text-sm text-muted">Manage team accounts, roles and invites. You can use the app normally and switch to the Admin panel any time.</p>
+            <button className="btn-ghost border border-border" onClick={() => nav("/admin")}>
+              <ShieldCheck size={15} /> Open Admin panel
+            </button>
+          </section>
+        )}
+
+        <section className="card p-5">
+          <p className="field-label">What's new</p>
+          <p className="mb-3 text-sm text-muted">You're on version {APP_VERSION}. See the latest updates and release history.</p>
+          <button className="btn-ghost border border-border" onClick={() => nav("/changelog")}>
+            <Sparkles size={15} /> View updates
+          </button>
         </section>
 
         <section className="card p-5">

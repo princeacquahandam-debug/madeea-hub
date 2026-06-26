@@ -72,6 +72,15 @@ export const GUIDES: Record<string, Guide> = {
       "Toggle Formatted / Markdown / HTML on the output, and export a branded PDF.",
     ],
   },
+  "/admin": {
+    title: "How the Admin panel works",
+    points: [
+      "See every account in your workspace, their role (Admin / EA), and activity at a glance.",
+      "Invite teammates by email, promote/demote roles, or remove access.",
+      "“Switch to user view” returns you to using the app normally — admins have both.",
+      "Access is enforced server-side: only admins can make changes, and workspaces stay isolated.",
+    ],
+  },
   "/bookkeeping": {
     title: "How Bookkeeping AI works",
     points: [

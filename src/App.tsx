@@ -14,6 +14,8 @@ import Integrations from "@/pages/Integrations";
 import CommunicationStudio from "@/pages/CommunicationStudio";
 import BookkeepingAI from "@/pages/BookkeepingAI";
 import Settings from "@/pages/Settings";
+import Admin from "@/pages/Admin";
+import Changelog from "@/pages/Changelog";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +40,8 @@ function Gate() {
         <Route path="/studio" element={<CommunicationStudio />} />
         <Route path="/bookkeeping" element={<BookkeepingAI />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/admin" element={<Admin />} />
+        <Route path="/changelog" element={<Changelog />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

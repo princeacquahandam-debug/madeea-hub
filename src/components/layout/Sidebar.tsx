@@ -1,11 +1,13 @@
 import { NavLink } from "react-router-dom";
-import { Settings as SettingsIcon } from "lucide-react";
+import { Settings as SettingsIcon, ShieldCheck } from "lucide-react";
 import { NAV } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
+import { useMyRole } from "@/data/hooks";
 import { cn } from "@/lib/utils";
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useAuth();
+  const { data: role } = useMyRole();
   const groups = ["Operations", "AI Suite"] as const;
 
   return (
@@ -38,6 +40,23 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             </div>
           </div>
         ))}
+
+        {role === "admin" && (
+          <div data-tour="admin">
+            <p className="eyebrow px-3 mb-2">Administration</p>
+            <div className="space-y-0.5">
+              <NavLink
+                to="/admin"
+                onClick={onNavigate}
+                className={({ isActive }) => cn("nav-item", isActive && "active")}
+              >
+                <ShieldCheck size={17} className="shrink-0" />
+                <span className="flex-1 truncate">Admin Panel</span>
+                <span className="pill bg-accent/15 text-accent-soft text-[10px]">Admin</span>
+              </NavLink>
+            </div>
+          </div>
+        )}
       </nav>
 
       <div className="border-t border-border p-3">

@@ -24,6 +24,8 @@ The Command Center is **up, running, and being used** — a secure, branded web 
 - **Smarter notifications** — overdue/upcoming deadlines plus your own **reminders and follow-ups**.
 - **Works on mobile** — checked across phones; nothing breaks on a small screen, and the walkthrough now works cleanly on mobile too.
 - **Settings** — replay the tour and sign out.
+- **Admin panel** — administrators get a dedicated area to **see every team account**, their role and activity, **invite teammates**, and promote/remove members. Admins use the app normally and **switch to the Admin panel** any time; regular EAs never see it. Access is **enforced server-side**, so the controls can't be bypassed.
+- **What's new** — a built-in **version history** page (in Settings) so the team can follow every update.
 
 ## How sign-in works
 The app is **invite-only** (an internal tool for the team, not a public site). New team members are added by an administrator — there's no public sign-up.

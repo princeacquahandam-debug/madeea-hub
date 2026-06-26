@@ -427,4 +427,111 @@ export function useReminderMutations() {
   return { create, dismiss };
 }
 
+// ---------------- workspace / admin ----------------
+export type MemberRole = "admin" | "ea";
+
+export interface Member {
+  user_id: string;
+  role: MemberRole;
+  name: string;
+  initials: string;
+  joined_at: string;
+  open_tasks: number;
+  clients: number;
+  is_me: boolean;
+}
+
+const DEMO_MEMBERS: Member[] = [
+  { user_id: "demo-1", role: "admin", name: "You (Admin)", initials: "AD", joined_at: "2026-01-10", open_tasks: 4, clients: 3, is_me: true },
+  { user_id: "demo-2", role: "ea", name: "Bryan Sumait", initials: "BS", joined_at: "2026-03-02", open_tasks: 6, clients: 2, is_me: false },
+  { user_id: "demo-3", role: "ea", name: "Belle Reyes", initials: "BR", joined_at: "2026-04-15", open_tasks: 3, clients: 1, is_me: false },
+];
+
+// Current user's role. NOTE: this is for UI gating only — the real boundary is
+// Postgres RLS (admins-only writes on memberships, workspace isolation).
+export function useMyRole() {
+  return useQuery<MemberRole>({
+    queryKey: ["my-role"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!supabase) return "admin"; // demo mode previews the admin UI
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) return "ea";
+      const { data, error } = await supabase.from("memberships").select("role").eq("user_id", uid).limit(1).maybeSingle();
+      if (error) return "ea";
+      return ((data?.role as MemberRole) ?? "ea");
+    },
+  });
+}
+
+export function useWorkspaceMembers() {
+  return useQuery<Member[]>({
+    queryKey: ["members"],
+    queryFn: async () => {
+      if (!supabase) return DEMO_MEMBERS;
+      const { data: auth } = await supabase.auth.getUser();
+      const myId = auth.user?.id ?? "";
+      const { data: mem, error } = await supabase
+        .from("memberships").select("user_id, role, created_at").order("created_at", { ascending: true });
+      if (error) throw error;
+      const ids = (mem ?? []).map((m) => m.user_id);
+      const [profsRes, tasksRes, clientsRes] = await Promise.all([
+        supabase.from("profiles").select("id, full_name, initials").in("id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]),
+        supabase.from("tasks").select("owner_id, status"),
+        supabase.from("clients").select("owner_id"),
+      ]);
+      const pm = Object.fromEntries((profsRes.data ?? []).map((p) => [p.id, p]));
+      const tasks = tasksRes.data ?? [];
+      const clients = clientsRes.data ?? [];
+      return (mem ?? []).map((m) => ({
+        user_id: m.user_id,
+        role: m.role as MemberRole,
+        name: pm[m.user_id]?.full_name ?? "Team member",
+        initials: pm[m.user_id]?.initials ?? "EA",
+        joined_at: m.created_at,
+        open_tasks: tasks.filter((t) => t.owner_id === m.user_id && t.status !== "done").length,
+        clients: clients.filter((c) => c.owner_id === m.user_id).length,
+        is_me: m.user_id === myId,
+      }));
+    },
+  });
+}
+
+export function useMemberMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => { qc.invalidateQueries({ queryKey: ["members"] }); qc.invalidateQueries({ queryKey: ["my-role"] }); };
+  const setRole = useMutation({
+    mutationFn: async ({ user_id, role }: { user_id: string; role: MemberRole }) => {
+      if (!supabase) return;
+      const { error } = await supabase.from("memberships").update({ role }).eq("user_id", user_id);
+      if (error) throw error; // RLS rejects non-admins server-side
+    },
+    onSuccess: invalidate,
+  });
+  const remove = useMutation({
+    mutationFn: async ({ user_id }: { user_id: string }) => {
+      if (!supabase) return;
+      const { error } = await supabase.from("memberships").delete().eq("user_id", user_id);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+  return { setRole, remove };
+}
+
+// Invite a teammate. The edge function verifies the caller is an admin and uses
+// the service role server-side — if it isn't deployed yet, callers get a clear
+// fallback message (the page still works for monitoring + role management).
+export function useInviteMember() {
+  return useMutation({
+    mutationFn: async (email: string): Promise<{ ok: boolean; email?: string }> => {
+      if (!supabase) return { ok: true, email };
+      const { data, error } = await supabase.functions.invoke("invite-member", { body: { email } });
+      if (error) throw new Error(error.message || "Invite service unavailable");
+      return data as { ok: boolean; email?: string };
+    },
+  });
+}
+
 export { live };
