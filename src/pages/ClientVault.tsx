@@ -1,9 +1,15 @@
 import { useState } from "react";
-import { MessageSquare, ChevronRight, CheckCircle2, Plus, Trash2, Pencil } from "lucide-react";
+import { MessageSquare, ChevronRight, CheckCircle2, Plus, Trash2, Pencil, AlertTriangle } from "lucide-react";
 import type { Client } from "@/types/db";
 import { Badge, PageHeader, Modal } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
-import { useClients, useTasks, useMeetings, useClientMutations } from "@/data/hooks";
+import { SlaBadge, TrendArrow, TREND_LABEL } from "@/components/SlaBadge";
+import { ClientActivity } from "@/components/ClientActivity";
+import { AssigneeAvatar } from "@/components/Assignee";
+import { useWorkspaceMembers } from "@/data/hooks";
+import { useClients, useTasks, useMeetings, useMessages, useClientMutations } from "@/data/hooks";
+import { useSlaSettings } from "@/store/slaSettings";
+import { clientSla, dayLength, formatDuration } from "@/lib/sla";
 import { supabase } from "@/lib/supabase";
 
 const BLANK = { name: "", title: "", company: "", preferred_channel: "Email", tone: "Formal", tags: "", bio: "", preferences_notes: "", image: "" };
@@ -12,8 +18,13 @@ export default function ClientVault() {
   const { data: clients = [], isLoading } = useClients();
   const { data: tasks = [] } = useTasks();
   const { data: meetings = [] } = useMeetings();
+  const { data: messages = [] } = useMessages();
   const { create, update, remove } = useClientMutations();
+  const { data: members = [] } = useWorkspaceMembers();
+  const cfg = useSlaSettings((s) => s.config);
+  const dl = dayLength(cfg);
   const [open, setOpen] = useState<Client | null>(null);
+  const [tab, setTab] = useState<"overview" | "activity">("overview");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState(BLANK);
@@ -87,7 +98,9 @@ export default function ClientVault() {
         <div className="card p-10 text-center text-sm text-faint">No clients yet. Add your first client to get started.</div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {clients.map((c) => (
+          {clients.map((c) => {
+            const sla = clientSla(c, messages, cfg);
+            return (
             <div key={c.id} className="card group flex flex-col p-5">
               <div className="flex items-center gap-3">
                 <Avatar name={c.name} url={c.avatar_url} className="h-11 w-11 text-sm" />
@@ -105,8 +118,45 @@ export default function ClientVault() {
                   </button>
                 </div>
               </div>
+              {/* Response-time SLA — the headline service metric for this client. */}
+              <div className="mt-4 rounded-lg bg-surface-2 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="eyebrow">Response</span>
+                  <span className="shrink-0 whitespace-nowrap"><SlaBadge status={sla.status} /></span>
+                </div>
+                {sla.avgHours !== null && (
+                  <p className="mt-1.5 flex items-center gap-1.5 whitespace-nowrap text-xs text-muted">
+                    avg {formatDuration(sla.avgHours, dl)} to first reply
+                    <TrendArrow trend={sla.trend} />
+                  </p>
+                )}
+                {sla.oldestWaitingHours !== null && (
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-faint">
+                    <AlertTriangle
+                      size={12}
+                      className={`shrink-0 ${sla.status === "breached" ? "text-red-400" : "text-amber-400"}`}
+                    />
+                    <span className="truncate">
+                      Waiting {formatDuration(sla.oldestWaitingHours, dl)} on “{sla.oldestWaitingSubject}”
+                    </span>
+                  </p>
+                )}
+              </div>
+
+              {/* Lead EA — accountability, not access control: every EA still sees
+                  every client (RLS from 0012 is unchanged). */}
+              {(() => {
+                const lead = members.find((m) => m.user_id === c.lead_ea_id) ?? null;
+                return (
+                  <div className="mt-3 flex items-center gap-1.5 text-xs text-muted">
+                    <AssigneeAvatar member={lead} />
+                    <span>{lead ? `Lead: ${lead.name}` : "No lead EA"}</span>
+                  </div>
+                );
+              })()}
+
               {(c.preferred_channel || c.tone) && (
-                <div className="mt-4 flex items-center gap-1.5 text-xs text-muted">
+                <div className="mt-3 flex items-center gap-1.5 text-xs text-muted">
                   <MessageSquare size={13} />
                   <span>Prefers</span>
                   <span className="font-medium text-zinc-200">{c.preferred_channel}</span>
@@ -116,11 +166,12 @@ export default function ClientVault() {
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {c.tags?.map((t) => <span key={t} className="pill bg-surface-2 text-faint">{t}</span>)}
               </div>
-              <button className="btn-ghost mt-4 justify-between border border-border" onClick={() => setOpen(c)}>
+              <button className="btn-ghost mt-4 justify-between border border-border" onClick={() => { setTab("overview"); setOpen(c); }}>
                 View Full Profile <ChevronRight size={15} />
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -128,6 +179,13 @@ export default function ClientVault() {
         {open && (() => {
           const active = tasks.filter((t) => t.client_name === open.name && t.status !== "done");
           const sched = meetings.filter((m) => m.with === open.name);
+          const sla = clientSla(open, messages, cfg);
+          const slowest = Math.max(...sla.recent.map((r) => r.hours), 1);
+          const barTone: Record<string, string> = {
+            on_track: "bg-emerald-500/70",
+            at_risk: "bg-amber-500/70",
+            breached: "bg-red-500/70",
+          };
           return (
             <div>
               <div className="flex items-center gap-4 border-b border-border pb-4">
@@ -147,7 +205,96 @@ export default function ClientVault() {
                 </button>
               </div>
 
-              <div className="mt-4 space-y-4">
+              <div className="mt-4 flex gap-2 border-b border-border">
+                {(["overview", "activity"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setTab(t)}
+                    className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium capitalize transition-colors ${
+                      tab === t
+                        ? "border-accent text-accent"
+                        : "border-transparent text-muted hover:text-zinc-100"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+
+              {tab === "activity" && (
+                <div className="mt-4">
+                  <ClientActivity client={open} />
+                </div>
+              )}
+
+              <div className={`mt-4 space-y-4 ${tab === "overview" ? "" : "hidden"}`}>
+                <Section title="Response Time">
+                  {sla.status === "no_data" && sla.oldestWaitingHours === null ? (
+                    <p className="text-sm text-faint">
+                      No reply data for this client yet.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="rounded-lg bg-surface-2 p-3">
+                          <p className="eyebrow">Average</p>
+                          <p className="mt-1 flex items-center gap-1.5 text-lg font-semibold">
+                            {sla.avgHours === null ? "—" : formatDuration(sla.avgHours, dl)}
+                            <TrendArrow trend={sla.trend} />
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-faint">{TREND_LABEL[sla.trend]}</p>
+                        </div>
+                        <div className="rounded-lg bg-surface-2 p-3">
+                          <p className="eyebrow">Oldest Waiting</p>
+                          <p className="mt-1 text-lg font-semibold">
+                            {sla.oldestWaitingHours === null ? "—" : formatDuration(sla.oldestWaitingHours, dl)}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-faint">
+                            {sla.oldestWaitingCalendarHours === null
+                              ? "Nothing outstanding"
+                              : `${formatDuration(sla.oldestWaitingCalendarHours)} elapsed`}
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-surface-2 p-3">
+                          <p className="eyebrow">Breaches</p>
+                          <p className="mt-1 text-lg font-semibold">{sla.breaches30d}</p>
+                          <p className="mt-0.5 text-[11px] text-faint">{sla.breaches7d} in the last 7 days</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center gap-2">
+                        <SlaBadge status={sla.status} />
+                        <span className="text-xs text-faint">
+                          Target: reply within {sla.thresholds.ok}h
+                          {cfg.businessHoursOnly ? " (working hours)" : ""} · breach after {sla.thresholds.risk}h
+                        </span>
+                      </div>
+
+                      {sla.recent.length > 0 && (
+                        <div className="mt-3 space-y-1.5">
+                          <p className="eyebrow">Recent Threads</p>
+                          {sla.recent.map((r) => (
+                            <div key={r.id} className="flex items-center gap-2">
+                              <span className="w-40 shrink-0 truncate text-xs text-muted" title={r.subject}>
+                                {r.subject}
+                              </span>
+                              <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
+                                <div
+                                  className={`h-full rounded-full ${barTone[r.status]}`}
+                                  style={{ width: `${Math.max(4, (r.hours / slowest) * 100)}%` }}
+                                />
+                              </div>
+                              <span className="w-14 shrink-0 text-right text-xs text-faint">
+                                {formatDuration(r.hours, dl)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </Section>
+
                 {open.bio && <Section title="Biography"><p className="text-sm text-muted">{open.bio}</p></Section>}
 
                 <Section title="Active Tasks">

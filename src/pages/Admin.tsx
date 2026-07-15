@@ -2,7 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ShieldCheck, ArrowLeft, UserPlus, Trash2, ArrowUpCircle, ArrowDownCircle, Users, Lock } from "lucide-react";
 import { PageHeader } from "@/components/ui";
-import { useMyRole, useWorkspaceMembers, useMemberMutations, useInviteMember } from "@/data/hooks";
+import { useMyRole, useWorkspaceMembers, useMemberMutations, useInviteMember, useTasks } from "@/data/hooks";
+import { AssigneeAvatar } from "@/components/Assignee";
+import { teamWorkload, unassignedCount } from "@/lib/team";
 
 function fmtDate(s: string) {
   const d = new Date(s);
@@ -15,6 +17,9 @@ export default function Admin() {
   const { data: members = [], isLoading } = useWorkspaceMembers();
   const { setRole, remove } = useMemberMutations();
   const invite = useInviteMember();
+  const { data: tasks = [] } = useTasks();
+  const workload = teamWorkload(members, tasks);
+  const unclaimed = unassignedCount(tasks);
 
   const [email, setEmail] = useState("");
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -98,6 +103,52 @@ export default function Admin() {
       </div>
 
       {/* Invite */}
+            {/* Who is carrying what — derived from real assignments, not a stored number. */}
+      <section className="card mb-4 p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-semibold">Team Workload</h2>
+          {unclaimed > 0 && (
+            <span className="pill bg-amber-500/15 text-amber-400">{unclaimed} unassigned</span>
+          )}
+        </div>
+        {workload.length === 0 ? (
+          <p className="text-sm text-faint">No team members yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {workload.map((w) => (
+              <div key={w.member.user_id} className="flex items-center gap-3 rounded-lg bg-surface-2 p-3">
+                <AssigneeAvatar member={w.member} size="md" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {w.member.name}
+                    {w.member.is_me && <span className="text-faint"> (you)</span>}
+                  </p>
+                  <p className="truncate text-xs text-faint capitalize">{w.member.role}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-4 text-xs">
+                  <span className="text-center">
+                    <span className="block text-base font-semibold">{w.open}</span>
+                    <span className="text-faint">open</span>
+                  </span>
+                  <span className="text-center">
+                    <span className={`block text-base font-semibold ${w.overdue ? "text-red-400" : ""}`}>{w.overdue}</span>
+                    <span className="text-faint">overdue</span>
+                  </span>
+                  <span className="text-center">
+                    <span className={`block text-base font-semibold ${w.urgent ? "text-amber-400" : ""}`}>{w.urgent}</span>
+                    <span className="text-faint">urgent</span>
+                  </span>
+                  <span className="text-center">
+                    <span className="block text-base font-semibold text-emerald-400">{w.completedThisWeek}</span>
+                    <span className="text-faint">done 7d</span>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       <section className="card mb-5 p-5">
         <p className="field-label">Invite a team member</p>
         <p className="mb-3 text-sm text-muted">Send an email invite. They join the shared team workspace as an EA and can see the whole team's work.</p>

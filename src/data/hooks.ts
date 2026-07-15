@@ -1,7 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, Automation, Sop, SopRun, AutomationRun, Reminder } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent } from "@/types/db";
+import type { ClientDoc } from "@/lib/meetingPrep";
+import { addDemoTask, loadDemoTasks, removeDemoTask, updateDemoTask } from "@/store/demoTasks";
+import { loadSnoozes, saveSnooze } from "@/store/demoSnoozes";
+import { loadAssignees, loadDemoTaskEvents, saveAssignee } from "@/store/demoAssignees";
+import { applyDemo, demoCreate, demoDelete, demoId, demoPatch } from "@/store/demoWrites";
 
 // Live Supabase data layer with a read-only seed fallback for demo mode
 // (no creds). owner_id + workspace_id auto-fill via column defaults (migration
@@ -16,6 +21,12 @@ const mapTask = (r: TaskRow): Task => ({
   subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
   recurrence: r.recurrence ?? "none",
   depends_on: r.depends_on ?? null,
+  updated_at: (r as { updated_at?: string | null }).updated_at ?? null,
+  created_at: (r as { created_at?: string | null }).created_at ?? null,
+  completed_at: (r as { completed_at?: string | null }).completed_at ?? null,
+  // Keep the FK, not just the joined name — the timeline needs to match on id.
+  client_id: r.client_id ?? null,
+  assignee_id: (r as { assignee_id?: string | null }).assignee_id ?? null,
   client_name: r.clients?.name ?? "Unassigned",
 });
 
@@ -33,10 +44,19 @@ export function useTasks() {
   return useQuery<Task[]>({
     queryKey: ["tasks"],
     queryFn: async () => {
-      if (!supabase) return seed.TASKS;
+      if (!supabase) {
+        // Demo mode has no DB, so reassignments live in localStorage and are
+        // layered over the seed tasks here.
+        const overrides = loadAssignees();
+        return [...loadDemoTasks(), ...seed.TASKS].map((t) =>
+          t.id in overrides ? { ...t, assignee_id: overrides[t.id] } : t,
+        );
+      }
       const { data, error } = await supabase
         .from("tasks")
-        .select("id,title,due_label,due_at,priority,status,subtasks,recurrence,depends_on,client_id,clients(name)")
+        // `*` rather than an explicit column list: migration 0013 adds updated_at, and
+        // this way the new column flows through the moment it exists.
+        .select("*,clients(name)")
         .order("created_at", { ascending: true });
       if (error) throw error;
       return (data as unknown as TaskRow[]).map(mapTask);
@@ -50,7 +70,7 @@ export function useTaskMutations() {
 
   const setStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
-      if (!supabase) return;
+      if (!supabase) { updateDemoTask(id, { status }); return; }
       const { error } = await supabase.from("tasks").update({ status }).eq("id", id);
       if (error) throw error;
       // Recurring tasks spawn their next instance on completion.
@@ -76,16 +96,37 @@ export function useTaskMutations() {
     onSettled: invalidate,
   });
 
+  // client_id was always a column on `tasks`, but nothing ever set it — so every
+  // task created in the app came out "Unassigned". Voice capture needs it, and so
+  // does the manual form.
   type TaskInput = {
     title: string; priority?: Task["priority"]; due_at?: string | null;
     subtasks?: Task["subtasks"]; recurrence?: Task["recurrence"]; depends_on?: string | null;
+    client_id?: string | null;
+    assignee_id?: string | null;
   };
   const create = useMutation({
     mutationFn: async (input: TaskInput) => {
-      if (!supabase) return;
+      if (!supabase) {
+        addDemoTask({
+          id: `local-${Date.now()}`,
+          title: input.title,
+          client_name: seed.CLIENTS.find((c) => c.id === input.client_id)?.name ?? "Unassigned",
+          due_label: input.due_at ? new Date(`${input.due_at}T12:00:00`).toLocaleDateString("en-GB", { weekday: "long" }) : "",
+          due_at: input.due_at ?? null,
+          priority: input.priority ?? "normal",
+          status: "todo",
+          subtasks: input.subtasks ?? [],
+          recurrence: input.recurrence ?? "none",
+          depends_on: input.depends_on ?? null,
+        });
+        return;
+      }
       const { error } = await supabase.from("tasks").insert({
         title: input.title, priority: input.priority ?? "normal", due_at: input.due_at ?? null, status: "todo",
         subtasks: input.subtasks ?? [], recurrence: input.recurrence ?? "none", depends_on: input.depends_on ?? null,
+        client_id: input.client_id ?? null,
+        assignee_id: input.assignee_id ?? null,
       });
       if (error) throw error;
     },
@@ -94,7 +135,7 @@ export function useTaskMutations() {
 
   const update = useMutation({
     mutationFn: async ({ id, ...fields }: Partial<TaskInput> & { id: string }) => {
-      if (!supabase) return;
+      if (!supabase) { updateDemoTask(id, fields as Partial<Task>); return; }
       const { error } = await supabase.from("tasks").update(fields).eq("id", id);
       if (error) throw error;
     },
@@ -103,7 +144,7 @@ export function useTaskMutations() {
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      if (!supabase) return;
+      if (!supabase) { removeDemoTask(id); return; }
       const { error } = await supabase.from("tasks").delete().eq("id", id);
       if (error) throw error;
     },
@@ -118,7 +159,7 @@ export function useClients() {
   return useQuery<Client[]>({
     queryKey: ["clients"],
     queryFn: async () => {
-      if (!supabase) return seed.CLIENTS;
+      if (!supabase) return applyDemo("clients", seed.CLIENTS);
       const { data, error } = await supabase
         .from("clients")
         .select("*")
@@ -136,7 +177,12 @@ export function useClientMutations() {
 
   const create = useMutation({
     mutationFn: async (input: Partial<Client> & { name: string }) => {
-      if (!supabase) return;
+      if (!supabase) {
+        demoCreate("clients", {
+          id: demoId(), tags: [], active_tasks: [], schedule: [], avatar_url: null, ...input,
+        });
+        return;
+      }
       const { error } = await supabase.from("clients").insert({
         name: input.name, title: input.title, company: input.company,
         preferred_channel: input.preferred_channel, tone: input.tone,
@@ -150,7 +196,7 @@ export function useClientMutations() {
 
   const update = useMutation({
     mutationFn: async ({ id, ...fields }: Partial<Client> & { id: string }) => {
-      if (!supabase) return;
+      if (!supabase) { demoPatch("clients", id, fields); return; }
       const { error } = await supabase.from("clients").update(fields).eq("id", id);
       if (error) throw error;
     },
@@ -159,7 +205,7 @@ export function useClientMutations() {
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      if (!supabase) return;
+      if (!supabase) { demoDelete("clients", id); return; }
       const { error } = await supabase.from("clients").delete().eq("id", id);
       if (error) throw error;
     },
@@ -177,15 +223,42 @@ export function useMeetings() {
       if (!supabase) return seed.MEETINGS;
       const { data, error } = await supabase
         .from("meetings")
-        .select("id,title,status,starts_at,client_id,clients(name)")
+        // `*` so attendee_emails (migration 0014) flows through on migration.
+        .select("*,clients(name)")
         .order("starts_at", { ascending: true });
       if (error) throw error;
       return (data as any[]).map((m) => ({
         id: m.id, title: m.title, status: m.status,
+        starts_at: m.starts_at ?? null,
         time: m.starts_at ? new Date(m.starts_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "",
         with: m.clients?.name ?? "Internal",
+        client_id: m.client_id ?? null,
+        attendee_emails: m.attendee_emails ?? [],
       }));
     },
+  });
+}
+
+// ---------------- client docs ----------------
+// The Vault has no file store, so a client's "documents" are the AI Suite outputs
+// logged against them in ai_generations. Fetched lazily, per client, only when a
+// prep packet opens — there's no need to hold every generation in memory.
+export function useClientDocs(clientId: string | null | undefined) {
+  return useQuery<ClientDoc[]>({
+    queryKey: ["client-docs", clientId],
+    enabled: Boolean(clientId),
+    queryFn: async () => {
+      if (!supabase || !clientId) return [];
+      const { data, error } = await supabase
+        .from("ai_generations")
+        .select("id,tool,format,output,created_at")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return data as ClientDoc[];
+    },
+    retry: false,
   });
 }
 
@@ -194,16 +267,23 @@ export function useMessages() {
   return useQuery<Message[]>({
     queryKey: ["messages"],
     queryFn: async () => {
-      if (!supabase) return seed.MESSAGES;
+      if (!supabase) return applyDemo("messages", seed.MESSAGES);
       const { data, error } = await supabase
         .from("messages")
-        .select("id,sender_name,subject,preview,body,category,received_at,client_id,clients(name,title,company)")
+        .select("*,clients(name,title,company)")
         .order("received_at", { ascending: true });
       if (error) throw error;
       return (data as any[]).map((m) => ({
         id: m.id, sender_name: m.sender_name, subject: m.subject, preview: m.preview, body: m.body,
         category: m.category,
+        received_at: m.received_at ?? null,
         time: m.received_at ? new Date(m.received_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "",
+        thread_id: m.thread_id ?? null,
+        sender_email: m.sender_email ?? null,
+        direction: m.direction ?? "inbound",
+        first_reply_at: m.first_reply_at ?? null,
+        reply_received_at: m.reply_received_at ?? null,
+        client_id: m.client_id ?? null,
         client_name: m.clients?.name,
         client_title: m.clients ? `${m.clients.title}, ${m.clients.company}` : undefined,
       }));
@@ -216,7 +296,7 @@ export function useAutomations() {
   return useQuery<Automation[]>({
     queryKey: ["automations"],
     queryFn: async () => {
-      if (!supabase) return seed.AUTOMATIONS;
+      if (!supabase) return applyDemo("automations", seed.AUTOMATIONS);
       const { data, error } = await supabase
         .from("automations")
         .select("id,name,description,status,total_runs,last_run_at,trigger,action,is_custom")
@@ -236,7 +316,7 @@ export function useAutomationMutations() {
 
   const toggle = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: "active" | "paused" }) => {
-      if (!supabase) return;
+      if (!supabase) { demoPatch("automations", id, { status }); return; }
       const { error } = await supabase.from("automations").update({ status }).eq("id", id);
       if (error) throw error;
     },
@@ -264,7 +344,10 @@ export function useAutomationMutations() {
 
   const create = useMutation({
     mutationFn: async (input: { name: string; description: string; trigger: string; action: string }) => {
-      if (!supabase) return;
+      if (!supabase) {
+        demoCreate("automations", { id: demoId(), ...input, status: "active", is_custom: true, total_runs: 0, last_run: "Never" });
+        return;
+      }
       const { error } = await supabase.from("automations").insert({ ...input, status: "active", is_custom: true, automation_key: "custom" });
       if (error) throw error;
     },
@@ -273,7 +356,7 @@ export function useAutomationMutations() {
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      if (!supabase) return;
+      if (!supabase) { demoDelete("automations", id); return; }
       const { error } = await supabase.from("automations").delete().eq("id", id);
       if (error) throw error;
     },
@@ -304,7 +387,7 @@ export function useMessageMutations() {
   const qc = useQueryClient();
   const setCategory = useMutation({
     mutationFn: async ({ id, category }: { id: string; category: Message["category"] }) => {
-      if (!supabase) return;
+      if (!supabase) { demoPatch("messages", id, { category }); return; }
       const { error } = await supabase.from("messages").update({ category }).eq("id", id);
       if (error) throw error;
     },
@@ -334,7 +417,7 @@ export function useSopRuns() {
   return useQuery<SopRun[]>({
     queryKey: ["sop_runs"],
     queryFn: async () => {
-      if (!supabase) return [];
+      if (!supabase) return applyDemo<SopRun>("sop_runs", []);
       const { data, error } = await supabase
         .from("sop_runs")
         .select("id,sop_id,client_id,checked,status,started_at,completed_at")
@@ -351,7 +434,14 @@ export function useSopMutations() {
 
   const start = useMutation({
     mutationFn: async ({ sop_id, client_id }: { sop_id: string; client_id?: string | null }) => {
-      if (!supabase) return null;
+      if (!supabase) {
+        const run: SopRun = {
+          id: demoId(), sop_id, client_id: client_id ?? null, checked: [],
+          status: "in_progress", started_at: new Date().toISOString(), completed_at: null,
+        };
+        demoCreate("sop_runs", run);
+        return run;
+      }
       const { data, error } = await supabase
         .from("sop_runs")
         .insert({ sop_id, client_id: client_id ?? null, checked: [], status: "in_progress" })
@@ -365,7 +455,7 @@ export function useSopMutations() {
 
   const setChecked = useMutation({
     mutationFn: async ({ id, checked }: { id: string; checked: string[] }) => {
-      if (!supabase) return;
+      if (!supabase) { demoPatch("sop_runs", id, { checked }); return; }
       const { error } = await supabase.from("sop_runs").update({ checked }).eq("id", id);
       if (error) throw error;
     },
@@ -374,7 +464,10 @@ export function useSopMutations() {
 
   const complete = useMutation({
     mutationFn: async (id: string) => {
-      if (!supabase) return;
+      if (!supabase) {
+        demoPatch("sop_runs", id, { status: "completed", completed_at: new Date().toISOString() });
+        return;
+      }
       const { error } = await supabase
         .from("sop_runs")
         .update({ status: "completed", completed_at: new Date().toISOString() })
@@ -392,7 +485,8 @@ export function useReminders() {
   return useQuery<Reminder[]>({
     queryKey: ["reminders"],
     queryFn: async () => {
-      if (!supabase) return [];
+      // Demo mode: reminders created via the bell live in the local write overlay.
+      if (!supabase) return applyDemo<Reminder>("reminders", []);
       const { data, error } = await supabase
         .from("reminders")
         .select("id,label,remind_at,dismissed,task_id")
@@ -410,7 +504,10 @@ export function useReminderMutations() {
   const invalidate = () => qc.invalidateQueries({ queryKey: ["reminders"] });
   const create = useMutation({
     mutationFn: async (input: { label: string; remind_at: string; task_id?: string | null }) => {
-      if (!supabase) return;
+      if (!supabase) {
+        demoCreate("reminders", { id: demoId(), label: input.label, remind_at: input.remind_at, task_id: input.task_id ?? null, dismissed: false });
+        return;
+      }
       const { error } = await supabase.from("reminders").insert({ label: input.label, remind_at: input.remind_at, task_id: input.task_id ?? null });
       if (error) throw error;
     },
@@ -418,7 +515,7 @@ export function useReminderMutations() {
   });
   const dismiss = useMutation({
     mutationFn: async (id: string) => {
-      if (!supabase) return;
+      if (!supabase) { demoDelete("reminders", id); return; }
       const { error } = await supabase.from("reminders").update({ dismissed: true }).eq("id", id);
       if (error) throw error;
     },
@@ -441,11 +538,29 @@ export interface Member {
   is_me: boolean;
 }
 
-const DEMO_MEMBERS: Member[] = [
-  { user_id: "demo-1", role: "admin", name: "You (Admin)", initials: "AD", joined_at: "2026-01-10", open_tasks: 4, clients: 3, is_me: true },
-  { user_id: "demo-2", role: "ea", name: "Bryan Sumait", initials: "BS", joined_at: "2026-03-02", open_tasks: 6, clients: 2, is_me: false },
-  { user_id: "demo-3", role: "ea", name: "Belle Reyes", initials: "BR", joined_at: "2026-04-15", open_tasks: 3, clients: 1, is_me: false },
+// open_tasks / clients used to be hardcoded numbers here — a workload view that
+// looked real and wasn't. They're derived from the demo tasks/clients below, the
+// same way live mode derives them.
+const DEMO_MEMBER_BASE: Omit<Member, "open_tasks" | "clients">[] = [
+  { user_id: "demo-1", role: "admin", name: "You (Admin)", initials: "AD", joined_at: "2026-01-10", is_me: true },
+  { user_id: "demo-2", role: "ea", name: "Bryan Sumait", initials: "BS", joined_at: "2026-03-02", is_me: false },
+  { user_id: "demo-3", role: "ea", name: "Belle Reyes", initials: "BR", joined_at: "2026-04-15", is_me: false },
 ];
+
+function demoMembers(): Member[] {
+  const overrides = loadAssignees();
+  const tasks = [...loadDemoTasks(), ...seed.TASKS].map((t) =>
+    t.id in overrides ? { ...t, assignee_id: overrides[t.id] } : t,
+  );
+  return DEMO_MEMBER_BASE.map((m) => ({
+    ...m,
+    open_tasks: tasks.filter((t) => t.assignee_id === m.user_id && t.status !== "done").length,
+    clients: seed.CLIENTS.filter((c) => c.lead_ea_id === m.user_id).length,
+  }));
+}
+
+/** The signed-in user in demo mode — there is no real auth, so assume the admin. */
+export const DEMO_ME = "demo-1";
 
 // Current user's role. NOTE: this is for UI gating only — the real boundary is
 // Postgres RLS (admins-only writes on memberships, workspace isolation).
@@ -470,7 +585,7 @@ export function useWorkspaceMembers() {
   return useQuery<Member[]>({
     queryKey: ["members"],
     queryFn: async () => {
-      if (!supabase) return DEMO_MEMBERS;
+      if (!supabase) return applyDemo("members", demoMembers(), "user_id");
       const { data: auth } = await supabase.auth.getUser();
       const myId = auth.user?.id ?? "";
       const { data: mem, error } = await supabase
@@ -479,20 +594,22 @@ export function useWorkspaceMembers() {
       const ids = (mem ?? []).map((m) => m.user_id);
       const [profsRes, tasksRes, clientsRes] = await Promise.all([
         supabase.from("profiles").select("id, full_name, initials").in("id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]),
-        supabase.from("tasks").select("owner_id, status"),
-        supabase.from("clients").select("owner_id"),
+        // assignee_id (0015), not owner_id: "open tasks" must mean work on your
+        // plate, not work you happened to create for someone else.
+        supabase.from("tasks").select("*"),
+        supabase.from("clients").select("*"),
       ]);
       const pm = Object.fromEntries((profsRes.data ?? []).map((p) => [p.id, p]));
-      const tasks = tasksRes.data ?? [];
-      const clients = clientsRes.data ?? [];
+      const tasks = (tasksRes.data ?? []) as { assignee_id?: string | null; status: string }[];
+      const clients = (clientsRes.data ?? []) as { lead_ea_id?: string | null; owner_id?: string | null }[];
       return (mem ?? []).map((m) => ({
         user_id: m.user_id,
         role: m.role as MemberRole,
         name: pm[m.user_id]?.full_name ?? "Team member",
         initials: pm[m.user_id]?.initials ?? "EA",
         joined_at: m.created_at,
-        open_tasks: tasks.filter((t) => t.owner_id === m.user_id && t.status !== "done").length,
-        clients: clients.filter((c) => c.owner_id === m.user_id).length,
+        open_tasks: tasks.filter((t) => t.assignee_id === m.user_id && t.status !== "done").length,
+        clients: clients.filter((c) => (c.lead_ea_id ?? c.owner_id) === m.user_id).length,
         is_me: m.user_id === myId,
       }));
     },
@@ -504,7 +621,7 @@ export function useMemberMutations() {
   const invalidate = () => { qc.invalidateQueries({ queryKey: ["members"] }); qc.invalidateQueries({ queryKey: ["my-role"] }); };
   const setRole = useMutation({
     mutationFn: async ({ user_id, role }: { user_id: string; role: MemberRole }) => {
-      if (!supabase) return;
+      if (!supabase) { demoPatch("members", user_id, { role }); return; }
       // .select() so we can tell a real change from a silent RLS no-op (Supabase
       // returns no error when a policy filters the row out and 0 rows change).
       const { data, error } = await supabase.from("memberships").update({ role }).eq("user_id", user_id).select("user_id");
@@ -515,7 +632,7 @@ export function useMemberMutations() {
   });
   const remove = useMutation({
     mutationFn: async ({ user_id }: { user_id: string }) => {
-      if (!supabase) return;
+      if (!supabase) { demoDelete("members", user_id); return; }
       const { data, error } = await supabase.from("memberships").delete().eq("user_id", user_id).select("user_id");
       if (error) throw error;
       if (!data || data.length === 0) throw new Error("Not removed — admin rights required, or the member is in another workspace.");
@@ -540,3 +657,88 @@ export function useInviteMember() {
 }
 
 export { live };
+
+// ---------------- snoozes ----------------
+// Backs the "stop nagging me about this" action. The `snoozes` table arrives with
+// migration 0013; until then (and in demo mode) this falls back to localStorage so
+// the button still works rather than silently doing nothing.
+export function useSnoozes() {
+  return useQuery<Snooze[]>({
+    queryKey: ["snoozes"],
+    queryFn: async () => {
+      if (!supabase) return loadSnoozes();
+      const { data, error } = await supabase.from("snoozes").select("id,item_type,item_id,snooze_until");
+      if (error) return loadSnoozes(); // table not migrated yet
+      return data as Snooze[];
+    },
+    retry: false,
+  });
+}
+
+export function useSnoozeMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["snoozes"] });
+
+  const snooze = useMutation({
+    mutationFn: async ({ item_type, item_id, days }: { item_type: Snooze["item_type"]; item_id: string; days: number }) => {
+      const until = new Date(Date.now() + days * 86_400_000).toISOString();
+      if (!supabase) { saveSnooze(item_type, item_id, until); return; }
+      const { error } = await supabase
+        .from("snoozes")
+        .upsert({ item_type, item_id, snooze_until: until }, { onConflict: "workspace_id,item_type,item_id" });
+      if (error) saveSnooze(item_type, item_id, until); // pre-migration fallback
+    },
+    onSettled: invalidate,
+  });
+
+  return { snooze };
+}
+
+// ---------------- delegation ----------------
+// Reassigning a task. In live mode the trigger from migration 0015 writes the
+// task_events row; here we only change the field. In demo mode there is no DB, so
+// both the assignment and its audit entry are kept in localStorage.
+export function useAssignTask() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      task_id, from, to, actor_id,
+    }: { task_id: string; from: string | null; to: string | null; actor_id: string }) => {
+      if (!supabase) { saveAssignee(task_id, from, to, actor_id); return; }
+      const { error } = await supabase.from("tasks").update({ assignee_id: to }).eq("id", task_id);
+      if (error) throw error;
+    },
+    onMutate: async ({ task_id, to }) => {
+      await qc.cancelQueries({ queryKey: ["tasks"] });
+      const prev = qc.getQueryData<Task[]>(["tasks"]);
+      qc.setQueryData<Task[]>(["tasks"], (ts) =>
+        (ts ?? []).map((t) => (t.id === task_id ? { ...t, assignee_id: to } : t)),
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => ctx?.prev && qc.setQueryData(["tasks"], ctx.prev),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["task_events"] });
+    },
+  });
+}
+
+/** Reassignment history. Feeds the client activity timeline. */
+export function useTaskEvents() {
+  return useQuery<TaskEvent[]>({
+    queryKey: ["task_events"],
+    queryFn: async () => {
+      if (!supabase) return loadDemoTaskEvents();
+      const { data, error } = await supabase
+        .from("task_events")
+        .select("id,task_id,actor_id,from_user_id,to_user_id,created_at")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) return loadDemoTaskEvents(); // table not migrated yet
+      return data as TaskEvent[];
+    },
+    retry: false,
+  });
+}

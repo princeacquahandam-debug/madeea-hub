@@ -5,7 +5,7 @@ import { QuickActionsRail } from "./QuickActionsRail";
 import { AssistantWidget } from "@/components/AssistantWidget";
 import { FloatingSop } from "@/components/FloatingSop";
 import { GuideCard } from "@/components/GuideCard";
-import { CommandPalette } from "@/components/CommandPalette";
+import { CommandCenter } from "@/components/command-center";
 import { GuidedTour } from "@/components/GuidedTour";
 import { useUI } from "@/store/ui";
 
@@ -42,7 +42,7 @@ export function AppShell() {
 
       <AssistantWidget />
       <FloatingSop />
-      <CommandPalette />
+      <CommandCenter />
       <GuidedTour />
     </div>
   );

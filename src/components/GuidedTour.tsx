@@ -9,7 +9,7 @@ const STEPS: Step[] = [
   { title: "Welcome to MadeEA", body: "Your one-stop command center for executive-assistant work. Here's a 30-second tour — skip any time." },
   { selector: '[data-tour="nav"]', needsNav: true, title: "Operations", body: "Run your day from here: Dashboard, Tasks, Clients, SOPs, Communication and Automations." },
   { selector: '[data-tour="ai-suite"]', needsNav: true, title: "AI Suite", body: "Communication Studio and Bookkeeping AI draft emails, reports and invoices — with guided inputs and PDF export." },
-  { selector: '[data-tour="search"]', title: "Search anything — ⌘K", body: "Press Ctrl/⌘-K to instantly jump to any page, client, task or SOP, and pin your favorites." },
+  { selector: '[data-tour="command-center"]', title: "AI Command Center — ⌘K", body: "Press Ctrl/⌘-K (or click Ask AI) to run anything in plain language: create projects and tasks, draft emails, summarize documents, or search your whole workspace." },
   { selector: '[data-tour="assistant"]', title: "AI Assistant", body: "Ask anything — it knows your tasks, clients and the team's SOPs." },
   { title: "You're all set", body: "Each page has a collapsible 'How this works' guide, and you can replay this tour any time from Settings." },
 ];

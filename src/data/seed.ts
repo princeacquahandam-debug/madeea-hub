@@ -1,15 +1,21 @@
 import type { Automation, Client, Meeting, Message, Task, Sop } from "@/types/db";
+import * as demo from "@/data/demo";
 
 // No dummy data. These empty arrays are the read-only fallback used ONLY in
 // demo mode (no Supabase credentials). In live mode every page reads the user's
 // real Supabase data. Real records are created through the app (CRUD) or synced
 // from integrations (Gmail/Calendar) — never seeded.
+//
+// The one exception is a build run with VITE_DEMO=1, used to publish a clickable
+// preview with no Supabase project behind it. Every other build — dev, Vercel,
+// Pages — still gets the empty arrays below.
+const DEMO = import.meta.env.VITE_DEMO === "1";
 
-export const CLIENTS: Client[] = [];
-export const TASKS: Task[] = [];
-export const MESSAGES: Message[] = [];
-export const MEETINGS: Meeting[] = [];
-export const AUTOMATIONS: Automation[] = [];
+export const CLIENTS: Client[] = DEMO ? demo.CLIENTS : [];
+export const TASKS: Task[] = DEMO ? demo.TASKS : [];
+export const MESSAGES: Message[] = DEMO ? demo.MESSAGES : [];
+export const MEETINGS: Meeting[] = DEMO ? demo.MEETINGS : [];
+export const AUTOMATIONS: Automation[] = DEMO ? demo.AUTOMATIONS : [];
 
 // Default SOPs (product templates, not user data) — fallback for demo mode.
 // In live mode these are seeded globally by migration 0007.

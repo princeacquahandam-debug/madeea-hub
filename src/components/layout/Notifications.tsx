@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, AlertCircle, CheckSquare, CalendarClock, Clock, Plus, X } from "lucide-react";
+import { Bell, AlertCircle, CheckSquare, CalendarClock, Clock, Plus, X, BellOff, MailQuestion, Clock3 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useMessages, useTasks, useReminders, useReminderMutations } from "@/data/hooks";
+import { useMessages, useTasks, useReminders, useReminderMutations, useSnoozeMutations } from "@/data/hooks";
+import { useFollowUps } from "@/hooks/useFollowUps";
+import { useFollowUpSettings } from "@/store/followupSettings";
 
-interface Notif { id: string; icon: typeof AlertCircle; title: string; desc: string; path: string }
+interface Notif {
+  id: string; icon: typeof AlertCircle; title: string; desc: string; path: string;
+  /** Present on follow-up nudges: lets you silence it without acting on it. */
+  snooze?: { item_type: "message" | "task"; item_id: string };
+}
 
 const STORE = "madeea-notif-read";
 const loadRead = (): Set<string> => {
@@ -27,6 +33,9 @@ export function Notifications() {
   const { data: tasks = [] } = useTasks();
   const { data: reminders = [] } = useReminders();
   const { create, dismiss } = useReminderMutations();
+  const { flags } = useFollowUps();
+  const { snooze } = useSnoozeMutations();
+  const snoozeDays = useFollowUpSettings((s) => s.config.snoozeDays);
 
   const [adding, setAdding] = useState(false);
   const [label, setLabel] = useState("");
@@ -44,6 +53,17 @@ export function Notifications() {
 
   const items = useMemo<Notif[]>(() => {
     const out: Notif[] = [];
+    // Follow-ups lead: a thread nobody replied to is invisible everywhere else.
+    for (const f of flags) {
+      out.push({
+        id: f.id,
+        icon: f.kind === "dead_thread" ? MailQuestion : Clock3,
+        title: f.kind === "dead_thread" ? "No reply" : "Stale task",
+        desc: `${f.title} · ${f.reason}`,
+        path: f.path,
+        snooze: { item_type: f.itemType, item_id: f.itemId },
+      });
+    }
     for (const m of messages.filter((x) => x.category === "urgent")) {
       out.push({ id: `msg-${m.id}`, icon: AlertCircle, title: "Urgent message", desc: `${m.sender_name} · ${m.subject}`, path: "/communication" });
     }
@@ -59,7 +79,7 @@ export function Notifications() {
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, tasks]);
+  }, [messages, tasks, flags]);
 
   const dueReminders = reminders.filter((r) => new Date(r.remind_at).getTime() <= now);
   const upcoming = reminders.filter((r) => new Date(r.remind_at).getTime() > now);
@@ -109,14 +129,26 @@ export function Notifications() {
               {items.map((n) => {
                 const isUnread = !read.has(n.id);
                 return (
-                  <button key={n.id} onClick={() => pick(n)} className={`flex w-full items-start gap-2 rounded-md px-2 py-2 text-left hover:bg-surface-2 ${isUnread ? "" : "opacity-60"}`}>
-                    <n.icon size={15} className={`mt-0.5 shrink-0 ${isUnread ? "text-accent" : "text-faint"}`} />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium">{n.title}</span>
-                      <span className="block truncate text-xs text-faint">{n.desc}</span>
-                    </span>
-                    {isUnread && <span className="ml-auto mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
-                  </button>
+                  <div key={n.id} className={`group flex items-start gap-2 rounded-md px-2 py-2 hover:bg-surface-2 ${isUnread ? "" : "opacity-60"}`}>
+                    <button onClick={() => pick(n)} className="flex min-w-0 flex-1 items-start gap-2 text-left">
+                      <n.icon size={15} className={`mt-0.5 shrink-0 ${isUnread ? (n.snooze ? "text-amber-400" : "text-accent") : "text-faint"}`} />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium">{n.title}</span>
+                        <span className="block truncate text-xs text-faint">{n.desc}</span>
+                      </span>
+                    </button>
+                    {n.snooze && (
+                      <button
+                        className="mt-0.5 shrink-0 text-faint hover:text-amber-400"
+                        title={`Snooze ${snoozeDays} days`}
+                        aria-label={`Snooze ${n.title}`}
+                        onClick={() => snooze.mutate({ ...n.snooze!, days: snoozeDays })}
+                      >
+                        <BellOff size={13} />
+                      </button>
+                    )}
+                    {isUnread && !n.snooze && <span className="ml-auto mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
+                  </div>
                 );
               })}
             </>

@@ -1,15 +1,22 @@
 import { useEffect, useState } from "react";
-import { Sparkles, Mail } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { Sparkles, Mail, AlertTriangle, MailQuestion } from "lucide-react";
 import type { Message } from "@/types/db";
 import { Badge, PageHeader } from "@/components/ui";
 import { initials } from "@/lib/utils";
 import { generate } from "@/lib/ai";
-import { useMessages } from "@/data/hooks";
+import { useClients, useMessages } from "@/data/hooks";
+import { useSlaSettings } from "@/store/slaSettings";
+import { dayLength, formatDuration, isBreaching, responseHours, waitingHours } from "@/lib/sla";
+import { useFollowUps } from "@/hooks/useFollowUps";
 
-const TABS = ["All", "Urgent", "Awaiting Reply", "Delegated"] as const;
+const TABS = ["All", "Needs Follow-up", "Urgent", "Awaiting Reply", "Delegated"] as const;
 const categoryLabel: Record<string, string> = { urgent: "Urgent", reply: "Reply", delegate: "Delegate", archive: "Archive" };
+// "Needs Follow-up" is resolved against the flag list, not a field on the message,
+// so it stays in lockstep with the badge count everywhere else.
 const TAB_FILTER: Record<(typeof TABS)[number], (m: Message) => boolean> = {
   All: () => true,
+  "Needs Follow-up": () => true,
   Urgent: (m) => m.category === "urgent",
   "Awaiting Reply": (m) => m.category === "reply",
   Delegated: (m) => m.category === "delegate",
@@ -17,12 +24,32 @@ const TAB_FILTER: Record<(typeof TABS)[number], (m: Message) => boolean> = {
 
 export default function Communication() {
   const { data: messages = [], isLoading } = useMessages();
+  const { data: clients = [] } = useClients();
+  const cfg = useSlaSettings((s) => s.config);
+  const dl = dayLength(cfg);
+  const clientFor = (m: Message) =>
+    clients.find((c) => c.id === m.client_id || c.name === m.client_name) ?? null;
+  const { flags } = useFollowUps();
+  const deadThreads = flags.filter((f) => f.kind === "dead_thread");
   const [tab, setTab] = useState<(typeof TABS)[number]>("All");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Deep link from the client activity timeline: /communication?message=<id>
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    const id = params.get("message");
+    if (!id) return;
+    setSelectedId(id);
+    setTab("All"); // the linked email may not be in the current tab
+    setParams({}, { replace: true });
+  }, [params, setParams]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const list = messages.filter(TAB_FILTER[tab]);
+  const deadIds = new Map(deadThreads.map((f) => [f.itemId, f]));
+  const list =
+    tab === "Needs Follow-up"
+      ? messages.filter((m) => deadIds.has(m.id))
+      : messages.filter(TAB_FILTER[tab]);
   const selected = messages.find((m) => m.id === selectedId) ?? list[0] ?? null;
 
   useEffect(() => { setDraft(""); }, [selectedId]);
@@ -76,6 +103,11 @@ export default function Communication() {
             className={`rounded-lg px-3 py-1.5 text-xs font-medium ${tab === t ? "bg-accent text-white" : "bg-surface-2 text-muted hover:text-zinc-100"}`}
           >
             {t}
+            {t === "Needs Follow-up" && deadThreads.length > 0 && (
+              <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${tab === t ? "bg-white/20" : "bg-amber-500/20 text-amber-400"}`}>
+                {deadThreads.length}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -89,11 +121,20 @@ export default function Communication() {
           <div className="card p-3">
             <p className="px-2 pb-2 text-xs text-faint">{list.length} messages</p>
             <div className="space-y-1">
-              {list.map((m) => (
+              {list.map((m) => {
+                const late = isBreaching(m, clientFor(m), cfg);
+                const waiting = waitingHours(m, cfg);
+                // Only an UNANSWERED breach is actionable — that's what gets the alarm
+                // styling. An answered-but-late thread is history: worth recording, but
+                // flagging it red implies work that no longer exists.
+                const breached = late && waiting !== null;
+                const missed = late && waiting === null;
+                const answeredIn = responseHours(m, cfg);
+                return (
                 <button
                   key={m.id}
                   onClick={() => setSelectedId(m.id)}
-                  className={`flex w-full gap-3 rounded-lg p-3 text-left transition-colors ${selected?.id === m.id ? "bg-surface-2" : "hover:bg-surface-2"}`}
+                  className={`flex w-full gap-3 rounded-lg p-3 text-left transition-colors ${selected?.id === m.id ? "bg-surface-2" : "hover:bg-surface-2"} ${breached ? "border border-red-500/40 bg-red-500/5" : ""}`}
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/20 text-xs font-semibold text-accent-soft">
                     {initials(m.sender_name)}
@@ -105,11 +146,38 @@ export default function Communication() {
                     </div>
                     <p className="truncate text-sm">{m.subject}</p>
                     <p className="truncate text-xs text-faint">{m.preview}</p>
-                    <div className="mt-1"><Badge tone={m.category}>{categoryLabel[m.category]}</Badge></div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {m.direction === "outbound" && (
+                        <span className="pill bg-sky-500/15 text-sky-400">Sent</span>
+                      )}
+                      <Badge tone={m.category}>{categoryLabel[m.category]}</Badge>
+                      {deadIds.has(m.id) && (
+                        <span className="pill bg-amber-500/15 text-amber-400">
+                          <MailQuestion size={11} />
+                          {deadIds.get(m.id)!.reason}
+                        </span>
+                      )}
+                      {breached && (
+                        <span className="pill bg-red-500/15 text-red-400">
+                          <AlertTriangle size={11} />
+                          SLA Breached · waiting {formatDuration(waiting!, dl)}
+                        </span>
+                      )}
+                      {missed && answeredIn !== null && (
+                        <span className="pill bg-zinc-500/15 text-faint">
+                          Missed SLA · replied in {formatDuration(answeredIn, dl)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </button>
-              ))}
-              {list.length === 0 && <p className="py-6 text-center text-xs text-faint">Nothing in this view.</p>}
+                );
+              })}
+              {list.length === 0 && (
+                <p className="py-6 text-center text-xs text-faint">
+                  {tab === "Needs Follow-up" ? "Nothing is waiting on a reply." : "Nothing in this view."}
+                </p>
+              )}
             </div>
           </div>
 
