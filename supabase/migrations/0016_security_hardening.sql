@@ -109,9 +109,13 @@ update storage.buckets
       allowed_mime_types = array['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif']
   where id = 'client-avatars';
 
--- Previous policies checked only bucket_id: any authenticated user could
--- overwrite or delete every avatar, and update had USING with no WITH CHECK
--- (so a row could be mutated out of the bucket entirely).
+-- Previous policies checked only bucket_id: ANY authenticated account — member
+-- or not — could overwrite or delete every avatar and upload any file type, and
+-- update had USING with no WITH CHECK (so a row could be mutated out of the
+-- bucket entirely). Honest scope of the fix: the file_size_limit/mime allowlist
+-- above and the WITH CHECK below are the real wins. A workspace MEMBER can still
+-- overwrite any avatar — under the shared-workspace model that is in scope by
+-- design, the same as every other table.
 drop policy if exists "client avatars read" on storage.objects;
 drop policy if exists "client avatars write" on storage.objects;
 drop policy if exists "client avatars update" on storage.objects;

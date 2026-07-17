@@ -33,6 +33,9 @@ function emailFromIdToken(idToken: string | undefined): string | null {
   try {
     const pad = part.replace(/-/g, "+").replace(/_/g, "/");
     const claims = JSON.parse(atob(pad + "=".repeat((4 - (pad.length % 4)) % 4)));
+    // email_verified is the claim this whole check leans on: an unverified
+    // address on a Google account proves nothing about who owns it.
+    if (claims.email_verified !== true) return null;
     return typeof claims.email === "string" ? claims.email.toLowerCase() : null;
   } catch {
     return null;
@@ -75,6 +78,12 @@ Deno.serve(async (req) => {
 
   // Only ever redirect to a known origin; this used to be reflected verbatim.
   const dest = APP_ORIGINS.includes(st.redirect_to ?? "") ? st.redirect_to! : APP_ORIGINS[0];
+  // Without this, an unset APP_ORIGINS sends `Location: undefined/...` and
+  // strands the user *after* their tokens have already been stored.
+  if (!dest) {
+    console.error("APP_ORIGINS is not configured");
+    return new Response("APP_ORIGINS is not configured", { status: 500 });
+  }
 
   const redirectUri = `${SUPABASE_URL}/functions/v1/google-oauth-callback`;
   const tokRes = await fetch("https://oauth2.googleapis.com/token", {

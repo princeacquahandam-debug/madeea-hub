@@ -20,11 +20,12 @@ export function renderMarkdown(markdown: string): string {
 
 /** Strip scripts, event handlers and javascript: URLs from an HTML string. */
 export function sanitizeHtml(html: string): string {
+  // No ADD_ATTR. DOMPurify already allows `rel` by default and deliberately
+  // strips `target` — adding it back would re-permit attacker-authored
+  // <a target="_blank"> with no rel=noopener, which is the opposite of the goal.
+  // marked never emits target, so nothing legitimate needs it.
   return DOMPurify.sanitize(html, {
     USE_PROFILES: { html: true },
-    // target=_blank without rel=noopener hands the new page a window.opener
-    // handle back into this origin.
-    ADD_ATTR: ["target", "rel"],
     FORBID_TAGS: ["style", "form", "input", "button", "iframe", "object", "embed"],
     FORBID_ATTR: ["style", "srcset", "formaction", "onerror", "onload"],
   });

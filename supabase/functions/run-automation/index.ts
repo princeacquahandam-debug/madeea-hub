@@ -47,8 +47,10 @@ Deno.serve(async (req) => {
     if (!u?.user) return json({ error: "unauthorized" }, 401);
 
     // Per-user quota, keyed off auth.uid() server-side.
-    const { data: allowed } = await supa.rpc("check_ai_rate_limit", { p_fn: "run-automation", p_max: 30 });
-    if (allowed === false) {
+    // Fails CLOSED — see the note in generate/index.ts.
+    const { data: allowed, error: rlErr } = await supa.rpc("check_ai_rate_limit", { p_fn: "run-automation", p_max: 30 });
+    if (rlErr) console.error("check_ai_rate_limit failed", rlErr.message);
+    if (allowed !== true) {
       return json({ error: "Rate limit reached — please try again in a little while." }, 429);
     }
 

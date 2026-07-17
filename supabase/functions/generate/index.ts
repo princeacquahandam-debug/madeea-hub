@@ -77,8 +77,13 @@ Deno.serve(async (req) => {
     // Per-user quota. Identity is taken from auth.uid() inside the function, so
     // this cannot be spoofed from the body. Without it, one valid login could
     // loop this endpoint and drain the OpenAI budget.
-    const { data: allowed } = await authClient.rpc("check_ai_rate_limit", { p_fn: "generate", p_max: 40 });
-    if (allowed === false) {
+    // Fails CLOSED: `allowed !== true` also catches an RPC error or a null,
+    // which is what you get if 0016 hasn't been applied yet. Checking only for
+    // `=== false` would let every request through whenever the limiter itself is
+    // broken — i.e. exactly when it's needed. Deploy the migration before this.
+    const { data: allowed, error: rlErr } = await authClient.rpc("check_ai_rate_limit", { p_fn: "generate", p_max: 40 });
+    if (rlErr) console.error("check_ai_rate_limit failed", rlErr.message);
+    if (allowed !== true) {
       return json({ error: "Rate limit reached — please try again in a little while." }, 429);
     }
 

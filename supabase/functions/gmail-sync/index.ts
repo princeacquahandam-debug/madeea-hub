@@ -45,7 +45,18 @@ Deno.serve(async (req) => {
     const { data: u } = await supa.auth.getUser();
     if (!u?.user) return json({ error: "unauthorized" }, 401);
 
-    const { data: cred } = await supa.from("google_credentials").select("refresh_token").eq("owner_id", u.user.id).maybeSingle();
+    // Service role for this read only: 0016 revokes refresh_token from the
+    // `authenticated` role so the browser can never read it, which also means
+    // the caller's own token can't. owner_id is pinned to the JWT-verified user
+    // above, so this reads exactly one row — the caller's — and never anyone
+    // else's. Everything below still runs through the caller's RLS-scoped client.
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { data: cred, error: credErr } = await admin
+      .from("google_credentials").select("refresh_token").eq("owner_id", u.user.id).maybeSingle();
+    if (credErr) {
+      console.error("google_credentials read failed", credErr.message);
+      return json({ error: "Could not read the Google connection." }, 500);
+    }
     if (!cred?.refresh_token) return json({ error: "Google not connected" }, 400);
     const token = await accessToken(cred.refresh_token);
 

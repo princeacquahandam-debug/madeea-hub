@@ -13,7 +13,7 @@
 //  - The invite is recorded in the `invites` table (service-role only), which is
 //    what handle_new_user consults. It used to be passed as signup metadata, but
 //    that field is client-controlled on the public /auth/v1/signup endpoint, so
-//    anyone who knew a workspace UUID could self-join. See 0013.
+//    anyone who knew a workspace UUID could self-join. See 0016.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -58,6 +58,14 @@ Deno.serve(async (req) => {
     // hardcoded to 'ea' — it is deliberately not accepted from the body, so an
     // invite can never mint an admin.
     const admin = createClient(URL, SERVICE);
+
+    // An already-accepted invite is what keeps an existing member in the
+    // workspace. Re-inviting must not overwrite it: resetting accepted_at and
+    // then rolling back on "email already exists" would delete their seat.
+    const { data: existing } = await admin
+      .from("invites").select("accepted_at").eq("email", addr).maybeSingle();
+    if (existing?.accepted_at) return json({ error: "That person is already a member." }, 409);
+
     const { error: invErr } = await admin.from("invites").upsert(
       {
         email: addr,
@@ -74,8 +82,9 @@ Deno.serve(async (req) => {
 
     const { error } = await admin.auth.admin.inviteUserByEmail(addr);
     if (error) {
-      // Don't leave a redeemable invite behind if the email never went out.
-      await admin.from("invites").delete().eq("email", addr).is("accepted_at", null);
+      // Only clean up an invite this call created. A pending invite that already
+      // existed is someone else's in-flight invite — leave it alone.
+      if (!existing) await admin.from("invites").delete().eq("email", addr).is("accepted_at", null);
       return json({ error: error.message }, 400);
     }
 

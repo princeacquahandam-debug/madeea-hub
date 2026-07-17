@@ -16,7 +16,7 @@ export default function Integrations() {
     queryFn: async () => {
       if (!supabase) return false;
       // owner_id only: the browser is granted just the non-secret columns of
-      // google_credentials (see 0013), so "*" would be rejected.
+      // google_credentials (see 0016), so "*" would be rejected.
       const { count } = await supabase.from("google_credentials").select("owner_id", { count: "exact", head: true });
       return (count ?? 0) > 0;
     },
