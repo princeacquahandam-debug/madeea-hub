@@ -9,6 +9,12 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    // Vite otherwise injects an inline module-preload polyfill, which the strict
+    // script-src in vercel.json ('self', no 'unsafe-inline') would block. Every
+    // browser in our support range handles modulepreload natively.
+    modulePreload: { polyfill: false },
+  },
   server: {
     port: 5173,
   },

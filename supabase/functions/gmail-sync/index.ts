@@ -22,7 +22,11 @@ async function accessToken(refresh: string): Promise<string> {
     }),
   });
   const t = await r.json();
-  if (!r.ok) throw new Error(`token refresh failed: ${JSON.stringify(t)}`);
+  // Log the provider's detail; don't return it to the browser.
+  if (!r.ok) {
+    console.error("google token refresh failed", r.status, JSON.stringify(t));
+    throw new Error("Google connection expired — please reconnect in Integrations.");
+  }
   return t.access_token;
 }
 

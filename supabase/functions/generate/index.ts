@@ -20,12 +20,20 @@ async function complete(messages: LlmMessage[], model: keyof typeof MODELS = "pr
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
-    body: JSON.stringify({ model: MODELS[model], messages, temperature: 0.6 }),
+    body: JSON.stringify({ model: MODELS[model], messages, temperature: 0.6, max_tokens: 2000 }),
   });
-  if (!res.ok) throw new Error(`OpenAI error ${res.status}: ${await res.text()}`);
+  // Log upstream detail, don't return it — the catch below sends the message to
+  // the browser, and OpenAI's error bodies echo request internals.
+  if (!res.ok) {
+    console.error("openai error", res.status, await res.text());
+    throw new Error("The writing engine is unavailable right now. Please try again.");
+  }
   const data = await res.json();
   return data.choices?.[0]?.message?.content ?? "";
 }
+
+// Cap the prompt so one request can't burn an unbounded number of tokens.
+const MAX_INPUT_CHARS = 12_000;
 
 const BASE =
   "You are MadeEA, an elite executive-assistant writing engine. Write in clear British English. " +
@@ -66,12 +74,23 @@ Deno.serve(async (req) => {
     const { data: authed } = await authClient.auth.getUser();
     if (!authed?.user) return json({ error: "unauthorized" }, 401);
 
+    // Per-user quota. Identity is taken from auth.uid() inside the function, so
+    // this cannot be spoofed from the body. Without it, one valid login could
+    // loop this endpoint and drain the OpenAI budget.
+    const { data: allowed } = await authClient.rpc("check_ai_rate_limit", { p_fn: "generate", p_max: 40 });
+    if (allowed === false) {
+      return json({ error: "Rate limit reached — please try again in a little while." }, 429);
+    }
+
     const { tool, format, inputs = {}, client_id = null } = await req.json();
     if (!tool || !format) return json({ error: "tool and format are required" }, 400);
 
+    const prompt = userFor(String(format), inputs);
+    if (prompt.length > MAX_INPUT_CHARS) return json({ error: "Input is too long." }, 413);
+
     const output = await complete([
       { role: "system", content: systemFor(tool, format) },
-      { role: "user", content: userFor(format, inputs) },
+      { role: "user", content: prompt },
     ]);
 
     // Best-effort history log (SUPABASE_URL / SUPABASE_ANON_KEY are auto-injected by the platform).

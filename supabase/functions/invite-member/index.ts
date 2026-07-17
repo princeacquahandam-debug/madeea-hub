@@ -10,6 +10,10 @@
 //  - The workspace_id attached to the invite is read server-side from the
 //    caller's membership, so a client cannot inject another workspace.
 //  - The service-role key lives only in the function env, never in the browser.
+//  - The invite is recorded in the `invites` table (service-role only), which is
+//    what handle_new_user consults. It used to be passed as signup metadata, but
+//    that field is client-controlled on the public /auth/v1/signup endpoint, so
+//    anyone who knew a workspace UUID could self-join. See 0013.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -49,13 +53,31 @@ Deno.serve(async (req) => {
     const addr = String(email ?? "").trim().toLowerCase();
     if (!EMAIL_RE.test(addr)) return json({ error: "a valid email is required" }, 400);
 
-    // Service role: send the invite, stamping the caller's workspace so the
-    // handle_new_user trigger joins them as an EA.
+    // Service role: record the invite server-side, then send it. handle_new_user
+    // reads this row (never the signup metadata) to decide membership. Role is
+    // hardcoded to 'ea' — it is deliberately not accepted from the body, so an
+    // invite can never mint an admin.
     const admin = createClient(URL, SERVICE);
-    const { error } = await admin.auth.admin.inviteUserByEmail(addr, {
-      data: { workspace_id: me.workspace_id },
-    });
-    if (error) return json({ error: error.message }, 400);
+    const { error: invErr } = await admin.from("invites").upsert(
+      {
+        email: addr,
+        workspace_id: me.workspace_id,
+        role: "ea",
+        invited_by: authed.user.id,
+        created_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        accepted_at: null,
+      },
+      { onConflict: "email" },
+    );
+    if (invErr) return json({ error: invErr.message }, 400);
+
+    const { error } = await admin.auth.admin.inviteUserByEmail(addr);
+    if (error) {
+      // Don't leave a redeemable invite behind if the email never went out.
+      await admin.from("invites").delete().eq("email", addr).is("accepted_at", null);
+      return json({ error: error.message }, 400);
+    }
 
     return json({ ok: true, email: addr });
   } catch (e) {

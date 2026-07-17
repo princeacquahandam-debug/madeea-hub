@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
-import { marked } from "marked";
 import { Copy, Check, FileDown } from "lucide-react";
 import { exportToPdf } from "@/lib/exportPdf";
+import { renderMarkdown } from "@/lib/sanitize";
 
 type View = "formatted" | "markdown" | "html";
 
 export function OutputViewer({ output, title }: { output: string; title: string }) {
   const [view, setView] = useState<View>("formatted");
   const [copied, setCopied] = useState(false);
-  const html = useMemo(() => marked.parse(output, { async: false }) as string, [output]);
+  const html = useMemo(() => renderMarkdown(output), [output]);
 
   function copy() {
     navigator.clipboard.writeText(view === "html" ? html : output);

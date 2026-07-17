@@ -1,12 +1,12 @@
 /**
  * ResultCard — renders a resolved ToolResult by kind (text, created, navigate,
  * search, entity, error). Text output reuses the app's markdown pipeline
- * (marked + .md-body) so AI answers match the Communication Studio styling.
+ * (renderMarkdown + .md-body) so AI answers match the Communication Studio styling.
  */
 import { useMemo, useState } from "react";
-import { marked } from "marked";
 import { Copy, Check, ArrowUpRight, CheckCircle2, AlertTriangle } from "lucide-react";
 import { ENTITY_META } from "./entityMeta";
+import { renderMarkdown } from "@/lib/sanitize";
 import type { ToolResult } from "@/lib/command-center/types";
 
 export function ResultCard({ result, onNavigate }: { result: ToolResult; onNavigate: (path: string) => void }) {
@@ -77,7 +77,7 @@ export function ResultCard({ result, onNavigate }: { result: ToolResult; onNavig
 
 function TextResult({ title, markdown }: { title?: string; markdown: string }) {
   const [copied, setCopied] = useState(false);
-  const html = useMemo(() => marked.parse(markdown, { async: false }) as string, [markdown]);
+  const html = useMemo(() => renderMarkdown(markdown), [markdown]);
   const copy = () => {
     navigator.clipboard?.writeText(markdown);
     setCopied(true);

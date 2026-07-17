@@ -15,7 +15,9 @@ export default function Integrations() {
     queryKey: ["google-connected"],
     queryFn: async () => {
       if (!supabase) return false;
-      const { count } = await supabase.from("google_credentials").select("*", { count: "exact", head: true });
+      // owner_id only: the browser is granted just the non-secret columns of
+      // google_credentials (see 0013), so "*" would be rejected.
+      const { count } = await supabase.from("google_credentials").select("owner_id", { count: "exact", head: true });
       return (count ?? 0) > 0;
     },
   });
@@ -46,6 +48,17 @@ export default function Integrations() {
       params.delete("connected");
       setParams(params, { replace: true });
       refetch().then(() => sync());
+      return;
+    }
+    const oauthErr = params.get("error");
+    if (oauthErr) {
+      params.delete("error");
+      setParams(params, { replace: true });
+      setNote(
+        oauthErr === "google_mismatch"
+          ? "That Google account doesn't match your MadeEA sign-in email. Connect the Google account you log in with."
+          : "Google connection failed. Please try again.",
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
