@@ -1,0 +1,5 @@
+{
+  // Required for supabase/functions to type-check correctly. Without it, the
+  // Edge Functions show phantom "Cannot find name 'Deno'" errors.
+  "recommendations": ["denoland.vscode-deno"]
+}

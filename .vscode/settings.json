@@ -1,0 +1,10 @@
+{
+  // supabase/functions run on Deno, not Node: `Deno` is a global there and
+  // `https://` imports resolve natively. Without this, VS Code type-checks them
+  // with the app's browser/Node settings and reports errors that are not real —
+  // tsconfig.json only includes "src", so the build never sees these files.
+  // Scoped with enablePaths so the Vite app keeps using the normal TS server.
+  "deno.enablePaths": ["supabase/functions"],
+  "deno.lint": true,
+  "deno.unstable": false
+}
