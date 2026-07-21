@@ -9,6 +9,10 @@ import {
   Calculator,
   Plug,
   ClipboardCheck,
+  GraduationCap,
+  TrendingUp,
+  Trophy,
+  Plane,
   type LucideIcon,
 } from "lucide-react";
 
@@ -16,7 +20,7 @@ export interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
-  group: "Operations" | "AI Suite";
+  group: "Operations" | "AI Suite" | "Second Brain";
   badge?: string;
 }
 
@@ -31,6 +35,11 @@ export const NAV: NavItem[] = [
   { to: "/integrations", label: "Integrations", icon: Plug, group: "Operations" },
   { to: "/studio", label: "Communication Studio", icon: PenLine, group: "AI Suite", badge: "Claude" },
   { to: "/bookkeeping", label: "Bookkeeping AI", icon: Calculator, group: "AI Suite", badge: "Claude" },
+  // Second Brain — helpers that read the workspace's own data rather than a form.
+  { to: "/homework", label: "Homework Helper", icon: GraduationCap, group: "Second Brain" },
+  { to: "/investor-update", label: "Investor-Update Helper", icon: TrendingUp, group: "Second Brain" },
+  { to: "/scoreboard", label: "Scoreboard Helper", icon: Trophy, group: "Second Brain" },
+  { to: "/travel", label: "Travel Helper", icon: Plane, group: "Second Brain" },
 ];
 
 export const QUICK_RAIL = [

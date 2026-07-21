@@ -1,7 +1,22 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
+/**
+ * The Second Brain tools (homework/scoreboard/investor_update/travel) send facts
+ * this app already computed, not free-form user prose. The Edge Function has a
+ * matching system prompt for each; if it hasn't been redeployed yet, its generic
+ * fallback branch still produces something sensible rather than erroring.
+ */
+export type GenerateTool =
+  | "quick_action"
+  | "studio"
+  | "bookkeeping"
+  | "homework"
+  | "scoreboard"
+  | "investor_update"
+  | "travel";
+
 export interface GeneratePayload {
-  tool: "quick_action" | "studio" | "bookkeeping";
+  tool: GenerateTool;
   format: string;
   inputs: Record<string, string>;
 }

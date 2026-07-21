@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useAuth();
   const { data: role } = useMyRole();
-  const groups = ["Operations", "AI Suite"] as const;
+  const groups = ["Operations", "AI Suite", "Second Brain"] as const;
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-border bg-surface">
@@ -18,8 +18,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 space-y-6">
+        {/* Distinct tour anchors per group — two groups sharing one data-tour value
+            would make the guided tour highlight whichever it found first. */}
         {groups.map((group) => (
-          <div key={group} data-tour={group === "Operations" ? "nav" : "ai-suite"}>
+          <div key={group} data-tour={group === "Operations" ? "nav" : group === "AI Suite" ? "ai-suite" : "second-brain"}>
             <p className="eyebrow px-3 mb-2">{group}</p>
             <div className="space-y-0.5">
               {NAV.filter((n) => n.group === group).map((item) => (

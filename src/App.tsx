@@ -17,6 +17,10 @@ import BookkeepingAI from "@/pages/BookkeepingAI";
 import Settings from "@/pages/Settings";
 import Admin from "@/pages/Admin";
 import Changelog from "@/pages/Changelog";
+import Homework from "@/pages/Homework";
+import InvestorUpdate from "@/pages/InvestorUpdate";
+import Scoreboard from "@/pages/Scoreboard";
+import Travel from "@/pages/Travel";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +44,11 @@ function Gate() {
         <Route path="/integrations" element={<Integrations />} />
         <Route path="/studio" element={<CommunicationStudio />} />
         <Route path="/bookkeeping" element={<BookkeepingAI />} />
+        {/* Second Brain */}
+        <Route path="/homework" element={<Homework />} />
+        <Route path="/investor-update" element={<InvestorUpdate />} />
+        <Route path="/scoreboard" element={<Scoreboard />} />
+        <Route path="/travel" element={<Travel />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/changelog" element={<Changelog />} />

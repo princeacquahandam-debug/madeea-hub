@@ -88,4 +88,40 @@ export const GUIDES: Record<string, Guide> = {
       "Export the finished document to a branded PDF.",
     ],
   },
+  "/homework": {
+    title: "How the Homework Helper works",
+    points: [
+      "Everything you owe before a fixed deadline — built from meetings with a start time and tasks with a due date.",
+      "Different from Follow-ups: that's work that went quiet, this is work not started yet.",
+      "“Brief me” writes a short 'where to start' summary from the list, nothing more.",
+      "A meeting or task with no date on it produces nothing here — it isn't guessed at.",
+    ],
+  },
+  "/investor-update": {
+    title: "How the Investor-Update Helper works",
+    points: [
+      "The right panel shows every fact the draft is allowed to use — read it before you generate.",
+      "The app can't see your finances, so type headline metrics yourself; blanks are omitted, never invented.",
+      "Risks and blockers are pulled from your data and included by default — an update with no lowlights reads as evasive.",
+      "The draft is a starting point. Check every figure before it leaves your outbox.",
+    ],
+  },
+  "/scoreboard": {
+    title: "How the Scoreboard Helper works",
+    points: [
+      "Real performance over a period, compared against the period before it.",
+      "“—” means no data, not zero. A missing average is never shown as 0h.",
+      "Point-in-time numbers (open, overdue, waiting) show no comparison — last week's backlog can't be reconstructed.",
+      "Read the amber caveat box first; it says what the numbers can't see.",
+    ],
+  },
+  "/travel": {
+    title: "How the Travel Helper works",
+    points: [
+      "Enter each flight with its local times and both timezones — durations, layovers and clock changes are calculated for you.",
+      "Warnings flag impossible connections, tight layovers, late arrivals and passports inside the six-month rule.",
+      "“Add all to Tasks” turns the checklist into real tasks with due dates counted back from departure.",
+      "The AI writes the document but does no maths — it copies the calculated times exactly.",
+    ],
+  },
 };
