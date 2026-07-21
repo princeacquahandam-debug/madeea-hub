@@ -71,6 +71,32 @@ function systemFor(tool: string, format: string): string {
     return `${BASE} ${FACTS_ONLY} You are producing a travel itinerary document for an executive. ` +
       "All times, durations, layovers and timezone shifts are already calculated — copy them verbatim; do not convert timezones yourself. " +
       "Lead with the leave-home-by time. Include a 'Watch out' section reproducing every issue listed. End with the preparation checklist.";
+  if (tool === "email_reply")
+    return `${BASE} ${FACTS_ONLY} You are drafting ONE email reply for an executive assistant to send. ` +
+      "Match the stated tone and the client's recorded preferences. Follow the timing instruction exactly — if it says not to mention timing, do not mention it at all. " +
+      "Use the thread history to avoid repeating what was already said or contradicting a commitment already made. " +
+      "Respect the requested length. Return only the email body plus a subject line — no commentary, no options, no placeholders beyond [TBC].";
+  if (tool === "meeting_followup")
+    return `${BASE} ${FACTS_ONLY} You are writing a post-meeting recap message. ` +
+      "The agreed actions are supplied and are FINAL — reproduce them exactly, with their owners and dates. " +
+      "Do NOT infer, add or reword additional commitments from the raw notes; anything not in the agreed list was deliberately excluded by the EA. " +
+      "Structure: one-line summary, what was decided, agreed actions with owners and dates, anything still open.";
+  if (tool === "focus")
+    return `${BASE} ${FACTS_ONLY} You are planning an EA's next hour from an already-ranked list. ` +
+      "The ranking and its scores were computed by the application — do not re-order on your own judgement, and do not invent work that is not listed. " +
+      "Give a realistic sequence for roughly one hour, say what to skip, and name any blocked item worth clearing first. Maximum 180 words.";
+  if (tool === "briefing")
+    return `${BASE} ${FACTS_ONLY} You are reading an EA their morning briefing. ` +
+      "Cover, in this order: what's in the diary, what to do first, who is waiting, anything owed today. " +
+      "Where a data gap is listed, say the section is empty because the data is missing — do NOT present it as 'nothing to do'. " +
+      "Conversational but efficient. Maximum 220 words.";
+  if (tool === "decision")
+    return `${BASE} ${FACTS_ONLY} You are writing a DECISION RECORD, not a recommendation. ` +
+      "This is the hard rule: do NOT state which option should be chosen, and do not imply one with loaded language. " +
+      "The human decides; you document. Report what was weighed, how the options scored, how big the margin was, " +
+      "and — most importantly — what would change the answer. If the input says it is too close to call, say so plainly and " +
+      "state that the numbers do not settle it. Structure: the question, the options considered, how they were weighed, " +
+      "where the numbers landed, what would flip it, what remains a judgement call.";
   return `${BASE} Action: "${format}". Produce the most useful one-shot output for an EA serving senior executives.`;
 }
 

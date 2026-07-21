@@ -170,7 +170,11 @@ export interface Reminder {
 
 export interface Generation {
   id: string;
-  tool: "quick_action" | "studio" | "bookkeeping" | "homework" | "scoreboard" | "investor_update" | "travel";
+  tool:
+    | "quick_action" | "studio" | "bookkeeping"
+    | "homework" | "scoreboard" | "investor_update" | "travel"
+    | "email_reply" | "meeting_followup" | "focus"
+    | "briefing" | "decision";
   format: string;
   client_name?: string;
   inputs: Record<string, string>;

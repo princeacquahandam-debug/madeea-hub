@@ -13,7 +13,12 @@ export type GenerateTool =
   | "homework"
   | "scoreboard"
   | "investor_update"
-  | "travel";
+  | "travel"
+  | "email_reply"
+  | "meeting_followup"
+  | "focus"
+  | "briefing"
+  | "decision";
 
 export interface GeneratePayload {
   tool: GenerateTool;

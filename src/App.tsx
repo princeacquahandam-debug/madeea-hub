@@ -17,6 +17,13 @@ import BookkeepingAI from "@/pages/BookkeepingAI";
 import Settings from "@/pages/Settings";
 import Admin from "@/pages/Admin";
 import Changelog from "@/pages/Changelog";
+import EmailHelper from "@/pages/EmailHelper";
+import MeetingHelper from "@/pages/MeetingHelper";
+import Focus from "@/pages/Focus";
+import VoiceNotes from "@/pages/VoiceNotes";
+import DailyBriefing from "@/pages/DailyBriefing";
+import MemoryHelper from "@/pages/MemoryHelper";
+import DecisionHelper from "@/pages/DecisionHelper";
 import Homework from "@/pages/Homework";
 import InvestorUpdate from "@/pages/InvestorUpdate";
 import Scoreboard from "@/pages/Scoreboard";
@@ -44,7 +51,14 @@ function Gate() {
         <Route path="/integrations" element={<Integrations />} />
         <Route path="/studio" element={<CommunicationStudio />} />
         <Route path="/bookkeeping" element={<BookkeepingAI />} />
+        <Route path="/email-helper" element={<EmailHelper />} />
+        <Route path="/meeting-helper" element={<MeetingHelper />} />
+        <Route path="/focus" element={<Focus />} />
         {/* Second Brain */}
+        <Route path="/voice-notes" element={<VoiceNotes />} />
+        <Route path="/briefing" element={<DailyBriefing />} />
+        <Route path="/memory" element={<MemoryHelper />} />
+        <Route path="/decision" element={<DecisionHelper />} />
         <Route path="/homework" element={<Homework />} />
         <Route path="/investor-update" element={<InvestorUpdate />} />
         <Route path="/scoreboard" element={<Scoreboard />} />

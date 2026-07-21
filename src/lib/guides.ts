@@ -88,6 +88,69 @@ export const GUIDES: Record<string, Guide> = {
       "Export the finished document to a branded PDF.",
     ],
   },
+  "/email-helper": {
+    title: "How the Email Helper works",
+    points: [
+      "Pick a message and the panel shows what the draft will know — the client's tone, the thread so far, and what you owe them.",
+      "It also knows whether you're late, and adjusts the opening: no mention when you're on time, a real apology when you've breached.",
+      "“What should this do?” changes the whole email — declining reads nothing like chasing.",
+      "This is the Communication Center's draft with the client context added. Use that page for triage, this one to write.",
+    ],
+  },
+  "/meeting-helper": {
+    title: "How the Meeting Helper works",
+    points: [
+      "Before: open a prep packet for anything coming up — the same packet as on the Dashboard.",
+      "After: paste your notes and action items appear, extracted in code, not by the AI.",
+      "Dates come from your own wording (“by Friday”), so they can't be silently wrong. Edit anything before creating.",
+      "“Create tasks” writes the ticked items into the Task Manager. The AI only writes the recap prose.",
+    ],
+  },
+  "/focus": {
+    title: "How the Focus Helper works",
+    points: [
+      "One ranked list across tasks and unanswered mail, so you don't have to compare three pages.",
+      "Click “why?” on any row to see exactly which factors produced its score — you can disagree with it.",
+      "Blocked work is ranked down but still shown, with the blocker named; clearing it is often the real job.",
+      "Work with no due date, priority or waiting time isn't ranked at all rather than given a made-up position.",
+    ],
+  },
+  "/voice-notes": {
+    title: "How the Voice-Note Helper works",
+    points: [
+      "Hit record and speak naturally — “remind me to send Priya the board pack by Friday, it's urgent”.",
+      "Dates are worked out on your device from today's real date, not guessed by the AI.",
+      "One note can become a task or something the desk remembers — you choose after reading it back.",
+      "Nothing is saved until you press the button. Anything the parser overrode is shown in amber.",
+    ],
+  },
+  "/briefing": {
+    title: "How the Daily Briefing works",
+    points: [
+      "Your day in one place — diary, what to do first, who's waiting, what's owed today.",
+      "Every section is composed from the same maths as the page it came from, so nothing disagrees.",
+      "“Since your last briefing” compares against your previous visit, not this one.",
+      "If a section is empty because data is missing rather than because there's nothing to do, it says so at the bottom.",
+    ],
+  },
+  "/memory": {
+    title: "How the Memory Helper works",
+    points: [
+      "A curated memory: nothing is remembered unless you write it here.",
+      "Recall matches keywords and client, not meaning — “doesn't like early calls” won't be found by searching “scheduling”.",
+      "Entries against a client flow into that client's email drafts automatically, and never into anyone else's.",
+      "Always record where a fact came from. A fact nobody can trace is a fact nobody will act on.",
+    ],
+  },
+  "/decision": {
+    title: "How the Decision Helper works",
+    points: [
+      "You set the options, the criteria and the weights — those are judgements and they stay yours.",
+      "The app only multiplies and sorts. The scoring is visible and editable, never a black box.",
+      "“What would change the answer” is the useful bit: it shows how fragile the ranking is.",
+      "When two options are within 5 points it says the numbers don't decide it — and the AI writes a record, never a recommendation.",
+    ],
+  },
   "/homework": {
     title: "How the Homework Helper works",
     points: [

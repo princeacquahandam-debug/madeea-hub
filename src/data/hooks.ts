@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import * as seed from "@/data/seed";
 import type { Task, TaskStatus, Client, Meeting, Message, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
+import type { MemoryEntry } from "@/lib/memory";
 import { addDemoTask, loadDemoTasks, removeDemoTask, updateDemoTask } from "@/store/demoTasks";
 import { loadSnoozes, saveSnooze } from "@/store/demoSnoozes";
 import { loadAssignees, loadDemoTaskEvents, saveAssignee } from "@/store/demoAssignees";
@@ -692,6 +693,80 @@ export function useSnoozeMutations() {
   });
 
   return { snooze };
+}
+
+// ---------------- memory (Memory Helper) ----------------
+// Table arrives with migration 0017. Until it's applied — and in demo mode — this
+// falls back to the local write overlay, the same way reminders and snoozes do, so
+// the page works rather than showing an error nobody can act on.
+export function useMemories() {
+  return useQuery<MemoryEntry[]>({
+    queryKey: ["memories"],
+    queryFn: async () => {
+      if (!supabase) return applyDemo<MemoryEntry>("memories", []);
+      const { data, error } = await supabase
+        .from("memories")
+        .select("id,kind,client_id,body,source,pinned,created_at")
+        .order("pinned", { ascending: false })
+        .order("created_at", { ascending: false });
+      if (error) return applyDemo<MemoryEntry>("memories", []); // not migrated yet
+      return data as MemoryEntry[];
+    },
+    retry: false,
+  });
+}
+
+export function useMemoryMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["memories"] });
+
+  type MemoryInput = {
+    kind: MemoryEntry["kind"];
+    body: string;
+    client_id?: string | null;
+    source?: string;
+    pinned?: boolean;
+  };
+
+  const create = useMutation({
+    mutationFn: async (input: MemoryInput) => {
+      const row = {
+        kind: input.kind,
+        body: input.body,
+        client_id: input.client_id ?? null,
+        source: input.source ?? "",
+        pinned: input.pinned ?? false,
+      };
+      if (!supabase) {
+        demoCreate("memories", { id: demoId(), created_at: new Date().toISOString(), ...row });
+        return;
+      }
+      const { error } = await supabase.from("memories").insert(row);
+      // Pre-migration: keep the entry locally rather than losing what was typed.
+      if (error) demoCreate("memories", { id: demoId(), created_at: new Date().toISOString(), ...row });
+    },
+    onSettled: invalidate,
+  });
+
+  const update = useMutation({
+    mutationFn: async ({ id, ...fields }: Partial<MemoryInput> & { id: string }) => {
+      if (!supabase) { demoPatch("memories", id, fields); return; }
+      const { error } = await supabase.from("memories").update(fields).eq("id", id);
+      if (error) demoPatch("memories", id, fields);
+    },
+    onSettled: invalidate,
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      if (!supabase) { demoDelete("memories", id); return; }
+      const { error } = await supabase.from("memories").delete().eq("id", id);
+      if (error) demoDelete("memories", id);
+    },
+    onSettled: invalidate,
+  });
+
+  return { create, update, remove };
 }
 
 // ---------------- delegation ----------------

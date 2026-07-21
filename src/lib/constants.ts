@@ -13,6 +13,13 @@ import {
   TrendingUp,
   Trophy,
   Plane,
+  MailCheck,
+  CalendarCheck,
+  Crosshair,
+  Mic,
+  Sunrise,
+  Brain,
+  Scale,
   type LucideIcon,
 } from "lucide-react";
 
@@ -35,7 +42,18 @@ export const NAV: NavItem[] = [
   { to: "/integrations", label: "Integrations", icon: Plug, group: "Operations" },
   { to: "/studio", label: "Communication Studio", icon: PenLine, group: "AI Suite", badge: "Claude" },
   { to: "/bookkeeping", label: "Bookkeeping AI", icon: Calculator, group: "AI Suite", badge: "Claude" },
+  // The three core-service helpers. They live in AI Suite rather than a group of
+  // their own: they're Claude-powered tools like their neighbours here, and each
+  // upgrades an Operations page above rather than replacing it.
+  { to: "/email-helper", label: "Email Helper", icon: MailCheck, group: "AI Suite", badge: "Claude" },
+  { to: "/meeting-helper", label: "Meeting Helper", icon: CalendarCheck, group: "AI Suite", badge: "Claude" },
+  { to: "/focus", label: "Focus Helper", icon: Crosshair, group: "AI Suite" },
   // Second Brain — helpers that read the workspace's own data rather than a form.
+  // Voice-Note first: it's the flagship demo, and the one to land on.
+  { to: "/voice-notes", label: "Voice-Note Helper", icon: Mic, group: "Second Brain" },
+  { to: "/briefing", label: "Daily Briefing Helper", icon: Sunrise, group: "Second Brain" },
+  { to: "/memory", label: "Memory Helper", icon: Brain, group: "Second Brain" },
+  { to: "/decision", label: "Decision Helper", icon: Scale, group: "Second Brain" },
   { to: "/homework", label: "Homework Helper", icon: GraduationCap, group: "Second Brain" },
   { to: "/investor-update", label: "Investor-Update Helper", icon: TrendingUp, group: "Second Brain" },
   { to: "/scoreboard", label: "Scoreboard Helper", icon: Trophy, group: "Second Brain" },
