@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles, Play, Square, Ban, ArrowRight, CheckCircle2, Info } from "lucide-react";
+import { Sparkles, Play, Square, Ban, ArrowRight, CheckCircle2, Info, Compass } from "lucide-react";
 import { Badge, PageHeader } from "@/components/ui";
 import { OutputViewer } from "@/components/OutputViewer";
-import { useClients, useMessages, useTasks } from "@/data/hooks";
+import { useClients, useMeetings, useMemories, useMessages, useTasks } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { generate } from "@/lib/ai";
+import { computeGoalDrift } from "@/lib/goalDrift";
 import {
   FOCUS_DURATIONS,
   focusPromptInputs,
@@ -21,6 +22,8 @@ export default function Focus() {
   const { data: tasks = [] } = useTasks();
   const { data: messages = [] } = useMessages();
   const { data: clients = [] } = useClients();
+  const { data: meetings = [] } = useMeetings();
+  const { data: memories = [] } = useMemories();
   const cfg = useSlaSettings((s) => s.config);
 
   const [showWhy, setShowWhy] = useState<string | null>(null);
@@ -29,6 +32,7 @@ export default function Focus() {
   const [error, setError] = useState("");
 
   const ranked = useMemo(() => rankFocus({ tasks, messages, clients, cfg }), [tasks, messages, clients, cfg]);
+  const drift = useMemo(() => computeGoalDrift({ memories, meetings }, 7), [memories, meetings]);
   const top = useMemo(() => nextUp(ranked, 3), [ranked]);
   const blocked = ranked.filter((i) => i.blockedBy);
 
@@ -121,6 +125,70 @@ export default function Focus() {
             </div>
           )}
         </div>
+      </section>
+
+      {/* ---- goal drift: does the diary match what was said to matter? ---- */}
+      <section className="card mb-5 p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <Compass size={16} className="text-accent-soft" />
+          <h2 className="font-semibold">Goal drift</h2>
+          <span className="ml-auto text-xs text-faint">last {drift.periodDays} days</span>
+        </div>
+
+        {drift.noGoals ? (
+          <div className="rounded-lg bg-surface-2 p-4 text-sm">
+            <p className="font-medium">No goals recorded yet</p>
+            <p className="mt-1 text-xs text-faint">
+              Add what the boss said matters this quarter in the{" "}
+              <button className="text-accent-soft hover:underline" onClick={() => nav("/memory")}>
+                Memory Helper
+              </button>{" "}
+              (kind: Goal), and this will check the diary against them.
+            </p>
+          </div>
+        ) : (
+          <>
+            {drift.headline && (
+              <p
+                className={`mb-3 rounded-lg border p-3 text-sm ${
+                  drift.unconnectedPct !== null && drift.unconnectedPct >= 50
+                    ? "border-amber-500/40 bg-amber-500/5 text-amber-100"
+                    : "border-border bg-surface-2 text-muted"
+                }`}
+              >
+                {drift.headline}
+              </p>
+            )}
+
+            <div className="space-y-2">
+              {drift.goals.map((g) => (
+                <div key={g.id} className="rounded-lg bg-surface-2 p-3">
+                  <div className="flex items-center gap-2">
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium">{g.goal}</p>
+                    <span className={`shrink-0 text-xs tabular-nums ${g.matched === 0 ? "text-red-400" : "text-muted"}`}>
+                      {g.matched} of {drift.totalMeetings}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-bg">
+                    <div
+                      className={g.matched === 0 ? "h-full bg-red-500/60" : "h-full bg-accent"}
+                      style={{ width: `${g.sharePct ?? 0}%` }}
+                    />
+                  </div>
+                  {g.examples.length > 0 && (
+                    <p className="mt-1 truncate text-[11px] text-faint">e.g. {g.examples.join(" · ")}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        <ul className="mt-3 space-y-0.5 text-[11px] leading-snug text-faint">
+          {drift.caveats.map((c, i) => (
+            <li key={i}>• {c}</li>
+          ))}
+        </ul>
       </section>
 
       {error && <div className="card mb-5 border-red-500/40 bg-red-500/5 p-4 text-sm text-red-300">{error}</div>}

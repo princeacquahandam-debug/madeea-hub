@@ -231,6 +231,45 @@ export function decide(options: Option[], criteria: Criterion[], scores: Scores)
   };
 }
 
+/**
+ * The plain verdict, in one sentence.
+ *
+ * This exists to close a real disagreement: the pitch promises the Decision Helper
+ * gives "a suggestion", while this module refuses to let a language model choose.
+ * Both can be true, and the distinction is the whole point:
+ *
+ *   - a recommendation derived from the EA's OWN weights is arithmetic. It is
+ *     reproducible, inspectable, and changes when they change a weight.
+ *   - a recommendation from a language model is an opinion wearing the costume of
+ *     one, and nobody can audit it.
+ *
+ * So the app states the verdict plainly — and never states one it hasn't earned.
+ * When the margin is inside the noise it says so instead of picking, because
+ * dressing a 51/49 as a winner is the failure this whole file exists to avoid.
+ */
+export function verdict(r: DecisionResult): { text: string; decisive: boolean } {
+  if (!r.leader || !r.leader.option.label.trim()) {
+    return { text: "Name at least two options and score them to get a verdict.", decisive: false };
+  }
+  if (!r.runnerUp) {
+    return { text: `Only ${r.leader.option.label} is on the table — there's nothing to compare it against.`, decisive: false };
+  }
+  if (r.tooCloseToCall) {
+    return {
+      text: `Too close to call: ${r.leader.option.label} and ${r.runnerUp.option.label} are within ${r.margin.toFixed(1)} points. On your weights the numbers do not choose between them — this one is judgement.`,
+      decisive: false,
+    };
+  }
+  const fragile = r.sensitivity.find((s) => s.flipsAt !== null);
+  const caveat = fragile
+    ? ` That holds unless “${fragile.label}” matters more to you than you've weighted it.`
+    : " No single weight change overturns that.";
+  return {
+    text: `On your weights, ${r.leader.option.label} comes out ahead of ${r.runnerUp.option.label} by ${r.margin.toFixed(1)} points.${caveat}`,
+    decisive: true,
+  };
+}
+
 export function emptyOption(n: number): Option {
   return { id: `opt-${n}`, label: "", note: "" };
 }

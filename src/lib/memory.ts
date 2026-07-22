@@ -22,7 +22,7 @@
  */
 import type { Client } from "@/types/db";
 
-export type MemoryKind = "preference" | "fact" | "commitment" | "context";
+export type MemoryKind = "preference" | "fact" | "commitment" | "context" | "goal";
 
 export interface MemoryEntry {
   id: string;
@@ -36,13 +36,14 @@ export interface MemoryEntry {
   created_at?: string | null;
 }
 
-export const MEMORY_KINDS: MemoryKind[] = ["preference", "fact", "commitment", "context"];
+export const MEMORY_KINDS: MemoryKind[] = ["preference", "fact", "commitment", "context", "goal"];
 
 export const KIND_LABEL: Record<MemoryKind, string> = {
   preference: "Preference",
   fact: "Fact",
   commitment: "Commitment",
   context: "Context",
+  goal: "Goal",
 };
 
 export const KIND_HELP: Record<MemoryKind, string> = {
@@ -50,6 +51,7 @@ export const KIND_HELP: Record<MemoryKind, string> = {
   fact: "Something true about them or their business.",
   commitment: "Something we promised — surfaces in the daily briefing.",
   context: "Background worth knowing, not directly actionable.",
+  goal: "A stated priority — the Focus Helper checks the diary against these.",
 };
 
 export const KIND_TONE: Record<MemoryKind, string> = {
@@ -57,6 +59,7 @@ export const KIND_TONE: Record<MemoryKind, string> = {
   fact: "normal",
   commitment: "high",
   context: "normal",
+  goal: "urgent",
 };
 
 /** Words too common to carry meaning — matching on these makes everything relevant. */

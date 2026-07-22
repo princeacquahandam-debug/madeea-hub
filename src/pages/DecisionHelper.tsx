@@ -13,6 +13,7 @@ import {
   decisionPromptInputs,
   emptyCriterion,
   emptyOption,
+  verdict,
   type Criterion,
   type Option,
   type Scores,
@@ -62,6 +63,7 @@ export default function DecisionHelper() {
     }
   }
 
+  const theVerdict = verdict(result);
   const flippers = result.sensitivity.filter((s) => s.flipsAt !== null);
 
   return (
@@ -244,6 +246,19 @@ export default function DecisionHelper() {
         <div className="space-y-4">
           <section className="card p-5">
             <h2 className="mb-3 font-semibold">Where the numbers land</h2>
+
+            {/* The verdict, computed from the EA's own weights — never the model's
+                opinion. See verdict() in lib/decision.ts for why that distinction
+                is the whole design. */}
+            <div
+              className={`mb-3 rounded-lg border p-3 text-sm ${
+                theVerdict.decisive
+                  ? "border-accent/40 bg-accent/5 text-zinc-200"
+                  : "border-border bg-surface-2 text-muted"
+              }`}
+            >
+              {theVerdict.text}
+            </div>
 
             {result.tooCloseToCall && (
               <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-100">
