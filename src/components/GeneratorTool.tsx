@@ -86,6 +86,7 @@ export function GeneratorTool({
             {savedForKey.length > 0 && (
               <select
                 className="input py-1 text-xs"
+                aria-label="Load a saved set of inputs"
                 defaultValue=""
                 onChange={(e) => { const p = savedForKey.find((x) => x.id === e.target.value); if (p) setValues(p.inputs); e.target.value = ""; }}
               >
@@ -99,14 +100,19 @@ export function GeneratorTool({
           </div>
 
           <div className="space-y-3">
-            {active.fields.map((field) => (
+            {active.fields.map((field) => {
+              // Stable and unique: field.name is unique within a format, and the
+              // format key keeps ids distinct when the user switches format.
+              const fieldId = `gen-${active.key}-${field.name}`;
+              return (
               <div key={field.name}>
-                <label className="field-label inline-flex items-center gap-1.5">
+                <label className="field-label inline-flex items-center gap-1.5" htmlFor={fieldId}>
                   {field.label}
                   {field.help && <Tooltip text={field.help} />}
                 </label>
                 {field.type === "textarea" ? (
                   <textarea
+                    id={fieldId}
                     className="input min-h-[80px]"
                     placeholder={field.placeholder}
                     value={values[field.name] ?? ""}
@@ -114,6 +120,7 @@ export function GeneratorTool({
                   />
                 ) : field.type === "select" ? (
                   <select
+                    id={fieldId}
                     className="input"
                     value={values[field.name] ?? ""}
                     onChange={(e) => setValues((v) => ({ ...v, [field.name]: e.target.value }))}
@@ -127,6 +134,7 @@ export function GeneratorTool({
                   </select>
                 ) : (
                   <input
+                    id={fieldId}
                     className="input"
                     placeholder={field.placeholder}
                     value={values[field.name] ?? ""}
@@ -134,7 +142,8 @@ export function GeneratorTool({
                   />
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
 
           <button className="btn-primary mt-4 w-full" onClick={run} disabled={busy}>

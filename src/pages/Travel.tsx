@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Sparkles, Plus, Trash2, Plane, AlertTriangle, Info, ListChecks, FileText } from "lucide-react";
 import { Badge, PageHeader } from "@/components/ui";
 import { OutputViewer } from "@/components/OutputViewer";
@@ -121,16 +121,16 @@ export default function Travel() {
                   Visa / travel authorisation needed
                 </label>
                 <div>
-                  <label className="field-label">Passport expiry</label>
-                  <input type="date" className="input" value={opts.passportExpiry} onChange={(e) => setOpt("passportExpiry", e.target.value)} />
-                  <p className="mt-1 text-[11px] text-faint">Checked against the six-month rule on arrival.</p>
+                  <label className="field-label" htmlFor="tv-passport">Passport expiry</label>
+                  <input id="tv-passport" type="date" className="input" aria-describedby="tv-passport-help" value={opts.passportExpiry} onChange={(e) => setOpt("passportExpiry", e.target.value)} />
+                  <p id="tv-passport-help" className="mt-1 text-[11px] text-faint">Checked against the six-month rule on arrival.</p>
                 </div>
               </>
             )}
 
             <div>
-              <label className="field-label">Notes</label>
-              <textarea className="input min-h-[60px]" value={opts.notes} onChange={(e) => setOpt("notes", e.target.value)} placeholder="e.g. Aisle seat, no red-eye on the return" />
+              <label className="field-label" htmlFor="tv-notes">Notes</label>
+              <textarea id="tv-notes" className="input min-h-[60px]" value={opts.notes} onChange={(e) => setOpt("notes", e.target.value)} placeholder="e.g. Aisle seat, no red-eye on the return" />
             </div>
           </div>
         </div>
@@ -176,12 +176,13 @@ export default function Travel() {
                       <ZoneField label="From timezone" value={leg.fromZone} onChange={(v) => setLeg(leg.id, { fromZone: v })} />
                       <ZoneField label="To timezone" value={leg.toZone} onChange={(v) => setLeg(leg.id, { toZone: v })} />
                       <div>
-                        <label className="field-label">Departs (local)</label>
-                        <input type="datetime-local" className="input" value={leg.departLocal} onChange={(e) => setLeg(leg.id, { departLocal: e.target.value })} />
+                        {/* leg.id keeps these unique across legs. */}
+                        <label className="field-label" htmlFor={`${leg.id}-depart`}>Departs (local)</label>
+                        <input id={`${leg.id}-depart`} type="datetime-local" className="input" value={leg.departLocal} onChange={(e) => setLeg(leg.id, { departLocal: e.target.value })} />
                       </div>
                       <div>
-                        <label className="field-label">Arrives (local)</label>
-                        <input type="datetime-local" className="input" value={leg.arriveLocal} onChange={(e) => setLeg(leg.id, { arriveLocal: e.target.value })} />
+                        <label className="field-label" htmlFor={`${leg.id}-arrive`}>Arrives (local)</label>
+                        <input id={`${leg.id}-arrive`} type="datetime-local" className="input" value={leg.arriveLocal} onChange={(e) => setLeg(leg.id, { arriveLocal: e.target.value })} />
                       </div>
                       <Field label="Carrier" value={leg.carrier} onChange={(v) => setLeg(leg.id, { carrier: v })} placeholder="British Airways" />
                       <Field label="Reference" value={leg.reference} onChange={(v) => setLeg(leg.id, { reference: v })} placeholder="BA117 / XR4K2P" />
@@ -313,6 +314,9 @@ function Stat({ label, value, small }: { label: string; value: string; small?: b
   );
 }
 
+// These render once per flight leg, so a hardcoded id would collide across legs
+// and point every label at the first leg's input. useId gives each instance its
+// own, which is the whole reason it exists.
 function Field({
   label,
   value,
@@ -324,19 +328,22 @@ function Field({
   onChange: (v: string) => void;
   placeholder?: string;
 }) {
+  const id = useId();
   return (
     <div>
-      <label className="field-label">{label}</label>
-      <input className="input" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      <label className="field-label" htmlFor={id}>{label}</label>
+      <input id={id} className="input" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }
 
 function NumField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  const id = useId();
   return (
     <div>
-      <label className="field-label">{label}</label>
+      <label className="field-label" htmlFor={id}>{label}</label>
       <input
+        id={id}
         type="number"
         min={0}
         className="input"
@@ -349,18 +356,23 @@ function NumField({ label, value, onChange }: { label: string; value: number; on
 
 /** Free text with suggestions — any IANA zone works, not just the common ones. */
 function ZoneField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const id = useId();
+  const errId = `${id}-err`;
   const bad = value.length > 0 && !isValidZone(value);
   return (
     <div>
-      <label className="field-label">{label}</label>
+      <label className="field-label" htmlFor={id}>{label}</label>
       <input
+        id={id}
         className={`input ${bad ? "border-red-500/60" : ""}`}
         list="tz-list"
         value={value}
         placeholder="Europe/London"
+        aria-invalid={bad || undefined}
+        aria-describedby={bad ? errId : undefined}
         onChange={(e) => onChange(e.target.value)}
       />
-      {bad && <p className="mt-1 text-[11px] text-red-300">Not a recognised timezone</p>}
+      {bad && <p id={errId} className="mt-1 text-[11px] text-red-300">Not a recognised timezone</p>}
     </div>
   );
 }

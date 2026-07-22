@@ -251,9 +251,10 @@ export default function EmailHelper() {
 
                   <div className="grid gap-3 sm:grid-cols-3">
                     <div>
-                      <label className="field-label">What should this do?</label>
+                      <label className="field-label" htmlFor="eh-intent">What should this do?</label>
                       <select
                         className="input"
+                        id="eh-intent"
                         value={opts.intent}
                         onChange={(e) => set("intent", e.target.value as ReplyOptions["intent"])}
                       >
@@ -265,9 +266,10 @@ export default function EmailHelper() {
                       </select>
                     </div>
                     <div>
-                      <label className="field-label">Length</label>
+                      <label className="field-label" htmlFor="eh-length">Length</label>
                       <select
                         className="input"
+                        id="eh-length"
                         value={opts.length}
                         onChange={(e) => set("length", e.target.value as ReplyOptions["length"])}
                       >
@@ -279,10 +281,11 @@ export default function EmailHelper() {
                       </select>
                     </div>
                     <div>
-                      <label className="field-label">Tone override</label>
+                      <label className="field-label" htmlFor="eh-tone">Tone override</label>
                       <input
                         className="input"
                         placeholder={ctx.client?.tone || "Professional"}
+                        id="eh-tone"
                         value={opts.toneOverride}
                         onChange={(e) => set("toneOverride", e.target.value)}
                       />
@@ -290,10 +293,11 @@ export default function EmailHelper() {
                   </div>
 
                   <div className="mt-3">
-                    <label className="field-label">Anything to include the app can't know</label>
+                    <label className="field-label" htmlFor="eh-points">Anything to include the app can't know</label>
                     <textarea
                       className="input min-h-[60px]"
                       placeholder="e.g. we can do Thursday but not before 2pm; the invoice went out Monday"
+                      id="eh-points"
                       value={opts.points}
                       onChange={(e) => set("points", e.target.value)}
                     />

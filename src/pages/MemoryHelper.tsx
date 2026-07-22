@@ -75,9 +75,10 @@ export default function MemoryHelper() {
 
           <div className="space-y-3">
             <div>
-              <label className="field-label">Kind</label>
+              <label className="field-label" htmlFor="mem-kind">Kind</label>
               <select
                 className="input"
+                id="mem-kind"
                 value={draft.kind}
                 onChange={(e) => setDraft((d) => ({ ...d, kind: e.target.value as MemoryKind }))}
               >
@@ -91,9 +92,10 @@ export default function MemoryHelper() {
             </div>
 
             <div>
-              <label className="field-label">About</label>
+              <label className="field-label" htmlFor="mem-about">About</label>
               <select
                 className="input"
+                id="mem-about"
                 value={draft.client_id}
                 onChange={(e) => setDraft((d) => ({ ...d, client_id: e.target.value }))}
               >
@@ -107,20 +109,22 @@ export default function MemoryHelper() {
             </div>
 
             <div>
-              <label className="field-label">What to remember</label>
+              <label className="field-label" htmlFor="mem-body">What to remember</label>
               <textarea
                 className="input min-h-[76px]"
                 placeholder={MEMORY_EXAMPLES[0]}
+                id="mem-body"
                 value={draft.body}
                 onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
               />
             </div>
 
             <div>
-              <label className="field-label">Where this came from</label>
+              <label className="field-label" htmlFor="mem-source">Where this came from</label>
               <input
                 className="input"
                 placeholder="e.g. said on the call, 12 March"
+                id="mem-source"
                 value={draft.source}
                 onChange={(e) => setDraft((d) => ({ ...d, source: e.target.value }))}
               />
@@ -154,6 +158,7 @@ export default function MemoryHelper() {
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
               <input
                 className="input pl-9"
+                aria-label="Search what you have recorded"
                 placeholder="Search what you've recorded…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}

@@ -120,16 +120,16 @@ export default function AutomationPage() {
       <div className="card p-5">
         <div className="grid gap-4 md:grid-cols-3">
           <div>
-            <label className="field-label">Trigger</label>
-            <select className="input" value={trigger} onChange={(e) => setTrigger(e.target.value)}>{T.map((t) => <option key={t}>{t}</option>)}</select>
+            <label className="field-label" htmlFor="au-trigger">Trigger</label>
+            <select id="au-trigger" className="input" value={trigger} onChange={(e) => setTrigger(e.target.value)}>{T.map((t) => <option key={t}>{t}</option>)}</select>
           </div>
           <div>
-            <label className="field-label">Action</label>
-            <select className="input" value={action} onChange={(e) => setAction(e.target.value)}>{A.map((a) => <option key={a}>{a}</option>)}</select>
+            <label className="field-label" htmlFor="au-action">Action</label>
+            <select id="au-action" className="input" value={action} onChange={(e) => setAction(e.target.value)}>{A.map((a) => <option key={a}>{a}</option>)}</select>
           </div>
           <div>
-            <label className="field-label">Automation Name</label>
-            <input className="input" placeholder="e.g. Daily Briefing Digest" value={name} onChange={(e) => setName(e.target.value)} />
+            <label className="field-label" htmlFor="au-name">Automation Name</label>
+            <input id="au-name" className="input" placeholder="e.g. Daily Briefing Digest" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
         </div>
         <button className="btn-primary mt-4" onClick={save} disabled={!name.trim() || create.isPending}>

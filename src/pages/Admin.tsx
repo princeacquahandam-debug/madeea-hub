@@ -156,6 +156,7 @@ export default function Admin() {
           <input
             type="email"
             className="input flex-1"
+            aria-label="Email address of the team member to invite"
             placeholder="name@company.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}

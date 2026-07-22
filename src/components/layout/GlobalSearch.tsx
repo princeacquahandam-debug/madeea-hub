@@ -41,6 +41,9 @@ export function GlobalSearch() {
       <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
       <input
         className="input w-56 pl-9 lg:w-72"
+        // The placeholder is not an accessible name: it isn't reliably announced
+        // and it disappears as soon as anything is typed.
+        aria-label="Search clients, tasks and emails"
         placeholder="Search clients, tasks, emails..."
         value={q}
         onChange={(e) => { setQ(e.target.value); setOpen(true); }}

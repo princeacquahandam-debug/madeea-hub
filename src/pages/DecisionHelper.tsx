@@ -90,8 +90,9 @@ export default function DecisionHelper() {
           <section className="card p-5">
             <div className="space-y-3">
               <div>
-                <label className="field-label">What's the decision?</label>
+                <label className="field-label" htmlFor="dec-question">What's the decision?</label>
                 <input
+                  id="dec-question"
                   className="input"
                   placeholder="e.g. Which venue for the Q4 client dinner?"
                   value={question}
@@ -99,8 +100,9 @@ export default function DecisionHelper() {
                 />
               </div>
               <div>
-                <label className="field-label">Context worth recording</label>
+                <label className="field-label" htmlFor="dec-context">Context worth recording</label>
                 <textarea
+                  id="dec-context"
                   className="input min-h-[60px]"
                   placeholder="e.g. 40 guests, budget £6k, James wants somewhere walkable from the office"
                   value={context}
@@ -127,6 +129,7 @@ export default function DecisionHelper() {
                 <div key={c.id} className="flex items-center gap-3 rounded-lg bg-surface-2 p-3">
                   <input
                     className="input py-1 text-sm"
+                    aria-label={`Criterion ${criteria.indexOf(c) + 1} name`}
                     placeholder="e.g. Cost"
                     value={c.label}
                     onChange={(e) =>
@@ -181,6 +184,7 @@ export default function DecisionHelper() {
                   <div className="flex items-center gap-2">
                     <input
                       className="input py-1 text-sm font-medium"
+                      aria-label={`Option ${options.indexOf(o) + 1} name`}
                       placeholder="Option name"
                       value={o.label}
                       onChange={(e) =>
@@ -223,6 +227,7 @@ export default function DecisionHelper() {
 
                   <input
                     className="input mt-2 py-1 text-xs"
+                    aria-label={`Note for ${o.label || `option ${options.indexOf(o) + 1}`}`}
                     placeholder="Note (optional) — anything the score doesn't capture"
                     value={o.note}
                     onChange={(e) =>

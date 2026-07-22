@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 import { Sparkles, FileText, ShieldCheck, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { OutputViewer } from "@/components/OutputViewer";
@@ -93,20 +93,23 @@ export default function InvestorUpdate() {
               <Field label="Recipients" value={inputs.recipients} onChange={(v) => set("recipients", v)} placeholder="e.g. Seed investors & advisory board" />
               <Field label="Period label" value={inputs.periodLabel} onChange={(v) => set("periodLabel", v)} placeholder="e.g. October 2026" />
               <div>
-                <label className="field-label">Headline business metrics</label>
+                <label className="field-label" htmlFor="iu-metrics">Headline business metrics</label>
                 <textarea
+                  id="iu-metrics"
+                  aria-describedby="iu-metrics-help"
                   className="input min-h-[76px]"
                   placeholder="e.g. ARR £8.2M (+18% MoM), runway 14 months, headcount 24"
                   value={inputs.headlineMetrics}
                   onChange={(e) => set("headlineMetrics", e.target.value)}
                 />
-                <p className="mt-1 text-[11px] text-faint">
+                <p id="iu-metrics-help" className="mt-1 text-[11px] text-faint">
                   The app can't see your finances. Anything you don't type here is left out, not guessed.
                 </p>
               </div>
               <div>
-                <label className="field-label">Lowlights / what didn't go well</label>
+                <label className="field-label" htmlFor="iu-lowlights">Lowlights / what didn't go well</label>
                 <textarea
+                  id="iu-lowlights"
                   className="input min-h-[60px]"
                   placeholder="e.g. Enterprise pilot slipped a month"
                   value={inputs.lowlights}
@@ -114,8 +117,9 @@ export default function InvestorUpdate() {
                 />
               </div>
               <div>
-                <label className="field-label">Asks</label>
+                <label className="field-label" htmlFor="iu-asks">Asks</label>
                 <textarea
+                  id="iu-asks"
                   className="input min-h-[60px]"
                   placeholder="e.g. Intros to Series A funds, two senior engineering referrals"
                   value={inputs.asks}
@@ -123,8 +127,8 @@ export default function InvestorUpdate() {
                 />
               </div>
               <div>
-                <label className="field-label">Tone</label>
-                <select className="input" value={inputs.tone} onChange={(e) => set("tone", e.target.value)}>
+                <label className="field-label" htmlFor="iu-tone">Tone</label>
+                <select id="iu-tone" className="input" value={inputs.tone} onChange={(e) => set("tone", e.target.value)}>
                   {TONES.map((t) => (
                     <option key={t} value={t}>
                       {t}
@@ -227,10 +231,11 @@ function Field({
   onChange: (v: string) => void;
   placeholder?: string;
 }) {
+  const id = useId();
   return (
     <div>
-      <label className="field-label">{label}</label>
-      <input className="input" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      <label className="field-label" htmlFor={id}>{label}</label>
+      <input id={id} className="input" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }
