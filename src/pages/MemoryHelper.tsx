@@ -32,15 +32,24 @@ export default function MemoryHelper() {
     return searchMemories(byKind, query);
   }, [memories, kindFilter, query]);
 
+  const [saveError, setSaveError] = useState("");
+
   async function add() {
     if (!draft.body.trim()) return;
-    await create.mutateAsync({
-      kind: draft.kind,
-      body: draft.body.trim(),
-      client_id: draft.client_id || null,
-      source: draft.source.trim(),
-    });
-    setDraft({ kind: draft.kind, body: "", client_id: draft.client_id, source: "" });
+    setSaveError("");
+    try {
+      await create.mutateAsync({
+        kind: draft.kind,
+        body: draft.body.trim(),
+        client_id: draft.client_id || null,
+        source: draft.source.trim(),
+      });
+      setDraft({ kind: draft.kind, body: "", client_id: draft.client_id, source: "" });
+    } catch (e) {
+      // The entry is NOT cleared on failure — retyping something you already typed
+      // is a worse outcome than seeing the box stay full with an error above it.
+      setSaveError(e instanceof Error ? e.message : "Could not save that memory.");
+    }
   }
 
   return (
@@ -132,6 +141,12 @@ export default function MemoryHelper() {
                 A fact nobody can trace is a fact nobody will act on.
               </p>
             </div>
+
+            {saveError && (
+              <p className="rounded-lg border border-red-500/40 bg-red-500/5 p-2.5 text-xs text-red-300">
+                {saveError}
+              </p>
+            )}
 
             <button className="btn-primary w-full" onClick={add} disabled={!draft.body.trim() || create.isPending}>
               <Brain size={15} />

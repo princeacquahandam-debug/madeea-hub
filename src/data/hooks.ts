@@ -716,6 +716,25 @@ export function useMemories() {
   });
 }
 
+/**
+ * Is this error "the table isn't there yet", as opposed to a real failure?
+ *
+ * The local-storage fallback below exists for exactly one situation: migration 0017
+ * hasn't been applied, so nothing typed should be lost. Once the table DOES exist,
+ * falling back on any error is actively harmful — the read path returns database
+ * rows, so a locally-stashed entry is never displayed again. The user watches what
+ * they typed disappear and is told nothing.
+ *
+ * So: fall back only for a missing table. Everything else (a rejected CHECK
+ * constraint, an RLS refusal, a network failure) is surfaced.
+ */
+function isMissingTable(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  // 42P01 = undefined_table (Postgres). PGRST205 = unknown table (PostgREST).
+  if (error.code === "42P01" || error.code === "PGRST205") return true;
+  return /relation .* does not exist|could not find the table/i.test(error.message ?? "");
+}
+
 export function useMemoryMutations() {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: ["memories"] });
@@ -742,8 +761,10 @@ export function useMemoryMutations() {
         return;
       }
       const { error } = await supabase.from("memories").insert(row);
-      // Pre-migration: keep the entry locally rather than losing what was typed.
-      if (error) demoCreate("memories", { id: demoId(), created_at: new Date().toISOString(), ...row });
+      if (error) {
+        if (!isMissingTable(error)) throw new Error(error.message || "Could not save that memory.");
+        demoCreate("memories", { id: demoId(), created_at: new Date().toISOString(), ...row });
+      }
     },
     onSettled: invalidate,
   });
@@ -752,7 +773,13 @@ export function useMemoryMutations() {
     mutationFn: async ({ id, ...fields }: Partial<MemoryInput> & { id: string }) => {
       if (!supabase) { demoPatch("memories", id, fields); return; }
       const { error } = await supabase.from("memories").update(fields).eq("id", id);
-      if (error) demoPatch("memories", id, fields);
+      if (error) {
+
+        if (!isMissingTable(error)) throw new Error(error.message || "Could not update that memory.");
+
+        demoPatch("memories", id, fields);
+
+      }
     },
     onSettled: invalidate,
   });
@@ -761,7 +788,13 @@ export function useMemoryMutations() {
     mutationFn: async (id: string) => {
       if (!supabase) { demoDelete("memories", id); return; }
       const { error } = await supabase.from("memories").delete().eq("id", id);
-      if (error) demoDelete("memories", id);
+      if (error) {
+
+        if (!isMissingTable(error)) throw new Error(error.message || "Could not delete that memory.");
+
+        demoDelete("memories", id);
+
+      }
     },
     onSettled: invalidate,
   });
