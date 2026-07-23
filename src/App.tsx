@@ -28,6 +28,7 @@ import Homework from "@/pages/Homework";
 import InvestorUpdate from "@/pages/InvestorUpdate";
 import Scoreboard from "@/pages/Scoreboard";
 import Travel from "@/pages/Travel";
+import Notes from "@/pages/Notes";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,7 @@ function Gate() {
         <Route path="/communication" element={<Communication />} />
         <Route path="/quick-actions" element={<QuickActions />} />
         <Route path="/clients" element={<ClientVault />} />
+        <Route path="/notes" element={<Notes />} />
         <Route path="/sops" element={<Sops />} />
         <Route path="/automation" element={<AutomationPage />} />
         <Route path="/integrations" element={<Integrations />} />

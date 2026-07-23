@@ -40,6 +40,19 @@ export function Notifications() {
   const [adding, setAdding] = useState(false);
   const [label, setLabel] = useState("");
   const [whenMs, setWhenMs] = useState(WHENS[3].ms);
+  // Which notification's snooze just failed, so we can show the reason under it
+  // rather than silently keeping the snooze in this browser only.
+  const [snoozeErrId, setSnoozeErrId] = useState<string | null>(null);
+
+  async function doSnooze(n: Notif) {
+    if (!n.snooze) return;
+    setSnoozeErrId(null);
+    try {
+      await snooze.mutateAsync({ ...n.snooze, days: snoozeDays });
+    } catch {
+      setSnoozeErrId(n.id);
+    }
+  }
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -129,25 +142,31 @@ export function Notifications() {
               {items.map((n) => {
                 const isUnread = !read.has(n.id);
                 return (
-                  <div key={n.id} className={`group flex items-start gap-2 rounded-md px-2 py-2 hover:bg-surface-2 ${isUnread ? "" : "opacity-60"}`}>
-                    <button onClick={() => pick(n)} className="flex min-w-0 flex-1 items-start gap-2 text-left">
-                      <n.icon size={15} className={`mt-0.5 shrink-0 ${isUnread ? (n.snooze ? "text-amber-400" : "text-accent") : "text-faint"}`} />
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium">{n.title}</span>
-                        <span className="block truncate text-xs text-faint">{n.desc}</span>
-                      </span>
-                    </button>
-                    {n.snooze && (
-                      <button
-                        className="mt-0.5 shrink-0 text-faint hover:text-amber-400"
-                        title={`Snooze ${snoozeDays} days`}
-                        aria-label={`Snooze ${n.title}`}
-                        onClick={() => snooze.mutate({ ...n.snooze!, days: snoozeDays })}
-                      >
-                        <BellOff size={13} />
+                  <div key={n.id} className={`group rounded-md px-2 py-2 hover:bg-surface-2 ${isUnread ? "" : "opacity-60"}`}>
+                    <div className="flex items-start gap-2">
+                      <button onClick={() => pick(n)} className="flex min-w-0 flex-1 items-start gap-2 text-left">
+                        <n.icon size={15} className={`mt-0.5 shrink-0 ${isUnread ? (n.snooze ? "text-amber-400" : "text-accent") : "text-faint"}`} />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium">{n.title}</span>
+                          <span className="block truncate text-xs text-faint">{n.desc}</span>
+                        </span>
                       </button>
+                      {n.snooze && (
+                        <button
+                          className="mt-0.5 shrink-0 text-faint hover:text-amber-400 disabled:opacity-50"
+                          title={`Snooze ${snoozeDays} days`}
+                          aria-label={`Snooze ${n.title}`}
+                          disabled={snooze.isPending}
+                          onClick={() => doSnooze(n)}
+                        >
+                          <BellOff size={13} />
+                        </button>
+                      )}
+                      {isUnread && !n.snooze && <span className="ml-auto mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
+                    </div>
+                    {snoozeErrId === n.id && (
+                      <p className="mt-1 pl-7 text-xs text-red-300">Couldn't snooze that — please try again.</p>
                     )}
-                    {isUnread && !n.snooze && <span className="ml-auto mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
                   </div>
                 );
               })}

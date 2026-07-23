@@ -4,6 +4,7 @@ import * as seed from "@/data/seed";
 import type { Task, TaskStatus, Client, Meeting, Message, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
+import type { Note } from "@/lib/notes";
 import { addDemoTask, loadDemoTasks, removeDemoTask, updateDemoTask } from "@/store/demoTasks";
 import { loadSnoozes, saveSnooze } from "@/store/demoSnoozes";
 import { loadAssignees, loadDemoTaskEvents, saveAssignee } from "@/store/demoAssignees";
@@ -687,7 +688,16 @@ export function useSnoozeMutations() {
       const { error } = await supabase
         .from("snoozes")
         .upsert({ item_type, item_id, snooze_until: until }, { onConflict: "workspace_id,item_type,item_id" });
-      if (error) saveSnooze(item_type, item_id, until); // pre-migration fallback
+      if (error) {
+        // Same rule as memories/notes (see isMissingTable + commit "Stop the Memory
+        // Helper hiding real save failures"): only a genuinely-missing table falls
+        // back to local storage. Every other failure — an RLS refusal, a network
+        // drop — is thrown and surfaced. A snooze kept only in this browser would
+        // diverge from the shared workspace and quietly mislead: the nag looks
+        // silenced for everyone when it isn't.
+        if (!isMissingTable(error)) throw new Error(error.message || "Couldn't snooze that — please try again.");
+        saveSnooze(item_type, item_id, until); // pre-migration fallback
+      }
     },
     onSettled: invalidate,
   });
@@ -794,6 +804,97 @@ export function useMemoryMutations() {
 
         demoDelete("memories", id);
 
+      }
+    },
+    onSettled: invalidate,
+  });
+
+  return { create, update, remove };
+}
+
+// ---------------- notes (Notes) ----------------
+// Table arrives with migration 0019. Same graceful pattern as memories: demo mode
+// and a not-yet-migrated live workspace both fall back to the local write overlay,
+// so nothing typed is lost and the page works rather than showing a dead error.
+// The demo seed only shows for demo mode (no creds) — a live workspace waiting on
+// the migration gets an empty pad, never invented notes.
+const DEMO_NOTES: Note[] = [
+  { id: "demo-note-1", client_id: null, title: "Office parking code", body: "Parking code for the Harrington office is 4471 — expires end of quarter.", pinned: true, created_at: "2026-07-18T09:00:00Z", updated_at: "2026-07-18T09:00:00Z" },
+  { id: "demo-note-2", client_id: null, title: "Handover watch", body: "Priya mentioned she's switching PAs in Q1 — keep handover notes tidy.", pinned: false, created_at: "2026-07-20T14:00:00Z", updated_at: "2026-07-20T14:00:00Z" },
+];
+
+export function useNotes() {
+  return useQuery<Note[]>({
+    queryKey: ["notes"],
+    queryFn: async () => {
+      if (!supabase) return applyDemo<Note>("notes", DEMO_NOTES);
+      const { data, error } = await supabase
+        .from("notes")
+        .select("id,client_id,title,body,pinned,created_at,updated_at")
+        .order("pinned", { ascending: false })
+        .order("updated_at", { ascending: false });
+      if (error) return applyDemo<Note>("notes", []); // not migrated yet — empty, never invented
+      return data as Note[];
+    },
+    retry: false,
+  });
+}
+
+export function useNoteMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["notes"] });
+
+  type NoteInput = {
+    title?: string;
+    body: string;
+    client_id?: string | null;
+    pinned?: boolean;
+  };
+
+  const create = useMutation({
+    mutationFn: async (input: NoteInput) => {
+      const row = {
+        title: input.title ?? "",
+        body: input.body,
+        client_id: input.client_id ?? null,
+        pinned: input.pinned ?? false,
+      };
+      if (!supabase) {
+        const now = new Date().toISOString();
+        demoCreate("notes", { id: demoId(), created_at: now, updated_at: now, ...row });
+        return;
+      }
+      const { error } = await supabase.from("notes").insert(row);
+      if (error) {
+        // Only a genuinely missing table falls back; every other error is surfaced,
+        // so a rejected write never masquerades as a save (see memories, 0017).
+        if (!isMissingTable(error)) throw new Error(error.message || "Could not save that note.");
+        const now = new Date().toISOString();
+        demoCreate("notes", { id: demoId(), created_at: now, updated_at: now, ...row });
+      }
+    },
+    onSettled: invalidate,
+  });
+
+  const update = useMutation({
+    mutationFn: async ({ id, ...fields }: Partial<NoteInput> & { id: string }) => {
+      if (!supabase) { demoPatch("notes", id, { ...fields, updated_at: new Date().toISOString() }); return; }
+      const { error } = await supabase.from("notes").update(fields).eq("id", id);
+      if (error) {
+        if (!isMissingTable(error)) throw new Error(error.message || "Could not update that note.");
+        demoPatch("notes", id, { ...fields, updated_at: new Date().toISOString() });
+      }
+    },
+    onSettled: invalidate,
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      if (!supabase) { demoDelete("notes", id); return; }
+      const { error } = await supabase.from("notes").delete().eq("id", id);
+      if (error) {
+        if (!isMissingTable(error)) throw new Error(error.message || "Could not delete that note.");
+        demoDelete("notes", id);
       }
     },
     onSettled: invalidate,

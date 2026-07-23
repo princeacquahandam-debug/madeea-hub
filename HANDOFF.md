@@ -1,7 +1,15 @@
 # MadeEA Command Center — Developer Handoff
 
-**Date:** 2026-07-02 · **Branch:** `main` (in sync with `origin/main`, working tree clean)
-**Latest commit:** `b3bea99` — "Report + changelog: email invites are live, shared workspace"
+**Date:** 2026-07-23 · **Branch:** `main` (in sync with `origin/main`)
+**App version:** `1.7.0` (see `src/lib/changelog.ts`)
+
+> **What changed since the 2026-07-02 handoff.** The app grew a whole **"Second Brain"**
+> group and a **command center**, none of which existed at that handoff. New pages:
+> Email/Meeting/Focus Helpers, Voice-Note Helper, Daily Briefing, **Memory Helper**,
+> Decision Helper, Homework, Investor-Update, Scoreboard, Travel — plus a new
+> **Notes** area, and **voice input** in the ⌘K command bar. Migrations went from
+> `0012` to **`0019`**. The sections below are updated to match; anything not touched
+> still holds.
 
 A multi-user "Command Center" web app for outsourced Executive Assistants. This doc is the handoff for a new developer picking the project up.
 
@@ -31,7 +39,11 @@ Testing was done with **local Playwright `.cjs` scripts** (the Playwright MCP wa
 ## 3) ⚠️ Manual / ops steps (NOT automatic on deploy)
 These are the things a new dev must know are done outside `git push`:
 
-1. **Database migrations** live in `supabase/migrations/` and are applied by **pasting them into the Supabase SQL editor** (or `npx supabase db push`). The latest is **`0012_shared_workspace.sql`** — it must be applied for the current behavior (one shared workspace + reliable role changes). Confirm with the owner (Kyle) that 0012 has been run.
+1. **Database migrations** live in `supabase/migrations/` and are applied by **pasting them into the Supabase SQL editor** (or `npx supabase db push`). The latest is **`0019_notes.sql`**. **Confirm with the owner (Kyle) exactly which migrations are live** — the frontend degrades gracefully for the newer isolated tables (reminders, snoozes, memories, notes fall back to a local overlay if their table is missing), but the features are inert until the migration is run. In particular:
+   - `0017_memory.sql` — the **Memory Helper** store.
+   - `0018_goals.sql` — the **Focus Helper**'s goal-drift ('goal' memory kind).
+   - `0019_notes.sql` — the new **Notes** area.
+   Note: since a recent change, a *refused* memory/notes write (RLS/constraint) is now **surfaced** rather than silently stashed locally — so an un-applied migration shows as an on-screen error, not a vanished entry.
 2. **Edge functions** are deployed manually:
    ```bash
    npx supabase login
@@ -65,7 +77,9 @@ Make someone admin: `update memberships set role='admin' where user_id=(select i
 - **Demo/sample data:** the workspace was seeded with sample clients/tasks/messages (`seed_demo_data()` in `0003`). A new invited EA sees them (shared workspace). Clear with `delete from messages;` etc. if a clean slate is wanted.
 - **`useMyRole` hardening (optional):** it reads one membership row; harmless now that 0012 makes it one-per-user, but could be made deterministic as belt-and-suspenders.
 - **Integrations** (Gmail/Calendar/Slack via Google OAuth): functions exist (`google-oauth-*`, `gmail-sync`, `calendar-sync`, `slack-sync`); the Google app is in "published/testing" mode — @gmail users click through "Advanced → continue". Keep ≤100 users to avoid Google verification.
-- Optional **Notes** module was discussed but not built.
+- **Notes** module — **now built** (`src/pages/Notes.tsx`, `src/lib/notes.ts`, migration `0019_notes.sql`, in-app search + guide card). A shared free-text pad, deliberately separate from the Memory Helper (nothing reads a note but a human). Apply `0019` to make it live.
+- **Voice input** — the ⌘K command bar mic now dictates via the browser's own Web Speech engine (`src/lib/speech.ts`); no backend, no audio leaves the browser. Disabled with an honest reason in browsers that don't support it (e.g. Firefox).
+- **Still procurement-blocked, not code** (out of scope until the services exist): Homework's external **Clay** person/company research, and Scoreboard's live **Stripe/BI** metric alerts. The internal, data-derived versions of both pages are built.
 
 ## 8) Key docs already in the repo
 `madeea-hub-extraction.md` (original prototype crawl) · `madeea-hub-build-plan.md` · `madeea-hub-functional-plan.md` · `feedback-implementation-plan.md` (Reich's feedback → phases) · `working-sops-plan.md` · `SOPS-LIBRARY.md` · `PROGRESS-REPORT.md` (client-facing, non-technical) · this `HANDOFF.md`.

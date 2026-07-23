@@ -1,6 +1,6 @@
 // Product version history — surfaced in the in-app "What's new" page.
 // Bump APP_VERSION and prepend a release whenever something ships.
-export const APP_VERSION = "1.6.0";
+export const APP_VERSION = "1.7.0";
 
 export interface Release {
   version: string;
@@ -10,6 +10,18 @@ export interface Release {
 }
 
 export const CHANGELOG: Release[] = [
+  {
+    version: "1.7.0",
+    date: "2026-07-23",
+    title: "Notes, voice input & accessibility",
+    changes: [
+      "New Notes area — a shared team scratchpad for anything that doesn't belong on a task, client or the calendar yet. Pin the ones you keep coming back to, and everything shows up in global search.",
+      "Voice input — press the mic in the command bar (⌘K / Ctrl-K) and dictate your command instead of typing it, in browsers that support it.",
+      "Every form field across the app now has a proper label for screen readers, and the timezone warning on the Travel Helper is announced with its field.",
+      "Saving in the Memory Helper is now reliable — if a save is refused it tells you and keeps what you typed, instead of quietly losing it.",
+      "Focus Helper checks the diary against stated goals, and the Decision Helper now states which option comes out ahead on your own weights.",
+    ],
+  },
   {
     version: "1.6.0",
     date: "2026-06-26",

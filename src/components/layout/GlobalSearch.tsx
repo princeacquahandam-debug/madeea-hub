@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Search, Users, CheckSquare, Mail, ClipboardCheck } from "lucide-react";
+import { Search, Users, CheckSquare, Mail, ClipboardCheck, StickyNote } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useClients, useTasks, useMessages, useSops } from "@/data/hooks";
+import { useClients, useTasks, useMessages, useSops, useNotes } from "@/data/hooks";
+import { noteHeading } from "@/lib/notes";
 
 export function GlobalSearch() {
   const nav = useNavigate();
@@ -12,6 +13,7 @@ export function GlobalSearch() {
   const { data: tasks = [] } = useTasks();
   const { data: messages = [] } = useMessages();
   const { data: sops = [] } = useSops();
+  const { data: notes = [] } = useNotes();
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -26,9 +28,10 @@ export function GlobalSearch() {
         tasks: tasks.filter((t) => `${t.title} ${t.client_name}`.toLowerCase().includes(term)).slice(0, 5),
         messages: messages.filter((m) => `${m.subject} ${m.sender_name} ${m.preview}`.toLowerCase().includes(term)).slice(0, 5),
         sops: sops.filter((s) => `${s.title} ${s.description} ${s.category}`.toLowerCase().includes(term)).slice(0, 5),
+        notes: notes.filter((n) => `${n.title} ${n.body}`.toLowerCase().includes(term)).slice(0, 5),
       }
     : null;
-  const total = r ? r.clients.length + r.tasks.length + r.messages.length + r.sops.length : 0;
+  const total = r ? r.clients.length + r.tasks.length + r.messages.length + r.sops.length + r.notes.length : 0;
 
   function go(path: string) {
     nav(path);
@@ -59,6 +62,7 @@ export function GlobalSearch() {
               <Group title="Tasks" icon={CheckSquare} items={r!.tasks.map((t) => ({ key: t.id, label: t.title, sub: t.client_name }))} onPick={() => go("/tasks")} />
               <Group title="Messages" icon={Mail} items={r!.messages.map((m) => ({ key: m.id, label: m.subject, sub: m.sender_name }))} onPick={() => go("/communication")} />
               <Group title="SOPs" icon={ClipboardCheck} items={r!.sops.map((s) => ({ key: s.id, label: s.title, sub: s.category }))} onPick={() => go("/sops")} />
+              <Group title="Notes" icon={StickyNote} items={r!.notes.map((n) => ({ key: n.id, label: noteHeading(n), sub: "Note" }))} onPick={() => go("/notes")} />
             </>
           )}
         </div>

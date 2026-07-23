@@ -15,7 +15,9 @@ export type DemoEntity =
   // Memory (0017) uses this overlay for two cases, not one: demo mode, and a live
   // workspace where the migration hasn't been applied yet. In the latter, losing
   // what someone just typed would be the worst outcome, so writes land here.
-  | "memories";
+  | "memories"
+  // Notes (0019) uses the same overlay for the same two cases.
+  | "notes";
 
 interface Writes {
   created: Partial<Record<DemoEntity, unknown[]>>;

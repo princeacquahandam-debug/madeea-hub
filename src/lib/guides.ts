@@ -28,6 +28,15 @@ export const GUIDES: Record<string, Guide> = {
       "Connect Gmail in Integrations to pull your real inbox here.",
     ],
   },
+  "/notes": {
+    title: "How Notes work",
+    points: [
+      "A shared pad for the whole team — jot anything that doesn't belong on a task, a client, or the calendar yet.",
+      "Give a note a title (or don't), and optionally link it to a client so it's easy to find later.",
+      "Pin the ones you keep coming back to — they stay at the top. Search matches words in the title and body.",
+      "Notes are read by people, not the AI. To shape email drafts and briefings, use the Memory Helper instead.",
+    ],
+  },
   "/quick-actions": {
     title: "How AI Quick Actions work",
     points: [
