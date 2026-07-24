@@ -2,7 +2,7 @@
 // POST { tool, format, inputs, client_id? } -> { output }
 // Generates an EA document with OpenAI and logs it to ai_generations.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 const MODELS = { premium: "gpt-4o", cheap: "gpt-4o-mini" } as const;

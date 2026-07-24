@@ -15,7 +15,7 @@
 //    that field is client-controlled on the public /auth/v1/signup endpoint, so
 //    anyone who knew a workspace UUID could self-join. See 0016.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;

@@ -12,7 +12,7 @@
 //      STARTED the flow. A victim consenting on an attacker's link produces a
 //      different address and is rejected before any token is stored.
 // Consequence: the Google account you connect must match your MadeEA login email.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const SCOPES =
   "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly openid email";

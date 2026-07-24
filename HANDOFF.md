@@ -39,10 +39,11 @@ Testing was done with **local Playwright `.cjs` scripts** (the Playwright MCP wa
 ## 3) ⚠️ Manual / ops steps (NOT automatic on deploy)
 These are the things a new dev must know are done outside `git push`:
 
-1. **Database migrations** live in `supabase/migrations/` and are applied by **pasting them into the Supabase SQL editor** (or `npx supabase db push`). The latest is **`0019_notes.sql`**. **Confirm with the owner (Kyle) exactly which migrations are live** — the frontend degrades gracefully for the newer isolated tables (reminders, snoozes, memories, notes fall back to a local overlay if their table is missing), but the features are inert until the migration is run. In particular:
+1. **Database migrations** live in `supabase/migrations/` and are applied by **pasting them into the Supabase SQL editor** (or `npx supabase db push`). The latest is **`0020_security_followups.sql`** — and that one is **security-critical, apply it**: it makes workspace membership require a *confirmed* email (closing an invite-squatting path to full workspace takeover), requires membership to spend AI budget, de-races the AI rate limiter, makes `task_events` a real audit trail, and stops `owner_id` being spoofed. **Confirm with the owner (Kyle) exactly which migrations are live** — the frontend degrades gracefully for the newer isolated tables (reminders, snoozes, memories, notes fall back to a local overlay if their table is missing), but the features are inert until the migration is run. In particular:
    - `0017_memory.sql` — the **Memory Helper** store.
    - `0018_goals.sql` — the **Focus Helper**'s goal-drift ('goal' memory kind).
    - `0019_notes.sql` — the new **Notes** area.
+   - `0020_security_followups.sql` — **security follow-ups** (see above). Depends on 0016 being applied first.
    Note: since a recent change, a *refused* memory/notes write (RLS/constraint) is now **surfaced** rather than silently stashed locally — so an un-applied migration shows as an on-screen error, not a vanished entry.
 2. **Edge functions** are deployed manually:
    ```bash

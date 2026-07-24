@@ -6,7 +6,7 @@
 //    reflected into a 302 by the callback, which was an open redirect.
 //  - The state is pinned to the caller's own email (expected_email) and expires
 //    after 10 minutes; the callback enforces both. See google-oauth-callback.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 // Comma-separated, e.g. "https://hub.madeea.com,http://localhost:5173"
 const APP_ORIGINS = (Deno.env.get("APP_ORIGINS") ?? "")

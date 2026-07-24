@@ -28,10 +28,16 @@ paid services.
 These make already-written features actually work in production. **None happen on `git push`.**
 
 - [ ] **Apply the database migrations in Supabase** (SQL editor, or `npx supabase db push`).
-      Confirm with Kyle exactly which are already live, then run any missing ones **in order** through **`0019`**. The features that stay inert until then:
+      Confirm with Kyle exactly which are already live, then run any missing ones **in order** through **`0020`**. The features that stay inert until then:
   - `0017_memory.sql` → Memory Helper
   - `0018_goals.sql` → Focus Helper goal tracking
   - `0019_notes.sql` → the new **Notes** area
+  - `0020_security_followups.sql` → **security-critical, apply this one.** Membership now requires a confirmed email (closes invite squatting → workspace takeover), AI spend requires membership, the rate limiter is de-raced, `task_events` becomes a real audit trail, `owner_id` can't be spoofed. Requires `0016` first.
+
+- [ ] **Confirm these three Supabase/Vercel settings** — the security audit found these are the config that the whole model rests on:
+  - **"Allow new users to sign up" is OFF** in Supabase Auth
+  - **`VITE_ALLOW_DEMO` is NOT set** in Vercel production (if set, everyone gets passwordless admin)
+  - **`0016_security_hardening.sql` is applied** — all the invite-gating and token lockdown lives in it
   > Note: a not-yet-applied table now shows an on-screen error when you try to save,
   > rather than quietly losing the entry — so this is easy to spot.
 - [ ] **Deploy any new edge functions** (`npx supabase functions deploy <name> --no-verify-jwt`), if not already deployed.

@@ -1,7 +1,7 @@
 // Edge Function: run-automation   (Verify JWT: OFF — auth enforced in code)
 // POST { automation_id } -> runs the automation on the caller's live data with
 // OpenAI, records a run, bumps counters. Returns { summary, output }.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 const CORS = {

@@ -2,7 +2,7 @@
 // POST { messages: [{role, content}] } -> { reply }
 // Context-aware EA assistant: injects the caller's tasks + clients into the prompt.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 

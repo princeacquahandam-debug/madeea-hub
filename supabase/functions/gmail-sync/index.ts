@@ -1,6 +1,6 @@
 // Edge Function: gmail-sync   (Verify JWT: ON)
 // Pulls the signed-in user's recent inbox into the messages table.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
