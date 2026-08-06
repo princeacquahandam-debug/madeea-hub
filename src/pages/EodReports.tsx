@@ -124,7 +124,8 @@ export default function EodReports() {
   const [date, setDate] = useState<string>("all");
   const [blockersOnly, setBlockersOnly] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const tour = usePageTour(TOUR_KEY);
+  // Tour no longer auto-opens on EOD — only via the "Replay" button below.
+  const tour = usePageTour(TOUR_KEY, false);
 
   // ---- the report you're filing: drafted from the board, edited and submitted ----
   const today = todayIso();
@@ -364,7 +365,7 @@ export default function EodReports() {
       />
 
       {/* ---------------- KPIs ---------------- */}
-      <div data-tour="eod-kpis" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div data-tour="eod-kpis" className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {kpis.map((kpi, i) => {
           const Icon = KPI_ICONS[i];
           const alert = kpi.label === "Blockers Raised" && stats.totalBlockers > 0;

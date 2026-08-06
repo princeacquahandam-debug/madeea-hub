@@ -2,38 +2,526 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===================================================================== */
+/* MadeEA "Command Center" design system.                                 */
+/* Two themes, switched by the `data-theme` attribute on <html>.          */
+/* Tokens consumed by Tailwind live as space-separated RGB channels       */
+/* (`--c-*`), so alpha modifiers like bg-accent/15 keep working. Extra    */
+/* glass / ambient variables are used directly in CSS below.              */
+/* ===================================================================== */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --c-bg: 16 21 31;          /* #10151f */
+  --c-surface: 20 32 48;     /* #142030 */
+  --c-surface-2: 30 46 66;   /* #1e2e42 */
+  --c-muted: 142 161 181;    /* #8ea1b5 */
+  --c-faint: 95 113 134;     /* #5f7186 */
+  --c-text: 233 240 247;     /* #e9f0f7 */
+  --c-accent: 253 88 17;     /* #fd5811 */
+  --c-accent-soft: 255 133 82;
+
+  --c-border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.14);
+
+  --ambient-base: linear-gradient(150deg, #10151f 0%, #14131c 45%, #1d1712 100%);
+  --cool1: 58, 74, 104;
+  --cool2: 66, 60, 92;
+  --cool3: 52, 68, 98;
+
+  --glass: rgba(20, 32, 48, 0.55);
+  --glass-2: rgba(30, 46, 66, 0.46);
+  --card-bg: rgba(19, 30, 46, 0.82);
+  --modal-bg: #16233a;
+  --sidebar-bg: rgba(12, 22, 36, 0.52);
+  --nav-active-bg: rgba(253, 88, 17, 0.14);
+  --nav-active-text: #ff6a2b;
+  --info-bg: rgba(255, 255, 255, 0.045);
+  --chip-bg: rgba(255, 255, 255, 0.05);
+  --badge-bg: rgba(253, 88, 17, 0.16);
+  --badge-text: #ff8552;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --scrollbar: rgba(255, 255, 255, 0.14);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Warm cream palette (Revalo-style): white cards over warm-cream containers. */
+  --c-bg: 246 241 233;       /* #F6F1E9 warm cream */
+  --c-surface: 255 255 255;  /* white cards */
+  --c-surface-2: 244 239 231; /* #F4EFE7 warm cream container/hover */
+  --c-muted: 122 112 100;    /* #7A7064 warm grey */
+  --c-faint: 165 155 143;    /* #A59B8F warm faint */
+  --c-text: 42 37 32;        /* #2A2520 warm near-black */
+  --c-accent: 253 88 17;
+  --c-accent-soft: 216 72 14; /* #d8480e */
+
+  --c-border: rgba(66, 52, 36, 0.10);
+  --border-strong: rgba(66, 52, 36, 0.17);
+
+  /* Animated background retained (unchanged). */
+  --ambient-base: linear-gradient(150deg, #eef0f4 0%, #e9e6ee 42%, #f3e9e2 72%, #f6ede4 100%);
+  --cool1: 196, 206, 224;
+  --cool2: 213, 205, 228;
+  --cool3: 178, 190, 210;
+
+  --glass: rgba(255, 254, 251, 0.72);
+  --glass-2: rgba(250, 246, 240, 0.5);
+  --card-bg: #ffffff;
+  --modal-bg: #ffffff;
+  --sidebar-bg: rgba(255, 255, 255, 0.85);
+  --nav-active-bg: rgba(253, 88, 17, 0.10);
+  --nav-active-text: #d8480e;
+  --info-bg: rgba(255, 254, 251, 0.5);
+  --chip-bg: rgba(66, 52, 36, 0.05);
+  --badge-bg: rgba(253, 88, 17, 0.12);
+  --badge-text: #c9450d;
+  --shadow-card: 0 2px 10px rgba(150, 120, 88, 0.10), 0 1px 3px rgba(150, 120, 88, 0.05);
+  --scrollbar: rgba(66, 52, 36, 0.18);
+}
+
+/* Animated angle for the rotating gradient card border (madeea.ai-style). */
+@property --card-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes cardBorderRotate {
+  to { --card-angle: 360deg; }
+}
+
 @layer base {
-  :root {
-    color-scheme: dark;
-  }
   html,
   body,
   #root {
     height: 100%;
   }
   body {
-    @apply bg-bg text-zinc-100 font-sans antialiased;
+    @apply font-sans antialiased;
+    color: rgb(var(--c-text));
+    background: var(--ambient-base) fixed;
   }
   * {
     @apply border-border;
   }
 }
 
+/* ---------------------------------------------------------------- */
+/* Ambient animated background — fixed behind everything (z-0).      */
+/* ---------------------------------------------------------------- */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--ambient-base);
+}
+.ambient .blob {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform, opacity;
+}
+@keyframes driftA {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(9%, -7%) scale(1.2); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes driftB {
+  0% { transform: translate(0, 0) scale(1.08); }
+  50% { transform: translate(-11%, 9%) scale(1); }
+  100% { transform: translate(0, 0) scale(1.08); }
+}
+@keyframes driftC {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(8%, 11%) scale(1.24); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes glowPulse {
+  0% { opacity: 0.6; transform: translate(0, 0) scale(0.95); }
+  50% { opacity: 1; transform: translate(-6%, -9%) scale(1.18); }
+  100% { opacity: 0.6; transform: translate(0, 0) scale(0.95); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient .blob { animation: none !important; }
+}
+
+/* ---------------------------------------------------------------- */
+/* Skeleton loaders — soft placeholder blocks with a shining sweep   */
+/* that travels across while real content is still loading.          */
+/* ---------------------------------------------------------------- */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: rgb(var(--c-surface-2));
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  /* The shine — a bright band that sweeps left→right. White reads on both the
+     light (cream) and dark (navy) skeleton bases. */
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 45%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.06) 55%,
+    transparent 100%
+  );
+  animation: skeletonSheen 1.5s ease-in-out infinite;
+}
+[data-theme="light"] .skeleton::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 45%,
+    rgba(255, 255, 255, 0.85) 50%,
+    rgba(255, 255, 255, 0.4) 55%,
+    transparent 100%
+  );
+}
+@keyframes skeletonSheen {
+  100% { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+}
+
+/* ---------------------------------------------------------------- */
+/* Dashboard greeting — gradient display headline.                   */
+/* ---------------------------------------------------------------- */
+.greeting-title {
+  display: inline-block;
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  /* Descenders (g, y) and the period were clipping — give the text-clip box a
+     bit of vertical breathing room. */
+  line-height: 1.2;
+  padding-bottom: 0.12em;
+  width: fit-content;
+  /* Solid orange — no gradient. */
+  color: #fd5811;
+}
+[data-theme="light"] .greeting-title {
+  color: #d8480e;
+}
+@media (max-width: 860px) {
+  .greeting-title { font-size: 30px; }
+}
+
+/* Page entrance — a pure OPACITY fade (no transform). A transform here would (a)
+   linger as the containing block for `position: fixed` modals (trapping their
+   backdrop in the content area) and (b) promote the wrapper to a compositing
+   layer that could drop its first child from paint. Opacity does neither. */
+.page-enter { animation: cc-fade 0.4s ease both; }
+
+@keyframes slideInChip {
+  0% { opacity: 0; transform: translateX(18px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+/* Sidebar link switching — active bar grows, item slides in, icon pops. */
+@keyframes navItemIn {
+  0% { transform: translateX(-5px); opacity: 0.45; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+@keyframes navBarIn {
+  0% { transform: translateY(-50%) scaleY(0); }
+  100% { transform: translateY(-50%) scaleY(1); }
+}
+@keyframes navPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-item.active, .nav-item.active::before, .nav-item.active > svg { animation: none !important; }
+}
+
+/* Hide scrollbar but keep scrollability (used by the sidebar nav). */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+/* "More below" hint arrow. */
+@keyframes arrowBounce {
+  0%, 100% { transform: translateY(0); opacity: 0.6; }
+  50% { transform: translateY(4px); opacity: 1; }
+}
+
+/* ---------------------------------------------------------------- */
+/* Task Manager drag & drop — drop bounce, column pulse, lifted card. */
+/* ---------------------------------------------------------------- */
+@keyframes cardDrop {
+  0% { transform: scale(1.04); box-shadow: 0 18px 40px rgba(253, 88, 17, 0.3); }
+  60% { transform: scale(0.985); }
+  100% { transform: scale(1); }
+}
+@keyframes colPulse {
+  0%, 100% { box-shadow: inset 0 0 0 2px rgba(253, 88, 17, 0); }
+  50% { box-shadow: inset 0 0 0 2px rgba(253, 88, 17, 0.35); }
+}
+.card-drop { animation: cardDrop 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+.col-drop-active {
+  animation: colPulse 1.1s ease-in-out infinite;
+  border-color: rgba(253, 88, 17, 0.35) !important;
+  background: rgba(253, 88, 17, 0.04);
+}
+.card-dragging {
+  transform: scale(1.04) rotate(1.5deg);
+  box-shadow: 0 18px 40px rgba(253, 88, 17, 0.35);
+  cursor: grabbing;
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-drop, .col-drop-active { animation: none !important; }
+}
+
+/* Modals — solid (not glass) so they read cleanly over the dark scrim; white in
+   light mode. */
+.modal-panel {
+  background: var(--modal-bg);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* ---------------------------------------------------------------- */
+/* Madeline AI — orb + quick-actions marquee + status pulse.         */
+/* ---------------------------------------------------------------- */
+@keyframes flagPulse { 0%, 100% { opacity: 0.9; } 50% { opacity: 0.35; } }
+@keyframes qaMarquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+@keyframes bubbleFloat3d {
+  0%, 100% { transform: translateY(0) rotateX(6deg) rotateY(-8deg); }
+  25% { transform: translateY(-4px) rotateX(-4deg) rotateY(6deg); }
+  50% { transform: translateY(-7px) rotateX(6deg) rotateY(11deg); }
+  75% { transform: translateY(-3px) rotateX(-6deg) rotateY(-4deg); }
+}
+@keyframes bubbleMorph {
+  0%, 100% { border-radius: 50%; }
+  33% { border-radius: 54% 46% 53% 47% / 47% 54% 46% 53%; }
+  66% { border-radius: 47% 53% 48% 52% / 53% 47% 52% 48%; }
+}
+@keyframes bubbleShimmer { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+.madeline-orb {
+  position: relative;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffd9b3 0%, #ff9147 40%, #fd5811 78%);
+  box-shadow:
+    inset -6px -8px 18px rgba(180, 70, 15, 0.5),
+    inset 6px 7px 16px rgba(255, 220, 180, 0.55),
+    0 6px 18px rgba(253, 110, 40, 0.35);
+  animation: bubbleFloat3d 9s ease-in-out infinite, bubbleMorph 8s ease-in-out infinite;
+  overflow: hidden;
+}
+.madeline-orb::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background: conic-gradient(from 0deg, rgba(255, 190, 120, 0.5), rgba(253, 88, 17, 0.15), rgba(255, 210, 150, 0.5), rgba(253, 88, 17, 0.15), rgba(255, 190, 120, 0.5));
+  filter: blur(6px);
+  animation: bubbleShimmer 7s linear infinite;
+}
+.madeline-orb::after {
+  content: "";
+  position: absolute;
+  top: 14%;
+  left: 22%;
+  width: 34%;
+  height: 24%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 42%, rgba(255, 248, 235, 0.95) 0%, rgba(255, 235, 205, 0.3) 45%, transparent 72%);
+  filter: blur(1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .madeline-orb, .madeline-orb::before { animation: none !important; }
+  .qa-marquee { animation: none !important; }
+}
+.qa-marquee { animation: qaMarquee 26s linear infinite; }
+.qa-marquee:hover { animation-play-state: paused; }
+
+/* Full particle orb (header of the Madeline rail). Rendered at 126px logical
+   and scaled down by <Orb>; orbit keyframes live in orb.css. */
+.orb-float { animation: bubbleFloat3d 9s ease-in-out infinite; }
+.orb-sphere {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  /* ~5% fill — a faint glass bubble so the orbiting particles read as the orb. */
+  background: radial-gradient(circle at 35% 30%, rgba(255, 200, 150, 0.06) 0%, rgba(255, 150, 70, 0.045) 46%, rgba(253, 88, 17, 0.03) 72%, rgba(253, 88, 17, 0.015) 100%);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 196, 150, 0.4),
+    inset -8px -10px 24px rgba(210, 90, 20, 0.18),
+    inset 8px 9px 22px rgba(255, 210, 160, 0.28);
+  animation: bubbleMorph 8s ease-in-out infinite;
+}
+.orb-sphere::before {
+  content: "";
+  position: absolute;
+  inset: -6%;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, rgba(253, 88, 17, 0.18), rgba(255, 140, 60, 0.1), rgba(255, 190, 90, 0.18), rgba(255, 120, 40, 0.1), rgba(255, 170, 80, 0.18), rgba(253, 88, 17, 0.18));
+  filter: blur(4px);
+}
+.orb-sphere::after {
+  content: "";
+  position: absolute;
+  top: 10%;
+  left: 20%;
+  width: 44%;
+  height: 26%;
+  border-radius: 50%;
+  transform: rotate(-24deg);
+  background: radial-gradient(ellipse 60% 50% at 50% 42%, rgba(255, 248, 235, 0.92) 0%, rgba(255, 235, 205, 0.35) 42%, transparent 72%);
+  filter: blur(2.5px);
+}
+.orb-spin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  -webkit-transform-style: preserve-3d;
+  transform-style: preserve-3d;
+  -webkit-perspective: 600px;
+  perspective: 600px;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  animation: orbSpin 16s infinite linear;
+}
+.orb-particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  /* Soft glowing motes via a single box-shadow halo (no per-particle `filter`,
+     which is far cheaper to animate). */
+  box-shadow: 0 0 4px 1px rgba(255, 170, 110, 0.85);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb-float, .orb-sphere, .orb-spin, .orb-particle { animation: none !important; }
+}
+
 @layer components {
+  /* Glass panels — translucent, blurred, sitting over the ambient layer. */
   .card {
-    @apply bg-surface border border-border rounded-xl;
+    position: relative;
+    /* Allow cards to shrink inside flex/grid tracks (prevents mobile overflow). */
+    min-width: 0;
+    /* Frosted glass: 50%-opacity surface tint over a blurred backdrop, so the
+       ambient background reads through. Uses the surface channel token, so it
+       resolves per theme (white in light, deep navy in dark). Blur kept modest
+       (8px) because backdrop-filter re-samples the animated background every
+       frame — a smaller radius keeps that cheap. */
+    background: rgb(var(--c-surface) / 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--c-border);
+    box-shadow: var(--shadow-card);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+    @apply rounded-2xl;
+  }
+  /* madeea.ai-style container hover — a rotating orange gradient beam travels
+     around the border (revealed on hover) plus a soft glow and gentle lift.
+     `.no-hover` opts a card out. */
+  .card:not(.no-hover)::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(
+      from var(--card-angle),
+      transparent 0%,
+      transparent 30%,
+      #fd5811 42%,
+      #ffb06a 50%,
+      #fd5811 58%,
+      transparent 70%,
+      transparent 100%
+    );
+    /* Show only the 1.5px border ring (mask out the inner content box). */
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+  }
+  .card:not(.no-hover):hover::before {
+    opacity: 1;
+    animation: cardBorderRotate 4s linear infinite;
+  }
+  .card:not(.no-hover):hover {
+    border-color: rgba(253, 88, 17, 0.35);
+    box-shadow:
+      0 0 40px rgba(253, 88, 17, 0.16),
+      inset 0 0 30px rgba(253, 88, 17, 0.04),
+      var(--shadow-card);
+    transform: translateY(-4px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card:not(.no-hover):hover { transform: none; }
+    .card:not(.no-hover):hover::before { animation: none; }
+  }
+  .glass {
+    background: var(--glass);
+    border: 1px solid var(--c-border);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    backdrop-filter: blur(14px) saturate(1.3);
+  }
+  .glass-soft {
+    background: var(--glass-2);
+    border: 1px solid var(--c-border);
+    -webkit-backdrop-filter: blur(12px) saturate(1.25);
+    backdrop-filter: blur(12px) saturate(1.25);
   }
   .pill {
     @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
   }
   .nav-item {
-    @apply flex items-center gap-3 w-full rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-white;
+    @apply relative flex items-center gap-3 w-full rounded-xl px-3 py-2 text-sm text-muted;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.18s ease;
+  }
+  .nav-item:hover {
+    background: var(--chip-bg);
+    color: rgb(var(--c-text));
+    transform: translateX(2px);
   }
   .nav-item.active {
-    @apply bg-accent/10 text-accent border border-accent/60;
+    background: var(--nav-active-bg);
+    color: var(--nav-active-text);
+    @apply font-semibold;
+    animation: navItemIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   }
+  /* Growing accent bar on the active link — slides in when selection changes. */
+  .nav-item.active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    height: 56%;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: rgb(var(--c-accent));
+    transform: translateY(-50%);
+    animation: navBarIn 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* Icon pops when its link becomes active. */
+  .nav-item.active > svg { animation: navPop 0.34s cubic-bezier(0.22, 1, 0.36, 1); }
   .display {
-    @apply font-display font-bold tracking-tight;
+    @apply font-display font-extrabold tracking-tight;
   }
   .eyebrow {
     @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-faint;
@@ -42,30 +530,42 @@
     @apply block text-xs font-medium text-muted mb-1.5;
   }
   .input {
-    @apply w-full rounded-lg bg-surface-2 border border-border px-3 py-2 text-sm text-zinc-100 placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent/40;
+    @apply w-full rounded-xl border px-3 py-2 text-sm placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent/40;
+    background: var(--glass-2);
+    color: rgb(var(--c-text));
+    border-color: var(--c-border);
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply btn bg-accent text-white hover:bg-accent-soft;
+    @apply btn text-white bg-accent;
+    box-shadow: 0 4px 14px rgba(253, 88, 17, 0.3);
+  }
+  .btn-primary:hover {
+    filter: brightness(1.07);
   }
   .btn-ghost {
-    @apply btn text-muted hover:bg-surface-2 hover:text-zinc-100;
+    @apply btn text-muted;
+  }
+  .btn-ghost:hover {
+    background: var(--chip-bg);
+    color: rgb(var(--c-text));
   }
 }
 
 @layer components {
   .md-body {
-    @apply text-sm leading-relaxed text-zinc-200;
+    @apply text-sm leading-relaxed;
+    color: rgb(var(--c-text) / 0.85);
   }
-  .md-body h1 { @apply mb-2 mt-2 text-xl font-semibold text-white; }
-  .md-body h2 { @apply mb-2 mt-4 border-b border-border pb-1 text-lg font-semibold text-white; }
-  .md-body h3 { @apply mb-1 mt-3 text-base font-semibold text-zinc-100; }
+  .md-body h1 { @apply mb-2 mt-2 text-xl font-bold text-text; }
+  .md-body h2 { @apply mb-2 mt-4 border-b border-border pb-1 text-lg font-bold text-text; }
+  .md-body h3 { @apply mb-1 mt-3 text-base font-semibold text-text; }
   .md-body p { @apply my-2; }
   .md-body ul { @apply my-2 list-disc space-y-1 pl-5; }
   .md-body ol { @apply my-2 list-decimal space-y-1 pl-5; }
-  .md-body strong { @apply font-semibold text-white; }
+  .md-body strong { @apply font-semibold text-text; }
   .md-body a { @apply text-accent-soft underline; }
   .md-body code { @apply rounded bg-surface-2 px-1 py-0.5 text-xs; }
   .md-body blockquote { @apply my-2 border-l-2 border-accent/50 pl-3 text-muted; }
@@ -75,49 +575,92 @@
   .md-body th { @apply bg-surface-2 font-semibold; }
 }
 
+/* Legibility: the app was authored dark-only with many hardcoded light
+   text utilities. Under the light theme, remap the common body-text ones
+   to dark ink. (text-white is left alone — it sits on the accent button.) */
+[data-theme="light"] .text-zinc-100,
+[data-theme="light"] .text-zinc-200,
+[data-theme="light"] .text-zinc-300,
+[data-theme="light"] .text-zinc-400,
+[data-theme="light"] .hover\:text-zinc-100:hover,
+[data-theme="light"] .hover\:text-zinc-200:hover {
+  color: #33302b;
+}
+/* Subtle white-tint hovers were authored for the dark theme; give them a dark
+   tint under light so the hover is still perceptible. */
+[data-theme="light"] .hover\:bg-white\/5:hover {
+  background-color: rgba(21, 46, 71, 0.05);
+}
+/* Nested "surface-2" rows (list items, snapshot cards) are cream by default.
+   Under light, make them white to match the request; a hairline border keeps
+   them separated from the white panel behind them so they don't disappear. */
+[data-theme="light"] .bg-surface-2 {
+  background-color: #ffffff;
+  border: 1px solid var(--c-border);
+}
+/* Amber/yellow accents (SLA "at risk", high priority, needs-prep) are too pale
+   on a light background — darken to an amber that reads on white. */
+[data-theme="light"] .text-amber-200,
+[data-theme="light"] .text-amber-300,
+[data-theme="light"] .text-amber-400,
+[data-theme="light"] .text-amber-500 {
+  color: #b45309;
+}
+[data-theme="light"] .text-yellow-300,
+[data-theme="light"] .text-yellow-400 {
+  color: #a16207;
+}
+/* Urgency reds — make them prominent on the light cream theme (SLA breached,
+   at-risk, urgent priority, errors). */
+[data-theme="light"] .text-red-200,
+[data-theme="light"] .text-red-300,
+[data-theme="light"] .text-red-400,
+[data-theme="light"] .text-red-500 {
+  color: #dc2626;
+}
+[data-theme="light"] .bg-red-500\/5 { background-color: rgba(220, 38, 38, 0.09); }
+[data-theme="light"] .bg-red-500\/10 { background-color: rgba(220, 38, 38, 0.13); }
+[data-theme="light"] .bg-red-500\/15 { background-color: rgba(220, 38, 38, 0.17); }
+[data-theme="light"] .bg-red-500\/20 { background-color: rgba(220, 38, 38, 0.22); }
+[data-theme="light"] .border-red-500\/40 { border-color: rgba(220, 38, 38, 0.55); }
+[data-theme="light"] .border-red-500\/50 { border-color: rgba(220, 38, 38, 0.6); }
+
 /* thin scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2e2e33;
+  background: var(--scrollbar);
   border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* ===================================================================== */
 /* AI Command Center — glassmorphism surface, animations, typing dots.    */
-/* Theme-aware: dark by default (the app ships dark) with a light-mode    */
-/* override kept ready for when a light theme is enabled.                 */
 /* ===================================================================== */
 @layer components {
   .cc-glass {
-    background: color-mix(in srgb, #0e1f2f 82%, transparent);
-    -webkit-backdrop-filter: blur(20px) saturate(140%);
-    backdrop-filter: blur(20px) saturate(140%);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(253, 88, 18, 0.06);
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(22px) saturate(1.4);
+    backdrop-filter: blur(22px) saturate(1.4);
+    border: 1px solid var(--c-border);
+    box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(253, 88, 17, 0.06);
   }
   .cc-glass-soft {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--glass-2);
+    border: 1px solid var(--c-border);
   }
   .cc-kbd {
     @apply inline-flex items-center rounded border border-border bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-faint;
   }
 }
-
-/* Light-theme ready: activates under a `.light` root or OS light preference. */
-:root.light .cc-glass,
-.light .cc-glass {
-  background: color-mix(in srgb, #ffffff 78%, transparent);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.18);
-  color: #0e1f2f;
-}
-.light .cc-glass-soft {
-  background: rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+[data-theme="light"] .cc-glass {
+  box-shadow: 0 24px 60px -12px rgba(21, 46, 71, 0.18);
 }
 
 /* Motion — entrance, success pop, and the typing indicator. */
@@ -135,13 +678,17 @@
   0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
   40% { transform: translateY(-4px); opacity: 1; }
 }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .cc-overlay { animation: cc-fade 0.14s ease-out; }
 .cc-enter { animation: cc-scale-in 0.18s cubic-bezier(0.22, 1, 0.36, 1); }
 .cc-pop { animation: cc-pop 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
 .cc-typing { display: inline-flex; gap: 3px; align-items: center; }
 .cc-typing span {
   width: 5px; height: 5px; border-radius: 9999px;
-  background: #fd5812; display: inline-block;
+  background: rgb(var(--c-accent)); display: inline-block;
   animation: cc-bounce 1.2s infinite ease-in-out;
 }
 .cc-typing span:nth-child(2) { animation-delay: 0.15s; }

@@ -51,7 +51,7 @@ export function AssistantWidget() {
         </div>
         <div className="flex-1">
           <p className="text-sm font-medium">MadeEA AI Assistant</p>
-          <p className="text-xs text-faint">Powered by Claude · Online</p>
+          <p className="text-xs text-faint">Powered by AI · Online</p>
         </div>
         <button className="text-faint hover:text-zinc-100" onClick={() => setOpen(false)} aria-label="Close">
           <X size={18} />

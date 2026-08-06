@@ -11,6 +11,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Plus, Trash2, GripVertical, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy } from "lucide-react";
 import type { Task, TaskStatus, Priority, Subtask, Recurrence } from "@/types/db";
 import { Badge, PageHeader, Modal } from "@/components/ui";
+import { SkeletonCard } from "@/components/Skeleton";
 import { useTasks, useTaskMutations, useClients } from "@/data/hooks";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { AssigneePicker, AssigneeAvatar } from "@/components/Assignee";
@@ -80,7 +81,7 @@ function CardBody({ task, blocked, onDelete, onEdit, overlay }: { task: Task; bl
   );
 }
 
-function SortableCard({ task, blocked, onDelete, onEdit, focused }: { task: Task; blocked: boolean; onDelete: () => void; onEdit: () => void; focused?: boolean }) {
+function SortableCard({ task, blocked, onDelete, onEdit, focused, justDropped }: { task: Task; blocked: boolean; onDelete: () => void; onEdit: () => void; focused?: boolean; justDropped?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   return (
     // data-task-id is the scroll anchor for the /tasks?task=<id> deep link from the
@@ -89,6 +90,7 @@ function SortableCard({ task, blocked, onDelete, onEdit, focused }: { task: Task
       className={cn(
         "group touch-none cursor-grab rounded-lg active:cursor-grabbing",
         isDragging && "opacity-40",
+        justDropped && "card-drop",
         focused && "ring-2 ring-accent ring-offset-2 ring-offset-bg",
       )}>
       <CardBody task={task} blocked={blocked} onDelete={onDelete} onEdit={onEdit} />
@@ -96,17 +98,17 @@ function SortableCard({ task, blocked, onDelete, onEdit, focused }: { task: Task
   );
 }
 
-function Column({ status, label, items, blockedIds, onDelete, onEdit, focusId }: { status: TaskStatus; label: string; items: Task[]; blockedIds: Set<string>; onDelete: (id: string) => void; onEdit: (t: Task) => void; focusId?: string | null }) {
-  const { setNodeRef } = useSortable({ id: status, data: { type: "column" } });
+function Column({ status, label, items, blockedIds, onDelete, onEdit, focusId, justDroppedId }: { status: TaskStatus; label: string; items: Task[]; blockedIds: Set<string>; onDelete: (id: string) => void; onEdit: (t: Task) => void; focusId?: string | null; justDroppedId?: string | null }) {
+  const { setNodeRef, isOver } = useSortable({ id: status, data: { type: "column" } });
   return (
-    <div className="card flex flex-col p-4">
+    <div className={cn("card flex flex-col p-4 transition-colors", isOver && "col-drop-active")}>
       <div className="mb-3 flex items-center gap-2">
-        <h2 className="text-sm font-semibold">{label}</h2>
+        <h2 className="text-[15px] font-bold">{label}</h2>
         <span className="pill bg-surface-2 text-faint">{items.length}</span>
       </div>
       <SortableContext id={status} items={items.map((t) => t.id)} strategy={verticalListSortingStrategy}>
         <div ref={setNodeRef} className="min-h-[160px] flex-1 space-y-2 rounded-lg">
-          {items.map((t) => <SortableCard key={t.id} task={t} blocked={blockedIds.has(t.id)} onDelete={() => onDelete(t.id)} onEdit={() => onEdit(t)} focused={focusId === t.id} />)}
+          {items.map((t) => <SortableCard key={t.id} task={t} blocked={blockedIds.has(t.id)} onDelete={() => onDelete(t.id)} onEdit={() => onEdit(t)} focused={focusId === t.id} justDropped={justDroppedId === t.id} />)}
           {items.length === 0 && <p className="py-8 text-center text-xs text-faint">Drop here</p>}
         </div>
       </SortableContext>
@@ -132,6 +134,8 @@ export default function Tasks() {
   const staleTasks = flags.filter((f) => f.kind === "stale_task");
   const [board, setBoard] = useState<Board>(group([]));
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Drives the drop-bounce animation on the card that was just released.
+  const [justDroppedId, setJustDroppedId] = useState<string | null>(null);
   const [modal, setModal] = useState(false);
   const [templates, setTemplates] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -202,6 +206,10 @@ export default function Tasks() {
   function onDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     setActiveId(null);
+    // Trigger the drop bounce on the released card, then clear it.
+    const droppedId = String(active.id);
+    setJustDroppedId(droppedId);
+    window.setTimeout(() => setJustDroppedId((cur) => (cur === droppedId ? null : cur)), 450);
     if (!over) return;
     const col = columnOf(String(active.id));
     if (col) {
@@ -310,16 +318,27 @@ export default function Tasks() {
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-faint">Loading tasks…</p>
+        <div className="grid gap-4 lg:grid-cols-3">
+          {COLUMNS.map((col) => (
+            <div key={col.key} className="space-y-3">
+              <SkeletonCard lines={2} />
+              <SkeletonCard lines={3} />
+            </div>
+          ))}
+        </div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
           <div className="grid gap-4 lg:grid-cols-3">
             {COLUMNS.map((col) => (
-              <Column key={col.key} status={col.key} label={col.label} items={board[col.key]} blockedIds={blockedIds} onDelete={(id) => remove.mutate(id)} onEdit={startEdit} focusId={focusId} />
+              <Column key={col.key} status={col.key} label={col.label} items={board[col.key]} blockedIds={blockedIds} onDelete={(id) => remove.mutate(id)} onEdit={startEdit} focusId={focusId} justDroppedId={justDroppedId} />
             ))}
           </div>
           <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
-            {activeTask ? <CardBody task={activeTask} blocked={blockedIds.has(activeTask.id)} overlay /> : null}
+            {activeTask ? (
+              <div className="card-dragging rounded-lg">
+                <CardBody task={activeTask} blocked={blockedIds.has(activeTask.id)} overlay />
+              </div>
+            ) : null}
           </DragOverlay>
         </DndContext>
       )}

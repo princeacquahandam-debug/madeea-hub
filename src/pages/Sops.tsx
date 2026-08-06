@@ -122,7 +122,7 @@ export default function Sops() {
                   <h2 className="font-semibold">{aiStep.ai_action}</h2>
                 </div>
                 {aiBusy ? (
-                  <p className="py-8 text-center text-sm text-faint">Generating with Claude…</p>
+                  <p className="py-8 text-center text-sm text-faint">Generating with AI…</p>
                 ) : aiOutput ? (
                   <div className="mt-3"><OutputViewer output={aiOutput} title={aiStep.ai_action ?? "AI Output"} /></div>
                 ) : null}

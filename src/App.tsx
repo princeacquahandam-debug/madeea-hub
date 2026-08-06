@@ -1,35 +1,44 @@
+import { lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { CommandCenterProvider } from "@/hooks/useCommandCenter";
 import { AppShell } from "@/components/layout/AppShell";
+// Login and Dashboard are eager: Login is the gate before the shell, and
+// Dashboard is the "/" landing route — keeping it eager means the first paint
+// never suspends (instant, no shimmer flash on cold load).
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
-import Tasks from "@/pages/Tasks";
-import EodReports from "@/pages/EodReports";
-import Communication from "@/pages/Communication";
-import QuickActions from "@/pages/QuickActions";
-import ClientVault from "@/pages/ClientVault";
-import Sops from "@/pages/Sops";
-import AutomationPage from "@/pages/Automation";
-import Integrations from "@/pages/Integrations";
-import CommunicationStudio from "@/pages/CommunicationStudio";
-import BookkeepingAI from "@/pages/BookkeepingAI";
-import Settings from "@/pages/Settings";
-import Admin from "@/pages/Admin";
-import Changelog from "@/pages/Changelog";
-import EmailHelper from "@/pages/EmailHelper";
-import MeetingHelper from "@/pages/MeetingHelper";
-import Focus from "@/pages/Focus";
-import VoiceNotes from "@/pages/VoiceNotes";
-import DailyBriefing from "@/pages/DailyBriefing";
-import MemoryHelper from "@/pages/MemoryHelper";
-import DecisionHelper from "@/pages/DecisionHelper";
-import Homework from "@/pages/Homework";
-import InvestorUpdate from "@/pages/InvestorUpdate";
-import Scoreboard from "@/pages/Scoreboard";
-import Travel from "@/pages/Travel";
-import Notes from "@/pages/Notes";
+
+// Every other routed page is code-split into its own chunk, so the first load
+// only downloads the shell + Dashboard instead of one ~1MB bundle. While a
+// chunk streams in, AppShell's Suspense boundary shows the shimmer skeleton.
+const Tasks = lazy(() => import("@/pages/Tasks"));
+const EodReports = lazy(() => import("@/pages/EodReports"));
+const Communication = lazy(() => import("@/pages/Communication"));
+const QuickActions = lazy(() => import("@/pages/QuickActions"));
+const ClientVault = lazy(() => import("@/pages/ClientVault"));
+const Sops = lazy(() => import("@/pages/Sops"));
+const AutomationPage = lazy(() => import("@/pages/Automation"));
+const Integrations = lazy(() => import("@/pages/Integrations"));
+const CommunicationStudio = lazy(() => import("@/pages/CommunicationStudio"));
+const BookkeepingAI = lazy(() => import("@/pages/BookkeepingAI"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const Admin = lazy(() => import("@/pages/Admin"));
+const Changelog = lazy(() => import("@/pages/Changelog"));
+const EmailHelper = lazy(() => import("@/pages/EmailHelper"));
+const MeetingHelper = lazy(() => import("@/pages/MeetingHelper"));
+const Focus = lazy(() => import("@/pages/Focus"));
+const VoiceNotes = lazy(() => import("@/pages/VoiceNotes"));
+const DailyBriefing = lazy(() => import("@/pages/DailyBriefing"));
+const MemoryHelper = lazy(() => import("@/pages/MemoryHelper"));
+const DecisionHelper = lazy(() => import("@/pages/DecisionHelper"));
+const Homework = lazy(() => import("@/pages/Homework"));
+const InvestorUpdate = lazy(() => import("@/pages/InvestorUpdate"));
+const Scoreboard = lazy(() => import("@/pages/Scoreboard"));
+const Travel = lazy(() => import("@/pages/Travel"));
+const Notes = lazy(() => import("@/pages/Notes"));
+const Academy = lazy(() => import("@/pages/Academy"));
 
 const queryClient = new QueryClient();
 
@@ -44,6 +53,7 @@ function Gate() {
     <Routes>
       <Route element={<AppShell />}>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/academy" element={<Academy />} />
         <Route path="/tasks" element={<Tasks />} />
         <Route path="/eod" element={<EodReports />} />
         <Route path="/communication" element={<Communication />} />
@@ -80,7 +90,10 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <BrowserRouter
+          basename={import.meta.env.BASE_URL}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
           {/* CommandCenterProvider needs the router (navigation) + query client
               (data), so it sits inside BrowserRouter and wraps the app. */}
           <CommandCenterProvider>

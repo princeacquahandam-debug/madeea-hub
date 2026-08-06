@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckSquare, Calendar, Mail, Workflow, Sparkles, AlertTriangle, Timer, BellRing } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Badge, PageHeader } from "@/components/ui";
+import { Badge } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
 import { MeetingPrepPacket } from "@/components/MeetingPrepPacket";
 import { useAuth } from "@/hooks/useAuth";
@@ -75,25 +75,32 @@ export default function Dashboard() {
   const order: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
   const queue = [...tasks].sort((a, b) => order[a.priority] - order[b.priority]).slice(0, 5);
 
+  const firstName = user?.name?.split(" ")[0] ?? "there";
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+
   return (
     <div>
-      <PageHeader title={`Good afternoon, ${user?.name?.split(" ")[0] ?? "there"}.`} subtitle="Here's your command center." />
+      <div className="mb-7">
+        <h1 className="greeting-title">{timeOfDay}, {firstName}.</h1>
+        <p className="mt-1.5 text-[15px] text-muted">Here's your command center.</p>
+      </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         {kpis.map((kpi, i) => {
           const Icon = KPI_ICONS[i];
           const alert = (kpi.label === "Clients At Risk" || kpi.label === "Needs Follow-up") && kpi.value > 0;
           return (
             <div
               key={kpi.label}
-              className={`card p-4 ${kpi.onClick ? "cursor-pointer hover:border-accent/60" : ""} ${alert ? "border-red-500/40" : ""}`}
+              className={`card p-5 transition-transform hover:-translate-y-0.5 ${kpi.onClick ? "cursor-pointer hover:border-accent/60" : ""} ${alert ? "border-red-500/40" : ""}`}
               onClick={kpi.onClick}
             >
-              <div className="flex items-center justify-between">
-                <span className="eyebrow">{kpi.label}</span>
-                <Icon size={16} className={KPI_ICON_COLORS[i]} />
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-[11.5px] font-bold uppercase tracking-[0.09em] text-faint">{kpi.label}</span>
+                <Icon size={18} className={alert ? "text-red-400" : "text-accent"} />
               </div>
-              <p className={`display mt-2 text-4xl ${alert ? "text-red-400" : ""}`}>{kpi.value}</p>
+              <p className={`text-[34px] font-extrabold leading-none tracking-[-0.02em] ${alert ? "text-red-400" : ""}`}>{kpi.value}</p>
             </div>
           );
         })}
@@ -102,7 +109,7 @@ export default function Dashboard() {
       {flags.length > 0 && (
         <section className="card mt-5 p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-semibold">Needs Follow-up</h2>
+            <h2 className="text-[17px] font-bold">Needs Follow-up</h2>
             <span className="text-xs text-faint">Nothing has come back on these</span>
           </div>
           <div className="space-y-2">
@@ -114,7 +121,7 @@ export default function Dashboard() {
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <section className="card p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-semibold">Today's Priority Queue</h2>
+            <h2 className="text-[17px] font-bold">Today's Priority Queue</h2>
             <button className="text-xs text-accent-soft hover:underline" onClick={() => nav("/tasks")}>View all</button>
           </div>
           <div className="space-y-2">
@@ -155,7 +162,7 @@ export default function Dashboard() {
 
         <section className="card p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-semibold">Upcoming Meetings</h2>
+            <h2 className="text-[17px] font-bold">Upcoming Meetings</h2>
             <a
               href="https://calendar.google.com"
               target="_blank"
@@ -190,12 +197,12 @@ export default function Dashboard() {
       </div>
 
       <section className="card mt-5 p-5">
-        <h2 className="mb-3 font-semibold">Client Snapshot</h2>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <h2 className="mb-3 text-[17px] font-bold">Client Snapshot</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {clients.map((c) => (
-            <button key={c.id} className="flex items-center gap-3 rounded-lg bg-surface-2 p-4 text-left hover:bg-surface-2/70" onClick={() => nav("/clients")}>
+            <button key={c.id} className="flex min-w-0 items-center gap-3 rounded-lg bg-surface-2 p-4 text-left hover:bg-surface-2/70" onClick={() => nav("/clients")}>
               <Avatar name={c.name} url={c.avatar_url} className="h-9 w-9 shrink-0 text-xs" />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{c.name}</p>
                 <p className="truncate text-xs text-faint">{c.title}, {c.company}</p>
               </div>

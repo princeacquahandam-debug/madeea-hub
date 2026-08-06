@@ -8,7 +8,8 @@ export function GuideCard() {
   const { pathname } = useLocation();
   const guide = GUIDES[pathname];
   const storeKey = `madeea-guide-${pathname}`;
-  const [open, setOpen] = useState(() => localStorage.getItem(storeKey) !== "closed");
+  // Collapsed by default; only open if the user explicitly opened it before.
+  const [open, setOpen] = useState(() => localStorage.getItem(storeKey) === "open");
 
   if (!guide) return null;
 

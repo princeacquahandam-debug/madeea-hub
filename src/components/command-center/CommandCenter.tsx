@@ -119,7 +119,7 @@ export function CommandCenter() {
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-start justify-center bg-black/60 p-4 pt-[10vh] cc-overlay"
+      className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/70 p-4 pt-[10vh] cc-overlay"
       onClick={() => cc.setOpen(false)}
     >
       <div

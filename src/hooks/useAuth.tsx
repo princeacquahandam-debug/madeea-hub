@@ -22,7 +22,7 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-const DEMO_USER: SessionUser = { email: "sarah@madeea.com", name: USER.name, initials: USER.initials };
+const DEMO_USER: SessionUser = { email: "fj@madeea.com", name: USER.name, initials: USER.initials };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);

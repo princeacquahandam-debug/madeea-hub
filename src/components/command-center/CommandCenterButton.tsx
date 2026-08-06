@@ -11,13 +11,14 @@ export function CommandCenterButton() {
   return (
     <button
       onClick={() => setOpen(true)}
-      className="group flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-sm text-accent-soft transition-colors hover:bg-accent/20"
+      className="flex h-10 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-bold text-white transition-all hover:brightness-110"
+      style={{ boxShadow: "0 4px 14px rgba(253,88,17,0.3)" }}
       aria-label="Open AI Command Center"
       data-tour="command-center"
     >
-      <Sparkles size={15} />
-      <span className="hidden font-medium md:inline">Ask AI</span>
-      <kbd className="cc-kbd hidden lg:inline">⌘K</kbd>
+      <Sparkles size={16} />
+      <span className="hidden md:inline">Ask AI</span>
+      <kbd className="hidden rounded-md bg-white/20 px-1.5 py-0.5 text-[11px] font-semibold text-white lg:inline">⌘K</kbd>
     </button>
   );
 }

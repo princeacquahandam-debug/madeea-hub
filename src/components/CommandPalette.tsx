@@ -82,7 +82,7 @@ export function CommandPalette() {
 
   let idx = -1;
   return (
-    <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/60 p-4 pt-[12vh]" onClick={() => setOpen(false)}>
+    <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-4 pt-[12vh]" onClick={() => setOpen(false)}>
       <div className="card w-full max-w-lg overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-border px-4">
           <Search size={16} className="text-faint" />

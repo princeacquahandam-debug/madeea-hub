@@ -79,7 +79,7 @@ export default function QuickActions() {
         {schema && <p className="mb-4 text-sm text-muted">{schema.howTo}</p>}
 
         {busy ? (
-          <p className="py-8 text-center text-sm text-faint">Generating with Claude…</p>
+          <p className="py-8 text-center text-sm text-faint">Generating with AI…</p>
         ) : output ? (
           <div className="space-y-4">
             <OutputViewer output={output} title={active ?? "AI Output"} />

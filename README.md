@@ -1,6 +1,6 @@
 # MadeEA EA Hub
 
-Functional rebuild of Rowena's MadeEA "Command Center" — an AI-powered dashboard
+MadeEA "Command Center" — an AI-powered dashboard
 for an Elite Executive Assistant. Vite + React + Supabase, OpenAI server-side,
 multi-user from day one.
 

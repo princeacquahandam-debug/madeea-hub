@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { AmbientBackground } from "@/components/layout/AmbientBackground";
 
 // Invite-only per spec (internal tool, not a public SaaS): sign-in only.
 // EA accounts are provisioned by an admin (Supabase dashboard now; a Team/Invite
@@ -25,11 +26,13 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-bg p-4">
-      <div className="card w-full max-w-sm p-7">
+    <div className="relative z-10 flex min-h-screen items-center justify-center p-4">
+      <AmbientBackground />
+      <div className="card w-full max-w-sm p-7 shadow-2xl">
         <div className="mb-6 text-center">
-          <img src="/logo.png" alt="MadeEA" className="mx-auto mb-3 h-9 w-auto" />
-          <p className="eyebrow text-accent/80">Command Center</p>
+          <img src="/logo-light.png" alt="MadeEA" className="mx-auto mb-3 h-9 w-auto [[data-theme=light]_&]:hidden" />
+          <img src="/logo-dark.png" alt="MadeEA" className="mx-auto mb-3 hidden h-9 w-auto [[data-theme=light]_&]:block" />
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-accent">Executive OS</p>
         </div>
 
         <form className="space-y-3" onSubmit={submit}>

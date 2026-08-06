@@ -11,7 +11,7 @@ import { Bookmark } from "lucide-react";
 export function GeneratorTool({
   tool,
   formats,
-  badge = "Claude AI Connected",
+  badge = "AI Connected",
 }: {
   tool: "studio" | "bookkeeping";
   formats: StudioFormat[];
@@ -148,7 +148,7 @@ export function GeneratorTool({
 
           <button className="btn-primary mt-4 w-full" onClick={run} disabled={busy}>
             <Sparkles size={15} />
-            {busy ? "Generating…" : "Generate with Claude"}
+            {busy ? "Generating…" : "Generate with AI"}
           </button>
         </div>
 

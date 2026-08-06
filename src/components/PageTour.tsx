@@ -107,7 +107,7 @@ export function PageTour({
         <div className="absolute inset-0 bg-black/70" />
       )}
 
-      <div className="card w-80 max-w-[calc(100vw-2rem)] p-4 shadow-2xl" style={bubble}>
+      <div className="card w-80 max-w-[calc(100vw-2rem)] bg-[rgb(var(--c-surface))] p-4 shadow-2xl" style={bubble}>
         <p className="text-xs text-faint">Step {step + 1} of {steps.length}</p>
         <h3 className="mt-1 font-semibold">{s.title}</h3>
         <p className="mt-1 text-sm text-muted">{s.body}</p>
@@ -127,13 +127,13 @@ export function PageTour({
  * Drives a PageTour: auto-opens the first time (per storageKey), and returns a
  * `replay` you can wire to a button.
  */
-export function usePageTour(storageKey: string) {
+export function usePageTour(storageKey: string, autoStart = true) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
-    if (!localStorage.getItem(storageKey)) {
+    if (autoStart && !localStorage.getItem(storageKey)) {
       const t = setTimeout(() => setOpen(true), 700);
       return () => clearTimeout(t);
     }
-  }, [storageKey]);
+  }, [storageKey, autoStart]);
   return { open, replay: () => setOpen(true), close: () => setOpen(false) };
 }

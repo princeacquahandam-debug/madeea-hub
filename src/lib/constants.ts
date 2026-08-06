@@ -44,13 +44,13 @@ export const NAV: NavItem[] = [
   { to: "/sops", label: "SOPs", icon: ClipboardCheck, group: "Operations" },
   { to: "/automation", label: "Automation", icon: Workflow, group: "Operations" },
   { to: "/integrations", label: "Integrations", icon: Plug, group: "Operations" },
-  { to: "/studio", label: "Communication Studio", icon: PenLine, group: "AI Suite", badge: "Claude" },
-  { to: "/bookkeeping", label: "Bookkeeping AI", icon: Calculator, group: "AI Suite", badge: "Claude" },
+  { to: "/studio", label: "Communication Studio", icon: PenLine, group: "AI Suite", badge: "AI" },
+  { to: "/bookkeeping", label: "Bookkeeping AI", icon: Calculator, group: "AI Suite", badge: "AI" },
   // The three core-service helpers. They live in AI Suite rather than a group of
-  // their own: they're Claude-powered tools like their neighbours here, and each
+  // their own: they're AI-powered tools like their neighbours here, and each
   // upgrades an Operations page above rather than replacing it.
-  { to: "/email-helper", label: "Email Helper", icon: MailCheck, group: "AI Suite", badge: "Claude" },
-  { to: "/meeting-helper", label: "Meeting Helper", icon: CalendarCheck, group: "AI Suite", badge: "Claude" },
+  { to: "/email-helper", label: "Email Helper", icon: MailCheck, group: "AI Suite", badge: "AI" },
+  { to: "/meeting-helper", label: "Meeting Helper", icon: CalendarCheck, group: "AI Suite", badge: "AI" },
   { to: "/focus", label: "Focus Helper", icon: Crosshair, group: "AI Suite" },
   // Second Brain — helpers that read the workspace's own data rather than a form.
   // Voice-Note first: it's the flagship demo, and the one to land on.

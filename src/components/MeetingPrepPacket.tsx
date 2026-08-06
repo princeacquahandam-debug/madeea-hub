@@ -109,7 +109,7 @@ export function MeetingPrepPacket({
             <div className="mt-3 flex items-center justify-between border-t border-accent/20 pt-2">
               <span className="text-[11px] text-faint">
                 Generated {since(cached.generated_at)}
-                {cached.brief.source === "offline" && " · offline summary (Claude not yet connected)"}
+                {cached.brief.source === "offline" && " · offline summary (AI not yet connected)"}
               </span>
               <button className="btn-ghost px-2 py-1 text-xs" onClick={run} disabled={busy}>
                 <RefreshCw size={12} className={busy ? "animate-spin" : undefined} />
@@ -126,7 +126,7 @@ export function MeetingPrepPacket({
             </p>
             <button className="btn-primary mt-3 w-full" onClick={run} disabled={busy}>
               <Sparkles size={14} className={busy ? "animate-pulse" : undefined} />
-              {busy ? "Generating with Claude…" : "Generate Brief"}
+              {busy ? "Generating with AI…" : "Generate Brief"}
             </button>
           </div>
         )}

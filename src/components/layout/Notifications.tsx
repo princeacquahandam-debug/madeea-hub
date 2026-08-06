@@ -117,7 +117,7 @@ export function Notifications() {
       </button>
 
       {open && (
-        <div className="card absolute right-0 z-50 mt-2 max-h-[28rem] w-80 overflow-y-auto p-2 shadow-xl">
+        <div className="modal-panel absolute right-0 z-50 mt-2 max-h-[28rem] w-80 overflow-y-auto rounded-2xl p-2">
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-sm font-semibold">Notifications</p>
             {items.some((i) => !read.has(i.id)) && (

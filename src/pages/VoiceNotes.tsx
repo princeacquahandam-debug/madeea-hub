@@ -333,8 +333,8 @@ export default function VoiceNotes() {
 
                 <p className="text-[11px] text-faint">
                   {parsed.source === "claude"
-                    ? "Parsed by Claude; the date was re-checked against today locally."
-                    : "Parsed on-device (Claude not connected). Dates are computed from today's real date."}
+                    ? "Parsed by AI; the date was re-checked against today locally."
+                    : "Parsed on-device (AI not connected). Dates are computed from today's real date."}
                 </p>
 
                 <div className="flex gap-2 pt-1">

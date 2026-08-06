@@ -86,7 +86,7 @@ export const GUIDES: Record<string, Guide> = {
   "/studio": {
     title: "How Communication Studio works",
     points: [
-      "Pick a format, fill the fields, then “Generate with Claude”.",
+      "Pick a format, fill the fields, then “Generate with AI”.",
       "Toggle Formatted / Markdown / HTML on the output, and export a branded PDF.",
     ],
   },
