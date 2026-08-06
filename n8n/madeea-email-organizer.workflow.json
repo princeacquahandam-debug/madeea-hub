@@ -1,0 +1,337 @@
+{
+  "name": "MadeEA — Team Email Organizer",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-620, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-url",
+              "name": "supabaseUrl",
+              "value": "https://bglduxferbjmoeqzyypx.supabase.co",
+              "type": "string"
+            },
+            {
+              "id": "cfg-model",
+              "name": "model",
+              "value": "gpt-4o-mini",
+              "type": "string"
+            },
+            {
+              "id": "cfg-max",
+              "name": "maxPerMailbox",
+              "value": 25,
+              "type": "number"
+            },
+            {
+              "id": "cfg-prompt",
+              "name": "triagePrompt",
+              "value": "You are an executive assistant triaging a busy inbox. Reply with JSON only, shaped {\"category\": string, \"reason\": string, \"confidence\": number}.\n\ncategory must be exactly one of:\n- \"urgent\": needs the executive's attention today. Real deadlines, escalations, anything blocking someone.\n- \"reply\": a person is waiting on a response, but it can wait a day.\n- \"delegate\": routine work another team member should handle (scheduling, invoices, routine vendor admin).\n- \"archive\": no action needed. Receipts, confirmations, marketing, automated reports.\n\nreason: one short sentence, under 120 characters, saying why. Write it for the assistant who will read it.\nconfidence: 0 to 1.\n\nWhen genuinely torn between two categories, choose the one that keeps a human in the loop. Never invent a category outside the four listed.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-400, 300],
+      "notes": "Edit these four values after import. supabaseUrl has no trailing slash."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.supabaseUrl }}/functions/v1/n8n-inbox-triage",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'members' }) }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Connected mailboxes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-180, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "MadeEA n8n secret"
+        }
+      },
+      "notes": "Returns every teammate who has connected Google in the Hub. No tokens cross this boundary."
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "members",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Split members",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [40, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/functions/v1/n8n-inbox-triage",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'fetch', user_id: $json.user_id, max: $('Config').first().json.maxPerMailbox }) }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Fetch mailbox",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "MadeEA n8n secret"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Pulls new mail, stores it, advances the cursor, and returns everything still unfiled for this mailbox — including anything a previous run failed to finish."
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "messages",
+        "options": {
+          "include": "allOtherFields"
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Split messages",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [480, 300],
+      "onError": "continueRegularOutput",
+      "notes": "A mailbox with nothing to file yields no items, so the rest of the run is skipped for that person. Continues on error so a failed fetch (which has no `messages` field) can't kill the whole run."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Deterministic pass. Every message a rule catches is one the model never\n// sees — cheaper, instant, and predictable. Rules arrive with the payload from\n// the Edge Function, so they are edited in the Hub, not in this node.\nconst CATS = ['urgent', 'reply', 'delegate', 'archive'];\nconst out = [];\n\nfor (const item of items) {\n  const m = item.json;\n  // A mailbox whose fetch failed arrives here with no message on it. Drop it\n  // rather than sending an empty shell to the model.\n  if (!m || !m.gmail_id || !m.user_id) continue;\n\n  const rules = Array.isArray(m.rules) ? m.rules : [];\n  const email = String(m.sender_email || '').toLowerCase();\n  const domain = email.split('@')[1] || '';\n  const subject = String(m.subject || '').toLowerCase();\n\n  // Lowest priority number wins, and the first match stops evaluation.\n  const ordered = [...rules].sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100));\n\n  let hit = null;\n  for (const r of ordered) {\n    const v = String(r.match_value ?? '').toLowerCase();\n    let match = false;\n    switch (r.match_type) {\n      case 'sender_email':          match = email === v; break;\n      case 'sender_email_contains': match = v !== '' && email.includes(v); break;\n      case 'sender_domain':         match = domain === v.replace(/^@/, ''); break;\n      case 'subject_contains':      match = v !== '' && subject.includes(v); break;\n      case 'is_newsletter':         match = m.is_bulk === true; break;\n      case 'is_client':             match = m.is_client === true; break;\n    }\n    if (match && CATS.includes(r.category)) { hit = r; break; }\n  }\n\n  out.push({\n    json: {\n      user_id: m.user_id,\n      message_id: m.message_id,\n      gmail_id: m.gmail_id,\n      sender_name: m.sender_name,\n      sender_email: m.sender_email,\n      subject: m.subject,\n      preview: m.preview,\n      is_bulk: m.is_bulk,\n      is_client: m.is_client,\n      needs_ai: !hit,\n      category: hit ? hit.category : null,\n      reason: hit ? ('Rule: ' + hit.name) : null,\n      source: hit ? 'rules' : null,\n      confidence: hit ? 1 : null,\n    },\n  });\n}\n\nreturn out;"
+      },
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Apply rules",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "needs-ai",
+              "leftValue": "={{ $json.needs_ai }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "No rule matched?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $('Config').first().json.model, temperature: 0, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: $('Config').first().json.triagePrompt }, { role: 'user', content: 'From: ' + $json.sender_name + ' <' + $json.sender_email + '>\\nSubject: ' + $json.subject + '\\nPreview: ' + $json.preview } ] }) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 5,
+              "batchInterval": 1000
+            }
+          }
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000009",
+      "name": "Classify with AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 200],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_ME",
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Only sees sender, subject and preview — never the full body. Batched to stay under rate limits."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The HTTP node replaced the item, so the original message is read back from\n// the paired input. An unparseable or failed response falls back to 'reply':\n// the outcome that keeps a human looking at it.\nconst src = $('Apply rules').item.json;\nconst CATS = ['urgent', 'reply', 'delegate', 'archive'];\n\nlet parsed = {};\ntry {\n  parsed = JSON.parse($json.choices?.[0]?.message?.content ?? '{}');\n} catch (e) {\n  parsed = {};\n}\n\nconst raw = String(parsed.category ?? '').toLowerCase();\nconst category = CATS.includes(raw) ? raw : 'reply';\nconst failed = !CATS.includes(raw);\n\nreturn {\n  json: {\n    user_id: src.user_id,\n    message_id: src.message_id,\n    gmail_id: src.gmail_id,\n    category,\n    reason: failed\n      ? 'Needs a look — automatic sorting could not decide'\n      : String(parsed.reason ?? 'Sorted by AI').slice(0, 300),\n    source: 'ai',\n    confidence: failed ? 0 : (typeof parsed.confidence === 'number' ? parsed.confidence : 0.5),\n  },\n};"
+      },
+      "id": "a1000000-0000-4000-8000-00000000000a",
+      "name": "Read AI verdict",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1380, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One commit call per mailbox instead of one per message.\nconst byUser = new Map();\n\nfor (const item of items) {\n  const j = item.json;\n  if (!j.user_id || !j.category) continue;\n  if (!byUser.has(j.user_id)) byUser.set(j.user_id, []);\n  byUser.get(j.user_id).push({\n    message_id: j.message_id,\n    gmail_id: j.gmail_id,\n    category: j.category,\n    reason: j.reason,\n    source: j.source,\n    confidence: j.confidence,\n  });\n}\n\nreturn [...byUser.entries()].map(([user_id, results]) => ({ json: { user_id, results } }));"
+      },
+      "id": "a1000000-0000-4000-8000-00000000000b",
+      "name": "Group AI results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One commit call per mailbox instead of one per message.\nconst byUser = new Map();\n\nfor (const item of items) {\n  const j = item.json;\n  if (!j.user_id || !j.category) continue;\n  if (!byUser.has(j.user_id)) byUser.set(j.user_id, []);\n  byUser.get(j.user_id).push({\n    message_id: j.message_id,\n    gmail_id: j.gmail_id,\n    category: j.category,\n    reason: j.reason,\n    source: j.source,\n    confidence: j.confidence,\n  });\n}\n\nreturn [...byUser.entries()].map(([user_id, results]) => ({ json: { user_id, results } }));"
+      },
+      "id": "a1000000-0000-4000-8000-00000000000c",
+      "name": "Group rule results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 420]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/functions/v1/n8n-inbox-triage",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'commit', user_id: $json.user_id, results: $json.results }) }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-00000000000d",
+      "name": "File AI-sorted mail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1820, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "MadeEA n8n secret"
+        }
+      },
+      "notes": "Skips any message a team member has already re-filed by hand."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/functions/v1/n8n-inbox-triage",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'commit', user_id: $json.user_id, results: $json.results }) }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-00000000000e",
+      "name": "File rule-sorted mail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 420],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "MadeEA n8n secret"
+        }
+      },
+      "notes": "Separate commit from the AI branch on purpose — no Merge node means an empty branch can never stall the run."
+    }
+  ],
+  "connections": {
+    "Every 15 minutes": {
+      "main": [[{ "node": "Config", "type": "main", "index": 0 }]]
+    },
+    "Config": {
+      "main": [[{ "node": "Connected mailboxes", "type": "main", "index": 0 }]]
+    },
+    "Connected mailboxes": {
+      "main": [[{ "node": "Split members", "type": "main", "index": 0 }]]
+    },
+    "Split members": {
+      "main": [[{ "node": "Fetch mailbox", "type": "main", "index": 0 }]]
+    },
+    "Fetch mailbox": {
+      "main": [[{ "node": "Split messages", "type": "main", "index": 0 }]]
+    },
+    "Split messages": {
+      "main": [[{ "node": "Apply rules", "type": "main", "index": 0 }]]
+    },
+    "Apply rules": {
+      "main": [[{ "node": "No rule matched?", "type": "main", "index": 0 }]]
+    },
+    "No rule matched?": {
+      "main": [
+        [{ "node": "Classify with AI", "type": "main", "index": 0 }],
+        [{ "node": "Group rule results", "type": "main", "index": 0 }]
+      ]
+    },
+    "Classify with AI": {
+      "main": [[{ "node": "Read AI verdict", "type": "main", "index": 0 }]]
+    },
+    "Read AI verdict": {
+      "main": [[{ "node": "Group AI results", "type": "main", "index": 0 }]]
+    },
+    "Group AI results": {
+      "main": [[{ "node": "File AI-sorted mail", "type": "main", "index": 0 }]]
+    },
+    "Group rule results": {
+      "main": [[{ "node": "File rule-sorted mail", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "pinData": {},
+  "tags": []
+}

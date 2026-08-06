@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Mail, Calendar, Slack, CheckCircle2, RefreshCw, Plug, Loader2 } from "lucide-react";
+import { Mail, Calendar, Slack, CheckCircle2, RefreshCw, Plug, Loader2, Wand2, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { useMailboxSync } from "@/data/hooks";
 
 export default function Integrations() {
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState("");
+
+  const { data: mailboxes = [] } = useMailboxSync();
 
   const { data: googleConnected = false, refetch } = useQuery({
     queryKey: ["google-connected"],
@@ -170,6 +173,60 @@ export default function Integrations() {
             {busy === "slack" ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Sync Slack
           </button>
         </div>
+      </div>
+
+      {/* Team email organiser — read-only status. The n8n schedule drives it; there
+          is deliberately no "run now" button, because gmail_sync_state is
+          service-role-write-only and one member must not be able to force a
+          re-pull of someone else's mailbox. */}
+      <div className="card mt-5 p-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-surface-2">
+            <Wand2 size={20} className="text-accent-soft" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold">Team email organiser</h3>
+            <p className="text-xs text-faint">
+              Sorts every connected mailbox into Urgent / Reply / Delegate / Archive on a schedule. Your real Gmail is never changed.
+            </p>
+          </div>
+          {mailboxes.length > 0 && (
+            <span className="pill bg-emerald-500/15 text-emerald-400">{mailboxes.length} mailbox{mailboxes.length === 1 ? "" : "es"}</span>
+          )}
+        </div>
+
+        {mailboxes.length === 0 ? (
+          <p className="mt-4 text-sm text-muted">
+            No mailbox has been organised yet. Once a teammate connects Google and the n8n schedule runs,
+            their sync status shows up here.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-2">
+            {mailboxes.map((m) => (
+              <div key={m.owner_id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-surface-2 px-3 py-2 text-sm">
+                <span className="font-medium">{m.name}</span>
+                {m.last_status === "error" ? (
+                  <span className="pill bg-red-500/15 text-red-400" title={m.last_error ?? undefined}>
+                    <AlertTriangle size={11} />
+                    Needs attention
+                  </span>
+                ) : (
+                  <span className="pill bg-emerald-500/15 text-emerald-400">
+                    <CheckCircle2 size={11} />
+                    Healthy
+                  </span>
+                )}
+                <span className="text-xs text-faint">
+                  {m.messages_triaged} sorted
+                  {m.last_synced_at ? ` · last run ${new Date(m.last_synced_at).toLocaleString()}` : " · never run"}
+                </span>
+                {m.last_status === "error" && m.last_error && (
+                  <span className="w-full text-xs text-red-400/80">{m.last_error}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="card mt-5 flex items-start gap-3 p-5">

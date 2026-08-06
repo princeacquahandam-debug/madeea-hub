@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
@@ -307,6 +307,48 @@ export function useMessages() {
         client_id: m.client_id ?? null,
         client_name: m.clients?.name,
         client_title: m.clients ? `${m.clients.title}, ${m.clients.company}` : undefined,
+        triage_reason: m.triage_reason ?? null,
+        triage_source: m.triage_source ?? null,
+        triage_confidence: m.triage_confidence ?? null,
+        triaged_at: m.triaged_at ?? null,
+        category_locked: m.category_locked ?? false,
+        is_bulk: m.is_bulk ?? false,
+      }));
+    },
+  });
+}
+
+/**
+ * Per-teammate health of the email organiser. Reads gmail_sync_state, which is
+ * readable by any workspace member but writable only by the service role, so
+ * this is a status view and never a control surface.
+ */
+export function useMailboxSync() {
+  return useQuery<MailboxSync[]>({
+    queryKey: ["mailbox-sync"],
+    queryFn: async () => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from("gmail_sync_state")
+        .select("owner_id,last_synced_at,last_status,last_error,messages_seen,messages_triaged")
+        .order("last_synced_at", { ascending: false, nullsFirst: false });
+      if (error) throw error;
+      const rows = (data as any[]) ?? [];
+      if (!rows.length) return [];
+
+      // Names live in profiles; a missing profile must not hide a mailbox.
+      const { data: profs } = await supabase
+        .from("profiles").select("id,full_name").in("id", rows.map((r) => r.owner_id));
+      const nameOf = new Map((profs ?? []).map((p: any) => [p.id, p.full_name]));
+
+      return rows.map((r) => ({
+        owner_id: r.owner_id,
+        name: nameOf.get(r.owner_id) ?? "Team member",
+        last_synced_at: r.last_synced_at ?? null,
+        last_status: r.last_status ?? null,
+        last_error: r.last_error ?? null,
+        messages_seen: r.messages_seen ?? 0,
+        messages_triaged: r.messages_triaged ?? 0,
       }));
     },
   });

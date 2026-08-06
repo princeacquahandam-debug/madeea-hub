@@ -125,6 +125,26 @@ export interface Message {
   direction?: "inbound" | "outbound";
   /** Outbound only: when THEY replied. Null on an old outbound = a dead thread. */
   reply_received_at?: string | null;
+  // Set by the team email organiser (see n8n/README.md). `triaged_at` null means
+  // it is still queued; `category_locked` means a person re-filed it by hand and
+  // the organiser will leave it alone from now on.
+  triage_reason?: string | null;
+  triage_source?: "rules" | "ai" | "manual" | null;
+  triage_confidence?: number | null;
+  triaged_at?: string | null;
+  category_locked?: boolean;
+  is_bulk?: boolean;
+}
+
+/** One row per teammate with Google connected — how their mailbox sync is doing. */
+export interface MailboxSync {
+  owner_id: string;
+  name: string;
+  last_synced_at: string | null;
+  last_status: "ok" | "error" | null;
+  last_error: string | null;
+  messages_seen: number;
+  messages_triaged: number;
 }
 
 export interface Snooze {

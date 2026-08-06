@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Sparkles, Mail, AlertTriangle, MailQuestion } from "lucide-react";
+import { Sparkles, Mail, AlertTriangle, MailQuestion, Wand2, Lock, Inbox } from "lucide-react";
 import type { Message } from "@/types/db";
 import { Badge, PageHeader } from "@/components/ui";
 import { initials } from "@/lib/utils";
@@ -151,6 +151,22 @@ export default function Communication() {
                         <span className="pill bg-sky-500/15 text-sky-400">Sent</span>
                       )}
                       <Badge tone={m.category}>{categoryLabel[m.category]}</Badge>
+                      {m.category_locked || m.triage_source === "manual" ? (
+                        <span className="pill bg-zinc-500/15 text-faint" title="You filed this by hand — the organiser won't touch it again">
+                          <Lock size={11} />
+                          Your call
+                        </span>
+                      ) : m.triage_source ? (
+                        <span className="pill bg-violet-500/15 text-violet-300" title={m.triage_reason ?? undefined}>
+                          <Wand2 size={11} />
+                          Auto-filed
+                        </span>
+                      ) : (
+                        <span className="pill bg-zinc-500/15 text-faint" title="Waiting for the next organiser run">
+                          <Inbox size={11} />
+                          Unsorted
+                        </span>
+                      )}
                       {deadIds.has(m.id) && (
                         <span className="pill bg-amber-500/15 text-amber-400">
                           <MailQuestion size={11} />
@@ -194,6 +210,17 @@ export default function Communication() {
                   </div>
                   <Badge tone={selected.category}>{categoryLabel[selected.category]}</Badge>
                 </div>
+
+                {selected.triage_reason && (
+                  <p className="mt-3 flex items-start gap-1.5 text-xs text-faint">
+                    {selected.category_locked ? <Lock size={12} className="mt-px shrink-0" /> : <Wand2 size={12} className="mt-px shrink-0" />}
+                    <span>
+                      {selected.triage_reason}
+                      {selected.triage_source === "ai" && " · sorted by AI"}
+                      {selected.triage_source === "rules" && " · matched a team rule"}
+                    </span>
+                  </p>
+                )}
 
                 <div className="mt-4">
                   <p className="field-label">Original Message</p>
