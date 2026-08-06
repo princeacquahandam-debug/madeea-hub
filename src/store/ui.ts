@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
-const COLLAPSE_KEY = "madeea:sidebar-collapsed";
-const MADELINE_KEY = "madeea:madeline-open";
+const COLLAPSE_KEY = "madeea-sidebar-collapsed";
+const MADELINE_KEY = "madeea-madeline-open";
 
 function initialCollapsed(): boolean {
   if (typeof window === "undefined") return false;

@@ -10,17 +10,8 @@
       rel="stylesheet"
     />
     <title>MadeEA EA Hub</title>
-    <script>
-      // Apply the saved theme before first paint to avoid a flash.
-      (function () {
-        try {
-          var t = localStorage.getItem("madeea:theme");
-          if (t !== "light" && t !== "dark") t = "dark";
-          document.documentElement.setAttribute("data-theme", t);
-          document.documentElement.classList.toggle("dark", t === "dark");
-        } catch (e) {}
-      })();
-    </script>
+    <!-- External, not inline: the CSP in vercel.json forbids inline scripts. -->
+    <script src="%BASE_URL%theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

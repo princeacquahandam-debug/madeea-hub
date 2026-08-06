@@ -4,7 +4,7 @@ import { create } from "zustand";
 // reflected on <html data-theme> (which drives every CSS token in index.css).
 export type Theme = "dark" | "light";
 
-const KEY = "madeea:theme";
+const KEY = "madeea-theme";
 
 function initial(): Theme {
   if (typeof window === "undefined") return "dark";
