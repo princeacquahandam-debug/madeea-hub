@@ -13,6 +13,7 @@ import {
   Clock,
   Video,
   Upload,
+  Repeat,
   Bookmark,
   GraduationCap,
   StickyNote,
@@ -51,6 +52,7 @@ export const NAV: NavItem[] = [
   { to: "/sops", label: "Workflows", icon: ClipboardCheck, group: "Operations" },
   /* Next to Workflows because that is the loop: record it, then write it up. */
   { to: "/videos", label: "Madeline Videos", icon: Video, group: "Operations" },
+  { to: "/routines", label: "Routines", icon: Repeat, group: "Operations" },
   { to: "/uploads", label: "Uploads", icon: Upload, group: "Operations" },
   { to: "/saved", label: "Saved", icon: Bookmark, group: "Operations" },
   /* The Academy was routed but never in the nav — the only way in was a promo

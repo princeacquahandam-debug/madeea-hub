@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem, Routine } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
@@ -12,6 +12,8 @@ import { addDemoTime, loadDemoTime, removeDemoTime, updateDemoTime } from "@/sto
 import { addDemoRecording, loadDemoRecordings, removeDemoRecording } from "@/store/demoRecordings";
 import { addDemoActivity, addDemoComment, loadDemoActivity, loadDemoComments, removeDemoComment } from "@/store/demoComments";
 import { addDemoFile, addDemoSaved, loadDemoFiles, loadDemoSaved, removeDemoFile, removeDemoSaved } from "@/store/demoFiles";
+import { addDemoRoutine, claimDemoRun, loadDemoRoutines, removeDemoRoutine, updateDemoRoutine } from "@/store/demoRoutines";
+import { isoDate, nextOccurrences } from "@/lib/recurrence";
 import { loadSnoozes, saveSnooze } from "@/store/demoSnoozes";
 import { loadAssignees, loadDemoTaskEvents, saveAssignee } from "@/store/demoAssignees";
 import { applyDemo, demoCreate, demoDelete, demoId, demoPatch } from "@/store/demoWrites";
@@ -1310,6 +1312,120 @@ export function useCommentMutations() {
   });
 
   return { add, remove };
+}
+
+// ---------------- routines (migration 0032) ----------------
+
+export function useRoutines() {
+  return useQuery<Routine[]>({
+    queryKey: ["routines"],
+    queryFn: async () => {
+      if (!supabase) return loadDemoRoutines();
+      const { data, error } = await supabase
+        .from("routines")
+        .select("id,name,task_template,rrule,timezone,client_id,assignee_id,is_active,lead_days,last_run_on,created_at")
+        .order("created_at", { ascending: false });
+      if (error) return []; // migration not applied yet
+      return data as Routine[];
+    },
+    retry: false,
+  });
+}
+
+export function useRoutineMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["routines"] });
+    qc.invalidateQueries({ queryKey: ["tasks"] });
+  };
+
+  const create = useMutation({
+    mutationFn: async (input: Omit<Routine, "id" | "created_at" | "last_run_on">) => {
+      if (!supabase) {
+        addDemoRoutine({ ...input, id: demoId(), last_run_on: null, created_at: new Date().toISOString() });
+        return;
+      }
+      const { error } = await supabase.from("routines").insert(input);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  const update = useMutation({
+    mutationFn: async ({ id, ...patch }: Partial<Routine> & { id: string }) => {
+      if (!supabase) { updateDemoRoutine(id, patch); return; }
+      const { error } = await supabase.from("routines").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      if (!supabase) { removeDemoRoutine(id); return; }
+      const { error } = await supabase.from("routines").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  /**
+   * Turn everything due into real tasks.
+   *
+   * There is no job runner in this stack — the plan assumes Inngest and we do
+   * not have it — so this is called when the Routines page opens. That is
+   * enough here for one reason: attendance gating means an EA opens this app
+   * every working morning, so "when someone opens it" and "daily" are the same
+   * event in practice.
+   *
+   * Safe to call as often as you like. Live, a unique index on
+   * (routine_id, occurrence_date) makes a second attempt a no-op; demo mirrors
+   * that with a claimed-runs list. Neither relies on this being called once.
+   */
+  const materialize = useMutation({
+    mutationFn: async (routines: Routine[]) => {
+      const today = new Date();
+      const created: string[] = [];
+
+      for (const r of routines) {
+        if (!r.is_active) continue;
+        // Look ahead by the lead time: a routine with 2 lead days should have
+        // created Friday's task on Wednesday.
+        const horizon = new Date(today);
+        horizon.setDate(horizon.getDate() + Math.max(0, r.lead_days));
+
+        for (const occ of nextOccurrences(r.rrule, today, 8)) {
+          if (occ > isoDate(horizon)) break;
+          if (!supabase) {
+            if (!claimDemoRun(r.id, occ)) continue;
+            addDemoTask({
+              id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              title: r.task_template.title || r.name,
+              client_name: seed.CLIENTS.find((c) => c.id === r.client_id)?.name ?? "Unassigned",
+              due_label: "", due_at: occ,
+              priority: r.task_template.priority ?? "normal",
+              status: "todo", subtasks: [], recurrence: "none", depends_on: null,
+              client_id: r.client_id, assignee_id: r.assignee_id,
+              blocked: false, blocker_note: null, notes: r.task_template.notes ?? null,
+              progress: [], attachments: [], completed_at: null,
+            });
+            created.push(occ);
+            continue;
+          }
+          const { data, error } = await supabase.rpc("materialize_routine_occurrence", {
+            p_routine_id: r.id,
+            p_occurrence: occ,
+          });
+          if (error) throw error;
+          if (data) created.push(occ);
+        }
+      }
+      return created.length;
+    },
+    onSettled: invalidate,
+  });
+
+  return { create, update, remove, materialize };
 }
 
 // ---------------- files + saved (migration 0031) ----------------

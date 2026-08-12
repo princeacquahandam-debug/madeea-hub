@@ -124,6 +124,29 @@ export interface TaskActivity {
   actor_name?: string | null;
 }
 
+/**
+ * Work that comes back on a schedule (migration 0032).
+ *
+ * Distinct from tasks.recurrence, which is completion-driven ("when this is
+ * done, make another"). A routine is calendar-driven: Monday's report is due on
+ * Monday whether or not last Monday's got finished.
+ */
+export interface Routine {
+  id: string;
+  name: string;
+  /** Task template: { title, priority, notes }. */
+  task_template: { title?: string; priority?: Priority; notes?: string };
+  /** RFC 5545, e.g. FREQ=WEEKLY;BYDAY=MO. See lib/recurrence.ts for the subset. */
+  rrule: string;
+  timezone: string;
+  client_id: string | null;
+  assignee_id: string | null;
+  is_active: boolean;
+  lead_days: number;
+  last_run_on: string | null;
+  created_at: string;
+}
+
 /** A document the workspace owns, rather than a link that rots (migration 0031). */
 export interface WorkspaceFile {
   id: string;
