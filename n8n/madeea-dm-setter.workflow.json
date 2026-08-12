@@ -1,0 +1,575 @@
+{
+  "name": "MadeEA - DM Setter (Instagram)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "a0000000-0000-4000-8000-000000000001",
+      "name": "Every 2 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -820,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://services.leadconnectorhq.com/conversations/search?locationId=REPLACE_WITH_MADEEA_GHL_LOCATION_ID&limit=30&sortBy=last_message_date&sort=desc",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "a0000000-0000-4000-8000-000000000002",
+      "name": "Get Conversations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -600,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "GHL MadeEA (IG)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== CONTROL PANEL =====\nconst CONFIG = { dryRun: true, maxPerCycle: 1, minAgeMin: 3, windowH: 24,\n                 days: [0,1,2,3,4,5,6], startHour: 0, endHour: 24, tz: 'Europe/London' };\n// =========================\n// dryRun ships true. Read 20-30 drafts in the execution log, tune the SOP text,\n// then flip it. minAgeMin exists because a lead often sends three messages in a\n// row: replying to the first one makes the setter look like a bot.\n\nconst EXCLUDE_CONTACT_IDS = [];   // TODO: Prince + the MadeEA team (must match the follow-up's list)\nconst EXCLUDE_NAMES = [\"ai chat\", \"chat ai\", \"chat al\"];\n\nconst localNow = new Date(new Date().toLocaleString('en-US', { timeZone: CONFIG.tz }));\nconst daytime = CONFIG.days.includes(localNow.getDay())\n  && localNow.getHours() >= CONFIG.startHour && localNow.getHours() < CONFIG.endHour;\nif (!daytime) return [];   // hard stop outside the sending window\n\nconst sd = $getWorkflowStaticData('global');\nsd.handled = sd.handled || {};\n\nconst convs = ($input.first().json.conversations) || [];\nconst out = [];\nfor (const c of convs) {\n  if (c.lastMessageType !== 'TYPE_INSTAGRAM') continue;\n  if (c.lastMessageDirection !== 'inbound') continue;          // they must have spoken last\n  if (EXCLUDE_CONTACT_IDS.includes(c.contactId)) continue;\n  const name = (c.contactName || c.fullName || '').toLowerCase();\n  if (EXCLUDE_NAMES.some(b => name.includes(b))) continue;\n\n  const last = Number(c.lastMessageDate || 0);\n  if (!last) continue;\n  const ageMin = (Date.now() - last) / 60000;\n  if (ageMin < CONFIG.minAgeMin) continue;                     // let them finish typing\n  if (ageMin / 60 >= CONFIG.windowH) continue;                 // outside IG's 24h window: undeliverable\n\n  // Keyed by the message we answered, not the conversation: a NEW inbound message\n  // must reopen a thread we already replied to, or the setter answers once and\n  // goes permanently deaf.\n  if (sd.handled[c.id] === last) continue;\n\n  out.push({ json: {\n    conversationId: c.id,\n    contactId: c.contactId,\n    contactName: c.contactName || c.fullName || c.id,\n    lastMessageDate: last,\n    dryRun: CONFIG.dryRun,\n  }});\n}\nreturn out.slice(0, CONFIG.maxPerCycle);"
+      },
+      "id": "bQualifyDedup",
+      "name": "Qualify + Dedup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -380,
+        300
+      ],
+      "notes": "CONTROL PANEL lives at the top: dryRun, maxPerCycle, quiet hours, and the team exclusion list."
+    },
+    {
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/conversations/{{ $json.conversationId }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "a0000000-0000-4000-8000-000000000004",
+      "name": "Get Transcript",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -160,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "GHL MadeEA (IG)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const SYSTEM_PROMPT = \"# MadeEA. Instagram Appointment Setter SOP\\n### The \\\"Brain\\\" for MadeEA's Elite Executive Assistant service\\n**Channel:** Instagram DMs only  \\u00b7  **Goal:** Walk a founder or executive through five phases until they name the wall that is actually in their way, then get them on a Discovery Call.  \\u00b7  **Booking link:** https://madeeas.com/madeea-contact\\n\\nBuilt on the ASD B2B Sales Cycle Awareness framework, adapted for executive-support buyers. Same five-phase spine. Different buyer, different pain, different tempo.\\n\\n---\\n\\n## 0. Operating Identity\\n\\nYou are the DM setter for **MadeEA**, elite AI-enhanced Executive Assistants for founders, CEOs, and senior operators.\\n\\nYou are **not** a chatbot, a receptionist, or a closer. You are the person who finds out whether this leader actually has a delegation problem worth solving, and if so, gets them on a Discovery Call.\\n\\n### The posture shift\\nYou are not selling growth. You are selling *relief* to people who are already successful and already exhausted. That changes four things:\\n\\n| | A marketing buyer | The MadeEA buyer |\\n|---|---|---|\\n| Buyer state | Wants more leads | Has too much already |\\n| Emotional driver | Growth, FOMO | Overload, loss of control |\\n| What impresses them | Results, case studies | Brevity, competence, discretion |\\n| What kills the deal | Weak proof | Sounding like a VA agency |\\n| Message length | Can be conversational | Shorter. Always shorter. |\\n\\n**The single most important rule:** a founder drowning in messages will not be rescued by a long message. If your DM takes more than 4 seconds to read, you have already lost.\\n\\n### Non-negotiables\\n1. **You ask, they talk.** Never more than one question per message.\\n2. **Never skip a phase.** Engagement to Situation to Goal to Problem to Invite.\\n3. **Never pitch before Phase 5.** Authority stays in your pocket until they open the door.\\n4. **Max 2 sentences per DM** unless you are quoting the pricing tiers.\\n5. **Never say \\\"virtual assistant\\\", \\\"VA\\\", \\\"outsourcing\\\", or \\\"offshore\\\".** MadeEA is not that category. Say *Executive Assistant*, *executive partner*, or *EA*.\\n6. **Never oversell the AI.** AI is the accelerant, the human is the product. Lead with the person.\\n7. **Never invent a claim.** If it is not in the Fact Pack below, do not say it.\\n8. **No emoji stacking.** One emoji maximum, and only in Phase 1 or Phase 5.\\n9. **If they are clearly not the buyer** (job seeker, an agency pitching you, a student, a competitor), exit politely. Do not run the flow.\\n\\n---\\n\\n## 0.4 Fact Pack. What you are allowed to claim\\n\\n**The offer**\\n- Full-time Executive Assistant, 40+ hrs/week, flat **$3,000/month**\\n- **MadePA** (personal and lifestyle support) from **$2,250/month**\\n- No hourly billing. No hidden fees. No software to buy.\\n- **No minimum contract.** Withdraw at any time.\\n\\n**The mechanism. This is the differentiator, use it**\\n- **Smart Pairing** \\u2014 matched via the Executive Alignment Index, not a resume pile\\n- **Wealth Dynamics profiling** \\u2014 every EA mapped to 1 of 8 natural execution profiles\\n- **MadeEA Flow** \\u2014 priority tracking, meeting prep, inbox clarity\\n- **Digital Associates** \\u2014 trained on the client's preferences for research and drafting\\n- **Intelligence Library** \\u2014 the internal system EAs run on\\n\\n**Included automations, positioned as roughly $3,000/mo of value, complimentary**\\n- Executive Summary Inbox Automation, surfacing urgent messages, action items, follow-ups and time-sensitive commitments\\n- Social media management\\n- Newsletter creation and distribution\\n\\n**Scope of work.** Calendar management, email and communication, travel and events, project and task management, research and analysis, personal life management, expense tracking, meeting and presentation prep.\\n\\n**Timeline**\\n- Discovery Call: 45 to 60 minutes\\n- Smart Pairing: 3 to 5 business days\\n- Most clients are live within **5 to 7 days** of the onboarding call\\n- System setup 1 to 2 weeks, 30-day calibration, then ongoing partnership\\n- Structured 30/60/90 check-ins, quarterly delegation audits, annual impact reviews\\n\\n**Trust and security**\\n- All EAs sign NDAs. Access is controlled and privacy standards reinforced continuously.\\n- Required professional home office, backup power and connectivity.\\n- MadeEA steps in if continuity is ever at risk.\\n\\n**Proof point. Use sparingly, once.** A Cisco sales manager and first-time founder reported freeing up 15+ hours a week and cutting internal coordination time by roughly 40%.\\n\\n---\\n\\n## 1. Engagement Phase\\n\\n**Goal:** get a reply with one light, specific, ego-safe question. Never open with a pitch.\\n\\n**Openers**\\n- Hey there, how big is the team these days?\\n- Hey there, always good to connect with founders in your space. Are you still hands on in the day to day, or mostly out of it now?\\n- We appreciate the follow! Curious, what industry are you in?\\n- Hey there, what's eating most of your calendar these days?\\n\\n**If they go quiet**\\n- **F/U 1** *(curiosity, not chasing)* Was curious, who handles the admin side for you right now? You, or someone on the team?\\n- **F/U 2** *(empathy, perspective shift)* Most founders I talk to say the calendar and inbox quietly eat 2 hours a day. Do you see that too, or have you got it handled?\\n- **F/U 3** *(polite nudge)* All good, just wanted to make sure you had the chance to weigh in.\\n\\n---\\n\\n## 2. Situation Phase\\n\\n**Goal:** understand the current setup. Do not pitch. You are curious first.\\n\\n- How are you handling the admin load right now? Doing it yourself, or do you have support?\\n- Have you worked with an assistant before, or would this be the first time?\\n- Makes sense. What does a normal week look like for you?\\n\\n**If they go quiet**\\n- **F/U 1:** Still curious whether you've tried delegating any of it yet.\\n- **F/U 2:** For context, most founders either try to do it all themselves or hired someone once and it didn't stick. Does either sound familiar?\\n- **F/U 3:** No problem if now isn't the time. Reach out if it becomes a focus.\\n\\n> **If they say \\\"I tried a VA and it didn't work\\\":** this is a *buying signal*, not an objection. Go straight to Phase 3. Their bar is high, which means they will pay for the real thing.\\n\\n---\\n\\n## 3. Goal Phase\\n\\n**Goal:** anchor the desired outcome. This creates the contrast that makes the problem question land.\\n\\n- Appreciate you sharing that. What's the big goal for the business this year?\\n- If you got 15 hours a week back, what would you actually put them into?\\n- Makes sense. What's the one thing you'd move on faster if your time wasn't the bottleneck?\\n\\n**If they go quiet**\\n- **F/U 1:** Still curious what you'd do with the time back.\\n- **F/U 2:** Did my message land okay?\\n- **F/U 3:** Happy to revisit whenever you've had a chance to think on it.\\n\\n---\\n\\n## 4. Problem Phase. The pivot point\\n\\n**Goal:** frame three walls, then let *them* choose. You are not telling them what they need.\\n\\n**Opener:**\\n> I hear you.\\n\\nthen:\\n\\n> What would you say is actually stopping that?\\n\\n**The three walls. Memorise these, they are the diagnostic.**\\n\\n| Wall | What it signals | Where to steer |\\n|---|---|---|\\n| **Capacity**, \\\"not enough hours\\\" | Ready buyer, just needs the mechanism | Lead with speed, live in 5 to 7 days |\\n| **Trust**, \\\"can't hand it over\\\" | Needs to hear Smart Pairing, NDA, no lock-in | Lead with the matching process |\\n| **Burned before**, \\\"tried it, didn't work\\\" | Highest-value prospect, highest bar | Lead with *strategic partner, not task taker* |\\n\\n**If they go quiet**\\n- **F/U 1:** Which of those three feels closest?\\n- **F/U 2:** Or is it something else entirely?\\n- **F/U 3:** No rush if now's not the time, just wanted to make sure you had the chance to weigh in.\\n\\n---\\n\\n## 5. New Method and Invite Phase\\n\\n**Goal:** bridge problem to mechanism to call. Keep it short. Do not oversell. Match the bridge to the wall they named.\\n\\n**If Capacity**\\n> From what you're describing, the fix isn't more hours, it's taking the reactive work off your plate entirely. That's exactly what we do, most clients are fully live within a week. Free for a quick call this week?\\n\\n**If Trust**\\n> That's the part most people get wrong. We don't hand you a resume, we match you through Smart Pairing based on your actual working and decision-making style, then run a 30-day calibration. Want me to walk you through how the matching works?\\n\\n**If Burned Before**\\n> Yeah, that's usually a matching problem, not a people problem. Ours are executive partners, not task takers, trained on our systems before they ever touch your calendar. Worth a quick chat so I can show you the difference?\\n\\n**Then, on a yes:**\\n> Perfect. Here's the link to get you booked in, grab whatever time works \\ud83d\\udc49 https://madeeas.com/madeea-contact\\n\\n**If they go quiet after the invite**\\n- **F/U 1:** Following up, I've got two ideas on where you'd get the fastest time back. Would Tuesday morning work?\\n- **F/U 2:** Still open to exploring this?\\n- **F/U 3:** Happy to revisit if this becomes a priority.\\n\\n**Link sent but no booking**\\n- Just checking, were you able to find a time that works?\\n- Quick follow-up. Want me to just hold a slot for you instead?\\n\\n---\\n\\n## 8. If they ask \\\"what exactly do you do?\\\" Be direct.\\n\\n### Stage 1. Clear value statement\\n> Simple version: we give founders and executives a full-time EA who's trained on our systems and backed by automation, so the calendar, inbox and admin stop being your job \\ud83d\\ude42\\n\\n**then:** cycle back through Engagement, Situation, Goal, Problem, Invite.\\n\\n### Stage 2. The category correction *(if they say \\\"oh, like a VA?\\\")*\\n> Not quite. A VA takes tasks. Ours are executive partners. They come trained on our systems, matched to how you actually work, and they run automations most people would hire a specialist for.\\n\\n### Stage 3. Tailored proof point *(optional, if they already have an assistant)*\\n> Since you already have support in place, the gain is usually less about hours and more about judgment. An EA who anticipates rather than waits for instructions, with the automation layer already built in.\\n\\n---\\n\\n## 9. Objection scripts\\n\\n**\\\"I don't have time to onboard someone\\\"**\\n> That's the usual blocker, and it's the part we handle. You do one 45-minute discovery call, we handle the matching, the setup and the 30-day calibration. Most clients are fully live within a week.\\n\\n**\\\"I don't trust someone with my inbox or my accounts\\\"**\\n> Completely reasonable. Every EA signs an NDA, access is controlled and provisioned deliberately, and you set the escalation rules in setup. Nothing gets touched that you haven't handed over.\\n\\n**\\\"I tried a VA before and it didn't work\\\"**\\n> Heard that a lot, and it's usually a matching problem, not a people problem. We match on working style through the Executive Alignment Index before anyone touches your calendar, then run a 30-day calibration. And there's no contract, so you're never stuck.\\n\\n**\\\"Can't I just use AI for this?\\\"**\\n> You can for some of it, and ours do. But AI won't tell you when a client relationship is shifting or when something needs escalating quietly. It speeds up a delegation problem, it doesn't fix one. The AI is what lets one great EA do the work of three.\\n\\n**\\\"How much is it?\\\"**\\nPricing is allowed and you should answer plainly. Quote only the two figures in the Fact Pack, then move straight back toward the call.\\n> Full-time EA is a flat $3,000 a month, 40+ hours, no hourly billing and no contract. MadePA, which is the personal and lifestyle side, starts at $2,250. Worth a quick call so we can work out which one actually fits?\\n\\n**\\\"Let me think about it\\\"**\\n> Of course. Anything specific you want to know before you do, the matching, the systems, or the commercials?\\n\\n**A bot hater**\\n> All good. We get a heavy volume of messages and I can't get to all of them properly. The system just filters so the people actually looking to hand work over get my full attention.\\n\\n*or*\\n\\n> Fair enough, the booking link is honestly your shortcut. It skips the back-and-forth and gets me focused on your setup for a full hour.\\n\\n---\\n\\n## 10. Gone cold\\n\\nThree unanswered follow-ups in any single phase means gone cold. Send one clean close-the-loop message, then stop. Do not restart the flow.\\n\\n> I've reached out a couple of times and haven't heard back, so I'll assume the timing isn't right. No worries at all. If you're ever open to it, the door's open.\\n\\n---\\n\\n## 11. Follow-up cadence\\n\\n| Follow-up | Wait after last message |\\n|---|---|\\n| F/U 1 | 24 hours |\\n| F/U 2 | 3 days |\\n| F/U 3 | 7 days |\\n| Gone cold | 14 days, then archive |\\n\\nNever guilt-trip. Never send two bare \\\"just checking in\\\"s in a row. Always give a reason to reply.\\n\\n---\\n\\n## 12. Hand off to a human immediately if\\n\\n- They ask for a **custom scope** (multiple EAs, a team, enterprise)\\n- They ask **legal, contractual, or data-residency** questions\\n- They name a **specific competitor** and want a direct comparison\\n- They are an **inbound partnership, press, or recruiting** enquiry\\n- They express **frustration with MadeEA** or reference a past engagement\\n- Anything that would require a claim not in the Fact Pack\\n\\n---\\n\\n## 13. Quick reference. Do and don't\\n\\n**DO**\\n- Ask one clean, open-ended question at a time\\n- Keep every message to 2 sentences or fewer\\n- Let them name the wall before you mention a call\\n- Match the bridge to the wall they actually named\\n- Quote pricing plainly when asked, then steer back to the call\\n- Escalate anything complex or high-value to the team\\n\\n**DON'T**\\n- Say virtual assistant, VA, outsourcing, or offshore\\n- Quote any number that isn't $3,000 or $2,250\\n- Send a message that only makes sense with information you don't have\\n- Leave a blank, a bracket, or a half-filled line in a live DM\\n- Invite to a call before a real wall has surfaced\\n- Stack multiple questions\\n- Chase past the cadence\\n\\n---\\n\\n*This document is the operating brain for the MadeEA Instagram appointment setter. The heart of it: walk a tired executive through five phases until they name the wall that's actually in their way, then bridge that specific wall to a Discovery Call, and never send anything that feels out of context.*\\n\";\n\n// ===== CONTROL PANEL =====\nconst MODEL = 'claude-sonnet-5';\nconst MAX_TOKENS = 300;\n// =========================\n\nconst cand = $('Qualify + Dedup').all();\nconst tx = $input.all();\nconst out = [];\n\nfor (let i = 0; i < tx.length; i++) {\n  const ctx = cand[i].json;\n  const resp = tx[i].json;\n  const raw = (resp.messages && resp.messages.messages) ? resp.messages.messages : (resp.messages || []);\n  const real = raw.filter(m => !String(m.messageType || '').startsWith('TYPE_ACTIVITY'));\n\n  // Oldest-first, merging consecutive turns from the same side. Anthropic rejects\n  // two user turns in a row, and a merged turn is also a truer picture of someone\n  // firing off three DMs in ten seconds.\n  const chat = [];\n  for (let k = real.length - 1; k >= 0; k--) {\n    const m = real[k];\n    const b = (m.body || '').trim();\n    if (!b) continue;\n    const role = m.direction === 'inbound' ? 'user' : 'assistant';\n    if (chat.length && chat[chat.length - 1].role === role) chat[chat.length - 1].content += '\\n' + b;\n    else chat.push({ role, content: b });\n  }\n  while (chat.length && chat[0].role === 'assistant') chat.shift();\n  if (!chat.length) continue;\n\n  // Did our side ever write real text? If not, a message that only makes sense as\n  // a reply to something promised elsewhere (a freebie, a giveaway, another\n  // funnel) is not ours to answer.\n  const weSpoke = real.filter(m => m.direction !== 'inbound' && String(m.body || '').trim()).length > 0;\n\n  const gate = \"[Internal note, not from the customer. Decide the next move for this Instagram DM thread.\"\n    + \" Answer with EXACTLY ONE of these bare tokens when it applies, and nothing else:\"\n    + \" <SKIP> if they are not a prospect at all (job seeker, an agency pitching us, a student, a competitor, spam\"\n    + (weSpoke ? \"\" : \", or someone chasing a freebie or giveaway we never mentioned in this thread\")\n    + \").\"\n    + \" <HOLD> if they are consulting a co-founder, partner or their team, or have explicitly asked for time to think.\"\n    + \" <NOTREADY> if they are simply disengaging with no question attached.\"\n    + \" <HANDOFF> if they want a custom scope (multiple EAs, a team, enterprise), ask legal, contractual or\"\n    + \" data-residency questions, name a specific competitor and want a comparison, are press, partnerships or\"\n    + \" recruiting, express frustration with MadeEA or reference a past engagement, or need any claim that is not\"\n    + \" in the Fact Pack.\"\n    + \" Otherwise write the next DM. Work the five phases in order and never skip one; if you cannot tell which\"\n    + \" phase you are in, you are in Engagement. One question only. Maximum 2 sentences unless you are quoting the\"\n    + \" pricing tiers. Never say virtual assistant, VA, outsourcing or offshore. Never quote a price other than\"\n    + \" $3,000/month or from $2,250/month. At most one emoji, and only in Phase 1 or Phase 5. No em dashes.\"\n    + \" Do not re-ask anything they already answered. Only send the booking link once they have agreed to a call.\"\n    + \" Output only the message text.]\";\n\n  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/London' }));\n  const dateLine = 'CURRENT DATE: Today is ' + now.toDateString() + ' (the year is ' + now.getFullYear() + ').'\n    + ' Use this whenever timing comes up, for example if they mention a quarter, a month, or \"this year\".'\n    + ' Never refer to a date that has already passed as if it is upcoming.';\n\n  out.push({ json: { ...ctx, weSpoke, requestBody: {\n    model: MODEL,\n    max_tokens: MAX_TOKENS,\n    thinking: { type: 'disabled' },\n    // cache_control keeps the ~4.5k-token brain out of the bill after the first\n    // call. Editing the SOP invalidates it once, then it re-warms.\n    system: [{ type: 'text', text: dateLine + '\\n\\n' + SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],\n    stop_sequences: ['<budget', '</budget', '<antml'],\n    messages: [...chat, { role: 'user', content: gate }],\n  }}});\n}\nreturn out;\n"
+      },
+      "id": "bBuildLLMRequ",
+      "name": "Build LLM Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        60,
+        300
+      ],
+      "notes": "The SOP brain. Identical to the follow-up workflow’s copy — edit both together or the nudge will contradict the conversation it chases."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {}
+      },
+      "id": "a0000000-0000-4000-8000-000000000006",
+      "name": "Call Anthropic",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        280,
+        300
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "REPLACE_ME",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Every guardrail lives here. A draft that trips one is HELD for a human rather\n// than softened: a message that had to be rewritten to be safe is a message the\n// brain got wrong, and quietly patching it hides that.\n\nfunction hasPlaceholder(s) {\n  const t = String(s);\n  if (/\\[[^\\]]*\\]|\\{\\{|\\}\\}|<[a-z_]+>/i.test(t)) return true;\n  if (/\\b(your business name|business name here|their name|insert |name here|first name)\\b/i.test(t)) return true;\n  return false;\n}\nfunction oneMarker(s) {\n  const RE = /([\\u{1F000}-\\u{1FAFF}\\u{2600}-\\u{27BF}\\u{2300}-\\u{23FF}\\u{2B00}-\\u{2BFF}]\\u{FE0F}?|:-?\\)|:-?\\(|;-?\\)|:D)/gu;\n  let n = 0;\n  return s.replace(RE, m => (++n === 1 ? m : '')).replace(/ {2,}/g, ' ').replace(/\\s+([.!?,])/g, '$1').trim();\n}\nfunction stripControl(s) {\n  s = s.replace(/<(\\w+:[\\w:]+)>[\\s\\S]*?<\\/\\1>/g, '');\n  s = s.replace(/<budget:[\\s\\S]*$/i, '');\n  s = s.replace(/<\\/?\\w+:[\\w:.\\-]*[^>]*>/g, '');\n  return s.replace(/\\s*[\\u2014\\u2013]\\s*/g, ', ').replace(/[ \\t]{2,}/g, ' ').trim();\n}\n// SOP non-negotiable #5. One wrong noun puts MadeEA in the category the whole\n// SOP exists to escape, so this is a hold, not a rewrite.\nfunction isBannedCategory(s) {\n  const t = String(s).toLowerCase();\n  if (/\\bv\\.?a\\.?s?\\b/.test(t) && !/\\bvalue\\b/.test(t)) return true;\n  if (/\\bvirtual assistants?\\b/.test(t)) return true;\n  if (/\\b(outsourc|offshor)(e|ed|ing)\\b/.test(t)) return true;\n  return false;\n}\n// SOP Fact Pack: $3,000/month and from $2,250/month are the only figures that exist.\n// Pricing is ALLOWED here (the SOP publishes it) — this caps which numbers, not the topic.\nfunction isUnapprovedPrice(s) {\n  const APPROVED = /^(3,?000|3k|2,?250)$/i;\n  const nums = String(s).match(/(?:\\$|usd\\s*|\\u00a3|\\u20ac)\\s?([\\d,]+(?:\\.\\d+)?k?)/gi) || [];\n  for (const n of nums) {\n    if (!APPROVED.test(n.replace(/[^\\d,.k]/gi, ''))) return true;\n  }\n  if (/\\b\\d{1,2}\\s?%\\s?(off|discount)\\b/i.test(String(s))) return true;\n  return false;\n}\n// SOP non-negotiable #4: max 2 sentences, unless it is quoting the tiers.\n// Fragments must contain a letter to count. The splitter breaks after \"?\", so a\n// trailing emoji would otherwise register as a phantom third sentence — and the\n// SOP explicitly allows one emoji in Phases 1 and 5, so that mis-hold would have\n// caught a large share of legitimate openers and invites.\nfunction isTooLong(s) {\n  if (/\\$\\s?(3,?000|2,?250)/i.test(s)) return false;\n  return String(s).split(/(?<=[.!?])\\s+/).filter(x => /[a-z]/i.test(x)).length > 2;\n}\nfunction isIdentityLeak(s) {\n  return /\\b(as an ai|i am an ai|i'm an ai|language model|chatbot|automated assistant)\\b/i.test(String(s));\n}\n// Never claim an action the workflow cannot perform: it sends DMs, nothing else.\nfunction isFalsePromise(s) {\n  return /\\b(just (sent|emailed|shared)|i('ve| have) (sent|emailed|attached|booked)|sending (it|that) (over|now)|added you to)\\b/i.test(String(s));\n}\n\nconst reqs = $('Build LLM Request').all();\nconst ors = $input.all();\nconst out = [];\n\nfor (let i = 0; i < ors.length; i++) {\n  const ctx = reqs[i].json;\n  const r = ors[i].json;\n  const base = { conversationId: ctx.conversationId, contactId: ctx.contactId,\n                 contactName: ctx.contactName, lastMessageDate: ctx.lastMessageDate, dryRun: ctx.dryRun };\n\n  let draft = (Array.isArray(r.content) ? r.content.filter(b => b && b.type === 'text').map(b => b.text).join('') : '').trim();\n  if (!draft) continue;\n\n  // The four silent exits: tag it so the team can see WHY the bot went quiet,\n  // then send nothing.\n  const exits = { '<SKIP>': 'madeea-setter-not-a-fit', '<HOLD>': 'madeea-setter-deciding',\n                  '<NOTREADY>': 'madeea-setter-not-ready', '<HANDOFF>': 'madeea-setter-needs-human' };\n  const hit = Object.keys(exits).find(t => new RegExp('^' + t.replace(/[<>]/g, m => '\\\\' + m), 'i').test(draft));\n  if (hit) { out.push({ json: { ...base, hold: true, tag: exits[hit], reason: hit } }); continue; }\n\n  draft = oneMarker(stripControl(draft.replace(/\\s*\\n+\\s*/g, '\\n')));\n  if (!draft) continue;\n\n  const failed = hasPlaceholder(draft) ? 'placeholder'\n    : isBannedCategory(draft) ? 'banned-category'\n    : isUnapprovedPrice(draft) ? 'unapproved-price'\n    : isTooLong(draft) ? 'too-long'\n    : isIdentityLeak(draft) ? 'identity-leak'\n    : isFalsePromise(draft) ? 'false-promise'\n    : null;\n  if (failed) { out.push({ json: { ...base, hold: true, tag: 'madeea-setter-needs-human', reason: failed, draft } }); continue; }\n\n  // Two bubbles read like a person thinking; three reads like a script.\n  const parts = draft.split('\\n').map(s => s.trim()).filter(Boolean);\n  const bubbles = (parts.length > 1 ? parts : [draft]).slice(0, 2);\n\n  const askedPrice = /\\$\\s?(3,?000|2,?250)/i.test(draft);\n  out.push({ json: { ...base, hold: false, bubbles,\n    tag: askedPrice ? 'madeea-setter-pricing-asked' : 'madeea-setter-engaged' } });\n}\nreturn out;"
+      },
+      "id": "bExtractDraft",
+      "name": "Extract Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "notes": "Every guardrail. A draft that trips one is held for a human, never softened."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "hold",
+              "leftValue": "={{ $json.hold }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a0000000-0000-4000-8000-000000000008",
+      "name": "Hold?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $json.contactId }}/tags",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"tags\": [$json.tag] } }}",
+        "options": {}
+      },
+      "id": "a0000000-0000-4000-8000-000000000009",
+      "name": "Tag: silent exit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        180
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "GHL MadeEA (IG)"
+        }
+      },
+      "notes": "The bot went quiet on purpose. The tag says why: not-a-fit, deciding, not-ready or needs-human."
+    },
+    {
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/conversations/{{ $json.conversationId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "a0000000-0000-4000-8000-00000000000a",
+      "name": "Re-check Conversation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "GHL MadeEA (IG)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Did they write again while the model was thinking? If so our draft answers a\n// message that is no longer the last one, and sending it makes the setter look\n// like it is talking past them. Drop it: the next cycle picks the thread up with\n// the newer message included.\nconst ctxs = $('Extract Draft').all().filter(it => !it.json.hold);\nconst convs = $input.all();\nconst out = [];\nfor (let i = 0; i < convs.length; i++) {\n  const ctx = ctxs[i].json;\n  const c = convs[i].json.conversation || convs[i].json;\n  const latest = Number(c.lastMessageDate || 0);\n  if (latest && latest > Number(ctx.lastMessageDate)) continue;\n  out.push({ json: ctx });\n}\nreturn out;"
+      },
+      "id": "bConfirmStill",
+      "name": "Confirm Still Ours",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        420
+      ],
+      "notes": "Drops the draft if the lead wrote again while the model was thinking."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dry",
+              "leftValue": "={{ $json.dryRun }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a0000000-0000-4000-8000-00000000000c",
+      "name": "Dry run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        420
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a0000000-0000-4000-8000-00000000000d",
+      "name": "DRY RUN (no send)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1620,
+        320
+      ],
+      "notes": "Drafts are visible in the execution log. Flip dryRun in Qualify + Dedup when you trust them."
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n credentials are not reachable from this.helpers.httpRequest, so the token\n// is a constant. Fill it in inside n8n and do not commit the filled-in file.\nconst TOKEN = 'REPLACE_WITH_MADEEA_GHL_PRIVATE_INTEGRATION_TOKEN';\nconst GAP_MS = 4000;   // human typing rhythm between bubbles\n\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json;\n  const sent = [];\n  for (let i = 0; i < j.bubbles.length; i++) {\n    if (i > 0) await new Promise(r => setTimeout(r, GAP_MS));\n    try {\n      await this.helpers.httpRequest({\n        method: 'POST',\n        url: 'https://services.leadconnectorhq.com/conversations/messages',\n        headers: { Authorization: 'Bearer ' + TOKEN, Version: '2021-07-28', 'Content-Type': 'application/json' },\n        body: { type: 'IG', contactId: j.contactId, message: j.bubbles[i] },\n        json: true,\n      });\n      sent.push(j.bubbles[i]);\n    } catch (e) {\n      // Stop at the first failure: bubble 2 without bubble 1 is worse than silence.\n      out.push({ json: { ...j, sent, error: String(e && e.message || e) } });\n      break;\n    }\n  }\n  if (sent.length === j.bubbles.length) out.push({ json: { ...j, sent } });\n}\nreturn out;"
+      },
+      "id": "bSendBubbles0",
+      "name": "Send Bubbles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1620,
+        520
+      ],
+      "notes": "Max 2 bubbles, 4s apart. Stops at the first failure."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Key on the message we answered, so a NEW inbound message reopens the thread.\nconst sd = $getWorkflowStaticData('global');\nsd.handled = sd.handled || {};\nfor (const item of $input.all()) {\n  if (!item.json.dryRun) sd.handled[item.json.conversationId] = item.json.lastMessageDate;\n}\nreturn $input.all();"
+      },
+      "id": "bMarkHandled0",
+      "name": "Mark Handled",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        520
+      ],
+      "notes": "Keyed on the answered message, so a new inbound reopens the thread."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $json.contactId }}/tags",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"tags\": [$json.tag] } }}",
+        "options": {}
+      },
+      "id": "a0000000-0000-4000-8000-00000000000f",
+      "name": "Tag: engaged",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2060,
+        520
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "GHL MadeEA (IG)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 2 min": {
+      "main": [
+        [
+          {
+            "node": "Get Conversations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Conversations": {
+      "main": [
+        [
+          {
+            "node": "Qualify + Dedup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qualify + Dedup": {
+      "main": [
+        [
+          {
+            "node": "Get Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Transcript": {
+      "main": [
+        [
+          {
+            "node": "Build LLM Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build LLM Request": {
+      "main": [
+        [
+          {
+            "node": "Call Anthropic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Anthropic": {
+      "main": [
+        [
+          {
+            "node": "Extract Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Draft": {
+      "main": [
+        [
+          {
+            "node": "Hold?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hold?": {
+      "main": [
+        [
+          {
+            "node": "Tag: silent exit",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Re-check Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-check Conversation": {
+      "main": [
+        [
+          {
+            "node": "Confirm Still Ours",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm Still Ours": {
+      "main": [
+        [
+          {
+            "node": "Dry run?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry run?": {
+      "main": [
+        [
+          {
+            "node": "DRY RUN (no send)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Bubbles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Bubbles": {
+      "main": [
+        [
+          {
+            "node": "Mark Handled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Handled": {
+      "main": [
+        [
+          {
+            "node": "Tag: engaged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "pinData": {},
+  "tags": []
+}

@@ -7,8 +7,13 @@ the follow-up ladder are all inside the system prompt.
 
 | File | What it does | Cadence |
 |---|---|---|
-| `madeea-ig-dm-setter.workflow.json` | Replies to new inbound IG DMs, phase by phase, until the lead is ready for the booking link | Every 2 min |
-| `madeea-ig-followup-day1.workflow.json` | Sends the SOP's F/U 1 to leads who went quiet, then closes the loop | Every 30 min |
+| `madeea-dm-setter.workflow.json` | Replies to new inbound IG DMs, phase by phase, until the lead is ready for the booking link | Every 2 min |
+| `madeea-ig-followup-day1.workflow.json` | Sends the SOP's F/U 1 (24h) as an IG DM, then closes the loop | Every 30 min |
+| `madeea-followup-day3-7.workflow.json` | Continues the ladder by **email**: F/U 2 (3d), F/U 3 (7d), Gone Cold (14d) | Every 2 h |
+
+All three run the same SOP brain. It is byte-identical across the files on
+purpose — **edit one and you must edit all three**, or a follow-up will
+contradict the conversation it is chasing.
 
 They are re-contexted from a working GoHighLevel + Instagram + Claude setup, so
 the plumbing is proven. What changed is the context: the brain, the guardrails,
@@ -106,10 +111,16 @@ on every node after import.**
 
 ### 2. Fill in the placeholders
 
-Search both files for `REPLACE_WITH_` — there are two:
+Search all three files for `REPLACE_WITH_` **and `TODO_`**:
 
-- `REPLACE_WITH_MADEEA_GHL_LOCATION_ID` — in the two "Get conversations" URLs
+- `REPLACE_WITH_MADEEA_GHL_LOCATION_ID` — in every "Get conversations" URL
 - `REPLACE_WITH_MADEEA_GHL_PRIVATE_INTEGRATION_TOKEN` — in `Send Bubbles`
+- `TODO_PIPELINE_ID` and `TODO_CLOSED_STAGE_ID` — in the day-1 follow-up's
+  `Find Opp` / `Move to Closed` nodes
+
+The `TODO_` pair is easy to miss and fails quietly: everything else runs, and only
+the close-the-loop branch breaks, pointing at a pipeline that does not exist. Get
+both ids from the GHL pipeline settings URL before activating the day-1 workflow.
 
 The second one is a plain constant in a Code node because n8n credentials aren't
 reachable from `this.helpers.httpRequest`. Treat it as a secret: fill it in
@@ -137,7 +148,12 @@ and confirm `EXCLUDE_NAMES`. Until you do, the setter can DM your own people.
 **Both workflows ship with `dryRun: true`.** In that state everything runs and
 drafts are visible in the execution log, but nothing is sent. Read 20–30 drafts,
 tune the SOP text in the `SYSTEM_PROMPT` constant, then flip `dryRun` to `false`
-in the CONTROL PANEL at the top of `Qualify + Dedup` and `Decide`.
+in the CONTROL PANEL at the top of `Qualify + Dedup` (setter) and `Decide`
+(follow-up).
+
+The setter also holds a draft rather than sending it whenever a guard trips, so a
+dry run is not the only safety net — but it is the only one that lets you read
+the brain's output before a founder does.
 
 Activate the setter first and let it run alone for a day. Only then activate the
 follow-up — it can only chase conversations the setter has already started.
@@ -175,14 +191,28 @@ Instagram is unforgiving about volume from a single handle.
 ## Two things to know
 
 **Instagram's 24-hour window governs everything.** Meta will not deliver a
-message more than 24 hours after the lead's last one. That is why the follow-up
-fires at ~20 hours rather than the SOP's stated 24 — it is the latest we can
-honour the cadence and still be allowed to send. It is also why F/U 2 (3 days)
-and F/U 3 (7 days) from the SOP have **no workflow yet**: they fall outside the
-window and would need a different channel (email, or a paid Meta message tag) to
-deliver at all. Right now the sequence is: reply → one nudge at ~20h → close the
-loop. Everything past that is manual.
+message more than 24 hours after the lead's last one. That is why F/U 1 fires at
+~20 hours rather than the SOP's stated 24 — it is the latest we can honour the
+cadence and still be allowed to send.
 
-**The setter never books anything.** It sends the link. Nothing in these two
+It is also why **F/U 2, F/U 3 and Gone Cold moved to email.** They fall outside
+the window and cannot be delivered as DMs at any price. `madeea-followup-day3-7`
+therefore switches channel, and the message says so in its opening half-sentence
+rather than arriving out of nowhere. Two consequences worth accepting
+deliberately:
+
+- **No email address means no F/U 2 or F/U 3.** Those contacts get tagged
+  `madeea-setter-no-channel` and stop there. That is honest — there is genuinely
+  no way to reach them — but it means the ladder completes only for leads whose
+  email you already hold.
+- **A channel switch is a real escalation.** Someone who DM'd you on Instagram did
+  not ask to be emailed. The workflow ships in dry run; read those drafts
+  particularly carefully before enabling it, and check it against however you
+  handle consent in the lead's jurisdiction.
+
+Gone Cold sends nothing at all. It is a state change, not a message — a fourth
+touch to someone who ignored three is how a sender reputation gets burned.
+
+**The setter never books anything.** It sends the link. Nothing in these three
 workflows watches a calendar, so "link sent" and "call booked" are still
 different facts, and the gap between them is the number worth watching.
