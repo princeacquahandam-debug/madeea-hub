@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PlayCircle, LogOut, ShieldCheck, Sparkles, RotateCcw, KeyRound } from "lucide-react";
+import { PlayCircle, LogOut, ShieldCheck, Sparkles, RotateCcw, KeyRound, GraduationCap } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 import { useTour } from "@/store/tour";
 import { useMyRole } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { useFollowUpSettings } from "@/store/followupSettings";
+import { useUI } from "@/store/ui";
 import { APP_VERSION } from "@/lib/changelog";
 
 const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
@@ -18,6 +19,7 @@ export default function Settings() {
   const { data: role } = useMyRole();
   const { config, update, reset } = useSlaSettings();
   const { config: fu, update: updateFu, reset: resetFu } = useFollowUpSettings();
+  const { academyPromoDismissed, restoreAcademyPromo } = useUI();
 
   function replay() {
     nav("/");
@@ -258,9 +260,19 @@ export default function Settings() {
         <section className="card p-5">
           <p className="field-label">Onboarding</p>
           <p className="mb-3 text-sm text-muted">Replay the guided walkthrough of the Command Center any time.</p>
-          <button className="btn-ghost border border-border" onClick={replay}>
-            <PlayCircle size={15} /> Replay tutorial
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-ghost border border-border" onClick={replay}>
+              <PlayCircle size={15} /> Replay tutorial
+            </button>
+            {academyPromoDismissed && (
+              <button className="btn-ghost border border-border" onClick={restoreAcademyPromo}>
+                <GraduationCap size={15} /> Show Academy tip
+              </button>
+            )}
+          </div>
+          {academyPromoDismissed && (
+            <p className="mt-2 text-xs text-faint">The Academy card is hidden in your sidebar. This browser only.</p>
+          )}
         </section>
 
         <section className="card p-5">

@@ -39,6 +39,7 @@ const Scoreboard = lazy(() => import("@/pages/Scoreboard"));
 const Travel = lazy(() => import("@/pages/Travel"));
 const Notes = lazy(() => import("@/pages/Notes"));
 const Academy = lazy(() => import("@/pages/Academy"));
+const MeetingIntelligence = lazy(() => import("@/pages/MeetingIntelligence"));
 
 const queryClient = new QueryClient();
 
@@ -57,6 +58,7 @@ function Gate() {
         <Route path="/tasks" element={<Tasks />} />
         <Route path="/eod" element={<EodReports />} />
         <Route path="/communication" element={<Communication />} />
+        <Route path="/meeting-intelligence" element={<MeetingIntelligence />} />
         <Route path="/quick-actions" element={<QuickActions />} />
         <Route path="/clients" element={<ClientVault />} />
         <Route path="/notes" element={<Notes />} />

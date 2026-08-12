@@ -46,6 +46,10 @@ export const NAV: NavItem[] = [
   { to: "/integrations", label: "Integrations", icon: Plug, group: "Operations" },
   { to: "/studio", label: "Communication Studio", icon: PenLine, group: "AI Suite", badge: "AI" },
   { to: "/bookkeeping", label: "Bookkeeping AI", icon: Calculator, group: "AI Suite", badge: "AI" },
+  // Second Brain, not AI Suite: it doesn't take a brief and write something — it
+  // reads the workspace's own meetings and files what it finds into Tasks and
+  // Memory, which is exactly what its neighbours here do.
+  { to: "/meeting-intelligence", label: "Meeting Intelligence", icon: Brain, group: "Second Brain" },
   // The three core-service helpers. They live in AI Suite rather than a group of
   // their own: they're AI-powered tools like their neighbours here, and each
   // upgrades an Operations page above rather than replacing it.

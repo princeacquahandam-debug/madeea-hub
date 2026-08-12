@@ -4,6 +4,7 @@ import {
   Settings as SettingsIcon,
   ShieldCheck,
   GraduationCap,
+  X,
   ChevronLeft,
   ChevronDown,
   Sun,
@@ -70,7 +71,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
   const { user } = useAuth();
   const { data: role } = useMyRole();
   const navigate = useNavigate();
-  const { sidebarCollapsed, toggleSidebar } = useUI();
+  const { sidebarCollapsed, toggleSidebar, academyPromoDismissed, dismissAcademyPromo } = useUI();
   const { theme, toggle: toggleTheme } = useTheme();
   const groups = ["Operations", "AI Suite", "Second Brain"] as const;
   const collapsed = sidebarCollapsed && !forceExpanded;
@@ -262,30 +263,50 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
         )}
       </NavScroller>
 
-      {/* Academy promo — opens the MadeEA Academy (walkthrough + playbooks). */}
-      <button
-        onClick={() => {
-          onNavigate?.();
-          navigate("/academy");
-        }}
-        className="group mx-3 mb-3 rounded-2xl p-4 text-left shadow-lg transition-transform hover:-translate-y-0.5"
-        style={{
-          background: "linear-gradient(150deg,#fd5811 0%,#ff8a3d 55%,#f5b544 100%)",
-          boxShadow: "0 8px 22px rgba(253,88,17,0.3)",
-        }}
-      >
-        <div className="mb-1.5 flex items-center gap-1.5 text-[12.5px] font-extrabold text-white">
-          <GraduationCap size={15} />
-          Become a MadeEA Expert
+      {/* Academy promo — opens the MadeEA Academy (walkthrough + playbooks).
+          Dismissible: the card is a wrapper rather than one big button, because a
+          <button> cannot legally contain the dismiss <button>. Nesting them makes
+          the inner click ambiguous and breaks keyboard navigation. */}
+      {!academyPromoDismissed && (
+        <div
+          className="group relative mx-3 mb-3 rounded-2xl shadow-lg transition-transform hover:-translate-y-0.5"
+          style={{
+            background: "linear-gradient(150deg,#fd5811 0%,#ff8a3d 55%,#f5b544 100%)",
+            boxShadow: "0 8px 22px rgba(253,88,17,0.3)",
+          }}
+        >
+          <button
+            type="button"
+            onClick={dismissAcademyPromo}
+            aria-label="Hide the Academy tip"
+            title="Hide this — you can bring it back in Settings"
+            className="absolute right-1.5 top-1.5 z-10 grid h-6 w-6 place-items-center rounded-lg text-white/70 transition-colors hover:bg-black/15 hover:text-white"
+          >
+            <X size={14} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onNavigate?.();
+              navigate("/academy");
+            }}
+            className="w-full rounded-2xl p-4 pr-9 text-left"
+          >
+            <div className="mb-1.5 flex items-center gap-1.5 text-[12.5px] font-extrabold text-white">
+              <GraduationCap size={15} />
+              Become a MadeEA Expert
+            </div>
+            <p className="mb-3 text-[12px] leading-snug text-white/90">
+              Learn to navigate the Command Center end to end and go from new user to power-user Pro.
+            </p>
+            <span className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-white px-3 py-2 text-[13px] font-bold text-[#152e47] transition-transform group-hover:scale-[1.02]">
+              <GraduationCap size={14} />
+              Learn More
+            </span>
+          </button>
         </div>
-        <p className="mb-3 text-[12px] leading-snug text-white/90">
-          Learn to navigate the Command Center end to end and go from new user to power-user Pro.
-        </p>
-        <span className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-white px-3 py-2 text-[13px] font-bold text-[#152e47] transition-transform group-hover:scale-[1.02]">
-          <GraduationCap size={14} />
-          Learn More
-        </span>
-      </button>
+      )}
 
       <div className="border-t border-border p-3">
         <NavLink

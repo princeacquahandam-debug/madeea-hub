@@ -136,6 +136,62 @@ export interface Message {
   is_bulk?: boolean;
 }
 
+// ---------- Meeting Intelligence ----------
+// Everything carries a verbatim quote. An item the model couldn't quote is dropped
+// server-side, so anything reaching the UI is checkable against what was said.
+export interface ExtractedActionItem { title: string; owner: string; due: string; quote: string; priority: string }
+export interface ExtractedDecision { decision: string; context: string; quote: string; timestamp: string }
+export interface ExtractedQuestion { question: string; quote: string }
+export interface ExtractedCommitment { who: string; commitment: string; quote: string }
+export interface ExtractedInsight { insight: string; quote: string }
+
+export interface MeetingExtraction {
+  summary?: string;
+  action_items?: ExtractedActionItem[];
+  decisions?: ExtractedDecision[];
+  open_questions?: ExtractedQuestion[];
+  commitments?: ExtractedCommitment[];
+  insights?: ExtractedInsight[];
+}
+
+export interface MeetingNote {
+  id: string;
+  fathom_recording_id: number;
+  title: string;
+  meeting_url: string | null;
+  share_url: string | null;
+  recorded_at: string | null;
+  attendees: string[];
+  transcript_chars: number;
+  summary: string | null;
+  extracted: MeetingExtraction;
+  status: "extracted" | "routed" | "failed";
+  error: string | null;
+  created_at: string;
+}
+
+export interface MeetingDecision {
+  id: string;
+  meeting_note_id: string | null;
+  decision: string;
+  context: string | null;
+  quote: string | null;
+  timestamp_label: string | null;
+  decided_at: string | null;
+  created_at: string;
+}
+
+export interface FathomSyncState {
+  last_created_at: string | null;
+  last_synced_at: string | null;
+  last_status: string | null;
+  last_error: string | null;
+  meetings_seen: number;
+  tasks_created: number;
+  decisions_logged: number;
+  memories_written: number;
+}
+
 /** One row per teammate with Google connected — how their mailbox sync is doing. */
 export interface MailboxSync {
   owner_id: string;

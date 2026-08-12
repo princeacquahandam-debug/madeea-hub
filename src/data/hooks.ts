@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
@@ -315,6 +315,60 @@ export function useMessages() {
         is_bulk: m.is_bulk ?? false,
       }));
     },
+  });
+}
+
+// ---------------- Meeting Intelligence ----------------
+
+export function useMeetingNotes() {
+  return useQuery<MeetingNote[]>({
+    queryKey: ["meeting-notes"],
+    queryFn: async () => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from("meeting_notes")
+        .select("id,fathom_recording_id,title,meeting_url,share_url,recorded_at,attendees,transcript_chars,summary,extracted,status,error,created_at")
+        .order("recorded_at", { ascending: false, nullsFirst: false });
+      if (error) return [];   // not migrated yet — empty, never invented
+      return (data as any[]).map((n) => ({
+        ...n,
+        attendees: Array.isArray(n.attendees) ? n.attendees : [],
+        extracted: n.extracted && typeof n.extracted === "object" ? n.extracted : {},
+      })) as MeetingNote[];
+    },
+    retry: false,
+  });
+}
+
+export function useMeetingDecisions() {
+  return useQuery<MeetingDecision[]>({
+    queryKey: ["meeting-decisions"],
+    queryFn: async () => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from("meeting_decisions")
+        .select("id,meeting_note_id,decision,context,quote,timestamp_label,decided_at,created_at")
+        .order("decided_at", { ascending: false, nullsFirst: false });
+      if (error) return [];
+      return data as MeetingDecision[];
+    },
+    retry: false,
+  });
+}
+
+export function useFathomSync() {
+  return useQuery<FathomSyncState | null>({
+    queryKey: ["fathom-sync"],
+    queryFn: async () => {
+      if (!supabase) return null;
+      const { data, error } = await supabase
+        .from("fathom_sync_state")
+        .select("last_created_at,last_synced_at,last_status,last_error,meetings_seen,tasks_created,decisions_logged,memories_written")
+        .maybeSingle();
+      if (error) return null;
+      return (data as FathomSyncState) ?? null;
+    },
+    retry: false,
   });
 }
 
