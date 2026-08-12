@@ -27,10 +27,10 @@ const ALIASES: Record<string, string> = {
   automation: "/automation",
   automations: "/automation",
   integrations: "/integrations",
-  studio: "/studio",
-  "communication studio": "/studio",
-  bookkeeping: "/bookkeeping",
-  finance: "/bookkeeping",
+  /* studio / communication studio / bookkeeping / finance removed with their
+     routes. An alias outliving its page sends the assistant somewhere the
+     router bounces, so "take me to bookkeeping" would silently land on the
+     Dashboard — worse than answering that there is no such page. */
   settings: "/settings",
   admin: "/admin",
   "admin panel": "/admin",

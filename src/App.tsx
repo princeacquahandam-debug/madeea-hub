@@ -21,20 +21,17 @@ const ClientVault = lazy(() => import("@/pages/ClientVault"));
 const Sops = lazy(() => import("@/pages/Sops"));
 const AutomationPage = lazy(() => import("@/pages/Automation"));
 const Integrations = lazy(() => import("@/pages/Integrations"));
-const CommunicationStudio = lazy(() => import("@/pages/CommunicationStudio"));
-const BookkeepingAI = lazy(() => import("@/pages/BookkeepingAI"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const Changelog = lazy(() => import("@/pages/Changelog"));
-const EmailHelper = lazy(() => import("@/pages/EmailHelper"));
-const MeetingHelper = lazy(() => import("@/pages/MeetingHelper"));
-/* Focus, VoiceNotes, MemoryHelper, DecisionHelper and Homework are deliberately
-   not imported here — see the §7 note beside the routes below. The files remain
-   in src/pages. */
-const DailyBriefing = lazy(() => import("@/pages/DailyBriefing"));
-const InvestorUpdate = lazy(() => import("@/pages/InvestorUpdate"));
+/* Deliberately NOT imported — see the notes beside the routes below. Every one
+   of these pages is still in src/pages; only the route and the nav entry are
+   gone, so restoring one is two lines.
+
+   10 Aug audit §7:  Focus, VoiceNotes, MemoryHelper, DecisionHelper, Homework
+   09 Aug direction: CommunicationStudio, BookkeepingAI, InvestorUpdate, Travel,
+                     EmailHelper, MeetingHelper, DailyBriefing               */
 const Scoreboard = lazy(() => import("@/pages/Scoreboard"));
-const Travel = lazy(() => import("@/pages/Travel"));
 const Notes = lazy(() => import("@/pages/Notes"));
 const Academy = lazy(() => import("@/pages/Academy"));
 const MeetingIntelligence = lazy(() => import("@/pages/MeetingIntelligence"));
@@ -63,20 +60,17 @@ function Gate() {
         <Route path="/sops" element={<Sops />} />
         <Route path="/automation" element={<AutomationPage />} />
         <Route path="/integrations" element={<Integrations />} />
-        <Route path="/studio" element={<CommunicationStudio />} />
-        <Route path="/bookkeeping" element={<BookkeepingAI />} />
-        <Route path="/email-helper" element={<EmailHelper />} />
-        <Route path="/meeting-helper" element={<MeetingHelper />} />
-        {/* Unmounted by the 10 Aug audit (§7): /focus, /voice-notes, /memory,
-            /decision, /homework. The pages are still on disk and the reasoning
-            is recorded beside the nav list in lib/constants.ts; restoring one is
-            a line here and a line there. Unmounted rather than left reachable,
-            because a nav-only removal still leaves the URL working. */}
-        {/* Second Brain */}
-        <Route path="/briefing" element={<DailyBriefing />} />
-        <Route path="/investor-update" element={<InvestorUpdate />} />
+        {/* Unmounted, not merely de-navved — a nav-only removal leaves the URL
+            working. Reasoning for each sits beside the nav list in
+            lib/constants.ts.
+
+            10 Aug audit §7:  /focus /voice-notes /memory /decision /homework
+            09 Aug direction: /studio /bookkeeping /investor-update /travel
+                              /email-helper /meeting-helper /briefing
+
+            /scoreboard stays: it is to be repurposed as the client proof
+            surface, which is a build rather than a cut. */}
         <Route path="/scoreboard" element={<Scoreboard />} />
-        <Route path="/travel" element={<Travel />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/changelog" element={<Changelog />} />

@@ -5,17 +5,10 @@ import {
   Zap,
   Users,
   Workflow,
-  PenLine,
-  Calculator,
   Plug,
   ClipboardCheck,
   ClipboardList,
-  TrendingUp,
   Trophy,
-  Plane,
-  MailCheck,
-  CalendarCheck,
-  Sunrise,
   Brain,
   StickyNote,
   type LucideIcon,
@@ -40,17 +33,30 @@ export const NAV: NavItem[] = [
   { to: "/sops", label: "SOPs", icon: ClipboardCheck, group: "Operations" },
   { to: "/automation", label: "Automation", icon: Workflow, group: "Operations" },
   { to: "/integrations", label: "Integrations", icon: Plug, group: "Operations" },
-  { to: "/studio", label: "Communication Studio", icon: PenLine, group: "AI Suite", badge: "AI" },
-  { to: "/bookkeeping", label: "Bookkeeping AI", icon: Calculator, group: "AI Suite", badge: "AI" },
+  /* Cut by the 09 Aug product direction, which judged every feature on two
+     questions: does it prove the EA's work, and does it make the EA replaceable
+     without pain. These answered neither, and each loses to a free tool:
+
+       Communication Studio   Superhuman, Missive, Front
+       Bookkeeping AI         Xero, QuickBooks - and an EA does not do bookkeeping
+       Investor-Update        ChatGPT with a prompt; nobody asked for it
+       Travel Helper          same
+
+     Folded rather than dropped - the capability belongs inside the page it
+     upgrades, not in a tab of its own:
+
+       Email Helper     -> Communication Center
+       Meeting Helper   -> AI Quick Actions
+       Daily Briefing   -> Dashboard
+
+     Pages stay on disk and routes are unmounted in App.tsx, so any of them
+     returns in one commit if Prince disagrees. Scoreboard is deliberately still
+     here: it is to be REPURPOSED as the client proof surface, built from EOD and
+     task data only, which is a build rather than a cut. */
   // Second Brain, not AI Suite: it doesn't take a brief and write something — it
   // reads the workspace's own meetings and files what it finds into Tasks and
   // Memory, which is exactly what its neighbours here do.
   { to: "/meeting-intelligence", label: "Meeting Intelligence", icon: Brain, group: "Second Brain" },
-  // The three core-service helpers. They live in AI Suite rather than a group of
-  // their own: they're AI-powered tools like their neighbours here, and each
-  // upgrades an Operations page above rather than replacing it.
-  { to: "/email-helper", label: "Email Helper", icon: MailCheck, group: "AI Suite", badge: "AI" },
-  { to: "/meeting-helper", label: "Meeting Helper", icon: CalendarCheck, group: "AI Suite", badge: "AI" },
   /* Removed by the 10 Aug product audit (§7). The pages stay on disk and the
      routes are unmounted in App.tsx, so any of them returns by restoring one
      line here and one there — §6 asks for deferred work to be grayed out, not
@@ -64,11 +70,7 @@ export const NAV: NavItem[] = [
 
      Each also fails the §7 test: nobody could say in one sentence how it helps
      an EA do their job or a client manage their EA. */
-  // Second Brain — helpers that read the workspace's own data rather than a form.
-  { to: "/briefing", label: "Daily Briefing Helper", icon: Sunrise, group: "Second Brain" },
-  { to: "/investor-update", label: "Investor-Update Helper", icon: TrendingUp, group: "Second Brain" },
   { to: "/scoreboard", label: "Scoreboard Helper", icon: Trophy, group: "Second Brain" },
-  { to: "/travel", label: "Travel Helper", icon: Plane, group: "Second Brain" },
 ];
 
 export const QUICK_RAIL = [
