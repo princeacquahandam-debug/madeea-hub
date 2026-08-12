@@ -8,11 +8,11 @@ import {
   SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus, Trash2, GripVertical, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2, Columns3, List as ListIcon, Search, MessageSquare, Send } from "lucide-react";
+import { Plus, Trash2, GripVertical, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2, Columns3, List as ListIcon, Search, MessageSquare, Send, ShieldCheck } from "lucide-react";
 import type { Task, TaskStatus, Priority, Subtask, Recurrence, TaskProgress, TaskAttachment, TaskActivity } from "@/types/db";
 import { Badge, PageHeader, Modal } from "@/components/ui";
 import { SkeletonCard } from "@/components/Skeleton";
-import { useTasks, useTaskMutations, useClients, useTaskComments, useTaskActivity, useCommentMutations, useCommentCounts } from "@/data/hooks";
+import { useTasks, useTaskMutations, useClients, useTaskComments, useTaskActivity, useCommentMutations, useCommentCounts, useMyRole } from "@/data/hooks";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { AssigneePicker, AssigneeAvatar } from "@/components/Assignee";
 import { useWorkspaceMembers } from "@/data/hooks";
@@ -31,6 +31,8 @@ import { cn } from "@/lib/utils";
 const COLUMNS: { key: TaskStatus; label: string; dot: string; wash: string; edge: string }[] = [
   { key: "todo",        label: "To Do",       dot: "bg-sky-400",     wash: "bg-sky-500/[0.06]",     edge: "border-sky-500/25" },
   { key: "in_progress", label: "In Progress", dot: "bg-amber-400",   wash: "bg-amber-500/[0.06]",   edge: "border-amber-500/25" },
+  // Where work that needs sign-off waits (migration 0030, PROJECT_PLAN §5.3).
+  { key: "review",      label: "Review",      dot: "bg-violet-400",  wash: "bg-violet-500/[0.06]",  edge: "border-violet-500/25" },
   { key: "done",        label: "Done",        dot: "bg-emerald-400", wash: "bg-emerald-500/[0.06]", edge: "border-emerald-500/25" },
 ];
 const priorityLabel: Record<string, string> = { urgent: "Urgent", high: "High", normal: "Normal", low: "Low" };
@@ -84,6 +86,7 @@ type Board = Record<TaskStatus, Task[]>;
 const group = (tasks: Task[]): Board => ({
   todo: tasks.filter((t) => t.status === "todo"),
   in_progress: tasks.filter((t) => t.status === "in_progress"),
+  review: tasks.filter((t) => t.status === "review"),
   done: tasks.filter((t) => t.status === "done"),
 });
 
@@ -137,6 +140,15 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, comments = 0, o
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2 pl-6">
         <Badge tone={task.priority}>{priorityLabel[task.priority]}</Badge>
+        {/* Client-facing work that cannot be closed by whoever did it. */}
+        {task.requires_approval && (
+          <span
+            className={cn("pill", task.approved_at ? "bg-emerald-500/15 text-emerald-400" : "bg-violet-500/15 text-violet-300")}
+            title={task.approved_at ? "Approved" : "Needs sign-off before it can be completed"}
+          >
+            <ShieldCheck size={10} /> {task.approved_at ? "Approved" : "Needs approval"}
+          </span>
+        )}
         {/* Waiting on a dependency (derived from depends_on). */}
         {blocked && <span className="pill bg-amber-500/15 text-amber-400"><Lock size={10} /> Blocked</span>}
         {/* Someone said this is blocked and why. Feeds their EOD report. */}
@@ -497,13 +509,14 @@ const BLANK = {
   recurrence: "none" as Recurrence, dependsOn: "", clientId: "", assigneeId: "", blockerNote: "",
   notes: "", progress: [] as TaskProgress[], attachments: [] as TaskAttachment[],
   status: "todo" as TaskStatus,
+  requiresApproval: false,
 };
 const EMPTY_TASKS: Task[] = [];
 
 export default function Tasks() {
   const { data, isLoading } = useTasks();
   const tasks = data ?? EMPTY_TASKS;
-  const { setStatus, create, update, remove } = useTaskMutations();
+  const { setStatus, create, update, remove, approve } = useTaskMutations();
   const { data: clients = [] } = useClients();
   const { flags } = useFollowUps();
   const { data: members = [] } = useWorkspaceMembers();
@@ -521,6 +534,8 @@ export default function Tasks() {
      effect, so the preferred view is the first thing painted instead of the
      board flashing for a frame on every load. */
   const { data: commentCounts = {} } = useCommentCounts();
+  const { data: myRole } = useMyRole();
+  const isAdmin = myRole === "admin";
   const [q, setQ] = useState("");
   const [view, setView] = useState<"board" | "list">(() => {
     try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "board"; } catch { return "board"; }
@@ -634,11 +649,11 @@ export default function Tasks() {
      in In Progress starts there instead of appearing in To Do to be dragged. */
   function startCreate(status: TaskStatus = "todo") { setForm({ ...BLANK, status }); setEditingId(null); setModal(true); }
   function startEdit(t: Task) {
-    setForm({ title: t.title, priority: t.priority, due: t.due_at ? t.due_at.slice(0, 10) : "", subtasks: t.subtasks ?? [], recurrence: t.recurrence ?? "none", dependsOn: t.depends_on ?? "", clientId: clients.find((c) => c.name === t.client_name)?.id ?? "", assigneeId: t.assignee_id ?? "", blockerNote: t.blocker_note ?? "", notes: t.notes ?? "", progress: t.progress ?? [], attachments: t.attachments ?? [], status: t.status });
+    setForm({ title: t.title, priority: t.priority, due: t.due_at ? t.due_at.slice(0, 10) : "", subtasks: t.subtasks ?? [], recurrence: t.recurrence ?? "none", dependsOn: t.depends_on ?? "", clientId: clients.find((c) => c.name === t.client_name)?.id ?? "", assigneeId: t.assignee_id ?? "", blockerNote: t.blocker_note ?? "", notes: t.notes ?? "", progress: t.progress ?? [], attachments: t.attachments ?? [], status: t.status, requiresApproval: t.requires_approval ?? false });
     setEditingId(t.id); setModal(true);
   }
   function fromTemplate(t: TaskTemplate) {
-    setForm({ title: t.title, priority: t.priority, due: "", recurrence: "none", dependsOn: "", clientId: "", assigneeId: "", blockerNote: "", notes: "", progress: [], attachments: [], status: "todo", subtasks: t.subtasks.map((l, i) => ({ id: `${Date.now()}-${i}`, label: l, done: false })) });
+    setForm({ title: t.title, priority: t.priority, due: "", recurrence: "none", dependsOn: "", clientId: "", assigneeId: "", blockerNote: "", notes: "", progress: [], attachments: [], status: "todo", requiresApproval: false, subtasks: t.subtasks.map((l, i) => ({ id: `${Date.now()}-${i}`, label: l, done: false })) });
     setEditingId(null); setTemplates(false); setModal(true);
   }
   function submit() {
@@ -649,6 +664,7 @@ export default function Tasks() {
       client_id: form.clientId || null,
       assignee_id: form.assigneeId || null,
       status: form.status,
+      requires_approval: form.requiresApproval,
       // A reason means it's blocked; clearing the reason unblocks it. One field
       // rather than a checkbox you can leave contradicting the note.
       blocked: Boolean(form.blockerNote.trim()),
@@ -869,6 +885,25 @@ export default function Tasks() {
             </div>
           </div>
 
+          {/* §5.3, the trust dial: an EA can be given more rope over time by
+              leaving this off, without the agency losing the ability to catch
+              something before the client sees it. */}
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-lg bg-surface-2 px-3 py-2.5">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={form.requiresApproval}
+              onChange={(e) => setForm((f) => ({ ...f, requiresApproval: e.target.checked }))}
+            />
+            <span className="flex-1">
+              <span className="block text-[13px] font-medium">Needs approval before it can be completed</span>
+              <span className="block text-[11px] text-faint">
+                For work a client sees — an email to their customer, a published post, an invoice.
+                It waits in Review until an admin signs it off.
+              </span>
+            </span>
+          </label>
+
           <div>
             <label className="field-label" htmlFor="task-blocker">What's blocking this? (optional)</label>
             <input
@@ -933,6 +968,29 @@ export default function Tasks() {
           <button className="btn-primary w-full" onClick={submit} disabled={!form.title.trim() || saving}>
             {saving ? "Saving…" : editingId ? "Save changes" : "Add Task"}
           </button>
+
+          {/* Sign-off is separate from saving, and separate from completing.
+              Approving and closing in one click would make "approved" mean
+              somebody pressed a button, not that somebody read the work. */}
+          {editingId && form.requiresApproval && (() => {
+            const t = tasks.find((x) => x.id === editingId);
+            if (t?.approved_at) {
+              return (
+                <p className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-400">
+                  <ShieldCheck size={13} /> Approved — this can now be completed.
+                </p>
+              );
+            }
+            return isAdmin ? (
+              <button className="btn-ghost w-full border border-violet-500/40 text-violet-300" onClick={() => approve.mutate(editingId)} disabled={approve.isPending}>
+                <ShieldCheck size={15} /> {approve.isPending ? "Approving…" : "Approve this work"}
+              </button>
+            ) : (
+              <p className="rounded-lg bg-violet-500/10 px-3 py-2 text-[12px] text-violet-300">
+                Waiting on an admin to sign this off before it can be completed.
+              </p>
+            );
+          })()}
 
           {/* Only on a task that exists — there is nothing to comment on, and no
               id to hang a comment from, until it has been created. */}

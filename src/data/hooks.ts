@@ -41,6 +41,10 @@ const mapTask = (r: TaskRow): Task => ({
      hid it, because the seed objects are used as-is and skip this function. */
   blocked: (r as { blocked?: boolean }).blocked ?? false,
   blocker_note: (r as { blocker_note?: string | null }).blocker_note ?? null,
+  // Migration 0030. Defaulted, so the board works before it is applied.
+  requires_approval: (r as { requires_approval?: boolean }).requires_approval ?? false,
+  approved_by: (r as { approved_by?: string | null }).approved_by ?? null,
+  approved_at: (r as { approved_at?: string | null }).approved_at ?? null,
   // Migration 0026. Defaulted, so the app works before the migration is run.
   notes: (r as { notes?: string | null }).notes ?? null,
   progress: Array.isArray(r.progress) ? r.progress : [],
@@ -85,6 +89,23 @@ export function useTasks() {
   });
 }
 
+/**
+ * A demo task as the APP sees it: the seed or created row with its overrides
+ * applied.
+ *
+ * Reading the raw seed row is a trap that has bitten twice now. Every edit in
+ * demo mode is stored as an override rather than written back into the seed
+ * array, so `seed.TASKS.find(...)` returns the task as it shipped, not as it
+ * is — which silently skipped the approval check on any task whose approval
+ * flag had been set through the UI.
+ */
+function demoTask(id: string): Task | undefined {
+  const base = [...loadDemoTasks(), ...seed.TASKS].find((t) => t.id === id);
+  if (!base) return undefined;
+  const patch = loadTaskPatches()[id];
+  return patch ? { ...base, ...patch } : base;
+}
+
 export function useTaskMutations() {
   const qc = useQueryClient();
   const invalidate = () => {
@@ -95,14 +116,49 @@ export function useTaskMutations() {
     qc.invalidateQueries({ queryKey: ["task_activity"] });
   };
 
+  /**
+   * Sign off on client-facing work (migration 0030).
+   *
+   * Stamping approved_at is all this does; moving it to done stays a separate,
+   * deliberate act. Approving and completing in one click would make "approved"
+   * mean somebody pressed a button, not that somebody read the work.
+   */
+  const approve = useMutation({
+    mutationFn: async (id: string) => {
+      const approved_at = new Date().toISOString();
+      if (!supabase) {
+        updateDemoTask(id, { approved_at, approved_by: "demo" });
+        addDemoActivity({
+          id: `act-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          task_id: id, actor_id: "demo", verb: "approved",
+          from_value: null, to_value: null, created_at: approved_at,
+        });
+        return;
+      }
+      // approved_by is stamped by the trigger from auth.uid(), so it cannot be
+      // set by hand to somebody who never looked at the work.
+      const { error } = await supabase.from("tasks").update({ approved_at }).eq("id", id);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
   const setStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
       if (!supabase) {
+        /* The same rule the 0030 trigger enforces, so dragging a card to Done in
+           demo behaves the way it will in production rather than differing in
+           silence. Reads through demoTask, because the approval flag lives in
+           the overrides store and not in the seed row. */
+        const current = demoTask(id);
+        if (status === "done" && current?.requires_approval && !current.approved_at) {
+          throw new Error("This task needs approval before it can be completed.");
+        }
         // Live, DB triggers stamp completed_at (0014/0016) and write the move to
         // task_activity (0029). Demo has no triggers, so mirror both here — the
         // activity feed being empty in the one mode the team reviews in is how
         // the drag bug hid for a week.
-        const before = [...loadDemoTasks(), ...seed.TASKS].find((t) => t.id === id);
+        const before = current;
         updateDemoTask(id, { status, completed_at: status === "done" ? new Date().toISOString() : null });
         if (before && before.status !== status) {
           addDemoActivity({
@@ -161,6 +217,8 @@ export function useTaskMutations() {
        "Add Task" needs to create it where it was asked for rather than making
        someone drag it across immediately. */
     status?: TaskStatus;
+    /** Migration 0030. The DB refuses `done` while this is set and unapproved. */
+    requires_approval?: boolean;
   };
   const create = useMutation({
     mutationFn: async (input: TaskInput) => {
@@ -199,6 +257,7 @@ export function useTaskMutations() {
         notes: input.notes ?? null,
         progress: input.progress ?? [],
         attachments: input.attachments ?? [],
+        requires_approval: input.requires_approval ?? false,
       });
       if (error) throw error;
     },
@@ -212,7 +271,7 @@ export function useTaskMutations() {
            just the board's. Editing a task in the modal changes status through
            HERE, not through setStatus, so logging only there left the feed
            silent for exactly the edits people make most. */
-        const before = [...loadDemoTasks(), ...seed.TASKS].find((t) => t.id === id);
+        const before = demoTask(id);
         updateDemoTask(id, fields as Partial<Task>);
         if (before) {
           const at = new Date().toISOString();
@@ -253,7 +312,7 @@ export function useTaskMutations() {
     onSettled: invalidate,
   });
 
-  return { setStatus, create, update, remove };
+  return { setStatus, create, update, remove, approve };
 }
 
 // ---------------- clients ----------------

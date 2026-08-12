@@ -1,5 +1,6 @@
 export type Priority = "urgent" | "high" | "normal" | "low";
-export type TaskStatus = "todo" | "in_progress" | "done";
+/** `review` (migration 0030) is where work that needs sign-off waits. */
+export type TaskStatus = "todo" | "in_progress" | "review" | "done";
 export type MessageCategory = "urgent" | "reply" | "delegate" | "archive";
 export type MeetingStatus = "prepared" | "needs_prep" | "pending";
 export type AutomationStatus = "active" | "paused";
@@ -69,6 +70,14 @@ export interface Task {
   /** Blocked and why (migration 0016). Rolls straight into the EOD draft. */
   blocked?: boolean;
   blocker_note?: string | null;
+  /**
+   * Client-facing output that needs sign-off (migration 0030). A task with this
+   * set cannot reach `done` without an approval — enforced by a DB trigger, not
+   * by the button.
+   */
+  requires_approval?: boolean;
+  approved_by?: string | null;
+  approved_at?: string | null;
   /**
    * Free-text working notes (migration 0026, R-4.7.3). Deliberately separate
    * from blocker_note: that one means blocked-and-why and feeds the EOD's
