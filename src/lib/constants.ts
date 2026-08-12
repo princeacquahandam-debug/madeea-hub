@@ -11,6 +11,7 @@ import {
   Trophy,
   Brain,
   Clock,
+  Video,
   StickyNote,
   type LucideIcon,
 } from "lucide-react";
@@ -41,6 +42,9 @@ export const NAV: NavItem[] = [
   { to: "/clients", label: "Client Vault", icon: Users, group: "Operations" },
   { to: "/notes", label: "Notes", icon: StickyNote, group: "Operations" },
   { to: "/sops", label: "SOPs", icon: ClipboardCheck, group: "Operations" },
+  /* Next to SOPs because that is the loop: record it, then write it up. It was
+     a strip inside the SOPs page, which is where nobody found it. */
+  { to: "/videos", label: "Videos", icon: Video, group: "Operations" },
   // The day closes here: what you did, and that you were there to do it.
   { to: "/eod", label: "EOD Reports", icon: ClipboardList, group: "Operations" },
   { to: "/time", label: "Time", icon: Clock, group: "Operations" },

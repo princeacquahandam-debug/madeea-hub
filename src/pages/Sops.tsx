@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ClipboardCheck, CheckCircle2, Circle, Sparkles, Play, Target, ArrowLeft, MessageSquare, Pin, Video, Trash2 } from "lucide-react";
 import type { Sop, SopStep } from "@/types/db";
 import { PageHeader, Modal } from "@/components/ui";
@@ -15,60 +16,22 @@ import { useSopWidget } from "@/store/sopWidget";
  * a Record button in its header is furniture. Playback uses a signed URL that
  * is fetched on demand and expires, because the bucket is private.
  */
-function RecordingsStrip({ onRecord }: { onRecord: () => void }) {
+function RecordingsStrip() {
   const { data: recordings = [] } = useRecordings();
-  const { remove } = useRecordingMutations();
-  const [playing, setPlaying] = useState<{ id: string; url: string } | null>(null);
-
+  const nav = useNavigate();
   if (recordings.length === 0) return null;
 
-  const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-  const daysLeft = (iso: string) => Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 864e5));
-
   return (
-    <section className="card mb-5 p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <Video size={15} className="text-accent" />
-        <h2 className="font-semibold">Your recordings</h2>
-        <span className="pill bg-surface-2 text-faint">{recordings.length}</span>
-        <button className="ml-auto text-xs text-accent-soft hover:underline" onClick={onRecord}>New recording</button>
-      </div>
-
-      <div className="space-y-1.5">
-        {recordings.map((r) => (
-          <div key={r.id} className="group flex items-center gap-3 rounded-lg bg-surface-2 px-3 py-2">
-            <span className="min-w-0 flex-1 truncate text-sm">{r.title}</span>
-            <span className="shrink-0 text-xs tabular-nums text-faint">{mmss(r.duration_seconds)}</span>
-            {/* The retention window is stated, not buried in a policy doc — the
-                EA should know the video goes and the SOP stays. */}
-            <span className="shrink-0 text-xs text-faint">
-              {r.storage_path || r.local_url ? `${daysLeft(r.expires_at)}d left` : "expired"}
-            </span>
-            <button
-              className="shrink-0 text-xs text-accent-soft hover:underline disabled:opacity-40"
-              disabled={!r.storage_path && !r.local_url}
-              onClick={async () => {
-                const url = await recordingUrl(r);
-                if (url) setPlaying({ id: r.id, url });
-              }}
-            >
-              Play
-            </button>
-            <button
-              className="shrink-0 text-faint opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
-              onClick={() => remove.mutate(r)}
-              aria-label={`Delete ${r.title}`}
-            >
-              <Trash2 size={13} />
-            </button>
-          </div>
-        ))}
-      </div>
-
-      <Modal open={!!playing} onClose={() => setPlaying(null)}>
-        {playing && <video src={playing.url} controls autoPlay className="w-full rounded-lg bg-black" />}
-      </Modal>
-    </section>
+    <button
+      onClick={() => nav("/videos")}
+      className="card mb-5 flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-surface-2/40"
+    >
+      <Video size={15} className="shrink-0 text-accent" />
+      <span className="text-sm font-medium">
+        {recordings.length} recording{recordings.length === 1 ? "" : "s"} waiting to be written up
+      </span>
+      <span className="ml-auto text-xs text-accent-soft">Open Videos →</span>
+    </button>
   );
 }
 
@@ -161,9 +124,10 @@ export default function Sops() {
         }
       />
 
-      {/* §4.6. The loop the 09 Aug direction is built around: record it once,
+      {/* The library itself lives on /videos now. This is only the entry point
+          into the loop the 09 Aug direction is built around: record it once,
           write it up, and the next EA runs it on day one. */}
-      <RecordingsStrip onRecord={() => setRecording(true)} />
+      <RecordingsStrip />
 
       <ScreenRecorder
         open={recording}

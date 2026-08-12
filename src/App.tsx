@@ -33,6 +33,7 @@ const Changelog = lazy(() => import("@/pages/Changelog"));
                      EmailHelper, MeetingHelper, DailyBriefing               */
 const Scoreboard = lazy(() => import("@/pages/Scoreboard"));
 const Time = lazy(() => import("@/pages/Time"));
+const Videos = lazy(() => import("@/pages/Videos"));
 const Notes = lazy(() => import("@/pages/Notes"));
 const Academy = lazy(() => import("@/pages/Academy"));
 const MeetingIntelligence = lazy(() => import("@/pages/MeetingIntelligence"));
@@ -60,6 +61,7 @@ function Gate() {
         <Route path="/clients" element={<ClientVault />} />
         <Route path="/notes" element={<Notes />} />
         <Route path="/sops" element={<Sops />} />
+        <Route path="/videos" element={<Videos />} />
         <Route path="/automation" element={<AutomationPage />} />
         <Route path="/integrations" element={<Integrations />} />
         {/* Unmounted, not merely de-navved — a nav-only removal leaves the URL
