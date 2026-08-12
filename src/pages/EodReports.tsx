@@ -19,7 +19,7 @@ import { Badge, PageHeader } from "@/components/ui";
 import { PageTour, usePageTour, type TourStep } from "@/components/PageTour";
 import { EOD_DATA, type CellStatus } from "@/data/eod";
 import { EOD_DATES, EOD_PEOPLE, IMPORTED_EOD } from "@/data/eodImport";
-import { useDeleteEod, useEodReports, useMyRole, useSubmitEod, useTasks, useWorkspaceMembers } from "@/data/hooks";
+import { useDeleteEod, useEodReports, useMyRole, useSubmitEod, useTaskMutations, useTasks, useWorkspaceMembers } from "@/data/hooks";
 import { draftFromTasks, todayIso, type EodDraft as EodDraftState } from "@/lib/eodDraft";
 import type { EodReport } from "@/types/db";
 import { cn } from "@/lib/utils";
@@ -117,6 +117,7 @@ export default function EodReports() {
   const { data: members = [] } = useWorkspaceMembers();
   const submit = useSubmitEod();
   const remove = useDeleteEod();
+  const { create: createTask } = useTaskMutations();
   const { data: role } = useMyRole();
   const isAdmin = role === "admin";
 
@@ -171,6 +172,26 @@ export default function EodReports() {
     setReportDate(next);
     setTouched(false);
     setNotes("");
+  };
+
+  /**
+   * R-4.3.4. Rowena, 1:07:10: a next step in the EOD should land in the to-do
+   * list for the following day rather than being retyped there.
+   *
+   * The day after the report, not tomorrow-from-now: file Monday's EOD on
+   * Tuesday and its plan still belongs on Monday+1. Assigned to you, because a
+   * line in your own report is your own work.
+   */
+  const pushPlanToBoard = (title: string) => {
+    const [y, m, d] = reportDate.split("-").map(Number);
+    const next = new Date(y, m - 1, d + 1);
+    const p = (n: number) => String(n).padStart(2, "0");
+    createTask.mutate({
+      title,
+      priority: "normal",
+      due_at: `${next.getFullYear()}-${p(next.getMonth() + 1)}-${p(next.getDate())}`,
+      assignee_id: me?.user_id ?? null,
+    });
   };
 
   /**
@@ -362,6 +383,7 @@ export default function EodReports() {
             notes,
           })
         }
+        onPushPlan={pushPlanToBoard}
       />
 
       {/* ---------------- KPIs ---------------- */}
@@ -716,6 +738,7 @@ function TodayEod({
   today,
   onDateChange,
   onSubmit,
+  onPushPlan,
 }: {
   me?: string;
   draft: EodDraftState;
@@ -728,6 +751,7 @@ function TodayEod({
   today: string;
   onDateChange: (d: string) => void;
   onSubmit: () => void;
+  onPushPlan: (title: string) => void;
 }) {
   const [open, setOpen] = useState(!existing);
   const total = draft.done.length + draft.blockers.length + draft.plans.length;
@@ -843,6 +867,8 @@ function TodayEod({
             dot="bg-amber-400"
             empty="No open tasks assigned to you."
             onChange={(plans) => onChange({ ...draft, plans })}
+            onPush={onPushPlan}
+            pushLabel="Add to board"
           />
 
           <div data-tour="eod-notes">
@@ -879,14 +905,24 @@ function DraftList({
   dot,
   empty,
   onChange,
+  onPush,
+  pushLabel,
 }: {
   title: string;
   items: string[];
   dot: string;
   empty: string;
   onChange: (next: string[]) => void;
+  /** R-4.3.4: turn this line into a real task. Only the plan list passes it. */
+  onPush?: (title: string) => void;
+  pushLabel?: string;
 }) {
   const [add, setAdd] = useState("");
+  /* Which lines have been pushed, by index. Local and deliberately not
+     persisted: it exists so you can see the click landed and not create the
+     same task three times in one sitting. The board is the real record. */
+  const [pushed, setPushed] = useState<Set<number>>(new Set());
+
   return (
     <div>
       <p className="eyebrow mb-1.5">{title}</p>
@@ -895,6 +931,21 @@ function DraftList({
           <li key={i} className="group flex items-start gap-2 rounded-md px-1 py-0.5 hover:bg-surface-2/60">
             <span className={cn("mt-2 h-1.5 w-1.5 shrink-0 rounded-sm", dot)} />
             <span className="min-w-0 flex-1 text-sm text-zinc-200">{t}</span>
+            {onPush && (
+              <button
+                className={cn(
+                  "shrink-0 text-[11px] transition-opacity",
+                  pushed.has(i)
+                    ? "text-emerald-400 opacity-100"
+                    : "text-faint opacity-0 hover:text-accent group-hover:opacity-100",
+                )}
+                onClick={() => { onPush(t); setPushed((s) => new Set(s).add(i)); }}
+                disabled={pushed.has(i)}
+                title={pushed.has(i) ? "Already on the board" : `${pushLabel} for the next day`}
+              >
+                {pushed.has(i) ? "On the board" : pushLabel}
+              </button>
+            )}
             <button
               className="shrink-0 text-[11px] text-faint opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
               onClick={() => onChange(items.filter((_, j) => j !== i))}
