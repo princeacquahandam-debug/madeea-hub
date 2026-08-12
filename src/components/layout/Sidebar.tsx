@@ -7,8 +7,6 @@ import {
   X,
   ChevronLeft,
   ChevronDown,
-  Sun,
-  Moon,
   Briefcase,
   Bot,
   Brain,
@@ -63,7 +61,6 @@ import { NAV } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyRole } from "@/data/hooks";
 import { useUI } from "@/store/ui";
-import { useTheme } from "@/store/theme";
 import { cn } from "@/lib/utils";
 
 // `forceExpanded` is used by the mobile drawer, which is always full-width.
@@ -72,7 +69,6 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
   const { data: role } = useMyRole();
   const navigate = useNavigate();
   const { sidebarCollapsed, toggleSidebar, academyPromoDismissed, dismissAcademyPromo } = useUI();
-  const { theme, toggle: toggleTheme } = useTheme();
   const groups = ["Operations", "AI Suite", "Second Brain"] as const;
   const collapsed = sidebarCollapsed && !forceExpanded;
   // Operations is the only group open by default on first load; the rest start collapsed.
@@ -159,20 +155,31 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
           )}
         </NavScroller>
 
+        {/* Avatar + gear, the same pair the expanded sidebar shows. This slot
+            used to hold a theme toggle, so collapsing the sidebar silently
+            swapped one control for another — the gear you were aiming at became
+            a sun. The toggle is not lost: TopBar has had one all along, which is
+            also why having a second one here was a duplicate. */}
         <div className="mt-3 flex flex-col items-center gap-3 border-t border-border pt-4">
           <NavLink to="/settings" onClick={onNavigate} title="Open settings">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/20 text-sm font-semibold text-accent-soft">
               {user?.initials ?? "SM"}
             </div>
           </NavLink>
-          <button
-            onClick={toggleTheme}
-            title="Toggle theme"
-            aria-label="Toggle theme"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
+          <NavLink
+            to="/settings"
+            onClick={onNavigate}
+            title="Settings"
+            aria-label="Settings"
+            className={({ isActive }) =>
+              cn(
+                "flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text",
+                isActive && "bg-[var(--nav-active-bg)] text-[color:var(--nav-active-text)]",
+              )
+            }
           >
-            {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
-          </button>
+            <SettingsIcon size={17} />
+          </NavLink>
         </div>
       </aside>
     );
