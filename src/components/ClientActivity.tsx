@@ -153,7 +153,7 @@ export function ClientActivity({ client }: { client: Client }) {
                       {e.status && <Badge tone={e.status}>{e.status.replace("_", " ")}</Badge>}
                       <ChevronRight
                         size={14}
-                        className="shrink-0 text-faint opacity-0 transition-opacity group-hover:opacity-100"
+                        className="reveal-on-hover shrink-0 text-faint"
                       />
                     </button>
                   );

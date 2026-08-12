@@ -194,7 +194,7 @@ export default function Time() {
                       {!e.ended_at && <Badge tone="urgent">Running</Badge>}
                       <span className="shrink-0 text-sm tabular-nums">{hm(entrySeconds(e, now))}</span>
                       <button
-                        className="shrink-0 text-faint opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                        className="icon-btn reveal-on-hover shrink-0 text-faint hover:text-red-400"
                         onClick={() => remove.mutate(e.id)}
                         aria-label="Delete entry"
                       >

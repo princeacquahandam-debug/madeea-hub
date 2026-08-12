@@ -75,7 +75,7 @@ export default function AutomationPage() {
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <button
-                      className="text-faint opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                      className="icon-btn reveal-on-hover text-faint hover:text-red-400"
                       onClick={() => { if (window.confirm(`Delete "${a.name}"? This can't be undone.`)) remove.mutate(a.id); }}
                       aria-label="Delete automation"
                     >

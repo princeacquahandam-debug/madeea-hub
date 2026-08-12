@@ -937,7 +937,7 @@ function DraftList({
                   "shrink-0 text-[11px] transition-opacity",
                   pushed.has(i)
                     ? "text-emerald-400 opacity-100"
-                    : "text-faint opacity-0 hover:text-accent group-hover:opacity-100",
+                    : "reveal-on-hover text-faint hover:text-accent",
                 )}
                 onClick={() => { onPush(t); setPushed((s) => new Set(s).add(i)); }}
                 disabled={pushed.has(i)}
@@ -947,7 +947,7 @@ function DraftList({
               </button>
             )}
             <button
-              className="shrink-0 text-[11px] text-faint opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+              className="reveal-on-hover shrink-0 text-[11px] text-faint hover:text-red-400"
               onClick={() => onChange(items.filter((_, j) => j !== i))}
               aria-label={`Remove "${t}"`}
             >

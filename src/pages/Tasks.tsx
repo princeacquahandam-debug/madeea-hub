@@ -107,12 +107,12 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, comments = 0, o
             gets a plain avatar, since a menu inside a drag preview makes no sense. */}
         {overlay ? <AssigneeAvatar member={null} /> : <AssigneePicker task={task} />}
         {onEdit && (
-          <button className="text-faint opacity-0 transition-opacity hover:text-accent group-hover:opacity-100" onPointerDown={stop} onClick={onEdit} aria-label="Edit task">
+          <button className="icon-btn reveal-on-hover text-faint hover:text-accent" onPointerDown={stop} onClick={onEdit} aria-label="Edit task">
             <Pencil size={13} />
           </button>
         )}
         {onDelete && (
-          <button className="text-faint opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100" onPointerDown={stop} onClick={onDelete} aria-label="Delete task">
+          <button className="icon-btn reveal-on-hover text-faint hover:text-red-400" onPointerDown={stop} onClick={onDelete} aria-label="Delete task">
             <Trash2 size={13} />
           </button>
         )}
@@ -166,7 +166,7 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, comments = 0, o
         <button
           onPointerDown={stop}
           onClick={onComplete}
-          className="mt-2 ml-6 flex items-center gap-1.5 text-[11px] text-faint opacity-0 transition-opacity hover:text-emerald-400 group-hover:opacity-100"
+          className="reveal-on-hover mt-2 ml-6 flex min-h-[24px] items-center gap-1.5 text-[11px] text-faint hover:text-emerald-400"
         >
           <CheckSquare size={12} /> Mark as complete
         </button>
@@ -384,7 +384,7 @@ function TaskThread({ taskId }: { taskId: string }) {
               <span className="text-[12px] font-semibold">{c.author_name ?? nameOf(c.author_id)}</span>
               <span className="text-[10.5px] text-faint">{ago(c.created_at)}</span>
               <button
-                className="ml-auto text-faint opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                className="ml-auto icon-btn reveal-on-hover text-faint hover:text-red-400"
                 onClick={() => remove.mutate({ id: c.id, taskId })}
                 aria-label="Delete comment"
               >
@@ -492,7 +492,7 @@ function TaskList({
           <Badge tone={t.priority}>{priorityLabel[t.priority]}</Badge>
 
           <button
-            className="shrink-0 text-faint opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+            className="shrink-0 icon-btn reveal-on-hover text-faint hover:text-red-400"
             onClick={() => onDelete(t.id)}
             aria-label={`Delete ${t.title}`}
           >

@@ -33,7 +33,7 @@ export function CommandHistory({
               <button
                 onClick={(e) => { e.stopPropagation(); o.onPin!(); }}
                 aria-label={o.pinned ? "Unpin command" : "Pin command"}
-                className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 aria-[selected]:opacity-100"
+                className="reveal-on-hover shrink-0 aria-[selected]:opacity-100"
               >
                 <Star size={14} className={cn(o.pinned ? "fill-accent text-accent" : "text-faint hover:text-accent")} />
               </button>

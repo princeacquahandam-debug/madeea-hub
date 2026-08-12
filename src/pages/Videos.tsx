@@ -77,7 +77,7 @@ export default function Videos() {
                 <Video size={15} className="mt-0.5 shrink-0 text-accent" />
                 <p className="min-w-0 flex-1 truncate text-sm font-medium">{r.title}</p>
                 <button
-                  className="shrink-0 text-faint opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                  className="icon-btn reveal-on-hover shrink-0 text-faint hover:text-red-400"
                   onClick={() => remove.mutate(r)}
                   aria-label={`Delete ${r.title}`}
                 >

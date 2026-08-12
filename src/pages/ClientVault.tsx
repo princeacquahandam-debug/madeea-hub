@@ -109,7 +109,7 @@ export default function ClientVault() {
                   <p className="text-xs text-faint">{c.title}</p>
                   <p className="text-xs text-faint">{c.company}</p>
                 </div>
-                <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                <div className="reveal-on-hover flex items-center gap-1">
                   <button className="text-faint hover:text-accent" onClick={() => startEdit(c)} aria-label="Edit client">
                     <Pencil size={14} />
                   </button>
