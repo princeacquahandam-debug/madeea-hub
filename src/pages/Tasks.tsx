@@ -8,11 +8,11 @@ import {
   SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus, Trash2, GripVertical, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2, Columns3, List as ListIcon, Search, MessageSquare } from "lucide-react";
-import type { Task, TaskStatus, Priority, Subtask, Recurrence, TaskProgress, TaskAttachment } from "@/types/db";
+import { Plus, Trash2, GripVertical, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2, Columns3, List as ListIcon, Search, MessageSquare, Send } from "lucide-react";
+import type { Task, TaskStatus, Priority, Subtask, Recurrence, TaskProgress, TaskAttachment, TaskActivity } from "@/types/db";
 import { Badge, PageHeader, Modal } from "@/components/ui";
 import { SkeletonCard } from "@/components/Skeleton";
-import { useTasks, useTaskMutations, useClients } from "@/data/hooks";
+import { useTasks, useTaskMutations, useClients, useTaskComments, useTaskActivity, useCommentMutations, useCommentCounts } from "@/data/hooks";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { AssigneePicker, AssigneeAvatar } from "@/components/Assignee";
 import { useWorkspaceMembers } from "@/data/hooks";
@@ -87,7 +87,7 @@ const group = (tasks: Task[]): Board => ({
   done: tasks.filter((t) => t.status === "done"),
 });
 
-function CardBody({ task, blocked, onDelete, onEdit, onComplete, overlay }: { task: Task; blocked?: boolean; onDelete?: () => void; onEdit?: () => void; onComplete?: () => void; overlay?: boolean }) {
+function CardBody({ task, blocked, onDelete, onEdit, onComplete, comments = 0, overlay }: { task: Task; blocked?: boolean; onDelete?: () => void; onEdit?: () => void; onComplete?: () => void; comments?: number; overlay?: boolean }) {
   const stop = (e: React.PointerEvent) => e.stopPropagation();
   const subDone = task.subtasks.filter((s) => s.done).length;
   const due = relativeDue(task);
@@ -131,7 +131,8 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, overlay }: { ta
         )}
         {task.subtasks.length > 0 && <><span>·</span><CheckSquare size={11} />{subDone}/{task.subtasks.length}</>}
         {links > 0 && <><span>·</span><Link2 size={11} />{links}</>}
-        {progress > 0 && <><span>·</span><MessageSquare size={11} />{progress}</>}
+        {comments > 0 && <><span>·</span><MessageSquare size={11} />{comments}</>}
+        {progress > 0 && <><span>·</span><ListIcon size={11} />{progress}</>}
         {task.recurrence !== "none" && <Repeat size={11} className="text-accent-soft" />}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2 pl-6">
@@ -162,7 +163,7 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, overlay }: { ta
   );
 }
 
-function SortableCard({ task, blocked, onDelete, onEdit, onComplete, focused, justDropped }: { task: Task; blocked: boolean; onDelete: () => void; onEdit: () => void; onComplete: () => void; focused?: boolean; justDropped?: boolean }) {
+function SortableCard({ task, blocked, onDelete, onEdit, onComplete, comments, focused, justDropped }: { task: Task; blocked: boolean; onDelete: () => void; onEdit: () => void; onComplete: () => void; comments?: number; focused?: boolean; justDropped?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   return (
     // data-task-id is the scroll anchor for the /tasks?task=<id> deep link from the
@@ -174,12 +175,12 @@ function SortableCard({ task, blocked, onDelete, onEdit, onComplete, focused, ju
         justDropped && "card-drop",
         focused && "ring-2 ring-accent ring-offset-2 ring-offset-bg",
       )}>
-      <CardBody task={task} blocked={blocked} onDelete={onDelete} onEdit={onEdit} onComplete={onComplete} />
+      <CardBody task={task} blocked={blocked} onDelete={onDelete} onEdit={onEdit} onComplete={onComplete} comments={comments} />
     </div>
   );
 }
 
-function Column({ status, label, dot, wash, edge, items, blockedIds, onDelete, onEdit, onComplete, onAdd, focusId, justDroppedId, dropActive }: { status: TaskStatus; label: string; dot: string; wash: string; edge: string; items: Task[]; blockedIds: Set<string>; onDelete: (id: string) => void; onEdit: (t: Task) => void; onComplete: (id: string) => void; onAdd: (status: TaskStatus) => void; focusId?: string | null; justDroppedId?: string | null; dropActive?: boolean }) {
+function Column({ status, label, dot, wash, edge, items, blockedIds, onDelete, onEdit, onComplete, onAdd, commentCounts, focusId, justDroppedId, dropActive }: { status: TaskStatus; label: string; dot: string; wash: string; edge: string; items: Task[]; blockedIds: Set<string>; onDelete: (id: string) => void; onEdit: (t: Task) => void; onComplete: (id: string) => void; onAdd: (status: TaskStatus) => void; commentCounts: Record<string, number>; focusId?: string | null; justDroppedId?: string | null; dropActive?: boolean }) {
   /* useDroppable, not useSortable. A column is a container you drop INTO; it is
      never itself dragged. useSortable additionally registered each column as a
      draggable and, because it reads the nearest SortableContext above it — of
@@ -210,7 +211,7 @@ function Column({ status, label, dot, wash, edge, items, blockedIds, onDelete, o
       </div>
       <SortableContext id={status} items={items.map((t) => t.id)} strategy={verticalListSortingStrategy}>
         <div ref={setNodeRef} className="min-h-[180px] flex-1 space-y-2 p-3">
-          {items.map((t) => <SortableCard key={t.id} task={t} blocked={blockedIds.has(t.id)} onDelete={() => onDelete(t.id)} onEdit={() => onEdit(t)} onComplete={() => onComplete(t.id)} focused={focusId === t.id} justDropped={justDroppedId === t.id} />)}
+          {items.map((t) => <SortableCard key={t.id} task={t} blocked={blockedIds.has(t.id)} onDelete={() => onDelete(t.id)} onEdit={() => onEdit(t)} onComplete={() => onComplete(t.id)} comments={commentCounts[t.id] ?? 0} focused={focusId === t.id} justDropped={justDroppedId === t.id} />)}
           {items.length === 0 && (
             <p className="rounded-lg border border-dashed border-current/15 py-8 text-center text-xs text-faint">Drop here</p>
           )}
@@ -318,6 +319,102 @@ function ProgressField({ items, onAdd }: { items: TaskProgress[]; onAdd: (body: 
 
 const VIEW_KEY = "madeea-tasks-view";
 
+/** "3m" / "2h" / "5d" — a thread is read by recency, not by date. */
+function ago(iso: string): string {
+  const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+const VERB_TEXT: Record<string, (a: TaskActivity) => string> = {
+  created: () => "created this task",
+  status: (a) => `moved it from ${a.from_value ?? "?"} to ${a.to_value ?? "?"}`,
+  priority: (a) => `changed priority to ${a.to_value ?? "?"}`,
+  due: (a) => (a.to_value ? `set the due date to ${a.to_value.slice(0, 10)}` : "cleared the due date"),
+  blocked: (a) => (a.to_value ? `flagged it blocked: ${a.to_value}` : "flagged it blocked"),
+  unblocked: () => "unblocked it",
+  commented: () => "commented",
+};
+
+/**
+ * The conversation on this task, plus what happened to it.
+ *
+ * One panel rather than two tabs: "Bryan asked a question" and "Bryan moved it
+ * to Done" are the same story, and splitting them makes you read it twice.
+ */
+function TaskThread({ taskId }: { taskId: string }) {
+  const { data: comments = [] } = useTaskComments(taskId);
+  const { data: activity = [] } = useTaskActivity(taskId);
+  const { data: members = [] } = useWorkspaceMembers();
+  const { add, remove } = useCommentMutations();
+  const [body, setBody] = useState("");
+
+  const nameOf = (id: string | null) =>
+    members.find((m) => m.user_id === id)?.name ?? (id === "demo" ? "You" : "Someone");
+
+  const send = () => {
+    const b = body.trim();
+    if (!b) return;
+    add.mutate({ taskId, body: b });
+    setBody("");
+  };
+
+  return (
+    <div className="border-t border-border pt-3">
+      <p className="eyebrow mb-2">Comments &amp; activity</p>
+
+      <div className="mb-2 max-h-56 space-y-2 overflow-y-auto pr-1">
+        {comments.map((c) => (
+          <div key={c.id} className="group rounded-lg bg-surface-2 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] font-semibold">{c.author_name ?? nameOf(c.author_id)}</span>
+              <span className="text-[10.5px] text-faint">{ago(c.created_at)}</span>
+              <button
+                className="ml-auto text-faint opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                onClick={() => remove.mutate({ id: c.id, taskId })}
+                aria-label="Delete comment"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+            <p className="mt-0.5 whitespace-pre-wrap text-[13px] leading-snug">{c.body}</p>
+          </div>
+        ))}
+
+        {/* Activity is quieter than conversation on purpose — it is context for
+            the thread, not the point of it. */}
+        {activity.filter((a) => a.verb !== "commented").slice(0, 12).map((a) => (
+          <p key={a.id} className="px-1 text-[11px] text-faint">
+            <span className="text-muted">{a.actor_name ?? nameOf(a.actor_id)}</span>{" "}
+            {(VERB_TEXT[a.verb] ?? (() => a.verb))(a)} · {ago(a.created_at)}
+          </p>
+        ))}
+
+        {comments.length === 0 && activity.length === 0 && (
+          <p className="px-1 text-xs text-faint">
+            Nothing yet. Ask a question here and it stays attached to the work.
+          </p>
+        )}
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          className="input flex-1"
+          placeholder="Write a comment…"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+        />
+        <button type="button" className="btn-ghost shrink-0" onClick={send} disabled={!body.trim() || add.isPending}>
+          <Send size={14} /> Send
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Every task in one column, soonest due first.
  *
@@ -423,6 +520,7 @@ export default function Tasks() {
   /* Board vs list. Read from localStorage on first render rather than in an
      effect, so the preferred view is the first thing painted instead of the
      board flashing for a frame on every load. */
+  const { data: commentCounts = {} } = useCommentCounts();
   const [q, setQ] = useState("");
   const [view, setView] = useState<"board" | "list">(() => {
     try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "board"; } catch { return "board"; }
@@ -699,7 +797,7 @@ export default function Tasks() {
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setActiveId(null); setOverCol(null); }}>
           <div className="grid gap-4 lg:grid-cols-3">
             {COLUMNS.map((col) => (
-              <Column key={col.key} status={col.key} label={col.label} dot={col.dot} wash={col.wash} edge={col.edge} items={board[col.key]} blockedIds={blockedIds} onDelete={(id) => remove.mutate(id)} onEdit={startEdit} onComplete={(id) => setStatus.mutate({ id, status: "done" })} onAdd={startCreate} focusId={focusId} justDroppedId={justDroppedId} dropActive={activeId !== null && overCol === col.key} />
+              <Column key={col.key} status={col.key} label={col.label} dot={col.dot} wash={col.wash} edge={col.edge} items={board[col.key]} blockedIds={blockedIds} onDelete={(id) => remove.mutate(id)} onEdit={startEdit} onComplete={(id) => setStatus.mutate({ id, status: "done" })} onAdd={startCreate} commentCounts={commentCounts} focusId={focusId} justDroppedId={justDroppedId} dropActive={activeId !== null && overCol === col.key} />
             ))}
           </div>
           <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
@@ -720,7 +818,15 @@ export default function Tasks() {
             <label className="field-label">Title</label>
             <input className="input" autoFocus value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. Draft investor update" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            {/* Status was only changeable by dragging, which meant no way to move
+                a task from the detail view at all — and no way at all on a phone. */}
+            <div>
+              <label className="field-label" htmlFor="task-status">Status</label>
+              <select id="task-status" className="input" value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as TaskStatus }))}>
+                {COLUMNS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+              </select>
+            </div>
             <div>
               <label className="field-label">Priority</label>
               <select className="input" value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as Priority }))}>
@@ -827,6 +933,10 @@ export default function Tasks() {
           <button className="btn-primary w-full" onClick={submit} disabled={!form.title.trim() || saving}>
             {saving ? "Saving…" : editingId ? "Save changes" : "Add Task"}
           </button>
+
+          {/* Only on a task that exists — there is nothing to comment on, and no
+              id to hang a comment from, until it has been created. */}
+          {editingId && <TaskThread taskId={editingId} />}
         </div>
       </Modal>
 

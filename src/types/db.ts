@@ -82,6 +82,40 @@ export interface Task {
 }
 
 /**
+ * A comment on a task (migration 0029).
+ *
+ * The conversation lives on the work. A general chat loses to the Slack the
+ * client already has open; a thread pinned to a specific task does not.
+ */
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  author_id: string | null;
+  body: string;
+  mentions?: string[];
+  created_at: string;
+  edited_at?: string | null;
+  /** Joined for display; never written. */
+  author_name?: string | null;
+}
+
+/**
+ * One thing that happened to a task (migration 0029). Written by triggers, so
+ * it records what actually changed rather than what the UI remembered to say.
+ * Append-only: there is a read policy and no other, and absent means denied.
+ */
+export interface TaskActivity {
+  id: string;
+  task_id: string;
+  actor_id: string | null;
+  verb: "created" | "status" | "priority" | "due" | "blocked" | "unblocked" | "commented" | string;
+  from_value: string | null;
+  to_value: string | null;
+  created_at: string;
+  actor_name?: string | null;
+}
+
+/**
  * A screen recording that becomes an SOP (migration 0028).
  *
  * EA-only by design: a recording of someone working shows their inbox and

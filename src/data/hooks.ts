@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
@@ -10,6 +10,7 @@ import { loadDemoEod, saveDemoEod, removeDemoEod } from "@/store/demoEod";
 import { addDemoTask, loadDemoTasks, loadTaskPatches, removeDemoTask, updateDemoTask } from "@/store/demoTasks";
 import { addDemoTime, loadDemoTime, removeDemoTime, updateDemoTime } from "@/store/demoTime";
 import { addDemoRecording, loadDemoRecordings, removeDemoRecording } from "@/store/demoRecordings";
+import { addDemoActivity, addDemoComment, loadDemoActivity, loadDemoComments, removeDemoComment } from "@/store/demoComments";
 import { loadSnoozes, saveSnooze } from "@/store/demoSnoozes";
 import { loadAssignees, loadDemoTaskEvents, saveAssignee } from "@/store/demoAssignees";
 import { applyDemo, demoCreate, demoDelete, demoId, demoPatch } from "@/store/demoWrites";
@@ -86,14 +87,31 @@ export function useTasks() {
 
 export function useTaskMutations() {
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["tasks"] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["tasks"] });
+    // Any task write may have produced activity — a status move, a priority
+    // change, a due date. Refreshing the feed here keeps it honest without each
+    // mutation having to know which verbs it triggered.
+    qc.invalidateQueries({ queryKey: ["task_activity"] });
+  };
 
   const setStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
       if (!supabase) {
-        // Live, a DB trigger stamps completed_at (migration 0014/0016). Demo has
-        // no trigger, so mirror it here or "completed today" can never populate.
+        // Live, DB triggers stamp completed_at (0014/0016) and write the move to
+        // task_activity (0029). Demo has no triggers, so mirror both here — the
+        // activity feed being empty in the one mode the team reviews in is how
+        // the drag bug hid for a week.
+        const before = [...loadDemoTasks(), ...seed.TASKS].find((t) => t.id === id);
         updateDemoTask(id, { status, completed_at: status === "done" ? new Date().toISOString() : null });
+        if (before && before.status !== status) {
+          addDemoActivity({
+            id: `act-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            task_id: id, actor_id: "demo", verb: "status",
+            from_value: before.status, to_value: status,
+            created_at: new Date().toISOString(),
+          });
+        }
         return;
       }
       const { error } = await supabase.from("tasks").update({ status }).eq("id", id);
@@ -189,7 +207,37 @@ export function useTaskMutations() {
 
   const update = useMutation({
     mutationFn: async ({ id, ...fields }: Partial<TaskInput> & { id: string }) => {
-      if (!supabase) { updateDemoTask(id, fields as Partial<Task>); return; }
+      if (!supabase) {
+        /* Mirror what the 0029 trigger does, which fires on ANY update — not
+           just the board's. Editing a task in the modal changes status through
+           HERE, not through setStatus, so logging only there left the feed
+           silent for exactly the edits people make most. */
+        const before = [...loadDemoTasks(), ...seed.TASKS].find((t) => t.id === id);
+        updateDemoTask(id, fields as Partial<Task>);
+        if (before) {
+          const at = new Date().toISOString();
+          const log = (verb: string, from: string | null, to: string | null) =>
+            addDemoActivity({
+              id: `act-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              task_id: id, actor_id: "demo", verb, from_value: from, to_value: to, created_at: at,
+            });
+          if (fields.status !== undefined && fields.status !== before.status) log("status", before.status, fields.status);
+          if (fields.priority !== undefined && fields.priority !== before.priority) log("priority", before.priority, fields.priority);
+          /* Compare the DAY, not the timestamp. The form sends "2026-08-16"
+             while the stored value is "2026-08-16T17:00:00Z", so a raw compare
+             logged a due-date change on every single save. */
+          const day = (v?: string | null) => (v ? v.slice(0, 10) : null);
+          if (fields.due_at !== undefined && day(fields.due_at) !== day(before.due_at)) {
+            log("due", day(before.due_at), day(fields.due_at));
+          }
+          /* Seed tasks have no `blocked` key at all, and undefined !== false, so
+             every save on one reported that it had just been unblocked. */
+          if (fields.blocked !== undefined && fields.blocked !== (before.blocked ?? false)) {
+            log(fields.blocked ? "blocked" : "unblocked", before.blocker_note ?? null, fields.blocker_note ?? null);
+          }
+        }
+        return;
+      }
       const { error } = await supabase.from("tasks").update(fields).eq("id", id);
       if (error) throw error;
     },
@@ -1106,6 +1154,102 @@ export function useEodReports() {
     },
     retry: false,
   });
+}
+
+// ---------------- task comments + activity (migration 0029) ----------------
+
+/** The thread on one task. Everyone in the workspace can read it. */
+export function useTaskComments(taskId: string | null) {
+  return useQuery<TaskComment[]>({
+    queryKey: ["task_comments", taskId],
+    enabled: Boolean(taskId),
+    queryFn: async () => {
+      if (!taskId) return [];
+      if (!supabase) return loadDemoComments().filter((c) => c.task_id === taskId);
+      const { data, error } = await supabase
+        .from("task_comments")
+        .select("id,task_id,author_id,body,mentions,created_at,edited_at")
+        .eq("task_id", taskId)
+        .order("created_at");
+      if (error) return []; // migration not applied yet
+      return data as TaskComment[];
+    },
+    retry: false,
+  });
+}
+
+/** What happened to one task, newest first. Read-only by construction. */
+export function useTaskActivity(taskId: string | null) {
+  return useQuery<TaskActivity[]>({
+    queryKey: ["task_activity", taskId],
+    enabled: Boolean(taskId),
+    queryFn: async () => {
+      if (!taskId) return loadDemoActivity().filter((a) => a.task_id === taskId);
+      if (!supabase) return loadDemoActivity().filter((a) => a.task_id === taskId);
+      const { data, error } = await supabase
+        .from("task_activity")
+        .select("id,task_id,actor_id,verb,from_value,to_value,created_at")
+        .eq("task_id", taskId)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) return [];
+      return data as TaskActivity[];
+    },
+    retry: false,
+  });
+}
+
+/** How many comments each task has, for the count on the card. */
+export function useCommentCounts() {
+  return useQuery<Record<string, number>>({
+    queryKey: ["task_comment_counts"],
+    queryFn: async () => {
+      const tally = (rows: { task_id: string }[]) =>
+        rows.reduce<Record<string, number>>((acc, r) => { acc[r.task_id] = (acc[r.task_id] ?? 0) + 1; return acc; }, {});
+      if (!supabase) return tally(loadDemoComments());
+      const { data, error } = await supabase.from("task_comments").select("task_id").limit(2000);
+      if (error) return {};
+      return tally(data as { task_id: string }[]);
+    },
+    retry: false,
+  });
+}
+
+export function useCommentMutations() {
+  const qc = useQueryClient();
+  const invalidate = (taskId: string) => {
+    qc.invalidateQueries({ queryKey: ["task_comments", taskId] });
+    qc.invalidateQueries({ queryKey: ["task_activity", taskId] });
+    qc.invalidateQueries({ queryKey: ["task_comment_counts"] });
+  };
+
+  const add = useMutation({
+    mutationFn: async ({ taskId, body }: { taskId: string; body: string }) => {
+      if (!supabase) {
+        addDemoComment({
+          id: demoId(), task_id: taskId, author_id: "demo", body,
+          created_at: new Date().toISOString(), author_name: "You",
+        });
+        return;
+      }
+      // author_id defaults to auth.uid(); the write policy requires it to match,
+      // so there is nothing here a client could forge.
+      const { error } = await supabase.from("task_comments").insert({ task_id: taskId, body });
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => invalidate(v.taskId),
+  });
+
+  const remove = useMutation({
+    mutationFn: async ({ id }: { id: string; taskId: string }) => {
+      if (!supabase) { removeDemoComment(id); return; }
+      const { error } = await supabase.from("task_comments").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => invalidate(v.taskId),
+  });
+
+  return { add, remove };
 }
 
 // ---------------- SOP recordings (migration 0028) ----------------
