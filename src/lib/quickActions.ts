@@ -19,6 +19,182 @@ const TONE: FormField = {
   options: ["Formal", "Warm", "Concise", "Assertive", "Collaborative"],
 };
 
+const KIND = (name: string, label: string, options: string[]): FormField =>
+  ({ name, label, type: "select", options });
+
+/**
+ * ---------------------------------------------------------------------------
+ * The curated set. Audit §5.1.
+ *
+ * Reichelle at 1:27:11: social media alone had about eight bots doing
+ * overlapping jobs, and no EA can memorise which of eight is best for one post.
+ * The menu in this app had the same disease at smaller scale. Four separate
+ * email drafters. Five research variants. "Run Inbox Triage" sitting beside
+ * "Inbox Triage Automation" doing the identical job under two names.
+ *
+ * R-5.1.2 asks for one strong all-in-one per domain rather than eight variants,
+ * so each entry below absorbs the ones it replaced and offers the difference as
+ * a field. Nothing is destroyed: the originals are still in
+ * QUICK_ACTION_SCHEMAS below, per §6 (gray out, do not delete), and restoring
+ * one is a line in QUICK_ACTION_GROUPS.
+ *
+ * WHAT THIS IS NOT. §5.1 is really about Brian's library of 70+ bots, which
+ * does not live in this repo, and OQ-6 leaves that shortlist to Rowena and
+ * Brian. This is the same principle applied to what is actually here: 22 menu
+ * items down to 11.
+ * ---------------------------------------------------------------------------
+ */
+export const CURATED_QUICK_ACTIONS: Record<string, QuickActionSchema> = {
+  // ---- Email and communication. R-5.1.4 puts this first: it is where the
+  //      EA's day starts and where most of the volume is.
+  "Write an Email": {
+    howTo: "Pick what kind of email it is, give the AI the context, and it drafts something ready to send.",
+    example: "Reply, paste the client's message, Warm, confirm Friday 3pm and ask for the deck",
+    fields: [
+      // Absorbs Draft Email Response, Draft Executive Email, Compose Follow-Up
+      // and Rescheduling Email, which differed only in this one choice.
+      KIND("kind", "What kind of email", ["Reply to a message", "New email", "Follow-up", "Reschedule or cancel"]),
+      { name: "context", label: "The message, or who it is for and why", type: "textarea",
+        placeholder: "Paste the email you are replying to, or describe the recipient and the purpose." },
+      { name: "points", label: "Points to cover", type: "textarea",
+        placeholder: "e.g. confirm Friday 3pm, request the deck, mention the CFO is attending" },
+      TONE,
+    ],
+  },
+  "Triage the Inbox": {
+    howTo: "Paste the subject lines or a thread list, and get them sorted into reply, delegate and archive.",
+    example: "12 unread subjects pasted in, sorted by what needs the exec and what does not",
+    fields: [
+      // Absorbs Run Inbox Triage and Inbox Triage Automation, which were the
+      // same action listed twice under two names.
+      { name: "inbox", label: "Subjects or threads", type: "textarea",
+        placeholder: "One per line: sender, subject, and a few words of preview." },
+      { name: "priorities", label: "What matters this week", type: "text",
+        placeholder: "e.g. the Vantage renewal, anything from the board" },
+    ],
+  },
+
+  // ---- Research. R-5.1.4 names it a daily domain.
+  "Research Brief": {
+    howTo: "Name the company or person, choose the kind of brief, and get it back structured.",
+    example: "Company overview, Vantage Partners, one page",
+    fields: [
+      // Absorbs Client Research Brief, Quick Company Brief, Competitor
+      // Snapshot, Executive Briefing Doc and LinkedIn Research.
+      KIND("kind", "Kind of brief", ["Company overview", "Competitor snapshot", "Person or LinkedIn profile", "Pre-meeting briefing"]),
+      { name: "subject", label: "Who or what", type: "text", placeholder: "e.g. Vantage Partners, or James Harrington" },
+      { name: "angle", label: "What the exec needs from it", type: "text",
+        placeholder: "e.g. are they a fit for the partnership, what to open the call with" },
+      KIND("depth", "Length", ["A few bullets", "One page", "Detailed"]),
+    ],
+  },
+
+  // ---- Social and LinkedIn. R-5.1.4 names both. Deliberately thin: the real
+  //      social bots are Brian's, and which of them survive is OQ-6.
+  "Draft Social Posts": {
+    howTo: "Give the idea and the platform, and get posts written for it.",
+    example: "LinkedIn, 3 posts, the exec's talk on hiring remote teams",
+    fields: [
+      { name: "platform", label: "Platform", type: "select", options: ["LinkedIn", "Instagram", "X", "Facebook", "All of them"] },
+      { name: "topic", label: "What it is about", type: "textarea",
+        placeholder: "The idea, the announcement, or paste the article you are posting about." },
+      { name: "count", label: "How many", type: "select", options: ["1", "3", "5"] },
+      TONE,
+    ],
+  },
+
+  // ---- Meetings and calendar.
+  "Meeting Prep": {
+    howTo: "Describe the meeting and get the agenda, the pre-read, or the prep checklist.",
+    example: "Agenda, Q3 board meeting, 90 minutes, 6 attendees",
+    fields: [
+      // Absorbs Write Meeting Agenda, Generate Meeting Brief and Meeting Prep
+      // Automation, which were three views of the same preparation.
+      KIND("output", "What you need", ["Timed agenda", "Pre-read brief", "Prep checklist"]),
+      { name: "meeting", label: "The meeting", type: "text", placeholder: "e.g. Weekly leadership sync, Q3 board meeting" },
+      { name: "topics", label: "Topics and attendees", type: "textarea",
+        placeholder: "What has to be covered, who is in the room, and anything unresolved from last time." },
+      { name: "length", label: "Length", type: "text", placeholder: "e.g. 30 minutes, 90 minutes" },
+    ],
+  },
+  "Plan the Calendar": {
+    howTo: "Find times, protect focus blocks, or reorder a day that has too much in it.",
+    example: "Suggest times, 45 minutes, 3 attendees across London and Manila",
+    fields: [
+      // Absorbs Suggest Meeting Slots, Draft Calendar Block, Optimize Daily
+      // Schedule and Priority Alignment Automation.
+      KIND("output", "What you need", ["Suggest meeting times", "Block focus time", "Reorder today"]),
+      { name: "constraints", label: "What has to be worked around", type: "textarea",
+        placeholder: "Existing commitments, time zones, no-meeting rules, hard deadlines." },
+      { name: "duration", label: "How long", type: "text", placeholder: "e.g. 45 minutes" },
+    ],
+  },
+
+  // ---- Reporting.
+  "Status Report": {
+    howTo: "Choose the kind of report, hand over what happened, and it comes back written up.",
+    example: "Weekly summary, Vantage, shipped the migration, blocked on legal",
+    fields: [
+      // Absorbs Weekly Summary Report, Project Status Update, KPI Snapshot and
+      // Weekly Digest.
+      KIND("kind", "Kind of report", ["Weekly summary", "Project status", "KPI snapshot", "Client digest"]),
+      { name: "period", label: "Period", type: "text", placeholder: "e.g. week of 10 August" },
+      { name: "input", label: "What happened", type: "textarea",
+        placeholder: "What moved, what is blocked, the numbers if you have them. Rough notes are fine." },
+      { name: "audience", label: "Who reads it", type: "text", placeholder: "e.g. the client, the exec, the whole team" },
+    ],
+  },
+  "Expense Report": {
+    howTo: "Paste the expense lines and get them categorised and totalled.",
+    example: "14 lines from the card statement, grouped by category with a total",
+    fields: [
+      // Absorbs Expense Summary and Create Expense Report, one action with two
+      // names.
+      { name: "expenses", label: "The expenses", type: "textarea",
+        placeholder: "One per line: date, merchant, amount, and what it was for." },
+      { name: "period", label: "Period", type: "text", placeholder: "e.g. July 2026" },
+      { name: "policy", label: "Anything to flag", type: "text",
+        placeholder: "e.g. anything over 200, anything without a receipt" },
+    ],
+  },
+  "Summarize a Document": {
+    howTo: "Paste a long document and get the version somebody will actually read.",
+    example: "40 page contract, summarised with the risky clauses called out",
+    fields: [
+      { name: "document", label: "The document", type: "textarea", placeholder: "Paste the text." },
+      KIND("output", "What you need back", ["Key points", "One paragraph", "Action items only", "Risks and concerns"]),
+      { name: "audience", label: "Who reads it", type: "text", placeholder: "e.g. the exec, in a hurry" },
+    ],
+  },
+  "Newsletter Draft": {
+    howTo: "Give the theme and the items, and get the newsletter written.",
+    example: "Monthly client update, 4 items, warm",
+    fields: [
+      { name: "theme", label: "Theme or occasion", type: "text", placeholder: "e.g. monthly client update" },
+      { name: "items", label: "What goes in it", type: "textarea", placeholder: "One item per line." },
+      TONE,
+    ],
+  },
+  "Draft Invoice": {
+    /* Kept, but this one is a question for the team rather than a decision I
+       should make. §6 dropped the invoicing MODULE because Madeea is an agency
+       and EAs do not invoice Madeea. This is the other thing: an EA drafting an
+       invoice for their executive's business, which is ordinary EA work. Cut it
+       if §6 is meant more widely than that. */
+    howTo: "Give the client, the line items and the terms, and get a clean invoice draft.",
+    fields: [
+      { name: "client", label: "Bill to", type: "text", placeholder: "e.g. Vantage Partners" },
+      { name: "items", label: "Line items", type: "textarea", placeholder: "One per line: description, quantity, rate." },
+      { name: "terms", label: "Terms", type: "text", placeholder: "e.g. net 14, bank transfer" },
+    ],
+  },
+};
+
+/**
+ * The 28 originals. Superseded by CURATED_QUICK_ACTIONS above and no longer in
+ * the menu, but kept on disk per §6 and still resolved by label, so a
+ * generation already logged against one of these names still renders its form.
+ */
 export const QUICK_ACTION_SCHEMAS: Record<string, QuickActionSchema> = {
   // ---- Drafting & Writing ----
   "Draft Email Response": {

@@ -126,21 +126,33 @@ export const NAV: NavItem[] = [
   { to: "/scoreboard", label: "Client Scoreboard", icon: Trophy, group: "Insights" },
 ];
 
+// The scrolling rail in the assistant panel. These have to be labels that exist
+// in QUICK_ACTION_GROUPS, otherwise the rail offers actions the menu cannot
+// open. Four of the six pointed at names retired by the §5.1 consolidation.
 export const QUICK_RAIL = [
-  "Draft Email Response",
-  "Generate Meeting Brief",
-  "Create Expense Report",
-  "Run Inbox Triage",
-  "Client Research Brief",
-  "Draft Invoice",
+  "Write an Email",
+  "Triage the Inbox",
+  "Meeting Prep",
+  "Research Brief",
+  "Status Report",
+  "Draft Social Posts",
 ];
 
+/* Audit §5.1: 22 down to 11, with the groups ordered by R-5.1.4's list of what
+   EAs actually work in daily (email and comms, social, research) rather than by
+   what happened to be built first.
+
+   The old 22 are still in lib/quickActions.ts and restoring any of them is one
+   entry here, per §6. What each replacement absorbed is documented beside it.
+
+   Brian's 70+ bot library is the real subject of §5.1 and is not in this repo.
+   Its shortlist is OQ-6, for Rowena and Brian. */
 export const QUICK_ACTION_GROUPS: { title: string; actions: string[] }[] = [
-  { title: "Drafting & Writing", actions: ["Draft Executive Email", "Write Meeting Agenda", "Compose Follow-Up", "Summarize Document"] },
-  { title: "Scheduling & Calendar", actions: ["Suggest Meeting Slots", "Optimize Daily Schedule", "Draft Calendar Block", "Rescheduling Email"] },
-  { title: "Research", actions: ["Quick Company Brief", "Competitor Snapshot", "Executive Briefing Doc", "LinkedIn Research"] },
-  { title: "Reporting", actions: ["Weekly Summary Report", "KPI Snapshot", "Expense Summary", "Project Status Update"] },
-  { title: "Basic Automations", actions: ["Inbox Triage Automation", "Meeting Prep Automation", "Priority Alignment Automation", "Social Post Scheduler", "Newsletter Draft", "Weekly Digest"] },
+  { title: "Email & Communication", actions: ["Write an Email", "Triage the Inbox", "Newsletter Draft"] },
+  { title: "Research", actions: ["Research Brief", "Summarize a Document"] },
+  { title: "Social & LinkedIn", actions: ["Draft Social Posts"] },
+  { title: "Meetings & Calendar", actions: ["Meeting Prep", "Plan the Calendar"] },
+  { title: "Reporting", actions: ["Status Report", "Expense Report", "Draft Invoice"] },
 ];
 
 // ---- Communication Studio formats ----

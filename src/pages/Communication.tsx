@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Sparkles, Mail, AlertTriangle, MailQuestion, Wand2, Lock, Inbox } from "lucide-react";
 import type { Message } from "@/types/db";
 import { Badge, PageHeader } from "@/components/ui";
@@ -23,6 +23,7 @@ const TAB_FILTER: Record<(typeof TABS)[number], (m: Message) => boolean> = {
 };
 
 export default function Communication() {
+  const navigate = useNavigate();
   const { data: messages = [], isLoading } = useMessages();
   const { data: clients = [] } = useClients();
   const cfg = useSlaSettings((s) => s.config);
@@ -93,6 +94,23 @@ export default function Communication() {
             </span>
           ))}
         </div>
+      </div>
+
+      {/* R-5.1.3: the surviving actions belong where the work is, not behind a
+          menu of their own. These are the comms-domain four; the rest stay on
+          the Quick Actions page. Deep-links rather than a second copy of the
+          form, so there is one implementation to keep correct. */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-faint">AI actions</span>
+        {["Write an Email", "Triage the Inbox", "Draft Social Posts", "Newsletter Draft"].map((a) => (
+          <button
+            key={a}
+            onClick={() => navigate(`/quick-actions?action=${encodeURIComponent(a)}`)}
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium transition-colors hover:border-accent/40 hover:text-accent"
+          >
+            <Sparkles size={12} className="text-accent-soft" /> {a}
+          </button>
+        ))}
       </div>
 
       <div className="mb-4 flex gap-2">

@@ -1,21 +1,35 @@
-import { useState } from "react";
-import { Sparkles, PenLine, Calendar, Search, BarChart3, Workflow, ArrowLeft } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Sparkles, Mail, Calendar, Search, BarChart3, Share2, Infinity as InfinityIcon, ArrowLeft } from "lucide-react";
 import { QUICK_ACTION_GROUPS } from "@/lib/constants";
-import { QUICK_ACTION_SCHEMAS, DEFAULT_QUICK_ACTION } from "@/lib/quickActions";
+import { CURATED_QUICK_ACTIONS, QUICK_ACTION_SCHEMAS, DEFAULT_QUICK_ACTION } from "@/lib/quickActions";
 import { PageHeader, Modal } from "@/components/ui";
 import { generate } from "@/lib/ai";
 import { OutputViewer } from "@/components/OutputViewer";
 
-const GROUP_ICONS = [PenLine, Calendar, Search, BarChart3, Workflow];
+// Keyed by title, not by position. The old array was positional, so when the
+// §5.1 consolidation reordered the groups every icon silently pointed at the
+// wrong heading.
+const GROUP_ICONS: Record<string, typeof Mail> = {
+  "Email & Communication": Mail,
+  Research: Search,
+  "Social & LinkedIn": Share2,
+  "Meetings & Calendar": Calendar,
+  Reporting: BarChart3,
+};
 
 export default function QuickActions() {
+  const [params, setParams] = useSearchParams();
   const [active, setActive] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [output, setOutput] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const schema = active ? QUICK_ACTION_SCHEMAS[active] ?? DEFAULT_QUICK_ACTION : null;
-  const example = active ? QUICK_ACTION_SCHEMAS[active]?.example : undefined;
+  // Curated first, then the superseded originals, so anything restored to the
+  // menu from the §6 list still finds its form. See lib/quickActions.ts.
+  const found = active ? CURATED_QUICK_ACTIONS[active] ?? QUICK_ACTION_SCHEMAS[active] : undefined;
+  const schema = active ? found ?? DEFAULT_QUICK_ACTION : null;
+  const example = found?.example;
 
   function open(action: string) {
     setActive(action);
@@ -26,7 +40,20 @@ export default function QuickActions() {
 
   function close() {
     setActive(null);
+    // Drop ?action= too, otherwise closing the modal leaves a URL that reopens
+    // it on the next refresh or back-navigation.
+    if (params.has("action")) setParams({}, { replace: true });
   }
+
+  // Deep link from the Communication Center (R-5.1.3). Only opens an action
+  // that is actually in the menu, so a stale or hand-typed link lands on the
+  // list rather than an empty form.
+  useEffect(() => {
+    const wanted = params.get("action");
+    if (!wanted) return;
+    if (QUICK_ACTION_GROUPS.some((g) => g.actions.includes(wanted))) open(wanted);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
 
   async function run() {
     if (!active) return;
@@ -42,11 +69,26 @@ export default function QuickActions() {
 
   return (
     <div>
-      <PageHeader title="AI Quick Actions" subtitle="Instant AI-powered outputs for executive operations" />
+      <PageHeader
+        title="AI Quick Actions"
+        subtitle="Eleven actions, one per job. Each absorbed the four or five near-duplicates it replaced."
+      />
+
+      {/* R-5.1.5. Rowena at 1:24:46: this is a real, cited win with a past EA
+          (Tessa), and it is the reason to use these rather than the free tier
+          of something else. It was nowhere in the app, so nobody knew. */}
+      <div className="mb-6 flex items-start gap-2.5 rounded-xl border border-border bg-surface px-4 py-3">
+        <InfinityIcon size={16} className="mt-0.5 shrink-0 text-accent" />
+        <p className="text-[13px] leading-relaxed text-muted">
+          <span className="font-semibold text-fg">No usage limits.</span>{" "}
+          Run these as many times as the work needs. Free ChatGPT throttles you part way
+          through a busy morning, which is exactly when it matters.
+        </p>
+      </div>
 
       <div className="space-y-6">
-        {QUICK_ACTION_GROUPS.map((group, gi) => {
-          const Icon = GROUP_ICONS[gi];
+        {QUICK_ACTION_GROUPS.map((group) => {
+          const Icon = GROUP_ICONS[group.title] ?? Sparkles;
           return (
             <section key={group.title}>
               <div className="mb-3 flex items-center gap-2">
