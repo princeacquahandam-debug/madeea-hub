@@ -1,13 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
 import { IMPORTED_EOD } from "@/data/eodImport";
 import { loadDemoEod, saveDemoEod, removeDemoEod } from "@/store/demoEod";
 import { addDemoTask, loadDemoTasks, loadTaskPatches, removeDemoTask, updateDemoTask } from "@/store/demoTasks";
+import { addDemoTime, loadDemoTime, removeDemoTime, updateDemoTime } from "@/store/demoTime";
 import { loadSnoozes, saveSnooze } from "@/store/demoSnoozes";
 import { loadAssignees, loadDemoTaskEvents, saveAssignee } from "@/store/demoAssignees";
 import { applyDemo, demoCreate, demoDelete, demoId, demoPatch } from "@/store/demoWrites";
@@ -1100,6 +1101,99 @@ export function useEodReports() {
     },
     retry: false,
   });
+}
+
+// ---------------- time tracking (migration 0027) ----------------
+
+/** The EA's own local date as YYYY-MM-DD. Not toISOString(), which shifts the
+ *  day for anyone west of UTC — and an EA in Manila finishing at 01:00 is still
+ *  working the previous day. */
+export function workDate(now: Date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+}
+
+/** Seconds on an entry; counts up live while it is still running. */
+export function entrySeconds(e: TimeEntry, now: number = Date.now()): number {
+  const start = new Date(e.started_at).getTime();
+  const end = e.ended_at ? new Date(e.ended_at).getTime() : now;
+  return Math.max(0, Math.round((end - start) / 1000));
+}
+
+/**
+ * Time entries. Yours, or everyone's for an admin — the RLS policy decides, so
+ * the same query serves the EA's timesheet and HR's payroll view without the
+ * client choosing which rows it is allowed to ask for.
+ */
+export function useTimeEntries() {
+  return useQuery<TimeEntry[]>({
+    queryKey: ["time_entries"],
+    queryFn: async () => {
+      if (!supabase) return loadDemoTime();
+      const { data, error } = await supabase
+        .from("time_entries")
+        .select("id,owner_id,task_id,client_id,started_at,ended_at,note,work_date,tasks(title)")
+        .order("started_at", { ascending: false })
+        .limit(500);
+      // Migration not applied yet: an empty timesheet is the honest answer, and
+      // the page says so rather than showing an error where hours should be.
+      if (error) return [];
+      return (data as unknown as (TimeEntry & { tasks: { title: string } | null })[]).map((r) => ({
+        ...r,
+        task_title: r.tasks?.title ?? null,
+      }));
+    },
+    retry: false,
+  });
+}
+
+export function useTimeMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["time_entries"] });
+
+  const start = useMutation({
+    mutationFn: async (input: { task_id?: string | null; client_id?: string | null; note?: string | null }) => {
+      const row = {
+        task_id: input.task_id ?? null,
+        client_id: input.client_id ?? null,
+        note: input.note ?? null,
+        started_at: new Date().toISOString(),
+        work_date: workDate(),
+      };
+      if (!supabase) {
+        // Mirror the database's one-open-timer rule, or two tabs in demo would
+        // leave two running clocks and a day that adds up to more than it was.
+        const open = loadDemoTime().find((e) => !e.ended_at);
+        if (open) updateDemoTime(open.id, { ended_at: new Date().toISOString() });
+        addDemoTime({ id: demoId(), owner_id: "demo", ended_at: null, ...row });
+        return;
+      }
+      const { error } = await supabase.from("time_entries").insert(row);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  const stop = useMutation({
+    mutationFn: async (id: string) => {
+      const ended_at = new Date().toISOString();
+      if (!supabase) { updateDemoTime(id, { ended_at }); return; }
+      const { error } = await supabase.from("time_entries").update({ ended_at }).eq("id", id);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      if (!supabase) { removeDemoTime(id); return; }
+      const { error } = await supabase.from("time_entries").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  return { start, stop, remove };
 }
 
 /** Submit (or correct) today's report. Upserts on person + date. */

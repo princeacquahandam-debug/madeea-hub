@@ -81,6 +81,29 @@ export interface Task {
   attachments?: TaskAttachment[];
 }
 
+/**
+ * One clock-in / clock-out span (migration 0027).
+ *
+ * `ended_at: null` means it is running right now, and the database allows only
+ * one such row per person. There is deliberately no screenshot or activity
+ * field: whether the tracker monitors behaviour as well as time is OQ-5, still
+ * open, and a privacy decision rather than an implementation detail.
+ */
+export interface TimeEntry {
+  id: string;
+  owner_id?: string | null;
+  task_id?: string | null;
+  client_id?: string | null;
+  started_at: string;
+  ended_at: string | null;
+  note?: string | null;
+  /** The working day this belongs to, in the EA's own local date. */
+  work_date: string;
+  /** Joined for display; never written. */
+  task_title?: string | null;
+  person_name?: string | null;
+}
+
 /** One dated line of progress on a task that spans more than a day. */
 export interface TaskProgress {
   at: string;

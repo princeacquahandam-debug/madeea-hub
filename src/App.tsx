@@ -32,6 +32,7 @@ const Changelog = lazy(() => import("@/pages/Changelog"));
    09 Aug direction: CommunicationStudio, BookkeepingAI, InvestorUpdate, Travel,
                      EmailHelper, MeetingHelper, DailyBriefing               */
 const Scoreboard = lazy(() => import("@/pages/Scoreboard"));
+const Time = lazy(() => import("@/pages/Time"));
 const Notes = lazy(() => import("@/pages/Notes"));
 const Academy = lazy(() => import("@/pages/Academy"));
 const MeetingIntelligence = lazy(() => import("@/pages/MeetingIntelligence"));
@@ -52,6 +53,7 @@ function Gate() {
         <Route path="/academy" element={<Academy />} />
         <Route path="/tasks" element={<Tasks />} />
         <Route path="/eod" element={<EodReports />} />
+        <Route path="/time" element={<Time />} />
         <Route path="/communication" element={<Communication />} />
         <Route path="/meeting-intelligence" element={<MeetingIntelligence />} />
         <Route path="/quick-actions" element={<QuickActions />} />

@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Trophy,
   Brain,
+  Clock,
   StickyNote,
   type LucideIcon,
 } from "lucide-react";
@@ -26,6 +27,9 @@ export const NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, group: "Operations" },
   { to: "/tasks", label: "Task Manager", icon: CheckSquare, group: "Operations" },
   { to: "/eod", label: "EOD Reports", icon: ClipboardList, group: "Operations" },
+  // §4.5. Sits beside EOD because they are the same job from two angles: what
+  // you did, and that you were there to do it.
+  { to: "/time", label: "Time", icon: Clock, group: "Operations" },
   { to: "/communication", label: "Communication Center", icon: Mail, group: "Operations" },
   { to: "/quick-actions", label: "AI Quick Actions", icon: Zap, group: "Operations" },
   { to: "/clients", label: "Client Vault", icon: Users, group: "Operations" },
