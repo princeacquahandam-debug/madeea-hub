@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Settings as SettingsIcon,
@@ -14,8 +14,7 @@ import {
 
 const GROUP_ICON = {
   Operations: Briefcase,
-  "AI Suite": Bot,
-  "Second Brain": Brain,
+  Insights: Brain,
 } as const;
 
 // Scrollable nav with no visible scrollbar; shows an animated down-chevron while
@@ -57,7 +56,7 @@ function NavScroller({ className, children }: { className?: string; children: Re
     </div>
   );
 }
-import { NAV } from "@/lib/constants";
+import { NAV, type NavGroup } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyRole } from "@/data/hooks";
 import { useUI } from "@/store/ui";
@@ -69,14 +68,17 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
   const { data: role } = useMyRole();
   const navigate = useNavigate();
   const { sidebarCollapsed, toggleSidebar, academyPromoDismissed, dismissAcademyPromo } = useUI();
-  const groups = ["Operations", "AI Suite", "Second Brain"] as const;
+  // Derived from NAV rather than listed here. The old hardcoded list still
+  // named "AI Suite" after the 09 Aug cut emptied it, so the sidebar rendered a
+  // group header that expanded onto nothing. Deriving it means that cannot
+  // happen again: a group exists exactly while something is in it.
+  const groups = useMemo(
+    () => [...new Set(NAV.map((n) => n.group))] as NavGroup[],
+    [],
+  );
   const collapsed = sidebarCollapsed && !forceExpanded;
   // Operations is the only group open by default on first load; the rest start collapsed.
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    Operations: true,
-    "AI Suite": false,
-    "Second Brain": false,
-  });
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ Operations: true });
   const toggleGroup = (g: string) => setOpenGroups((s) => ({ ...s, [g]: !s[g] }));
 
   // ---------------------------------------------------------------- collapsed
@@ -219,7 +221,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
           const open = openGroups[group];
           const GroupIcon = GROUP_ICON[group];
           return (
-            <div key={group} data-tour={group === "Operations" ? "nav" : group === "AI Suite" ? "ai-suite" : "second-brain"}>
+            <div key={group} data-tour={group === "Operations" ? "nav" : "insights"}>
               <button
                 onClick={() => toggleGroup(group)}
                 aria-expanded={open}

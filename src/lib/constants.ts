@@ -21,11 +21,20 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+export type NavGroup = "Operations" | "Insights";
+
 export interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
-  group: "Operations" | "AI Suite" | "Second Brain";
+  /* "AI Suite" is gone because it had no members left after the 09 Aug cut, and
+     an expandable group that opens onto nothing is worse than no group.
+
+     "Second Brain" is gone because §7 of the 10 Aug audit removes it by name
+     (8:39, "a skilled VA already has ChatGPT open with their own prompts"). The
+     two pages filed under it are not that feature, so they moved to Insights
+     rather than being cut with it. */
+  group: NavGroup;
   badge?: string;
 }
 
@@ -87,10 +96,17 @@ export const NAV: NavItem[] = [
      returns in one commit if Prince disagrees. Scoreboard is deliberately still
      here: it is to be REPURPOSED as the client proof surface, built from EOD and
      task data only, which is a build rather than a cut. */
-  // Second Brain, not AI Suite: it doesn't take a brief and write something, it
-  // reads the workspace's own meetings and files what it finds into Tasks and
-  // Memory, which is exactly what its neighbours here do.
-  { to: "/meeting-intelligence", label: "Meeting Intelligence", icon: Brain, group: "Second Brain" },
+  /* Insights: both of these read the workspace and hand back evidence, rather
+     than taking a brief and writing something. That is the line between this
+     group and Operations.
+
+     P-4 for each, since §7 demands one:
+       Meeting Intelligence  turns a call the EA sat through into tasks and
+                             notes, so they do not retype it afterwards
+       Client Scoreboard     shows a client what their EA moved this week,
+                             computed from tasks and EOD data rather than
+                             claimed                                          */
+  { to: "/meeting-intelligence", label: "Meeting Intelligence", icon: Brain, group: "Insights" },
   /* Removed by the 10 Aug product audit (§7). The pages stay on disk and the
      routes are unmounted in App.tsx, so any of them returns by restoring one
      line here and one there. §6 asks for deferred work to be grayed out, not
@@ -104,7 +120,10 @@ export const NAV: NavItem[] = [
 
      Each also fails the §7 test: nobody could say in one sentence how it helps
      an EA do their job or a client manage their EA. */
-  { to: "/scoreboard", label: "Scoreboard Helper", icon: Trophy, group: "Second Brain" },
+  // Not "Helper" any more. It computes real numbers out of tasks, messages and
+  // meetings (lib/scoreboard.ts); the AI only writes a narrative over the top.
+  // "Helper" was the naming family the audit emptied, and this is not one.
+  { to: "/scoreboard", label: "Client Scoreboard", icon: Trophy, group: "Insights" },
 ];
 
 export const QUICK_RAIL = [

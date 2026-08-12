@@ -7,8 +7,13 @@ interface Step { selector?: string; title: string; body: string; needsNav?: bool
 
 const STEPS: Step[] = [
   { title: "Welcome to MadeEA", body: "Your one-stop command center for executive-assistant work. Here's a 30-second tour. Skip any time." },
-  { selector: '[data-tour="nav"]', needsNav: true, title: "Operations", body: "Run your day from here: Dashboard, Tasks, Clients, SOPs, Communication and Automations." },
-  { selector: '[data-tour="ai-suite"]', needsNav: true, title: "AI Suite", body: "Communication Studio and Bookkeeping AI draft emails, reports and invoices, with guided inputs and PDF export." },
+  { selector: '[data-tour="nav"]', needsNav: true, title: "Operations", body: "Run your day from here: inbox, tasks, clients, workflows, routines and the EOD report that closes it." },
+  /* Was an "AI Suite" step describing Communication Studio and Bookkeeping AI.
+     Both were cut on 09 Aug and the group emptied, so this step pointed at a
+     selector that no longer rendered and described two pages that no longer
+     existed. Retargeted at Insights, which is what actually sits there now. */
+  { selector: '[data-tour="insights"]', needsNav: true, title: "Insights", body: "Meeting Intelligence turns a call into tasks and notes. The Client Scoreboard shows what actually moved this week, counted from your work rather than claimed." },
+  { selector: '[data-tour="nav"]', needsNav: true, title: "Training Center", body: "Made Ready is three days of course work with an assessment at the end of each. Finish it before your first day with a client." },
   { selector: '[data-tour="command-center"]', title: "AI Command Center. ⌘K", body: "Press Ctrl/⌘-K (or click Ask AI) to run anything in plain language: create projects and tasks, draft emails, summarize documents, or search your whole workspace." },
   { selector: '[data-tour="assistant"]', title: "AI Assistant", body: "Ask anything, it knows your tasks, clients and the team's SOPs." },
   { title: "You're all set", body: "Each page has a collapsible 'How this works' guide, and you can replay this tour any time from Settings." },

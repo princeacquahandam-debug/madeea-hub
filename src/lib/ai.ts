@@ -1,10 +1,14 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 /**
- * The Second Brain tools (homework/scoreboard/investor_update/travel) send facts
- * this app already computed, not free-form user prose. The Edge Function has a
- * matching system prompt for each; if it hasn't been redeployed yet, its generic
- * fallback branch still produces something sensible rather than erroring.
+ * Some tools here send facts this app already computed rather than free-form
+ * user prose. Scoreboard is the one still routed; homework, investor_update and
+ * travel were cut on 09 and 10 Aug but their tool names stay in the union so
+ * generations already logged against them still render.
+ *
+ * The Edge Function has a matching system prompt for each; if it has not been
+ * redeployed yet, its generic fallback branch still produces something sensible
+ * rather than erroring.
  */
 export type GenerateTool =
   | "quick_action"
