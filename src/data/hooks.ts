@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
@@ -9,6 +9,7 @@ import { IMPORTED_EOD } from "@/data/eodImport";
 import { loadDemoEod, saveDemoEod, removeDemoEod } from "@/store/demoEod";
 import { addDemoTask, loadDemoTasks, loadTaskPatches, removeDemoTask, updateDemoTask } from "@/store/demoTasks";
 import { addDemoTime, loadDemoTime, removeDemoTime, updateDemoTime } from "@/store/demoTime";
+import { addDemoRecording, loadDemoRecordings, removeDemoRecording } from "@/store/demoRecordings";
 import { loadSnoozes, saveSnooze } from "@/store/demoSnoozes";
 import { loadAssignees, loadDemoTaskEvents, saveAssignee } from "@/store/demoAssignees";
 import { applyDemo, demoCreate, demoDelete, demoId, demoPatch } from "@/store/demoWrites";
@@ -1101,6 +1102,103 @@ export function useEodReports() {
     },
     retry: false,
   });
+}
+
+// ---------------- SOP recordings (migration 0028) ----------------
+
+/**
+ * Recordings, newest first. Yours only — the RLS policy says so and so does the
+ * product decision behind it: a recording of an EA working shows their inbox
+ * and other clients' names, and they will only record honestly if it is not
+ * being watched. The SOP written from it is the shareable artifact.
+ */
+export function useRecordings() {
+  return useQuery<Recording[]>({
+    queryKey: ["recordings"],
+    queryFn: async () => {
+      if (!supabase) return loadDemoRecordings();
+      const { data, error } = await supabase
+        .from("recordings")
+        .select("id,title,storage_path,duration_seconds,has_audio,sop_id,created_at,expires_at")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) return []; // migration not applied yet
+      return data as Recording[];
+    },
+    retry: false,
+  });
+}
+
+export function useRecordingMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["recordings"] });
+
+  const save = useMutation({
+    mutationFn: async (input: { title: string; blob: Blob; durationSeconds: number; hasAudio: boolean }) => {
+      if (!supabase) {
+        /* Demo mode keeps the blob in memory for this session only. Writing a
+           multi-megabyte video into localStorage would blow the ~5MB quota on
+           the first recording and take every other demo store down with it. */
+        addDemoRecording({
+          id: demoId(),
+          title: input.title,
+          storage_path: null,
+          duration_seconds: input.durationSeconds,
+          has_audio: input.hasAudio,
+          sop_id: null,
+          created_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 30 * 864e5).toISOString(),
+          local_url: URL.createObjectURL(input.blob),
+        });
+        return;
+      }
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) throw new Error("Not signed in.");
+      // Namespaced by user id because the storage policy checks the first path
+      // segment — see 0028.
+      const path = `${uid}/${Date.now()}.webm`;
+      const up = await supabase.storage.from("sop-recordings").upload(path, input.blob, {
+        contentType: "video/webm",
+        upsert: false,
+      });
+      if (up.error) throw up.error;
+      const { error } = await supabase.from("recordings").insert({
+        title: input.title,
+        storage_path: path,
+        duration_seconds: input.durationSeconds,
+        has_audio: input.hasAudio,
+      });
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  const remove = useMutation({
+    mutationFn: async (r: Recording) => {
+      if (!supabase) { removeDemoRecording(r.id); return; }
+      // File first: if this fails the row keeps its path and a retry can still
+      // find the object. Blanking the row first orphans the file forever.
+      if (r.storage_path) await supabase.storage.from("sop-recordings").remove([r.storage_path]);
+      const { error } = await supabase.from("recordings").delete().eq("id", r.id);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  return { save, remove };
+}
+
+/**
+ * A time-limited URL for playback. The bucket is private, so there is no
+ * permanent link to hand out — which is the point: a share is a decision with
+ * an expiry, not a URL that outlives the reason it was sent.
+ */
+export async function recordingUrl(r: Recording): Promise<string | null> {
+  if (!supabase) return r.local_url ?? null;
+  if (!r.storage_path) return null; // purged at 30 days
+  const { data, error } = await supabase.storage.from("sop-recordings").createSignedUrl(r.storage_path, 3600);
+  return error ? null : data.signedUrl;
 }
 
 // ---------------- time tracking (migration 0027) ----------------

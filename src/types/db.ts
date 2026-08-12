@@ -82,6 +82,27 @@ export interface Task {
 }
 
 /**
+ * A screen recording that becomes an SOP (migration 0028).
+ *
+ * EA-only by design: a recording of someone working shows their inbox and
+ * other clients' names. The SOP written from it is the shareable artifact, and
+ * the file is purged after 30 days while the row and the SOP remain.
+ */
+export interface Recording {
+  id: string;
+  title: string;
+  /** Path in the private bucket. Null once purged, or in demo mode. */
+  storage_path: string | null;
+  duration_seconds: number;
+  has_audio: boolean;
+  sop_id: string | null;
+  created_at: string;
+  expires_at: string;
+  /** Demo mode only: an in-memory object URL, gone on reload. */
+  local_url?: string | null;
+}
+
+/**
  * One clock-in / clock-out span (migration 0027).
  *
  * `ended_at: null` means it is running right now, and the database allows only
