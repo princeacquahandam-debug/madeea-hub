@@ -475,3 +475,72 @@ export interface Generation {
   output: string;
   created_at: string;
 }
+
+/**
+ * The Made Ready Academy (migration 0034). Audit §5.2.
+ *
+ * Note what is missing: AcademyQuestion has no correct answer on it. The key
+ * lives in a table the API cannot read, and grading happens in Postgres. That
+ * is the difference between a gate and a suggestion.
+ */
+export type LessonKind = "reading" | "video" | "simulation";
+
+export interface AcademyModule {
+  id: string;
+  /** 1, 2 or 3. Reichelle: three days, roughly three hours each. */
+  day: number;
+  title: string;
+  summary: string | null;
+  /** Percentage needed to pass, per module. */
+  pass_pct: number;
+  is_published: boolean;
+  position: number;
+}
+
+export interface AcademyLesson {
+  id: string;
+  module_id: string;
+  title: string;
+  kind: LessonKind;
+  body: string | null;
+  /** Null until FJ publishes the recording. The player says so rather than faking a play button. */
+  video_url: string | null;
+  minutes: number;
+  position: number;
+}
+
+export interface AcademyQuestion {
+  id: string;
+  module_id: string;
+  prompt: string;
+  choices: string[];
+  explanation: string | null;
+  position: number;
+}
+
+export interface AcademyAttempt {
+  id: string;
+  user_id: string;
+  module_id: string;
+  score: number;
+  passed: boolean;
+  created_at: string;
+}
+
+/** What grade_academy_attempt() hands back. Never includes the correct index. */
+export interface GradeResult {
+  score: number;
+  passed: boolean;
+  correct: number;
+  total: number;
+  pass_pct: number;
+  questions: Record<string, { correct: boolean; explanation: string | null }>;
+}
+
+/** One row per team member, from the academy_status view. R-5.2.3. */
+export interface AcademyStatus {
+  user_id: string;
+  modules_total: number;
+  modules_passed: number;
+  last_passed_at: string | null;
+}

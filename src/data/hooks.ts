@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem, Routine, Credential } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
@@ -13,6 +13,8 @@ import { addDemoRecording, loadDemoRecordings, removeDemoRecording } from "@/sto
 import { addDemoActivity, addDemoComment, loadDemoActivity, loadDemoComments, removeDemoComment } from "@/store/demoComments";
 import { addDemoFile, addDemoSaved, loadDemoFiles, loadDemoSaved, removeDemoFile, removeDemoSaved } from "@/store/demoFiles";
 import { addDemoRoutine, claimDemoRun, loadDemoRoutines, removeDemoRoutine, updateDemoRoutine } from "@/store/demoRoutines";
+import { addDemoAttempt, loadDemoAttempts, loadDemoProgress, setDemoProgress } from "@/store/demoAcademy";
+import * as academy from "@/data/academySeed";
 import { isoDate, nextOccurrences } from "@/lib/recurrence";
 import type { Sealed } from "@/lib/vault";
 import { loadSnoozes, saveSnooze } from "@/store/demoSnoozes";
@@ -1901,4 +1903,153 @@ export function useTaskEvents() {
     },
     retry: false,
   });
+}
+
+// ---------------- Made Ready Academy (migration 0034) ----------------
+//
+// Live mode reads the course from Postgres and grades through an RPC. Demo mode
+// reads the same outline from src/data/academySeed.ts and grades locally, since
+// there is no server to hide the answer key behind.
+
+export function useAcademyCourse() {
+  return useQuery<{ modules: AcademyModule[]; lessons: AcademyLesson[]; questions: AcademyQuestion[] }>({
+    queryKey: ["academy-course"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!supabase) return { modules: academy.MODULES, lessons: academy.LESSONS, questions: academy.QUESTIONS };
+      const [m, l, q] = await Promise.all([
+        supabase.from("academy_modules").select("id,day,title,summary,pass_pct,is_published,position").order("position"),
+        supabase.from("academy_lessons").select("id,module_id,title,kind,body,video_url,minutes,position").order("position"),
+        // No answer column exists to select. That is the design, not an omission.
+        supabase.from("academy_questions").select("id,module_id,prompt,choices,explanation,position").order("position"),
+      ]);
+      // Migration not applied yet: fall back to the outline so the page explains
+      // itself rather than rendering an empty screen.
+      if (m.error) return { modules: academy.MODULES, lessons: academy.LESSONS, questions: academy.QUESTIONS };
+      return {
+        modules: (m.data ?? []) as AcademyModule[],
+        lessons: (l.data ?? []) as AcademyLesson[],
+        questions: (q.data ?? []) as AcademyQuestion[],
+      };
+    },
+    retry: false,
+  });
+}
+
+/** Lesson ids the signed-in user has finished. */
+export function useAcademyProgress() {
+  return useQuery<string[]>({
+    queryKey: ["academy-progress"],
+    queryFn: async () => {
+      if (!supabase) return loadDemoProgress();
+      const { data, error } = await supabase.from("academy_progress").select("lesson_id");
+      if (error) return [];
+      return (data ?? []).map((r) => r.lesson_id as string);
+    },
+    retry: false,
+  });
+}
+
+export function useAcademyAttempts() {
+  return useQuery<AcademyAttempt[]>({
+    queryKey: ["academy-attempts"],
+    queryFn: async () => {
+      if (!supabase) return loadDemoAttempts();
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) return [];
+      const { data, error } = await supabase
+        .from("academy_attempts").select("id,user_id,module_id,score,passed,created_at")
+        .eq("user_id", uid).order("created_at", { ascending: false });
+      if (error) return [];
+      return data as AcademyAttempt[];
+    },
+    retry: false,
+  });
+}
+
+/** R-5.2.3. Admin only; see the note on the academy_status view. */
+export function useAcademyRoster(enabled: boolean) {
+  return useQuery<AcademyStatus[]>({
+    queryKey: ["academy-roster"],
+    enabled,
+    queryFn: async () => {
+      if (!supabase) {
+        // Demo: the signed-in user is the only one with real attempts, so the
+        // others are shown as not started rather than invented as complete.
+        const passed = new Set(loadDemoAttempts().filter((a) => a.passed).map((a) => a.module_id));
+        const total = academy.MODULES.filter((m) => m.is_published).length;
+        return demoMembers().map((m) => ({
+          user_id: m.user_id,
+          modules_total: total,
+          modules_passed: m.is_me ? passed.size : 0,
+          last_passed_at: m.is_me ? (loadDemoAttempts().find((a) => a.passed)?.created_at ?? null) : null,
+        }));
+      }
+      const { data, error } = await supabase.from("academy_status").select("*");
+      if (error) return [];
+      return data as AcademyStatus[];
+    },
+    retry: false,
+  });
+}
+
+export function useAcademyMutations() {
+  const qc = useQueryClient();
+
+  const setLessonDone = useMutation({
+    mutationFn: async ({ lessonId, done }: { lessonId: string; done: boolean }) => {
+      if (!supabase) { setDemoProgress(lessonId, done); return; }
+      if (done) {
+        const { data: auth } = await supabase.auth.getUser();
+        // upsert, so re-marking a finished lesson is a no-op rather than a
+        // duplicate-key error the user would see as a failure.
+        const { error } = await supabase
+          .from("academy_progress")
+          .upsert({ lesson_id: lessonId, user_id: auth.user?.id }, { onConflict: "user_id,lesson_id" });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("academy_progress").delete().eq("lesson_id", lessonId);
+        if (error) throw error;
+      }
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["academy-progress"] }),
+  });
+
+  const grade = useMutation({
+    mutationFn: async ({ moduleId, answers }: { moduleId: string; answers: Record<string, number> }): Promise<GradeResult> => {
+      if (!supabase) {
+        const qs = academy.QUESTIONS.filter((q) => q.module_id === moduleId);
+        const mod = academy.MODULES.find((m) => m.id === moduleId);
+        const passPct = mod?.pass_pct ?? 80;
+        const questions: GradeResult["questions"] = {};
+        let correct = 0;
+        for (const q of qs) {
+          const ok = academy.demoKey(q.id) === answers[q.id];
+          if (ok) correct++;
+          questions[q.id] = { correct: ok, explanation: q.explanation };
+        }
+        const score = qs.length ? Math.floor((correct / qs.length) * 100) : 0;
+        const passed = score >= passPct;
+        addDemoAttempt({
+          id: demoId(), user_id: DEMO_ME, module_id: moduleId,
+          score, passed, created_at: new Date().toISOString(),
+        });
+        return { score, passed, correct, total: qs.length, pass_pct: passPct, questions };
+      }
+      // Live: the browser never sees the key, and never writes the attempt.
+      const { data, error } = await supabase.rpc("grade_academy_attempt", {
+        p_module_id: moduleId,
+        p_answers: answers,
+      });
+      if (error) throw error;
+      return data as GradeResult;
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["academy-attempts"] });
+      qc.invalidateQueries({ queryKey: ["academy-roster"] });
+    },
+  });
+
+  return { setLessonDone, grade };
 }
