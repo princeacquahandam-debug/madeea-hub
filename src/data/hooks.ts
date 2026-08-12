@@ -139,6 +139,10 @@ export function useTaskMutations() {
     notes?: string | null;
     progress?: Task["progress"];
     attachments?: Task["attachments"];
+    /* Which column it lands in. Defaults to todo, but the board's per-column
+       "Add Task" needs to create it where it was asked for rather than making
+       someone drag it across immediately. */
+    status?: TaskStatus;
   };
   const create = useMutation({
     mutationFn: async (input: TaskInput) => {
@@ -150,7 +154,7 @@ export function useTaskMutations() {
           due_label: input.due_at ? new Date(`${input.due_at}T12:00:00`).toLocaleDateString("en-GB", { weekday: "long" }) : "",
           due_at: input.due_at ?? null,
           priority: input.priority ?? "normal",
-          status: "todo",
+          status: input.status ?? "todo",
           subtasks: input.subtasks ?? [],
           recurrence: input.recurrence ?? "none",
           depends_on: input.depends_on ?? null,
@@ -168,7 +172,7 @@ export function useTaskMutations() {
         return;
       }
       const { error } = await supabase.from("tasks").insert({
-        title: input.title, priority: input.priority ?? "normal", due_at: input.due_at ?? null, status: "todo",
+        title: input.title, priority: input.priority ?? "normal", due_at: input.due_at ?? null, status: input.status ?? "todo",
         subtasks: input.subtasks ?? [], recurrence: input.recurrence ?? "none", depends_on: input.depends_on ?? null,
         client_id: input.client_id ?? null,
         assignee_id: input.assignee_id ?? null,

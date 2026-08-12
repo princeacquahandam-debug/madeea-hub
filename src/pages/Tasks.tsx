@@ -20,10 +20,18 @@ import { FollowUpRow } from "@/components/FollowUpRow";
 import { TASK_TEMPLATES, type TaskTemplate } from "@/lib/taskTemplates";
 import { cn } from "@/lib/utils";
 
-const COLUMNS: { key: TaskStatus; label: string }[] = [
-  { key: "todo", label: "To Do" },
-  { key: "in_progress", label: "In Progress" },
-  { key: "done", label: "Done" },
+/* Each column is colour-washed, the way Wing's board is: To Do, In Progress and
+   Done read as three different places at a glance rather than three identical
+   grey trays you have to read the headings of.
+
+   Their board is white with pastel fills. Ours is dark, so the same idea has to
+   be inverted — a low-opacity wash over the navy, and a solid dot in the header
+   carrying the actual colour. The palette is untouched: these are the tones the
+   app already uses for pending, in-flight and done. */
+const COLUMNS: { key: TaskStatus; label: string; dot: string; wash: string; edge: string }[] = [
+  { key: "todo",        label: "To Do",       dot: "bg-sky-400",     wash: "bg-sky-500/[0.06]",     edge: "border-sky-500/25" },
+  { key: "in_progress", label: "In Progress", dot: "bg-amber-400",   wash: "bg-amber-500/[0.06]",   edge: "border-amber-500/25" },
+  { key: "done",        label: "Done",        dot: "bg-emerald-400", wash: "bg-emerald-500/[0.06]", edge: "border-emerald-500/25" },
 ];
 const priorityLabel: Record<string, string> = { urgent: "Urgent", high: "High", normal: "Normal", low: "Low" };
 
@@ -171,7 +179,7 @@ function SortableCard({ task, blocked, onDelete, onEdit, onComplete, focused, ju
   );
 }
 
-function Column({ status, label, items, blockedIds, onDelete, onEdit, onComplete, focusId, justDroppedId, dropActive }: { status: TaskStatus; label: string; items: Task[]; blockedIds: Set<string>; onDelete: (id: string) => void; onEdit: (t: Task) => void; onComplete: (id: string) => void; focusId?: string | null; justDroppedId?: string | null; dropActive?: boolean }) {
+function Column({ status, label, dot, wash, edge, items, blockedIds, onDelete, onEdit, onComplete, onAdd, focusId, justDroppedId, dropActive }: { status: TaskStatus; label: string; dot: string; wash: string; edge: string; items: Task[]; blockedIds: Set<string>; onDelete: (id: string) => void; onEdit: (t: Task) => void; onComplete: (id: string) => void; onAdd: (status: TaskStatus) => void; focusId?: string | null; justDroppedId?: string | null; dropActive?: boolean }) {
   /* useDroppable, not useSortable. A column is a container you drop INTO; it is
      never itself dragged. useSortable additionally registered each column as a
      draggable and, because it reads the nearest SortableContext above it — of
@@ -185,15 +193,27 @@ function Column({ status, label, items, blockedIds, onDelete, onEdit, onComplete
      source for "where will this land". */
   const { setNodeRef } = useDroppable({ id: status, data: { type: "column" } });
   return (
-    <div className={cn("card flex flex-col p-4 transition-colors", dropActive && "col-drop-active")}>
-      <div className="mb-3 flex items-center gap-2">
-        <h2 className="text-[15px] font-bold">{label}</h2>
-        <span className="pill bg-surface-2 text-faint">{items.length}</span>
+    <div className={cn("flex flex-col overflow-hidden rounded-xl border transition-colors", edge, wash, dropActive && "col-drop-active")}>
+      {/* Header carries the colour, and its own Add — you add a task WHERE it
+          belongs rather than adding to To Do and dragging it across. */}
+      <div className="flex items-center gap-2 border-b border-inherit px-3.5 py-2.5">
+        <span className={cn("h-2 w-2 shrink-0 rounded-full", dot)} />
+        <h2 className="text-[14px] font-bold">{label}</h2>
+        <span className="pill bg-black/20 text-faint">{items.length}</span>
+        <button
+          onClick={() => onAdd(status)}
+          className="ml-auto flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-faint transition-colors hover:bg-black/20 hover:text-zinc-100"
+          aria-label={`Add a task to ${label}`}
+        >
+          <Plus size={12} /> Add Task
+        </button>
       </div>
       <SortableContext id={status} items={items.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-        <div ref={setNodeRef} className="min-h-[160px] flex-1 space-y-2 rounded-lg">
+        <div ref={setNodeRef} className="min-h-[180px] flex-1 space-y-2 p-3">
           {items.map((t) => <SortableCard key={t.id} task={t} blocked={blockedIds.has(t.id)} onDelete={() => onDelete(t.id)} onEdit={() => onEdit(t)} onComplete={() => onComplete(t.id)} focused={focusId === t.id} justDropped={justDroppedId === t.id} />)}
-          {items.length === 0 && <p className="py-8 text-center text-xs text-faint">Drop here</p>}
+          {items.length === 0 && (
+            <p className="rounded-lg border border-dashed border-current/15 py-8 text-center text-xs text-faint">Drop here</p>
+          )}
         </div>
       </SortableContext>
     </div>
@@ -379,6 +399,7 @@ const BLANK = {
   title: "", priority: "normal" as Priority, due: "", subtasks: [] as Subtask[],
   recurrence: "none" as Recurrence, dependsOn: "", clientId: "", assigneeId: "", blockerNote: "",
   notes: "", progress: [] as TaskProgress[], attachments: [] as TaskAttachment[],
+  status: "todo" as TaskStatus,
 };
 const EMPTY_TASKS: Task[] = [];
 
@@ -511,13 +532,15 @@ export default function Tasks() {
     if (serverTask && col && serverTask.status !== col) setStatus.mutate({ id: serverTask.id, status: col });
   }
 
-  function startCreate() { setForm(BLANK); setEditingId(null); setModal(true); }
+  /* `status` comes from whichever column's Add was clicked, so a task created
+     in In Progress starts there instead of appearing in To Do to be dragged. */
+  function startCreate(status: TaskStatus = "todo") { setForm({ ...BLANK, status }); setEditingId(null); setModal(true); }
   function startEdit(t: Task) {
-    setForm({ title: t.title, priority: t.priority, due: t.due_at ? t.due_at.slice(0, 10) : "", subtasks: t.subtasks ?? [], recurrence: t.recurrence ?? "none", dependsOn: t.depends_on ?? "", clientId: clients.find((c) => c.name === t.client_name)?.id ?? "", assigneeId: t.assignee_id ?? "", blockerNote: t.blocker_note ?? "", notes: t.notes ?? "", progress: t.progress ?? [], attachments: t.attachments ?? [] });
+    setForm({ title: t.title, priority: t.priority, due: t.due_at ? t.due_at.slice(0, 10) : "", subtasks: t.subtasks ?? [], recurrence: t.recurrence ?? "none", dependsOn: t.depends_on ?? "", clientId: clients.find((c) => c.name === t.client_name)?.id ?? "", assigneeId: t.assignee_id ?? "", blockerNote: t.blocker_note ?? "", notes: t.notes ?? "", progress: t.progress ?? [], attachments: t.attachments ?? [], status: t.status });
     setEditingId(t.id); setModal(true);
   }
   function fromTemplate(t: TaskTemplate) {
-    setForm({ title: t.title, priority: t.priority, due: "", recurrence: "none", dependsOn: "", clientId: "", assigneeId: "", blockerNote: "", notes: "", progress: [], attachments: [], subtasks: t.subtasks.map((l, i) => ({ id: `${Date.now()}-${i}`, label: l, done: false })) });
+    setForm({ title: t.title, priority: t.priority, due: "", recurrence: "none", dependsOn: "", clientId: "", assigneeId: "", blockerNote: "", notes: "", progress: [], attachments: [], status: "todo", subtasks: t.subtasks.map((l, i) => ({ id: `${Date.now()}-${i}`, label: l, done: false })) });
     setEditingId(null); setTemplates(false); setModal(true);
   }
   function submit() {
@@ -527,6 +550,7 @@ export default function Tasks() {
       subtasks: form.subtasks.filter((s) => s.label.trim()), recurrence: form.recurrence, depends_on: form.dependsOn || null,
       client_id: form.clientId || null,
       assignee_id: form.assigneeId || null,
+      status: form.status,
       // A reason means it's blocked; clearing the reason unblocks it. One field
       // rather than a checkbox you can leave contradicting the note.
       blocked: Boolean(form.blockerNote.trim()),
@@ -555,7 +579,9 @@ export default function Tasks() {
         action={
           <div className="flex gap-2">
             <button className="btn-ghost border border-border" onClick={() => setTemplates(true)}><Copy size={15} /> Templates</button>
-            <button className="btn-primary" onClick={startCreate}><Plus size={15} /> Add Task</button>
+            {/* Wrapped, not passed directly: startCreate's first argument is the
+                column to create in, and onClick would hand it a MouseEvent. */}
+            <button className="btn-primary" onClick={() => startCreate()}><Plus size={15} /> Add Task</button>
           </div>
         }
       />
@@ -673,7 +699,7 @@ export default function Tasks() {
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setActiveId(null); setOverCol(null); }}>
           <div className="grid gap-4 lg:grid-cols-3">
             {COLUMNS.map((col) => (
-              <Column key={col.key} status={col.key} label={col.label} items={board[col.key]} blockedIds={blockedIds} onDelete={(id) => remove.mutate(id)} onEdit={startEdit} onComplete={(id) => setStatus.mutate({ id, status: "done" })} focusId={focusId} justDroppedId={justDroppedId} dropActive={activeId !== null && overCol === col.key} />
+              <Column key={col.key} status={col.key} label={col.label} dot={col.dot} wash={col.wash} edge={col.edge} items={board[col.key]} blockedIds={blockedIds} onDelete={(id) => remove.mutate(id)} onEdit={startEdit} onComplete={(id) => setStatus.mutate({ id, status: "done" })} onAdd={startCreate} focusId={focusId} justDroppedId={justDroppedId} dropActive={activeId !== null && overCol === col.key} />
             ))}
           </div>
           <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
