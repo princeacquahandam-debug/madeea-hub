@@ -69,6 +69,33 @@ export interface Task {
   /** Blocked and why (migration 0016). Rolls straight into the EOD draft. */
   blocked?: boolean;
   blocker_note?: string | null;
+  /**
+   * Free-text working notes (migration 0026, R-4.7.3). Deliberately separate
+   * from blocker_note: that one means blocked-and-why and feeds the EOD's
+   * blockers, so general notes must not land there.
+   */
+  notes?: string | null;
+  /** Day-stamped progress, newest first (R-4.7.4) — where a multi-day task got to. */
+  progress?: TaskProgress[];
+  /** Reference links and files produced by the task (R-4.7.2). */
+  attachments?: TaskAttachment[];
+}
+
+/** One dated line of progress on a task that spans more than a day. */
+export interface TaskProgress {
+  at: string;
+  body: string;
+}
+
+/**
+ * A link or a file hanging off a task. Both share a shape on purpose: to an EA
+ * the deliverable is "attached to the task", whether it lives in Drive or here.
+ */
+export interface TaskAttachment {
+  id: string;
+  kind: "link" | "file";
+  label: string;
+  url: string;
 }
 
 /**

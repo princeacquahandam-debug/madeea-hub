@@ -31,6 +31,17 @@ const mapTask = (r: TaskRow): Task => ({
   // Keep the FK, not just the joined name — the timeline needs to match on id.
   client_id: r.client_id ?? null,
   assignee_id: (r as { assignee_id?: string | null }).assignee_id ?? null,
+  /* blocked / blocker_note were being dropped here. The row carried them (the
+     select is `*`) but this mapper never copied them across, so in LIVE mode
+     every task arrived unblocked and the EOD draft's blockers section could
+     never populate — the one place the board is supposed to feed it. Demo mode
+     hid it, because the seed objects are used as-is and skip this function. */
+  blocked: (r as { blocked?: boolean }).blocked ?? false,
+  blocker_note: (r as { blocker_note?: string | null }).blocker_note ?? null,
+  // Migration 0026. Defaulted, so the app works before the migration is run.
+  notes: (r as { notes?: string | null }).notes ?? null,
+  progress: Array.isArray(r.progress) ? r.progress : [],
+  attachments: Array.isArray(r.attachments) ? r.attachments : [],
   client_name: r.clients?.name ?? "Unassigned",
 });
 
@@ -119,6 +130,13 @@ export function useTaskMutations() {
     /** Declared blocker + reason (migration 0016). Feeds the EOD draft. */
     blocked?: boolean;
     blocker_note?: string | null;
+    /* Migration 0026. Listed here as well as on the insert below: `update`
+       spreads whatever it is given straight into Postgres, but `create` names
+       its columns, so a field missing from that list is silently dropped and
+       the form appears to save. */
+    notes?: string | null;
+    progress?: Task["progress"];
+    attachments?: Task["attachments"];
   };
   const create = useMutation({
     mutationFn: async (input: TaskInput) => {
@@ -140,6 +158,9 @@ export function useTaskMutations() {
           assignee_id: input.assignee_id ?? null,
           blocked: input.blocked ?? false,
           blocker_note: input.blocker_note ?? null,
+          notes: input.notes ?? null,
+          progress: input.progress ?? [],
+          attachments: input.attachments ?? [],
           completed_at: null,
         });
         return;
@@ -151,6 +172,9 @@ export function useTaskMutations() {
         assignee_id: input.assignee_id ?? null,
         blocked: input.blocked ?? false,
         blocker_note: input.blocker_note ?? null,
+        notes: input.notes ?? null,
+        progress: input.progress ?? [],
+        attachments: input.attachments ?? [],
       });
       if (error) throw error;
     },

@@ -8,8 +8,8 @@ import {
   SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus, Trash2, GripVertical, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy } from "lucide-react";
-import type { Task, TaskStatus, Priority, Subtask, Recurrence } from "@/types/db";
+import { Plus, Trash2, GripVertical, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2 } from "lucide-react";
+import type { Task, TaskStatus, Priority, Subtask, Recurrence, TaskProgress, TaskAttachment } from "@/types/db";
 import { Badge, PageHeader, Modal } from "@/components/ui";
 import { SkeletonCard } from "@/components/Skeleton";
 import { useTasks, useTaskMutations, useClients } from "@/data/hooks";
@@ -127,7 +127,107 @@ function Column({ status, label, items, blockedIds, onDelete, onEdit, focusId, j
   );
 }
 
-const BLANK = { title: "", priority: "normal" as Priority, due: "", subtasks: [] as Subtask[], recurrence: "none" as Recurrence, dependsOn: "", clientId: "", assigneeId: "", blockerNote: "" };
+/* Reference links and files on a task (R-4.7.2).
+ *
+ * Links only for now, and the field says so rather than showing an upload
+ * control that does nothing — P-1: a half-feature is worse than an absent one.
+ * File upload needs a Supabase Storage bucket and a retention decision, which
+ * is a deliberate choice rather than something to slip in. The stored shape
+ * already carries kind:"file", so uploads drop in without a migration. */
+function AttachmentsField({ items, onChange }: { items: TaskAttachment[]; onChange: (a: TaskAttachment[]) => void }) {
+  const [label, setLabel] = useState("");
+  const [url, setUrl] = useState("");
+
+  function add() {
+    const u = url.trim();
+    if (!u) return;
+    // Bare domains are the common paste; without a scheme the anchor resolves
+    // relative to the app and the link 404s inside the dashboard.
+    const href = /^https?:\/\//i.test(u) ? u : `https://${u}`;
+    onChange([...items, { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, kind: "link", label: label.trim() || href, url: href }]);
+    setLabel(""); setUrl("");
+  }
+
+  return (
+    <div>
+      <label className="field-label">Links &amp; attachments (optional)</label>
+      {items.length > 0 && (
+        <div className="mb-2 space-y-1.5">
+          {items.map((a) => (
+            <div key={a.id} className="flex items-center gap-2 rounded-lg bg-surface-2 px-2.5 py-1.5">
+              <Link2 size={13} className="shrink-0 text-faint" />
+              <a href={a.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-[13px] text-accent-soft hover:underline">
+                {a.label}
+              </a>
+              <button
+                type="button"
+                onClick={() => onChange(items.filter((x) => x.id !== a.id))}
+                className="shrink-0 text-faint hover:text-red-400"
+                aria-label={`Remove ${a.label}`}
+              >
+                <X size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <input className="input flex-1" placeholder="Label — e.g. Final deck" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <input
+          className="input flex-[1.4]"
+          placeholder="Paste a link (Google Doc, Drive, anything)"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+        />
+        <button type="button" className="btn-ghost shrink-0" onClick={add} disabled={!url.trim()}>Add</button>
+      </div>
+    </div>
+  );
+}
+
+/* Day-stamped progress on a multi-day task (R-4.7.4).
+ *
+ * Append-only. The point is remembering where you left off on day three, and
+ * an editable log you can quietly rewrite is not a record of that. */
+function ProgressField({ items, onAdd }: { items: TaskProgress[]; onAdd: (body: string) => void }) {
+  const [body, setBody] = useState("");
+  const commit = () => { const b = body.trim(); if (b) { onAdd(b); setBody(""); } };
+
+  return (
+    <div>
+      <label className="field-label" htmlFor="task-progress">Progress log (optional)</label>
+      {items.length > 0 && (
+        <div className="mb-2 max-h-40 space-y-1.5 overflow-y-auto">
+          {items.map((p, i) => (
+            <div key={`${p.at}-${i}`} className="rounded-lg bg-surface-2 px-2.5 py-1.5">
+              <p className="text-[11px] text-faint">{new Date(p.at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</p>
+              <p className="text-[13px]">{p.body}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <input
+          id="task-progress"
+          className="input flex-1"
+          placeholder="What moved today?"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } }}
+        />
+        <button type="button" className="btn-ghost shrink-0" onClick={commit} disabled={!body.trim()}>Log</button>
+      </div>
+      <p className="mt-1 text-[11px] text-faint">Stamped with today's date so a task spanning days shows where you left off.</p>
+    </div>
+  );
+}
+
+const BLANK = {
+  title: "", priority: "normal" as Priority, due: "", subtasks: [] as Subtask[],
+  recurrence: "none" as Recurrence, dependsOn: "", clientId: "", assigneeId: "", blockerNote: "",
+  notes: "", progress: [] as TaskProgress[], attachments: [] as TaskAttachment[],
+};
 const EMPTY_TASKS: Task[] = [];
 
 export default function Tasks() {
@@ -247,11 +347,11 @@ export default function Tasks() {
 
   function startCreate() { setForm(BLANK); setEditingId(null); setModal(true); }
   function startEdit(t: Task) {
-    setForm({ title: t.title, priority: t.priority, due: t.due_at ? t.due_at.slice(0, 10) : "", subtasks: t.subtasks ?? [], recurrence: t.recurrence ?? "none", dependsOn: t.depends_on ?? "", clientId: clients.find((c) => c.name === t.client_name)?.id ?? "", assigneeId: t.assignee_id ?? "", blockerNote: t.blocker_note ?? "" });
+    setForm({ title: t.title, priority: t.priority, due: t.due_at ? t.due_at.slice(0, 10) : "", subtasks: t.subtasks ?? [], recurrence: t.recurrence ?? "none", dependsOn: t.depends_on ?? "", clientId: clients.find((c) => c.name === t.client_name)?.id ?? "", assigneeId: t.assignee_id ?? "", blockerNote: t.blocker_note ?? "", notes: t.notes ?? "", progress: t.progress ?? [], attachments: t.attachments ?? [] });
     setEditingId(t.id); setModal(true);
   }
   function fromTemplate(t: TaskTemplate) {
-    setForm({ title: t.title, priority: t.priority, due: "", recurrence: "none", dependsOn: "", clientId: "", assigneeId: "", blockerNote: "", subtasks: t.subtasks.map((l, i) => ({ id: `${Date.now()}-${i}`, label: l, done: false })) });
+    setForm({ title: t.title, priority: t.priority, due: "", recurrence: "none", dependsOn: "", clientId: "", assigneeId: "", blockerNote: "", notes: "", progress: [], attachments: [], subtasks: t.subtasks.map((l, i) => ({ id: `${Date.now()}-${i}`, label: l, done: false })) });
     setEditingId(null); setTemplates(false); setModal(true);
   }
   function submit() {
@@ -265,6 +365,9 @@ export default function Tasks() {
       // rather than a checkbox you can leave contradicting the note.
       blocked: Boolean(form.blockerNote.trim()),
       blocker_note: form.blockerNote.trim() || null,
+      notes: form.notes.trim() || null,
+      progress: form.progress,
+      attachments: form.attachments,
     };
     if (editingId) update.mutate({ id: editingId, ...payload });
     else create.mutate(payload);
@@ -426,6 +529,38 @@ export default function Tasks() {
             />
             <p className="mt-1 text-[11px] text-faint">Fill this in and the task shows as blocked, and it lands in your EOD report by itself.</p>
           </div>
+
+          {/* R-4.7.3. Kept apart from the blocker field above on purpose: that
+              one means blocked-and-why and feeds the EOD's blockers list, so
+              "spoke to the printer" must not end up in it. */}
+          <div>
+            <label className="field-label" htmlFor="task-notes">Notes (optional)</label>
+            <textarea
+              id="task-notes"
+              className="input min-h-[84px] resize-y"
+              placeholder="Anything worth remembering about this task — context, a phone number, what you tried."
+              value={form.notes}
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+            />
+          </div>
+
+          {/* R-4.7.2. A research or deliverable task produces an output, and the
+              output belongs on the task rather than in someone's inbox. */}
+          <AttachmentsField
+            items={form.attachments}
+            onChange={(attachments) => setForm((f) => ({ ...f, attachments }))}
+          />
+
+          {/* R-4.7.4. Only on an existing task: progress is a log of what
+              happened, and nothing has happened yet on one being created. */}
+          {editingId && (
+            <ProgressField
+              items={form.progress}
+              onAdd={(body) =>
+                setForm((f) => ({ ...f, progress: [{ at: new Date().toISOString(), body }, ...f.progress] }))
+              }
+            />
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
