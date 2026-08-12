@@ -10,17 +10,13 @@ import {
   Plug,
   ClipboardCheck,
   ClipboardList,
-  GraduationCap,
   TrendingUp,
   Trophy,
   Plane,
   MailCheck,
   CalendarCheck,
-  Crosshair,
-  Mic,
   Sunrise,
   Brain,
-  Scale,
   StickyNote,
   type LucideIcon,
 } from "lucide-react";
@@ -55,14 +51,21 @@ export const NAV: NavItem[] = [
   // upgrades an Operations page above rather than replacing it.
   { to: "/email-helper", label: "Email Helper", icon: MailCheck, group: "AI Suite", badge: "AI" },
   { to: "/meeting-helper", label: "Meeting Helper", icon: CalendarCheck, group: "AI Suite", badge: "AI" },
-  { to: "/focus", label: "Focus Helper", icon: Crosshair, group: "AI Suite" },
+  /* Removed by the 10 Aug product audit (§7). The pages stay on disk and the
+     routes are unmounted in App.tsx, so any of them returns by restoring one
+     line here and one there — §6 asks for deferred work to be grayed out, not
+     deleted, and nothing ships until Prince signs off.
+
+       Focus Helper        "not designed for the needs of clients"      (13:00)
+       Voice-Note Helper   same                                         (13:00)
+       Memory Helper       Laura: no different from Notes               (9:17)
+       Decision Helper     not a real EA daily job                      (9:17)
+       Homework Helper     not an EA workflow at all; fails P-4         (9:17)
+
+     Each also fails the §7 test: nobody could say in one sentence how it helps
+     an EA do their job or a client manage their EA. */
   // Second Brain — helpers that read the workspace's own data rather than a form.
-  // Voice-Note first: it's the flagship demo, and the one to land on.
-  { to: "/voice-notes", label: "Voice-Note Helper", icon: Mic, group: "Second Brain" },
   { to: "/briefing", label: "Daily Briefing Helper", icon: Sunrise, group: "Second Brain" },
-  { to: "/memory", label: "Memory Helper", icon: Brain, group: "Second Brain" },
-  { to: "/decision", label: "Decision Helper", icon: Scale, group: "Second Brain" },
-  { to: "/homework", label: "Homework Helper", icon: GraduationCap, group: "Second Brain" },
   { to: "/investor-update", label: "Investor-Update Helper", icon: TrendingUp, group: "Second Brain" },
   { to: "/scoreboard", label: "Scoreboard Helper", icon: Trophy, group: "Second Brain" },
   { to: "/travel", label: "Travel Helper", icon: Plane, group: "Second Brain" },

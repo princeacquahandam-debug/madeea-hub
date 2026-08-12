@@ -114,7 +114,9 @@ export default function DailyBriefing() {
           ))}
         </Section>
 
-        <Section icon={Target} title="What to do first" count={b.focus.length} onAll={() => nav("/focus")}>
+        {/* Was /focus. The Focus Helper is off the nav (audit §7), and the board
+            is where these actually live, so "view all" goes to the real list. */}
+        <Section icon={Target} title="What to do first" count={b.focus.length} onAll={() => nav("/tasks")}>
           {b.focus.map((f, i) => (
             <button
               key={f.id}
@@ -147,7 +149,9 @@ export default function DailyBriefing() {
           ))}
         </Section>
 
-        <Section icon={Brain} title="Standing commitments" count={b.commitments.length} onAll={() => nav("/memory")}>
+        {/* Was /memory. §7 removes the Memory Helper and merges it into Notes,
+            so that is where a standing commitment now belongs. */}
+        <Section icon={Brain} title="Standing commitments" count={b.commitments.length} onAll={() => nav("/notes")}>
           {b.commitments.map((c) => (
             <div key={c.id} className="rounded-lg bg-surface-2 p-3">
               <p className="text-sm">{c.body}</p>

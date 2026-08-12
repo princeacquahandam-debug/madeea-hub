@@ -28,12 +28,10 @@ const Admin = lazy(() => import("@/pages/Admin"));
 const Changelog = lazy(() => import("@/pages/Changelog"));
 const EmailHelper = lazy(() => import("@/pages/EmailHelper"));
 const MeetingHelper = lazy(() => import("@/pages/MeetingHelper"));
-const Focus = lazy(() => import("@/pages/Focus"));
-const VoiceNotes = lazy(() => import("@/pages/VoiceNotes"));
+/* Focus, VoiceNotes, MemoryHelper, DecisionHelper and Homework are deliberately
+   not imported here — see the §7 note beside the routes below. The files remain
+   in src/pages. */
 const DailyBriefing = lazy(() => import("@/pages/DailyBriefing"));
-const MemoryHelper = lazy(() => import("@/pages/MemoryHelper"));
-const DecisionHelper = lazy(() => import("@/pages/DecisionHelper"));
-const Homework = lazy(() => import("@/pages/Homework"));
 const InvestorUpdate = lazy(() => import("@/pages/InvestorUpdate"));
 const Scoreboard = lazy(() => import("@/pages/Scoreboard"));
 const Travel = lazy(() => import("@/pages/Travel"));
@@ -69,13 +67,13 @@ function Gate() {
         <Route path="/bookkeeping" element={<BookkeepingAI />} />
         <Route path="/email-helper" element={<EmailHelper />} />
         <Route path="/meeting-helper" element={<MeetingHelper />} />
-        <Route path="/focus" element={<Focus />} />
+        {/* Unmounted by the 10 Aug audit (§7): /focus, /voice-notes, /memory,
+            /decision, /homework. The pages are still on disk and the reasoning
+            is recorded beside the nav list in lib/constants.ts; restoring one is
+            a line here and a line there. Unmounted rather than left reachable,
+            because a nav-only removal still leaves the URL working. */}
         {/* Second Brain */}
-        <Route path="/voice-notes" element={<VoiceNotes />} />
         <Route path="/briefing" element={<DailyBriefing />} />
-        <Route path="/memory" element={<MemoryHelper />} />
-        <Route path="/decision" element={<DecisionHelper />} />
-        <Route path="/homework" element={<Homework />} />
         <Route path="/investor-update" element={<InvestorUpdate />} />
         <Route path="/scoreboard" element={<Scoreboard />} />
         <Route path="/travel" element={<Travel />} />
