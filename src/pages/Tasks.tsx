@@ -8,7 +8,7 @@ import {
   SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus, Trash2, GripVertical, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2, Columns3, List as ListIcon } from "lucide-react";
+import { Plus, Trash2, GripVertical, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2, Columns3, List as ListIcon, Search, MessageSquare } from "lucide-react";
 import type { Task, TaskStatus, Priority, Subtask, Recurrence, TaskProgress, TaskAttachment } from "@/types/db";
 import { Badge, PageHeader, Modal } from "@/components/ui";
 import { SkeletonCard } from "@/components/Skeleton";
@@ -32,6 +32,46 @@ const dueDisplay = (t: Task): string =>
     ? new Date(t.due_at).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" })
     : t.due_label || "No date";
 
+/**
+ * A short, stable reference for a task — "T-4F2A".
+ *
+ * So a task can be NAMED. "Can you look at T-4F2A" works in Slack, in an EOD
+ * line and out loud; "the moodboard one, the second one down" does not. Derived
+ * from the uuid rather than a counter, because a counter needs a sequence, a
+ * migration and a backfill to say something the id already knows.
+ */
+function taskRef(id: string): string {
+  return `T-${id.replace(/-/g, "").slice(-4).toUpperCase()}`;
+}
+
+/**
+ * "Today" / "Tomorrow" / "Yesterday" where it helps, a date where it doesn't.
+ * `tone` drives the colour: overdue is the only one worth alarming about.
+ */
+function relativeDue(t: Task): { label: string; tone: "over" | "soon" | "plain" } | null {
+  if (!t.due_at) return t.due_label ? { label: t.due_label, tone: "plain" } : null;
+  const p = (n: number) => String(n).padStart(2, "0");
+  const today = new Date();
+  const todayIso = `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`;
+  const due = t.due_at.slice(0, 10);
+  // String compare, deliberately: both are YYYY-MM-DD in the same calendar, so
+  // this cannot be knocked off by a timezone the way Date maths can.
+  const diffDays = Math.round(
+    (Date.parse(`${due}T12:00:00Z`) - Date.parse(`${todayIso}T12:00:00Z`)) / 864e5,
+  );
+  if (diffDays === 0) return { label: "Today", tone: "soon" };
+  if (diffDays === 1) return { label: "Tomorrow", tone: "soon" };
+  if (diffDays === -1) return { label: "Yesterday", tone: "over" };
+  if (diffDays < 0) return { label: `${Math.abs(diffDays)}d overdue`, tone: "over" };
+  return { label: dueDisplay(t), tone: "plain" };
+}
+
+const DUE_TONE: Record<"over" | "soon" | "plain", string> = {
+  over: "text-red-400",
+  soon: "text-amber-400",
+  plain: "text-faint",
+};
+
 type Board = Record<TaskStatus, Task[]>;
 const group = (tasks: Task[]): Board => ({
   todo: tasks.filter((t) => t.status === "todo"),
@@ -39,11 +79,16 @@ const group = (tasks: Task[]): Board => ({
   done: tasks.filter((t) => t.status === "done"),
 });
 
-function CardBody({ task, blocked, onDelete, onEdit, overlay }: { task: Task; blocked?: boolean; onDelete?: () => void; onEdit?: () => void; overlay?: boolean }) {
+function CardBody({ task, blocked, onDelete, onEdit, onComplete, overlay }: { task: Task; blocked?: boolean; onDelete?: () => void; onEdit?: () => void; onComplete?: () => void; overlay?: boolean }) {
   const stop = (e: React.PointerEvent) => e.stopPropagation();
   const subDone = task.subtasks.filter((s) => s.done).length;
+  const due = relativeDue(task);
+  const links = task.attachments?.length ?? 0;
+  const progress = task.progress?.length ?? 0;
   return (
     <div className={cn("rounded-lg bg-surface-2 p-3", overlay ? "shadow-xl ring-2 ring-accent/60 rotate-1" : "shadow-sm")}>
+      {/* The reference, so this card can be named in a message or an EOD line. */}
+      <p className="mb-1 pl-6 font-mono text-[10px] tracking-wide text-faint">{taskRef(task.id)}</p>
       <div className="flex items-start gap-2">
         <GripVertical size={14} className="mt-0.5 shrink-0 text-faint" />
         <p className="flex-1 text-sm font-medium">{task.title}</p>
@@ -61,9 +106,24 @@ function CardBody({ task, blocked, onDelete, onEdit, overlay }: { task: Task; bl
           </button>
         )}
       </div>
+      {/* A line of the notes, so the card says what the job IS rather than only
+          what it is called. Truncated to two lines; the rest is one click away. */}
+      {task.notes?.trim() && (
+        <p className="mt-1 line-clamp-2 pl-6 text-xs leading-snug text-muted">{task.notes}</p>
+      )}
+
       <p className="mt-1 flex flex-wrap items-center gap-1 pl-6 text-xs text-faint">
-        {task.client_name}<span>·</span><CalendarDays size={11} />{dueDisplay(task)}
+        {task.client_name}
+        {due && (
+          <>
+            <span>·</span>
+            <CalendarDays size={11} />
+            <span className={DUE_TONE[due.tone]}>{due.label}</span>
+          </>
+        )}
         {task.subtasks.length > 0 && <><span>·</span><CheckSquare size={11} />{subDone}/{task.subtasks.length}</>}
+        {links > 0 && <><span>·</span><Link2 size={11} />{links}</>}
+        {progress > 0 && <><span>·</span><MessageSquare size={11} />{progress}</>}
         {task.recurrence !== "none" && <Repeat size={11} className="text-accent-soft" />}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2 pl-6">
@@ -77,11 +137,24 @@ function CardBody({ task, blocked, onDelete, onEdit, overlay }: { task: Task; bl
           </span>
         )}
       </div>
+
+      {/* Finishing something should not require opening it. Hidden until hover
+          so a wall of cards stays readable, and absent on the drag overlay,
+          where a button would be nonsense. */}
+      {onComplete && task.status !== "done" && (
+        <button
+          onPointerDown={stop}
+          onClick={onComplete}
+          className="mt-2 ml-6 flex items-center gap-1.5 text-[11px] text-faint opacity-0 transition-opacity hover:text-emerald-400 group-hover:opacity-100"
+        >
+          <CheckSquare size={12} /> Mark as complete
+        </button>
+      )}
     </div>
   );
 }
 
-function SortableCard({ task, blocked, onDelete, onEdit, focused, justDropped }: { task: Task; blocked: boolean; onDelete: () => void; onEdit: () => void; focused?: boolean; justDropped?: boolean }) {
+function SortableCard({ task, blocked, onDelete, onEdit, onComplete, focused, justDropped }: { task: Task; blocked: boolean; onDelete: () => void; onEdit: () => void; onComplete: () => void; focused?: boolean; justDropped?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   return (
     // data-task-id is the scroll anchor for the /tasks?task=<id> deep link from the
@@ -93,12 +166,12 @@ function SortableCard({ task, blocked, onDelete, onEdit, focused, justDropped }:
         justDropped && "card-drop",
         focused && "ring-2 ring-accent ring-offset-2 ring-offset-bg",
       )}>
-      <CardBody task={task} blocked={blocked} onDelete={onDelete} onEdit={onEdit} />
+      <CardBody task={task} blocked={blocked} onDelete={onDelete} onEdit={onEdit} onComplete={onComplete} />
     </div>
   );
 }
 
-function Column({ status, label, items, blockedIds, onDelete, onEdit, focusId, justDroppedId, dropActive }: { status: TaskStatus; label: string; items: Task[]; blockedIds: Set<string>; onDelete: (id: string) => void; onEdit: (t: Task) => void; focusId?: string | null; justDroppedId?: string | null; dropActive?: boolean }) {
+function Column({ status, label, items, blockedIds, onDelete, onEdit, onComplete, focusId, justDroppedId, dropActive }: { status: TaskStatus; label: string; items: Task[]; blockedIds: Set<string>; onDelete: (id: string) => void; onEdit: (t: Task) => void; onComplete: (id: string) => void; focusId?: string | null; justDroppedId?: string | null; dropActive?: boolean }) {
   /* useDroppable, not useSortable. A column is a container you drop INTO; it is
      never itself dragged. useSortable additionally registered each column as a
      draggable and, because it reads the nearest SortableContext above it — of
@@ -119,7 +192,7 @@ function Column({ status, label, items, blockedIds, onDelete, onEdit, focusId, j
       </div>
       <SortableContext id={status} items={items.map((t) => t.id)} strategy={verticalListSortingStrategy}>
         <div ref={setNodeRef} className="min-h-[160px] flex-1 space-y-2 rounded-lg">
-          {items.map((t) => <SortableCard key={t.id} task={t} blocked={blockedIds.has(t.id)} onDelete={() => onDelete(t.id)} onEdit={() => onEdit(t)} focused={focusId === t.id} justDropped={justDroppedId === t.id} />)}
+          {items.map((t) => <SortableCard key={t.id} task={t} blocked={blockedIds.has(t.id)} onDelete={() => onDelete(t.id)} onEdit={() => onEdit(t)} onComplete={() => onComplete(t.id)} focused={focusId === t.id} justDropped={justDroppedId === t.id} />)}
           {items.length === 0 && <p className="py-8 text-center text-xs text-faint">Drop here</p>}
         </div>
       </SortableContext>
@@ -329,6 +402,7 @@ export default function Tasks() {
   /* Board vs list. Read from localStorage on first render rather than in an
      effect, so the preferred view is the first thing painted instead of the
      board flashing for a frame on every load. */
+  const [q, setQ] = useState("");
   const [view, setView] = useState<"board" | "list">(() => {
     try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "board"; } catch { return "board"; }
   });
@@ -344,16 +418,22 @@ export default function Tasks() {
   // MUST be memoised: this feeds a useEffect that calls setBoard. A fresh array on
   // every render meant the effect re-ran on every render, setting state, re-rendering,
   // rebuilding the array — an infinite loop ("Maximum update depth exceeded").
-  const visible = useMemo(
-    () =>
-      tasks.filter((t) => {
-        if (who === "all") return true;
-        if (who === "unassigned") return !t.assignee_id;
-        if (who === "mine") return t.assignee_id === me?.user_id;
-        return t.assignee_id === who;
-      }),
-    [tasks, who, me?.user_id],
-  );
+  const visible = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return tasks.filter((t) => {
+      if (who === "unassigned" && t.assignee_id) return false;
+      if (who === "mine" && t.assignee_id !== me?.user_id) return false;
+      if (who !== "all" && who !== "mine" && who !== "unassigned" && t.assignee_id !== who) return false;
+      if (!needle) return true;
+      /* Searches everything you might remember it by, including the reference
+         and the notes — "the one about the printer" only finds it if the notes
+         are searched, and they are where that sentence actually lives. */
+      return [t.title, t.client_name, t.notes ?? "", t.blocker_note ?? "", taskRef(t.id)]
+        .join(" ")
+        .toLowerCase()
+        .includes(needle);
+    });
+  }, [tasks, who, q, me?.user_id]);
 
   useEffect(() => { if (!activeId) setBoard(group(visible)); }, [visible, activeId]);
 
@@ -493,6 +573,29 @@ export default function Tasks() {
         </section>
       )}
 
+      {/* Find the one you half-remember. Above the filters because it beats all
+          of them: on a board of forty, typing three letters is faster than
+          working out whose it was. */}
+      <div className="relative mb-3">
+        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+        <input
+          className="input pl-9"
+          placeholder="Search tasks — title, client, notes, or reference…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          aria-label="Search tasks"
+        />
+        {q && (
+          <button
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-faint hover:text-zinc-100"
+            onClick={() => setQ("")}
+            aria-label="Clear search"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
       {/* Who am I looking at? */}
       <div className="mb-4 flex flex-wrap items-center gap-1.5">
         {[
@@ -570,7 +673,7 @@ export default function Tasks() {
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setActiveId(null); setOverCol(null); }}>
           <div className="grid gap-4 lg:grid-cols-3">
             {COLUMNS.map((col) => (
-              <Column key={col.key} status={col.key} label={col.label} items={board[col.key]} blockedIds={blockedIds} onDelete={(id) => remove.mutate(id)} onEdit={startEdit} focusId={focusId} justDroppedId={justDroppedId} dropActive={activeId !== null && overCol === col.key} />
+              <Column key={col.key} status={col.key} label={col.label} items={board[col.key]} blockedIds={blockedIds} onDelete={(id) => remove.mutate(id)} onEdit={startEdit} onComplete={(id) => setStatus.mutate({ id, status: "done" })} focusId={focusId} justDroppedId={justDroppedId} dropActive={activeId !== null && overCol === col.key} />
             ))}
           </div>
           <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
