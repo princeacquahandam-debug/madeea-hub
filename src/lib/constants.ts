@@ -25,16 +25,26 @@ export interface NavItem {
 
 export const NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, group: "Operations" },
-  { to: "/tasks", label: "Task Manager", icon: CheckSquare, group: "Operations" },
-  { to: "/eod", label: "EOD Reports", icon: ClipboardList, group: "Operations" },
-  // §4.5. Sits beside EOD because they are the same job from two angles: what
-  // you did, and that you were there to do it.
-  { to: "/time", label: "Time", icon: Clock, group: "Operations" },
+  /* Ordered by the EA's actual day, not by when each page happened to be built.
+     §9.3 records the sequence the team worked out by asking "pag ako EA, anong
+     gagawin ko?" — calendar, then email, then tasks, then research, then the EOD,
+     with the clock running around all of it (Rowena 44:00, 1:15:46; Reichelle
+     45:24).
+
+     The change that matters: Communication sits ABOVE Tasks. An EA opens their
+     inbox first and works out what the day is from it; the board is where that
+     turns into work. The old order put the board first because it was built
+     first. Calendar is not here yet — it is §5.7, parked pending OQ-3. */
   { to: "/communication", label: "Communication Center", icon: Mail, group: "Operations" },
+  { to: "/tasks", label: "Task Manager", icon: CheckSquare, group: "Operations" },
   { to: "/quick-actions", label: "AI Quick Actions", icon: Zap, group: "Operations" },
   { to: "/clients", label: "Client Vault", icon: Users, group: "Operations" },
   { to: "/notes", label: "Notes", icon: StickyNote, group: "Operations" },
   { to: "/sops", label: "SOPs", icon: ClipboardCheck, group: "Operations" },
+  // The day closes here: what you did, and that you were there to do it.
+  { to: "/eod", label: "EOD Reports", icon: ClipboardList, group: "Operations" },
+  { to: "/time", label: "Time", icon: Clock, group: "Operations" },
+  // Set-up rather than daily work, so it sits at the bottom out of the way.
   { to: "/automation", label: "Automation", icon: Workflow, group: "Operations" },
   { to: "/integrations", label: "Integrations", icon: Plug, group: "Operations" },
   /* Cut by the 09 Aug product direction, which judged every feature on two
