@@ -1,5 +1,5 @@
 /**
- * useCommandCenter — the orchestrator + React context for the AI Command Center.
+ * useCommandCenter, the orchestrator + React context for the AI Command Center.
  *
  * Responsibilities (kept in one place so components stay dumb):
  *  - global open state + Ctrl/⌘-K + Esc
@@ -72,7 +72,7 @@ const PROGRESS: Record<string, string> = { create: "Creating…", generate: "Thi
 function resultToText(r: ToolResult): string {
   switch (r.kind) {
     case "text": return r.markdown;
-    case "created": return `${r.title}${r.detail ? ` — ${r.detail}` : ""}`;
+    case "created": return `${r.title}${r.detail ? `: ${r.detail}` : ""}`;
     case "navigate": return `Opened ${r.label}.`;
     case "search": return `Found ${r.results.length} results for “${r.query}”.`;
     case "entity": return r.title;
@@ -145,7 +145,7 @@ export function CommandCenterProvider({ children }: { children: ReactNode }) {
     const q = debouncedQuery.trim();
     if (!q) return [];
     // If the input is phrased as a search command ("search my workspace for X"),
-    // rank on the extracted term X, not the whole sentence — otherwise the
+    // rank on the extracted term X, not the whole sentence. Otherwise the
     // command words drown out real matches.
     const parsed = parseIntent(q);
     const term = parsed.intent.startsWith("search") && parsed.params.query ? parsed.params.query : q;

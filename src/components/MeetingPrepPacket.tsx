@@ -121,7 +121,7 @@ export function MeetingPrepPacket({
           <div className="rounded-lg bg-surface-2 p-4">
             <p className="text-xs text-faint">
               {thin
-                ? "Little context on file for this meeting — the brief will be thin, but it'll still summarise what's here."
+                ? "Little context on file for this meeting, the brief will be thin, but it'll still summarise what's here."
                 : "Synthesise everything below into what you need to know walking in."}
             </p>
             <button className="btn-primary mt-3 w-full" onClick={run} disabled={busy}>
@@ -150,7 +150,7 @@ export function MeetingPrepPacket({
             <Users size={16} className="text-faint" />
             <p className="text-xs text-faint">
               {context.meeting.attendees.length
-                ? `${context.meeting.attendees.join(", ")} — no matching client in the Vault.`
+                ? `${context.meeting.attendees.join(", ")}. No matching client in the Vault.`
                 : "No attendees recorded. Treating this as internal."}
             </p>
           </div>

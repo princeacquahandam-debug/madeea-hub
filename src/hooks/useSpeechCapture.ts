@@ -1,7 +1,7 @@
 /**
  * Web Speech API wrapper for quick voice capture.
  *
- * Deliberately unopinionated about the UI — it reports what the browser is doing
+ * Deliberately unopinionated about the UI, it reports what the browser is doing
  * and lets the caller decide. The three ways this goes wrong are all normal
  * outcomes, not exceptions:
  *   - unsupported  → no SpeechRecognition (notably iOS Safari). Type instead.
@@ -43,7 +43,7 @@ export function useSpeechCapture() {
   const [state, setState] = useState<CaptureState>(supported ? "idle" : "unsupported");
   /** Finalised speech. */
   const [transcript, setTranscript] = useState("");
-  /** What it thinks it's hearing right now — shown live so the mic feels alive. */
+  /** What it thinks it's hearing right now. Shown live so the mic feels alive. */
   const [interim, setInterim] = useState("");
   const [heardNothing, setHeardNothing] = useState(false);
   const [confidence, setConfidence] = useState<number | null>(null);
@@ -91,7 +91,7 @@ export function useSpeechCapture() {
         if (r.isFinal) {
           final += r[0].transcript;
           const c = r[0].confidence;
-          // Chrome reports 0 confidence in some builds — don't let that read as "terrible".
+          // Chrome reports 0 confidence in some builds. Don't let that read as "terrible".
           if (typeof c === "number" && c > 0) best = best === null ? c : Math.min(best, c);
         } else {
           live += r[0].transcript;
@@ -130,7 +130,7 @@ export function useSpeechCapture() {
       rec.start();
       setState("listening");
     } catch {
-      // start() throws if called while already running — harmless.
+      // start() throws if called while already running. Harmless.
       setState("listening");
     }
   }, [supported]);

@@ -24,7 +24,7 @@ export interface SlaConfig {
 /**
  * Thresholds are measured in WORKING hours, so they don't read like calendar
  * hours: with a 9-hour day, "24h" would be nearly three working days. 8h means
- * "answered the same working day", 16h means "by the end of the next one" —
+ * "answered the same working day", 16h means "by the end of the next one",
  * which is what a 24h/48h calendar SLA actually intends. Switch
  * `businessHoursOnly` off and these become plain calendar hours again.
  */

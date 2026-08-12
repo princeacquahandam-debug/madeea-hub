@@ -1,4 +1,4 @@
--- 0032_routines.sql — Work that comes back on a schedule.
+-- 0032_routines.sql. Work that comes back on a schedule.
 --
 -- Run once in the Supabase SQL editor, after 0031.
 --
@@ -9,8 +9,8 @@
 -- ── How this differs from tasks.recurrence, which already exists ──────────
 -- They are not the same thing and both are worth having:
 --
---   tasks.recurrence  "when this is DONE, make another one"  — completion-driven
---   routines          "every Monday, make one"               — calendar-driven
+--   tasks.recurrence  "when this is DONE, make another one". Completion-driven
+--   routines          "every Monday, make one". Calendar-driven
 --
 -- The second is what you want for a report due every Monday whether or not last
 -- Monday's got finished. The first is right for a chore that only makes sense
@@ -73,7 +73,7 @@ comment on column tasks.occurrence_date is
 -- Callable from anywhere: the app on load, a pg_cron job, or by hand. It is
 -- idempotent by construction, so calling it more often than necessary is free.
 --
--- Deliberately does NOT compute the recurrence — that lives in the client,
+-- Deliberately does NOT compute the recurrence, that lives in the client,
 -- where the rule subset is implemented and testable. This takes the dates it is
 -- given and creates what is missing, which is the part that must be atomic.
 create or replace function materialize_routine_occurrence(

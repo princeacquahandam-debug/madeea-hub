@@ -51,7 +51,7 @@ export default function InvestorUpdate() {
     try {
       const out = await generate({
         tool: "investor_update",
-        format: `Investor update — ${inputs.periodLabel || `last ${periodDays} days`}`,
+        format: `Investor update. ${inputs.periodLabel || `last ${periodDays} days`}`,
         inputs: updatePromptInputs(facts, inputs),
       });
       setOutput(out);
@@ -160,7 +160,7 @@ export default function InvestorUpdate() {
               <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-100/90">
                 <AlertTriangle size={13} className="mr-1 inline text-amber-400" />
                 Nothing completed and no meetings recorded in this window. Drafting now would produce an
-                update with no substance behind it — widen the period or fill in the headline metrics.
+                update with no substance behind it. Widen the period or fill in the headline metrics.
               </div>
             )}
 
@@ -176,7 +176,7 @@ export default function InvestorUpdate() {
             <FactList title="Delivered this period" empty="Nothing with a completion timestamp in this window">
               {facts.highlights.map((h, i) => (
                 <li key={i}>
-                  {h.title} <span className="text-faint">— {h.client}, {h.when}</span>
+                  {h.title} <span className="text-faint">· {h.client}, {h.when}</span>
                 </li>
               ))}
             </FactList>
@@ -184,7 +184,7 @@ export default function InvestorUpdate() {
             <FactList title="Meetings held" empty="None recorded">
               {facts.meetingsHeld.map((m, i) => (
                 <li key={i}>
-                  {m.title} <span className="text-faint">— {m.with}, {m.when}</span>
+                  {m.title} <span className="text-faint">· {m.with}, {m.when}</span>
                 </li>
               ))}
             </FactList>
@@ -206,7 +206,7 @@ export default function InvestorUpdate() {
             <p className="field-label">Draft</p>
             {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
             {output ? (
-              <OutputViewer output={output} title={`Investor update — ${inputs.company || "draft"}`} />
+              <OutputViewer output={output} title={`Investor update. ${inputs.company || "draft"}`} />
             ) : (
               <div className="flex flex-col items-center justify-center gap-2 py-10 text-center text-faint">
                 <FileText size={28} />

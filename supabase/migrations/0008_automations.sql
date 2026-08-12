@@ -1,4 +1,4 @@
--- 0008_automations.sql — make automations executable: identify each by a stable
+-- 0008_automations.sql. Make automations executable: identify each by a stable
 -- key, (re)seed the core set per workspace, and keep run history (automation_runs
 -- already exists from 0001).
 
@@ -18,7 +18,7 @@ begin
      'Compiles attendee profiles, agenda drafts and prep notes for upcoming meetings.',
      'active', 'meeting_prep', 0),
     (uid, wsid, 'Executive Summary Inbox Automation™',
-     'Triages the inbox — auto-archives newsletters and surfaces only what needs executive attention.',
+     'Triages the inbox. Auto-archives newsletters and surfaces only what needs executive attention.',
      'paused', 'inbox_triage', 0);
 end $$;
 

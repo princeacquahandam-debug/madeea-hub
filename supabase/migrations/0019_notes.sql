@@ -1,11 +1,11 @@
--- 0019_notes.sql — a lightweight Notes area (Reich's feedback: "a simple notes area").
+-- 0019_notes.sql, a lightweight Notes area (Reich's feedback: "a simple notes area").
 --
 -- Deliberately NOT the Memory Helper. The distinction is load-bearing:
 --
---   memories — curated facts wired INTO the other helpers (a preference shapes
+--   memories. Curated facts wired INTO the other helpers (a preference shapes
 --              every email draft afterwards). Structured, kind-tagged, recalled.
---   notes    — a free-text scratchpad. Nothing reads a note but a human. No wiring,
---              no recall into prompts — that's the point, and keeps the two from
+--   notes, a free-text scratchpad. Nothing reads a note but a human. No wiring,
+--              no recall into prompts, that's the point, and keeps the two from
 --              quietly competing for the same job.
 --
 -- Shares the workspace, like every other collaborative table here, so the team's

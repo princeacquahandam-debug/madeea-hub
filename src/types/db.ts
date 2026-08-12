@@ -22,7 +22,7 @@ export interface Client {
   sla_ok_hours?: number | null;
   sla_risk_hours?: number | null;
   /**
-   * The EA accountable for this client (migration 0015). Informational only —
+   * The EA accountable for this client (migration 0015). Informational only,
    * RLS is unchanged, so every EA still sees every client.
    */
   lead_ea_id?: string | null;
@@ -72,7 +72,7 @@ export interface Task {
   blocker_note?: string | null;
   /**
    * Client-facing output that needs sign-off (migration 0030). A task with this
-   * set cannot reach `done` without an approval — enforced by a DB trigger, not
+   * set cannot reach `done` without an approval. Enforced by a DB trigger, not
    * by the button.
    */
   requires_approval?: boolean;
@@ -84,7 +84,7 @@ export interface Task {
    * blockers, so general notes must not land there.
    */
   notes?: string | null;
-  /** Day-stamped progress, newest first (R-4.7.4) — where a multi-day task got to. */
+  /** Day-stamped progress, newest first (R-4.7.4), where a multi-day task got to. */
   progress?: TaskProgress[];
   /** Reference links and files produced by the task (R-4.7.2). */
   attachments?: TaskAttachment[];
@@ -248,7 +248,7 @@ export interface TaskAttachment {
 
 /**
  * One submitted end-of-day report (migration 0016). Drafted from task activity,
- * reviewed and submitted by a person — the submission is what compliance counts.
+ * reviewed and submitted by a person, the submission is what compliance counts.
  */
 export interface EodReport {
   id: string;
@@ -289,7 +289,7 @@ export interface Message {
   client_id?: string | null;
   client_name?: string;
   client_title?: string;
-  // SLA fields. Absent on every row today — nothing populates them yet (see
+  // SLA fields. Absent on every row today. Nothing populates them yet (see
   // lib/sla.ts). `first_reply_at` is the timestamp of the FIRST message we sent
   // back on this thread; null means still unanswered, which is not the same as
   // a response time of zero.
@@ -367,7 +367,7 @@ export interface FathomSyncState {
   memories_written: number;
 }
 
-/** One row per teammate with Google connected — how their mailbox sync is doing. */
+/** One row per teammate with Google connected. How their mailbox sync is doing. */
 export interface MailboxSync {
   owner_id: string;
   name: string;

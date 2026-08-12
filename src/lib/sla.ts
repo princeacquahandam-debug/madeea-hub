@@ -6,7 +6,7 @@
  *  - Response time is TIME TO FIRST REPLY: `first_reply_at - received_at` on a
  *    thread. Later back-and-forth on the same thread is ignored.
  *  - An unanswered email has NO response time. It is not a zero and it is not an
- *    average of zero — it's an open clock, reported separately as "oldest waiting".
+ *    average of zero, it's an open clock, reported separately as "oldest waiting".
  *  - Elapsed time is measured on the *business* clock by default, so an email
  *    arriving 6pm Friday and answered 9am Monday costs ~1 hour, not 63.
  */
@@ -29,7 +29,7 @@ export function elapsedHours(from: Date, to: Date, cfg: SlaConfig): number {
   if (ms <= 0) return 0;
   if (!cfg.businessHoursOnly) return ms / HOUR;
   // A window that can never be open would make every gap zero and every client
-  // look perfect — treat it as misconfiguration and fall back to calendar time.
+  // look perfect. Treat it as misconfiguration and fall back to calendar time.
   if (!cfg.days.length || cfg.endHour <= cfg.startHour) return ms / HOUR;
 
   let total = 0;
@@ -117,7 +117,7 @@ const worse = (a: SlaStatus, b: SlaStatus) => (RANK[b] > RANK[a] ? b : a);
  * Only INBOUND mail belonging to this client.
  *
  * The direction filter is load-bearing: once outbound mail exists in the table, a
- * message we SENT has no `first_reply_at` either — and without this it would be
+ * message we SENT has no `first_reply_at` either, and without this it would be
  * counted as a client waiting on us, inflating "oldest waiting" and dragging
  * clients into At Risk for emails they owe US a reply to. Mail we sent that went
  * unanswered is a dead thread (lib/followups.ts), not an SLA breach.
@@ -142,13 +142,13 @@ export interface ClientSla {
   avgHours: number | null;
   /** Longest currently-unanswered email, in hours on the configured clock (drives status). */
   oldestWaitingHours: number | null;
-  /** The same wait in plain calendar hours — what the client actually experiences. */
+  /** The same wait in plain calendar hours. What the client actually experiences. */
   oldestWaitingCalendarHours: number | null;
   oldestWaitingSubject: string | null;
   breaches7d: number;
   breaches30d: number;
   trend: SlaTrend;
-  /** Most recent answered threads, newest first — powers the trend view. */
+  /** Most recent answered threads, newest first. Powers the trend view. */
   recent: ThreadResponse[];
   thresholds: { ok: number; risk: number };
 }
@@ -199,7 +199,7 @@ export function clientSla(
     answered.filter(
       (a) => a.received > now.getTime() - days * DAY && a.hours > thresholds.risk,
     ).length;
-  // An email still sitting unanswered past the threshold is a live breach — it
+  // An email still sitting unanswered past the threshold is a live breach, it
   // would be dishonest to only count breaches once they're finally replied to.
   const waitingBreaches = waiting.filter((w) => w.hours > thresholds.risk).length;
 
@@ -230,7 +230,7 @@ export function clientSla(
   };
 }
 
-/** Any message currently past the breach threshold — drives inbox/queue badges. */
+/** Any message currently past the breach threshold. Drives inbox/queue badges. */
 export function isBreaching(m: Message, client: Client | null, cfg: SlaConfig, now = new Date()): boolean {
   const t = thresholdsFor(client, cfg);
   const answeredIn = responseHours(m, cfg);
@@ -241,7 +241,7 @@ export function isBreaching(m: Message, client: Client | null, cfg: SlaConfig, n
 
 /**
  * Length of one "day" for display. On a business clock a day is the working
- * window, not 24h — otherwise 29 business hours renders as "1d 5h", which reads
+ * window, not 24h. Otherwise 29 business hours renders as "1d 5h", which reads
  * like 29 calendar hours and overstates how long the client actually waited.
  */
 export function dayLength(cfg: SlaConfig): number {

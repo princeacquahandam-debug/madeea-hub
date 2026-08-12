@@ -1,4 +1,4 @@
--- MadeEA EA Hub — initial schema
+-- MadeEA EA Hub. Initial schema
 -- Multi-user from day one: every row is owned by an auth user and isolated by RLS.
 
 -- ---------- enums ----------

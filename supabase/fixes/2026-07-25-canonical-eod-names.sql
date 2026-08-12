@@ -1,4 +1,4 @@
--- Collapse split EOD identities — 2026-07-25
+-- Collapse split EOD identities. 2026-07-25
 --
 -- Symptom: the "Every Report" filter showed a person twice (e.g. "Bryan" with 0
 -- reports AND "Bryansumait" with 1). Cause: the account's profile name, generated

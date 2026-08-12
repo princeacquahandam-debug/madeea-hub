@@ -1,8 +1,8 @@
--- 0018_goals.sql — let a memory entry be a stated GOAL.
+-- 0018_goals.sql. Let a memory entry be a stated GOAL.
 --
 -- The Focus Helper's goal-drift view needs somewhere to keep "what the boss said
 -- matters this quarter". That is a durable, human-written fact about the desk,
--- which is exactly what the memories table already is — so this adds a kind rather
+-- which is exactly what the memories table already is, so this adds a kind rather
 -- than a second store. One place to look, one set of RLS policies.
 --
 -- Additive and idempotent: dropping the constraint by name and re-adding it widens

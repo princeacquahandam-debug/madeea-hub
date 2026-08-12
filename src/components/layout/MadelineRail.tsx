@@ -30,7 +30,7 @@ export function MadelineRail() {
       const reply = await assistantChat(next);
       setMessages([...next, { role: "assistant", content: reply }]);
     } catch (e) {
-      setMessages([...next, { role: "assistant", content: `Sorry — I hit an error: ${e instanceof Error ? e.message : String(e)}` }]);
+      setMessages([...next, { role: "assistant", content: `Sorry. I hit an error: ${e instanceof Error ? e.message : String(e)}` }]);
     } finally {
       setBusy(false);
     }

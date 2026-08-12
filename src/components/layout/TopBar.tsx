@@ -34,9 +34,9 @@ export function TopBar({ onMenu }: { onMenu?: () => void }) {
         <div className="hidden items-center gap-2 sm:flex" data-tour="search">
           <GlobalSearch />
         </div>
-        {/* Clock in / out, deliberately on every page — see ClockControl. */}
+        {/* Clock in / out, deliberately on every page. See ClockControl. */}
         <ClockControl />
-        {/* Quick capture — the bottom corners are already taken by the Assistant
+        {/* Quick capture, the bottom corners are already taken by the Assistant
             and SOP widgets, so this lives in the header where it's reachable from
             every page on both desktop and mobile. */}
         <button

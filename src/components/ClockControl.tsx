@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
  * R-4.5.2 is the whole reason this is not tucked away on the Time page:
  * attendance is only recorded if the EA opens the app and starts the tracker,
  * and that is the deliberate adoption mechanism (Rowena 34:25, Rio 34:31). A
- * control you have to go looking for does not force anything — this one is
+ * control you have to go looking for does not force anything, this one is
  * either counting or visibly not counting, on every screen.
  *
  * Clocking IN is one click. Clocking OUT is one click. Choosing a task is on
@@ -45,7 +45,7 @@ export function ClockControl() {
       // hijacking the primary click, which has to stay one-tap.
       onContextMenu={(e) => { e.preventDefault(); nav("/time"); }}
       disabled={start.isPending || stop.isPending}
-      title={running ? "Clock out — right-click for the timesheet" : "Clock in. Attendance is recorded from this."}
+      title={running ? "Clock out. Right-click for the timesheet" : "Clock in. Attendance is recorded from this."}
       aria-label={running ? "Clock out" : "Clock in"}
     >
       {running ? <Square size={15} /> : <Play size={15} />}

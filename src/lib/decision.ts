@@ -1,11 +1,11 @@
 /**
- * Decision Helper — structures a decision. It does not make one.
+ * Decision Helper. Structures a decision. It does not make one.
  *
  * That distinction is the whole design, and it is not decoration.
  *
  * An assistant that tells an executive what to choose is the highest-risk thing in
  * this application. Every other helper produces work that gets reviewed before it
- * matters — a draft is read before sending, a task is checked before it's chased.
+ * matters, a draft is read before sending, a task is checked before it's chased.
  * A recommendation is different: by the time it's wrong, someone has already acted
  * on the authority it borrowed from being generated confidently.
  *
@@ -14,7 +14,7 @@
  *   - the EA sets the options, the criteria, and the WEIGHTS. Those are judgements,
  *     and judgements belong to the human.
  *   - this file multiplies and sorts. That's it.
- *   - `sensitivity` reports which weight would have to change to flip the answer —
+ *   - `sensitivity` reports which weight would have to change to flip the answer,
  *     the single most useful output here, because it shows how fragile the ranking
  *     is rather than pretending it's solid.
  *   - when two options are within `CLOSE_MARGIN`, the result says the numbers do
@@ -67,8 +67,8 @@ export interface Sensitivity {
   flipsTo: string | null;
   /**
    * How the outcome changes.
-   *   "flip" — a different option wins outright.
-   *   "tie"  — the same option nominally leads, but the margin collapses inside
+   *   "flip", a different option wins outright.
+   *   "tie", the same option nominally leads, but the margin collapses inside
    *            CLOSE_MARGIN, so nothing is decided any more.
    *
    * Reporting only "flip" would have missed the most common real case: a heavily
@@ -108,7 +108,7 @@ function scoreOne(option: Option, criteria: Criterion[], scores: Scores): Option
     total += weighted;
     // Normalise against what this option could have scored on the criteria it WAS
     // scored on. Counting unscored criteria as zero would punish an option for the
-    // EA not having got to it yet — which silently turns an incomplete matrix into
+    // EA not having got to it yet, which silently turns an incomplete matrix into
     // a confident wrong answer.
     maxPossible += MAX_SCORE * c.weight;
     return { criterion: c, raw, weighted };
@@ -163,7 +163,7 @@ function sensitivityFor(
         break;
       }
       // Same nominal leader, but the lead has collapsed to nothing. Record it and
-      // keep sweeping — an outright flip further along is the stronger finding.
+      // keep sweeping, an outright flip further along is the stronger finding.
       const runner = swept[1];
       if (runner && leader.normalised - runner.normalised < CLOSE_MARGIN && outcome === null) {
         flipsAt = w;
@@ -175,7 +175,7 @@ function sensitivityFor(
     out.push({ criterionId: c.id, label: c.label, flipsAt, flipsTo, outcome });
   }
 
-  // Criteria that can flip the result are the ones worth arguing about — surface
+  // Criteria that can flip the result are the ones worth arguing about. Surface
   // them first.
   return out.sort((a, b) => Number(b.flipsAt !== null) - Number(a.flipsAt !== null));
 }
@@ -186,7 +186,7 @@ export function decide(options: Option[], criteria: Criterion[], scores: Scores)
   const usableOptions = options.filter((o) => o.label.trim());
   const usableCriteria = criteria.filter((c) => c.label.trim());
 
-  if (usableOptions.length < 2) warnings.push("Add at least two options — there's nothing to compare yet.");
+  if (usableOptions.length < 2) warnings.push("Add at least two options. There's nothing to compare yet.");
   if (!usableCriteria.length) warnings.push("Add at least one criterion, and set how much it matters.");
 
   const ranked = rankWith(usableOptions, usableCriteria, scores);
@@ -204,7 +204,7 @@ export function decide(options: Option[], criteria: Criterion[], scores: Scores)
 
   if (usableCriteria.length && usableCriteria.every((c) => c.weight === usableCriteria[0].weight)) {
     warnings.push(
-      "Every criterion carries the same weight. That's a real position, but if some genuinely matter more, say so — it's the weights that do the work here.",
+      "Every criterion carries the same weight. That's a real position, but if some genuinely matter more, say so, it's the weights that do the work here.",
     );
   }
 
@@ -215,7 +215,7 @@ export function decide(options: Option[], criteria: Criterion[], scores: Scores)
 
   if (tooCloseToCall) {
     warnings.push(
-      `${leader!.option.label} and ${runnerUp!.option.label} are within ${margin.toFixed(1)} points. The numbers do not decide this one — pick on judgement, and record why.`,
+      `${leader!.option.label} and ${runnerUp!.option.label} are within ${margin.toFixed(1)} points. The numbers do not decide this one. Pick on judgement, and record why.`,
     );
   }
 
@@ -243,7 +243,7 @@ export function decide(options: Option[], criteria: Criterion[], scores: Scores)
  *   - a recommendation from a language model is an opinion wearing the costume of
  *     one, and nobody can audit it.
  *
- * So the app states the verdict plainly — and never states one it hasn't earned.
+ * So the app states the verdict plainly, and never states one it hasn't earned.
  * When the margin is inside the noise it says so instead of picking, because
  * dressing a 51/49 as a winner is the failure this whole file exists to avoid.
  */
@@ -252,11 +252,11 @@ export function verdict(r: DecisionResult): { text: string; decisive: boolean } 
     return { text: "Name at least two options and score them to get a verdict.", decisive: false };
   }
   if (!r.runnerUp) {
-    return { text: `Only ${r.leader.option.label} is on the table — there's nothing to compare it against.`, decisive: false };
+    return { text: `Only ${r.leader.option.label} is on the table. There's nothing to compare it against.`, decisive: false };
   }
   if (r.tooCloseToCall) {
     return {
-      text: `Too close to call: ${r.leader.option.label} and ${r.runnerUp.option.label} are within ${r.margin.toFixed(1)} points. On your weights the numbers do not choose between them — this one is judgement.`,
+      text: `Too close to call: ${r.leader.option.label} and ${r.runnerUp.option.label} are within ${r.margin.toFixed(1)} points. On your weights the numbers do not choose between them, this one is judgement.`,
       decisive: false,
     };
   }
@@ -291,7 +291,7 @@ export function decisionPromptInputs(
       (r) =>
         `- ${r.option.label}: ${r.normalised.toFixed(1)}/100 (${r.perCriterion
           .map((p) => `${p.criterion.label} ${p.raw ?? "unscored"}×${p.criterion.weight}`)
-          .join(", ")})${r.option.note ? ` — note: ${r.option.note}` : ""}`,
+          .join(", ")})${r.option.note ? `: note: ${r.option.note}` : ""}`,
     )
     .join("\n");
 
@@ -300,7 +300,7 @@ export function decisionPromptInputs(
     .map((s) =>
       s.outcome === "flip"
         ? `- Changing “${s.label}” to weight ${s.flipsAt} would make ${s.flipsTo} the leader instead`
-        : `- Changing “${s.label}” to weight ${s.flipsAt} would wipe out the lead entirely — no option would be clearly ahead`,
+        : `- Changing “${s.label}” to weight ${s.flipsAt} would wipe out the lead entirely. No option would be clearly ahead`,
     )
     .join("\n");
 
@@ -311,8 +311,8 @@ export function decisionPromptInputs(
     leader: result.leader ? `${result.leader.option.label} (${result.leader.normalised.toFixed(1)}/100)` : "(none)",
     margin_over_runner_up: result.runnerUp ? `${result.margin.toFixed(1)} points` : "(only one option)",
     is_it_too_close: result.tooCloseToCall
-      ? "YES — the margin is inside the noise. Say plainly that the numbers do not decide this."
-      : "No — the leader is clear on the numbers as weighted.",
+      ? "YES, the margin is inside the noise. Say plainly that the numbers do not decide this."
+      : "No, the leader is clear on the numbers as weighted.",
     what_would_change_the_answer: flips || "(no single weight change flips the result)",
     caveats: result.warnings.length ? result.warnings.join(" ") : "(none)",
   };

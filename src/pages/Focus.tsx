@@ -77,7 +77,7 @@ export default function Focus() {
     <div>
       <PageHeader
         title="Focus Helper"
-        subtitle="One ranked list across tasks and unanswered mail — with the reasoning shown, so you can disagree with it."
+        subtitle="One ranked list across tasks and unanswered mail, with the reasoning shown, so you can disagree with it."
         action={
           <button className="btn-primary" onClick={writePlan} disabled={busy || !ranked.length}>
             <Sparkles size={15} />
@@ -232,7 +232,7 @@ export default function Focus() {
               ))}
               {!top.length && (
                 <p className="py-4 text-center text-xs text-faint">
-                  Everything ranked is blocked — clear a blocker below.
+                  Everything ranked is blocked. Clear a blocker below.
                 </p>
               )}
             </div>
@@ -255,7 +255,7 @@ export default function Focus() {
               <p className="mt-3 text-[11px] leading-snug text-faint">
                 {blocked.length} item{blocked.length === 1 ? " is" : "s are"} ranked down because
                 {blocked.length === 1 ? " it's" : " they're"} blocked. They're kept visible rather than
-                hidden — the blocker is often the thing worth clearing.
+                hidden, the blocker is often the thing worth clearing.
               </p>
             )}
           </section>
@@ -303,7 +303,7 @@ function Row({
             className="mt-1 inline-flex items-center gap-1 text-xs text-faint hover:text-zinc-100"
             onClick={onToggle}
           >
-            <Info size={11} /> score {item.score} — {open ? "hide" : "why?"}
+            <Info size={11} /> score {item.score}. {open ? "hide" : "why?"}
           </button>
           {open && (
             <ul className="mt-2 space-y-0.5 text-xs">

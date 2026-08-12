@@ -1,4 +1,4 @@
-// Supabase Edge Function: generate  (self-contained — paste as-is)
+// Supabase Edge Function: generate  (self-contained. Paste as-is)
 // POST { tool, format, inputs, client_id? } -> { output }
 // Generates an EA document with OpenAI and logs it to ai_generations.
 
@@ -22,7 +22,7 @@ async function complete(messages: LlmMessage[], model: keyof typeof MODELS = "pr
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
     body: JSON.stringify({ model: MODELS[model], messages, temperature: 0.6, max_tokens: 2000 }),
   });
-  // Log upstream detail, don't return it — the catch below sends the message to
+  // Log upstream detail, don't return it, the catch below sends the message to
   // the browser, and OpenAI's error bodies echo request internals.
   if (!res.ok) {
     console.error("openai error", res.status, await res.text());
@@ -45,7 +45,7 @@ const BASE =
 // "improving" a number is the one failure mode that makes these documents unusable,
 // because the reader has no way to spot it.
 const FACTS_ONLY =
-  "The details below are pre-computed facts. Reuse every figure, date and duration EXACTLY as given — " +
+  "The details below are pre-computed facts. Reuse every figure, date and duration EXACTLY as given: " +
   "do not recalculate, re-round, extrapolate or add numbers of your own. If something needed is absent, write [TBC].";
 
 function systemFor(tool: string, format: string): string {
@@ -65,36 +65,36 @@ function systemFor(tool: string, format: string): string {
   if (tool === "investor_update")
     return `${BASE} ${FACTS_ONLY} You are drafting an investor update for the named recipients. ` +
       "Structure: headline, what shipped, metrics, risks and lowlights, asks, close. " +
-      "Include the risks section even when it is short — an update with no lowlights reads as evasive. " +
+      "Include the risks section even when it is short, an update with no lowlights reads as evasive. " +
       "Only cite metrics supplied below. Omit any section whose input says none was supplied.";
   if (tool === "travel")
     return `${BASE} ${FACTS_ONLY} You are producing a travel itinerary document for an executive. ` +
-      "All times, durations, layovers and timezone shifts are already calculated — copy them verbatim; do not convert timezones yourself. " +
+      "All times, durations, layovers and timezone shifts are already calculated. Copy them verbatim; do not convert timezones yourself. " +
       "Lead with the leave-home-by time. Include a 'Watch out' section reproducing every issue listed. End with the preparation checklist.";
   if (tool === "email_reply")
     return `${BASE} ${FACTS_ONLY} You are drafting ONE email reply for an executive assistant to send. ` +
-      "Match the stated tone and the client's recorded preferences. Follow the timing instruction exactly — if it says not to mention timing, do not mention it at all. " +
+      "Match the stated tone and the client's recorded preferences. Follow the timing instruction exactly. If it says not to mention timing, do not mention it at all. " +
       "Use the thread history to avoid repeating what was already said or contradicting a commitment already made. " +
-      "Respect the requested length. Return only the email body plus a subject line — no commentary, no options, no placeholders beyond [TBC].";
+      "Respect the requested length. Return only the email body plus a subject line. No commentary, no options, no placeholders beyond [TBC].";
   if (tool === "meeting_followup")
     return `${BASE} ${FACTS_ONLY} You are writing a post-meeting recap message. ` +
-      "The agreed actions are supplied and are FINAL — reproduce them exactly, with their owners and dates. " +
+      "The agreed actions are supplied and are FINAL. Reproduce them exactly, with their owners and dates. " +
       "Do NOT infer, add or reword additional commitments from the raw notes; anything not in the agreed list was deliberately excluded by the EA. " +
       "Structure: one-line summary, what was decided, agreed actions with owners and dates, anything still open.";
   if (tool === "focus")
     return `${BASE} ${FACTS_ONLY} You are planning an EA's next hour from an already-ranked list. ` +
-      "The ranking and its scores were computed by the application — do not re-order on your own judgement, and do not invent work that is not listed. " +
+      "The ranking and its scores were computed by the application. Do not re-order on your own judgement, and do not invent work that is not listed. " +
       "Give a realistic sequence for roughly one hour, say what to skip, and name any blocked item worth clearing first. Maximum 180 words.";
   if (tool === "briefing")
     return `${BASE} ${FACTS_ONLY} You are reading an EA their morning briefing. ` +
       "Cover, in this order: what's in the diary, what to do first, who is waiting, anything owed today. " +
-      "Where a data gap is listed, say the section is empty because the data is missing — do NOT present it as 'nothing to do'. " +
+      "Where a data gap is listed, say the section is empty because the data is missing. Do NOT present it as 'nothing to do'. " +
       "Conversational but efficient. Maximum 220 words.";
   if (tool === "decision")
     return `${BASE} ${FACTS_ONLY} You are writing a DECISION RECORD, not a recommendation. ` +
       "This is the hard rule: do NOT state which option should be chosen, and do not imply one with loaded language. " +
       "The human decides; you document. Report what was weighed, how the options scored, how big the margin was, " +
-      "and — most importantly — what would change the answer. If the input says it is too close to call, say so plainly and " +
+      "and (most importantly) what would change the answer. If the input says it is too close to call, say so plainly and " +
       "state that the numbers do not settle it. Structure: the question, the options considered, how they were weighed, " +
       "where the numbers landed, what would flip it, what remains a judgement call.";
   return `${BASE} Action: "${format}". Produce the most useful one-shot output for an EA serving senior executives.`;
@@ -105,7 +105,7 @@ function userFor(format: string, inputs: Record<string, string>): string {
     .filter(([, v]) => v && String(v).trim())
     .map(([k, v]) => `${k}: ${v}`)
     .join("\n");
-  return `Task: ${format}\n\nDetails:\n${lines || "(no specific details — use sensible defaults, mark gaps [TBC])"}`;
+  return `Task: ${format}\n\nDetails:\n${lines || "(no specific details. Use sensible defaults, mark gaps [TBC])"}`;
 }
 
 function json(body: unknown, status = 200) {
@@ -133,11 +133,11 @@ Deno.serve(async (req) => {
     // Fails CLOSED: `allowed !== true` also catches an RPC error or a null,
     // which is what you get if 0016 hasn't been applied yet. Checking only for
     // `=== false` would let every request through whenever the limiter itself is
-    // broken — i.e. exactly when it's needed. Deploy the migration before this.
+    // broken. I.e. exactly when it's needed. Deploy the migration before this.
     const { data: allowed, error: rlErr } = await authClient.rpc("check_ai_rate_limit", { p_fn: "generate", p_max: 40 });
     if (rlErr) console.error("check_ai_rate_limit failed", rlErr.message);
     if (allowed !== true) {
-      return json({ error: "Rate limit reached — please try again in a little while." }, 429);
+      return json({ error: "Rate limit reached. Please try again in a little while." }, 429);
     }
 
     const { tool, format, inputs = {}, client_id = null } = await req.json();

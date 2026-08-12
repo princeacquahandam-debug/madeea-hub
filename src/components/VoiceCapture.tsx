@@ -9,7 +9,7 @@ import type { Priority } from "@/types/db";
 
 type Step = "capture" | "parsing" | "confirm";
 
-/** Below this, the browser thinks it may have misheard — nudge the user to check. */
+/** Below this, the browser thinks it may have misheard. Nudge the user to check. */
 const LOW_CONFIDENCE = 0.6;
 
 export function VoiceCapture({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -103,7 +103,7 @@ export function VoiceCapture({ open, onClose }: { open: boolean; onClose: () => 
               {speech.state === "unsupported" && (
                 <p className="mb-3 flex items-center justify-center gap-2 text-xs text-muted">
                   <Keyboard size={14} />
-                  This browser can’t listen (Safari on iPhone, typically) — type it instead.
+                  This browser can’t listen (Safari on iPhone, typically). Type it instead.
                 </p>
               )}
               {speech.state === "denied" && (
@@ -132,7 +132,7 @@ export function VoiceCapture({ open, onClose }: { open: boolean; onClose: () => 
               {speech.supported ? "Transcript" : "Your note"}
             </label>
             {/* Never read-only. A browser can claim to support speech and then never
-                return a result (no network to the speech service, say) — locking the
+                return a result (no network to the speech service, say). Locking the
                 box while "listening" would strand the user with no way out. Typing
                 simply takes over from the mic. */}
             <textarea
@@ -149,7 +149,7 @@ export function VoiceCapture({ open, onClose }: { open: boolean; onClose: () => 
             {lowConfidence && !speech.listening && (
               <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-400">
                 <AlertTriangle size={12} />
-                Not sure it heard that correctly — worth a read before continuing.
+                Not sure it heard that correctly. Worth a read before continuing.
               </p>
             )}
           </div>
@@ -225,7 +225,7 @@ export function VoiceCapture({ open, onClose }: { open: boolean; onClose: () => 
               value={form.client_id}
               onChange={(e) => setForm((f) => ({ ...f, client_id: e.target.value }))}
             >
-              <option value="">— Unassigned —</option>
+              <option value="">Unassigned</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}

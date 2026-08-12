@@ -63,7 +63,7 @@ export default function Videos() {
           <p className="font-medium">No recordings yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-faint">
             Record a browser tab while you talk through a task. It stays private to you and is
-            deleted after 30 days — long enough to write the SOP, short enough not to become an
+            deleted after 30 days. Long enough to write the SOP, short enough not to become an
             archive of your screen.
           </p>
           <button className="btn-primary mt-4" onClick={() => setRecording(true)}>

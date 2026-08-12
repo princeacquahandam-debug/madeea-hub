@@ -17,8 +17,8 @@
  *
  * ── Why dates and not timestamps ──────────────────────────────────────────
  * Occurrences are DATES. A routine says "this is due on Monday", not "at
- * 09:00:00+08". That sidesteps the whole DST problem — there is no hour to
- * shift — and matches how the board works, where a task has a due date.
+ * 09:00:00+08". That sidesteps the whole DST problem. There is no hour to
+ * shift, and matches how the board works, where a task has a due date.
  */
 
 export type Freq = "DAILY" | "WEEKLY" | "MONTHLY";
@@ -54,7 +54,7 @@ export function parseRRule(rule: string): Recurrence | null {
   }
   const freq = bits.get("FREQ");
   if (freq !== "DAILY" && freq !== "WEEKLY" && freq !== "MONTHLY") return null;
-  // Anything we do not implement must fail loudly rather than be ignored —
+  // Anything we do not implement must fail loudly rather than be ignored,
   // silently dropping UNTIL would run a routine forever.
   for (const k of bits.keys()) {
     if (!["FREQ", "INTERVAL", "BYDAY", "BYMONTHDAY"].includes(k)) return null;
@@ -78,7 +78,7 @@ export function isoDate(d: Date): string {
  * The next `count` occurrences on or after `from`.
  *
  * Walks day by day. That is not clever, and for a horizon of a handful of
- * occurrences it does not need to be — a WEEKLY rule scans at most a few dozen
+ * occurrences it does not need to be, a WEEKLY rule scans at most a few dozen
  * days, and the alternative is date arithmetic with an off-by-one in every
  * branch. Capped so a rule that never matches cannot spin.
  */
@@ -127,7 +127,7 @@ function startOfWeek(d: Date): Date {
   return s;
 }
 
-/** "Every Monday and Wednesday" — the rule as a person would say it. */
+/** "Every Monday and Wednesday", the rule as a person would say it. */
 export function describe(rule: string): string {
   const r = parseRRule(rule);
   if (!r) return "Custom schedule";

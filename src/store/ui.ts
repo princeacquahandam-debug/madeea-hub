@@ -19,7 +19,7 @@ function initialAcademyPromo(): boolean {
   return window.localStorage.getItem(ACADEMY_PROMO_KEY) === "1";
 }
 
-// Shared UI state — the mobile sidebar drawer (so the guided tour can open it),
+// Shared UI state, the mobile sidebar drawer (so the guided tour can open it),
 // the desktop sidebar collapsed/expanded state, the Madeline rail open/closed
 // state, and whether the Academy promo has been dismissed (all persisted).
 interface UIState {
@@ -31,7 +31,7 @@ interface UIState {
   toggleMadeline: () => void;
   academyPromoDismissed: boolean;
   dismissAcademyPromo: () => void;
-  /** Restores the promo — wired to a "Show tips again" control in Settings. */
+  /** Restores the promo. Wired to a "Show tips again" control in Settings. */
   restoreAcademyPromo: () => void;
 }
 

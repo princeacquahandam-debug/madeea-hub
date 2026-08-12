@@ -6,11 +6,11 @@ import { useUI } from "@/store/ui";
 interface Step { selector?: string; title: string; body: string; needsNav?: boolean }
 
 const STEPS: Step[] = [
-  { title: "Welcome to MadeEA", body: "Your one-stop command center for executive-assistant work. Here's a 30-second tour — skip any time." },
+  { title: "Welcome to MadeEA", body: "Your one-stop command center for executive-assistant work. Here's a 30-second tour. Skip any time." },
   { selector: '[data-tour="nav"]', needsNav: true, title: "Operations", body: "Run your day from here: Dashboard, Tasks, Clients, SOPs, Communication and Automations." },
-  { selector: '[data-tour="ai-suite"]', needsNav: true, title: "AI Suite", body: "Communication Studio and Bookkeeping AI draft emails, reports and invoices — with guided inputs and PDF export." },
-  { selector: '[data-tour="command-center"]', title: "AI Command Center — ⌘K", body: "Press Ctrl/⌘-K (or click Ask AI) to run anything in plain language: create projects and tasks, draft emails, summarize documents, or search your whole workspace." },
-  { selector: '[data-tour="assistant"]', title: "AI Assistant", body: "Ask anything — it knows your tasks, clients and the team's SOPs." },
+  { selector: '[data-tour="ai-suite"]', needsNav: true, title: "AI Suite", body: "Communication Studio and Bookkeeping AI draft emails, reports and invoices, with guided inputs and PDF export." },
+  { selector: '[data-tour="command-center"]', title: "AI Command Center. ⌘K", body: "Press Ctrl/⌘-K (or click Ask AI) to run anything in plain language: create projects and tasks, draft emails, summarize documents, or search your whole workspace." },
+  { selector: '[data-tour="assistant"]', title: "AI Assistant", body: "Ask anything, it knows your tasks, clients and the team's SOPs." },
   { title: "You're all set", body: "Each page has a collapsible 'How this works' guide, and you can replay this tour any time from Settings." },
 ];
 
@@ -20,7 +20,7 @@ const BH = 210; // approx bubble height for placement
 const PAD = 14;
 
 // Find the first *visible* element matching a selector. On mobile there can be
-// two instances (hidden desktop sidebar + visible drawer) — we want the shown one.
+// two instances (hidden desktop sidebar + visible drawer). We want the shown one.
 function findVisible(selector?: string): HTMLElement | null {
   if (!selector) return null;
   const els = Array.from(document.querySelectorAll(selector)) as HTMLElement[];
@@ -74,7 +74,7 @@ export function GuidedTour() {
   const next = () => (step < STEPS.length - 1 ? setStep(step + 1) : finish());
   const back = () => setStep(Math.max(0, step - 1));
 
-  // Place the bubble on a side of the target that has room — never covering it.
+  // Place the bubble on a side of the target that has room. Never covering it.
   const bubble: React.CSSProperties = (() => {
     if (!rect) return { position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
     const vw = window.innerWidth, vh = window.innerHeight;

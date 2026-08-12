@@ -1,5 +1,5 @@
 /**
- * ConfirmDialog — the confirmation gate for high-risk / destructive actions
+ * ConfirmDialog, the confirmation gate for high-risk / destructive actions
  * (send, delete, archive…). Renders above the Command Center, traps Enter/Esc,
  * and autofocuses the confirm button for keyboard-only confirmation.
  */

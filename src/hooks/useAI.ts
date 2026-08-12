@@ -1,5 +1,5 @@
 /**
- * useAI — thin adapter over lib/ai.ts that gives the Command Center a stable
+ * useAI. Thin adapter over lib/ai.ts that gives the Command Center a stable
  * `{ generate, chat }` surface (matching ToolContext.ai). Keeping the model
  * calls behind this hook means tools never import the transport directly, so
  * the backend (Supabase edge fn today; a different provider tomorrow) can change

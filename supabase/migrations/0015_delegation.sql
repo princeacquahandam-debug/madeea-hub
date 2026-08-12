@@ -1,11 +1,11 @@
--- 0015_delegation.sql — task assignment across multiple EAs.
+-- 0015_delegation.sql. Task assignment across multiple EAs.
 --
 -- The user/team foundation already existed (profiles 0001, workspaces+memberships
 -- 0003, shared-workspace RLS 0012, invite-member function). What was missing is the
 -- one thing that makes delegation possible: a way to say who a task is FOR.
 --
 -- owner_id already tells us who CREATED a task. That is not the same person as the
--- one who has to do it — an admin creating work for an EA is the whole point — so
+-- one who has to do it (an admin creating work for an EA is the whole point) so
 -- assignee_id is a separate column rather than a reinterpretation of owner_id.
 -- Reassigning must not rewrite authorship.
 
@@ -42,7 +42,7 @@ begin
 end $$;
 
 -- Logged by a TRIGGER, not by the app. Any path that changes an assignee gets
--- recorded — the task modal, the board, a bulk update, or someone running SQL by
+-- recorded, the task modal, the board, a bulk update, or someone running SQL by
 -- hand. An audit trail the application can forget to write isn't an audit trail.
 create or replace function log_task_assignment() returns trigger
 language plpgsql security definer set search_path = public as $$
@@ -60,7 +60,7 @@ create trigger tasks_log_assignment
   for each row execute function log_task_assignment();
 
 -- ---------- clients: a named lead, without changing who can see what ----------
--- Informational only. RLS stays exactly as 0012 left it — the workspace is shared
+-- Informational only. RLS stays exactly as 0012 left it, the workspace is shared
 -- and every EA still sees every client. Restricting visibility would mean rewriting
 -- the policies on every table, which is a good way to lock a team out of its own
 -- data; a "lead EA" label gives accountability without that risk.

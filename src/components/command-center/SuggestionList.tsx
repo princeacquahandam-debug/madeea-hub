@@ -1,5 +1,5 @@
 /**
- * SuggestionList — renders a titled group of suggestion rows (used for both the
+ * SuggestionList. Renders a titled group of suggestion rows (used for both the
  * static "Suggested" actions and the personalized "Smart" suggestions).
  */
 import { OptionRow } from "./OptionRow";

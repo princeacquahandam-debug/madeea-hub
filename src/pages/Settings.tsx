@@ -41,10 +41,10 @@ export default function Settings() {
           <p className="field-label">Account</p>
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent/20 text-sm font-semibold text-accent-soft">
-              {user?.initials ?? "—"}
+              {user?.initials ?? "-"}
             </div>
             <div>
-              <p className="text-sm font-medium">{user?.name ?? "—"}</p>
+              <p className="text-sm font-medium">{user?.name ?? "-"}</p>
               <p className="text-xs text-faint">{user?.email ?? ""}</p>
             </div>
           </div>
@@ -66,12 +66,12 @@ export default function Settings() {
           <p className="field-label">Follow-up nudges</p>
           <p className="mb-4 text-sm text-muted">
             How long something can go quiet before it's flagged. A nudge surfaces once and then
-            stays out of your way — snoozing it buys another {fu.snoozeDays} days.
+            stays out of your way. Snoozing it buys another {fu.snoozeDays} days.
           </p>
 
           <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="field-label" htmlFor="fu-client">Client email — no reply for</label>
+                <label className="field-label" htmlFor="fu-client">Client email. No reply for</label>
                 <div className="flex items-center gap-2">
                   <input
                     id="fu-client"
@@ -85,7 +85,7 @@ export default function Settings() {
                 </div>
               </div>
               <div>
-                <label className="field-label" htmlFor="fu-internal">Other email — no reply for</label>
+                <label className="field-label" htmlFor="fu-internal">Other email. No reply for</label>
                 <div className="flex items-center gap-2">
                   <input
                     id="fu-internal"
@@ -99,7 +99,7 @@ export default function Settings() {
                 </div>
               </div>
               <div>
-                <label className="field-label" htmlFor="fu-task">Task — no update for</label>
+                <label className="field-label" htmlFor="fu-task">Task. No update for</label>
                 <div className="flex items-center gap-2">
                   <input
                     id="fu-task"
@@ -142,7 +142,7 @@ export default function Settings() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="field-label" htmlFor="sla-ok">On Track — reply within</label>
+              <label className="field-label" htmlFor="sla-ok">On Track. Reply within</label>
               <div className="flex items-center gap-2">
                 <input
                   id="sla-ok"
@@ -156,7 +156,7 @@ export default function Settings() {
               </div>
             </div>
             <div>
-              <label className="field-label" htmlFor="sla-risk">Breached — beyond</label>
+              <label className="field-label" htmlFor="sla-risk">Breached. Beyond</label>
               <div className="flex items-center gap-2">
                 <input
                   id="sla-risk"
@@ -187,7 +187,7 @@ export default function Settings() {
               Count working hours only
               <span className="block text-xs text-faint">
                 An email arriving Friday evening and answered Monday morning costs an hour, not a weekend.
-                With this on, the hours above are <span className="text-zinc-200">working</span> hours — so{" "}
+                With this on, the hours above are <span className="text-zinc-200">working</span> hours, so{" "}
                 {config.okHours}h is about{" "}
                 {(config.okHours / Math.max(1, config.endHour - config.startHour)).toFixed(1)} working days.
               </span>
@@ -238,7 +238,7 @@ export default function Settings() {
               </div>
               {config.endHour <= config.startHour && (
                 <p className="text-xs text-amber-400">
-                  The working day ends before it starts — falling back to calendar time until this is fixed.
+                  The working day ends before it starts. Falling back to calendar time until this is fixed.
                 </p>
               )}
             </div>
@@ -289,7 +289,7 @@ export default function Settings() {
 const MIN_LEN = 8;
 
 /**
- * Change your own password from inside the app — no reset email needed, which is
+ * Change your own password from inside the app. No reset email needed, which is
  * what lets a teammate who was set up with a temporary password pick their own.
  * The current password is required (verified in useAuth) so an unlocked screen
  * can't be used to take the account over.
@@ -336,7 +336,7 @@ function ChangePassword() {
 
       {demo ? (
         <p className="rounded-lg border border-border bg-surface-2 p-3 text-xs text-faint">
-          Not available in the demo — sign in with a real account to change your password.
+          Not available in the demo. Sign in with a real account to change your password.
         </p>
       ) : (
         <form className="max-w-sm space-y-3" onSubmit={submit}>

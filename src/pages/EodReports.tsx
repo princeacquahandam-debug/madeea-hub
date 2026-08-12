@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 
 const IMPORTED_COUNT = IMPORTED_EOD.length;
 
-// Self-serve walkthrough so the page explains itself — no live demo to the team.
+// Self-serve walkthrough so the page explains itself. No live demo to the team.
 const TOUR_KEY = "madeea-tour-eod";
 const TOUR_STEPS: TourStep[] = [
   {
@@ -36,12 +36,12 @@ const TOUR_STEPS: TourStep[] = [
   {
     selector: '[data-tour="eod-today"]',
     title: "Today's report, pre-filled",
-    body: "Completed tasks, blocked tasks, and what's still open are pulled straight from your Task Manager. Edit any line, then submit — that's your EOD.",
+    body: "Completed tasks, blocked tasks, and what's still open are pulled straight from your Task Manager. Edit any line, then submit, that's your EOD.",
   },
   {
     selector: '[data-tour="eod-notes"]',
     title: "Add what the board can't know",
-    body: "Meetings, calls, a subscription that's down — anything that isn't a task goes in Notes so your report is complete.",
+    body: "Meetings, calls, a subscription that's down. Anything that isn't a task goes in Notes so your report is complete.",
   },
   {
     selector: '[data-tour="eod-kpis"]',
@@ -83,7 +83,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
  * first render.
  */
 function fmtDate(iso: string | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const [, m, d] = iso.split("-");
   return `${MONTHS[Number(m) - 1]} ${Number(d)}`;
 }
@@ -125,7 +125,7 @@ export default function EodReports() {
   const [date, setDate] = useState<string>("all");
   const [blockersOnly, setBlockersOnly] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
-  // Tour no longer auto-opens on EOD — only via the "Replay" button below.
+  // Tour no longer auto-opens on EOD. Only via the "Replay" button below.
   const tour = usePageTour(TOUR_KEY, false);
 
   // ---- the report you're filing: drafted from the board, edited and submitted ----
@@ -134,7 +134,7 @@ export default function EodReports() {
 
   /**
    * Which day this report covers. Defaults to today, but is changeable so
-   * someone catching up can file for a day they missed — previously this was
+   * someone catching up can file for a day they missed. Previously this was
    * pinned to today and back-filling was impossible.
    */
   const [reportDate, setReportDate] = useState(today);
@@ -404,7 +404,7 @@ export default function EodReports() {
         })}
       </div>
 
-      {/* Why completion reads low — the single most misread number on this page. */}
+      {/* Why completion reads low, the single most misread number on this page. */}
       {activeDates.length > 0 && (
         <div className="card mt-5 border-accent/40 bg-accent/5 p-4">
           <p className="text-sm text-muted">
@@ -484,7 +484,7 @@ export default function EodReports() {
                     <td className="py-2.5 px-3 text-right tabular-nums">{s.plans}</td>
                     <td className="py-2.5 px-3 text-right tabular-nums">{s.subs ? (s.done / s.subs).toFixed(1) : "0"}</td>
                     <td className="py-2.5 pl-3 text-xs text-faint">
-                      {days.length ? `${fmtDate(days[0])} → ${fmtDate(days[days.length - 1])}` : "—"}
+                      {days.length ? `${fmtDate(days[0])} → ${fmtDate(days[days.length - 1])}` : "-"}
                     </td>
                   </tr>
                 );
@@ -723,7 +723,7 @@ export default function EodReports() {
 }
 
 /**
- * Today's report, drafted from the Kanban. Each line is editable and removable —
+ * Today's report, drafted from the Kanban. Each line is editable and removable,
  * the board gets you 90% there, you fix the rest and submit.
  */
 function TodayEod({
@@ -835,7 +835,7 @@ function TodayEod({
             </div>
             <p className="ml-auto max-w-xs text-[11px] text-faint">
               {existing
-                ? "You already filed this day — submitting again updates it."
+                ? "You already filed this day. Submitting again updates it."
                 : isToday
                   ? "Filing for today."
                   : "Catching up on a missed day. Future dates aren't allowed."}
@@ -1013,7 +1013,7 @@ function ReportCard({
   /**
    * The button is always shown; the database decides. RLS ("eod write") allows
    * your own reports, and any report if you're an admin. Hiding the control in
-   * the UI was never the protection — and when the role lookup lagged it hid
+   * the UI was never the protection, and when the role lookup lagged it hid
    * the button from someone who genuinely could delete.
    */
   async function doDelete() {
@@ -1043,7 +1043,7 @@ function ReportCard({
         {entry.blockers.length > 0 && <Badge tone="urgent">{entry.blockers.length} blocked</Badge>}
         {entry.plans.length > 0 && <Badge tone="reply">{entry.plans.length} planned</Badge>}
 
-        {/* Deleting is permanent, so it asks first. Always visible — hover-only
+        {/* Deleting is permanent, so it asks first. Always visible. Hover-only
             controls are undiscoverable and don't exist on touch at all. */}
         {confirm ? (
           <span className="flex items-center gap-1.5">

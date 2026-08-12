@@ -8,7 +8,7 @@ export function SlaBadge({ status }: { status: SlaStatus }) {
 
 /**
  * Falling response time is an improvement, so the arrow points down when things
- * are getting better — colour carries the meaning, not the direction.
+ * are getting better. Colour carries the meaning, not the direction.
  */
 export function TrendArrow({ trend, className = "" }: { trend: SlaTrend; className?: string }) {
   if (trend === "unknown") return null;

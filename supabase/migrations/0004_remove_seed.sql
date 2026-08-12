@@ -3,7 +3,7 @@
 -- existing demo records are cleared. Real data is created in-app or synced
 -- from integrations.
 
--- Signup no longer seeds — just create profile + workspace/membership.
+-- Signup no longer seeds. Just create profile + workspace/membership.
 create or replace function handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $newuser$
 declare wsid uuid; invited uuid;

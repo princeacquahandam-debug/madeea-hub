@@ -1,4 +1,4 @@
--- 0027_time_tracking.sql — Clock in / clock out, timesheets, attendance.
+-- 0027_time_tracking.sql. Clock in / clock out, timesheets, attendance.
 --
 -- Run once in the Supabase SQL editor, after 0026_task_notes_and_attachments.sql.
 --
@@ -17,7 +17,7 @@
 -- ── NOT built here, deliberately ──────────────────────────────────────────
 -- OQ-5 is open: does "capture the essence of TopTracker" include SCREENSHOTS
 -- and activity-level monitoring? That is a surveillance decision with real
--- privacy consequences for the EAs, and the audit says do not guess — it is
+-- privacy consequences for the EAs, and the audit says do not guess, it is
 -- Reichelle's and Prince's to make. So this schema records time, not behaviour.
 -- There is no screenshot column, no keystroke/activity score, and adding one
 -- later is a migration rather than a redesign.
@@ -65,7 +65,7 @@ create index if not exists time_entries_task_idx
 
 -- ── who sees what ─────────────────────────────────────────────────────────
 -- Your own hours are yours. Admins see everyone's, because that is the payroll
--- and invoicing view R-4.5.5 asks for — and unlike an inbox, hours worked for
+-- and invoicing view R-4.5.5 asks for, and unlike an inbox, hours worked for
 -- the agency are not private from the agency.
 --
 -- Note this is NOT the workspace-wide read that eod_reports uses. Compliance is
@@ -79,8 +79,8 @@ create policy "time write" on time_entries for all
   using (workspace_id = my_workspace() and owner_id = auth.uid())
   with check (workspace_id = my_workspace() and owner_id = auth.uid());
 
--- Admins may correct a timesheet — a missed clock-out is the single most common
--- support request any time tracker gets — but corrections are separate from
+-- Admins may correct a timesheet, a missed clock-out is the single most common
+-- support request any time tracker gets, but corrections are separate from
 -- writes so an EA can never edit someone else's hours.
 drop policy if exists "time admin correct" on time_entries;
 create policy "time admin correct" on time_entries for update

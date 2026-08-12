@@ -1,5 +1,5 @@
 // Demo-mode EOD submissions. Demo has no DB, so a submitted report lives in
-// localStorage and is layered over the imported July history on read — the same
+// localStorage and is layered over the imported July history on read, the same
 // trick demoTasks/demoAssignees use.
 import type { EodReport } from "@/types/db";
 
@@ -31,6 +31,6 @@ export function saveDemoEod(report: EodReport): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(all));
   } catch {
-    /* quota — demo only, safe to drop */
+    /* quota. Demo only, safe to drop */
   }
 }

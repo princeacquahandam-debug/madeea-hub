@@ -44,7 +44,7 @@ export async function generate(payload: GeneratePayload): Promise<string> {
     .map(([k, v]) => `• ${k}: ${v}`)
     .join("\n");
   return [
-    `[DEMO OUTPUT — ${payload.format}]`,
+    `[DEMO OUTPUT. ${payload.format}]`,
     "",
     "Connect Supabase + set OPENAI_API_KEY to generate real output.",
     "",
@@ -65,7 +65,7 @@ export interface MeetingBrief {
 
 /**
  * Turns an already-assembled PrepContext into a 2–3 sentence "what you need to
- * know walking in" brief. Same transport shape as `generate` — the browser hands
+ * know walking in" brief. Same transport shape as `generate`, the browser hands
  * the context to an Edge Function and never holds a model key.
  *
  * The `meeting-prep` function isn't deployed yet, so a failed invoke falls back to
@@ -82,7 +82,7 @@ export async function generateMeetingBrief(context: PrepContext): Promise<Meetin
       const summary = (data as { summary?: string }).summary?.trim();
       if (summary) return { summary, source: "claude" };
     } catch {
-      // Function not deployed (or transient failure) — fall through to the offline brief.
+      // Function not deployed (or transient failure). Fall through to the offline brief.
     }
   }
   await new Promise((r) => setTimeout(r, 400));
@@ -95,17 +95,17 @@ function offlineBrief(ctx: PrepContext): string {
 
   parts.push(
     client
-      ? `${ctx.meeting.title} with ${client.name} (${client.title}, ${client.company}) — an external meeting${client.tone ? `; they prefer a ${client.tone.toLowerCase()} tone` : ""}.`
-      : `${ctx.meeting.title} — an internal meeting with no matching client on file.`,
+      ? `${ctx.meeting.title} with ${client.name} (${client.title}, ${client.company}), an external meeting${client.tone ? `; they prefer a ${client.tone.toLowerCase()} tone` : ""}.`
+      : `${ctx.meeting.title}, an internal meeting with no matching client on file.`,
   );
 
   const last = recent[0];
-  if (last) parts.push(`Most recent contact: ${last.label.toLowerCase()} ${last.when} — ${last.detail}.`);
+  if (last) parts.push(`Most recent contact: ${last.label.toLowerCase()} ${last.when}. ${last.detail}.`);
 
   if (openItems.length) {
     const urgent = openItems.filter((t) => t.priority === "urgent" || t.priority === "high");
     parts.push(
-      `${openItems.length} open action item${openItems.length === 1 ? "" : "s"}${urgent.length ? `, ${urgent.length} of them high priority — lead with "${urgent[0].title}"` : ""}.`,
+      `${openItems.length} open action item${openItems.length === 1 ? "" : "s"}${urgent.length ? `, ${urgent.length} of them high priority. Lead with "${urgent[0].title}"` : ""}.`,
     );
   } else if (client) {
     parts.push("No open action items for this client.");
@@ -119,7 +119,7 @@ function offlineBrief(ctx: PrepContext): string {
 /**
  * Parse a spoken note into task fields. Sends the transcript (plus the client
  * roster, so the model can only pick a real name) to the `voice-parse` Edge
- * Function, then puts the answer through `validateParsed` — which re-derives any
+ * Function, then puts the answer through `validateParsed`, which re-derives any
  * relative date locally and drops anything it can't verify.
  *
  * If the function isn't deployed yet, this falls back to the deterministic local
@@ -143,7 +143,7 @@ export async function parseVoiceTask(
       const parsed = (data as { parsed?: RawParsed }).parsed;
       if (parsed) return validateParsed(parsed, transcript, clients);
     } catch {
-      // Not deployed, or a transient failure — the local parser is a fine floor.
+      // Not deployed, or a transient failure, the local parser is a fine floor.
     }
   }
   await new Promise((r) => setTimeout(r, 350));

@@ -1,9 +1,9 @@
--- 0022_email_organizer.sql — team-wide email organizer, driven by n8n.
+-- 0022_email_organizer.sql. Team-wide email organizer, driven by n8n.
 --
 -- What this enables: a scheduled n8n workflow walks EVERY member who has
 -- connected Google, pulls their new inbox mail into `messages`, and files each
 -- one under an existing `message_category` (urgent | reply | delegate | archive).
--- Nothing is written back to Gmail — the real inbox is untouched, so the
+-- Nothing is written back to Gmail, the real inbox is untouched, so the
 -- read-only OAuth scopes already in google-oauth-url stay sufficient.
 --
 -- Three things were missing for that:
@@ -26,7 +26,7 @@ alter table messages add column if not exists triaged_at timestamptz;
 
 -- Bulk-mail signal (List-Unsubscribe header, or a Gmail CATEGORY_PROMOTIONS /
 -- UPDATES / FORUMS label). Captured at fetch time and stored, because it comes
--- from Gmail rather than from the row — without persisting it, any message that
+-- from Gmail rather than from the row. Without persisting it, any message that
 -- gets retried on a later run would be judged without it.
 alter table messages add column if not exists is_bulk boolean not null default false;
 
@@ -84,7 +84,7 @@ create table if not exists gmail_sync_state (
 alter table gmail_sync_state enable row level security;
 
 -- Members can see the team's sync health (no tokens live here). Writes are
--- service-role only — there is deliberately no insert/update/delete policy, so
+-- service-role only. There is deliberately no insert/update/delete policy, so
 -- a member cannot rewind another member's cursor and force a re-pull.
 drop policy if exists "ws read sync state" on gmail_sync_state;
 create policy "ws read sync state" on gmail_sync_state for select
@@ -94,7 +94,7 @@ create policy "ws read sync state" on gmail_sync_state for select
 --
 -- Rules run before the AI step: they are free, instant, and predictable, and
 -- every message they catch is one the model never sees. `mailbox_owner_id` is
--- NOT authorship — it scopes a rule to one person's mailbox (null = whole team).
+-- NOT authorship, it scopes a rule to one person's mailbox (null = whole team).
 create table if not exists triage_rules (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references workspaces (id) on delete cascade default my_workspace(),

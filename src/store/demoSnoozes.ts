@@ -16,7 +16,7 @@ export const loadSnoozes = (): Snooze[] => {
 };
 
 export const saveSnooze = (item_type: Snooze["item_type"], item_id: string, snooze_until: string): void => {
-  // One live snooze per item — re-snoozing pushes the date out rather than stacking.
+  // One live snooze per item. Re-snoozing pushes the date out rather than stacking.
   const next = loadSnoozes().filter((s) => !(s.item_type === item_type && s.item_id === item_id));
   next.push({ id: `local-${Date.now()}`, item_type, item_id, snooze_until });
   localStorage.setItem(KEY, JSON.stringify(next));

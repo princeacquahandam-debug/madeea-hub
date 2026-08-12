@@ -54,7 +54,7 @@ Rules that matter more than completeness:
 - An action item is something a person committed to DO. A decision is a choice that
   was MADE. A commitment is a promise about future behaviour or delivery. If a line
   is genuinely two of these, put it in both.
-- "insights": durable knowledge worth keeping — how a client works, a constraint, a
+- "insights": durable knowledge worth keeping. How a client works, a constraint, a
   preference, a number. Not meeting chatter, not restated action items.
 - "timestamp": the transcript timestamp if one is present, else "".
 - summary: 2-4 sentences. What was this meeting actually about and what changed.
@@ -109,7 +109,7 @@ interface FathomMeeting {
 }
 
 async function fathomMeetings(since: string | null, limit: number): Promise<FathomMeeting[]> {
-  if (!FATHOM_API_KEY) throw new Error("FATHOM_API_KEY is not set — add it in Supabase secrets.");
+  if (!FATHOM_API_KEY) throw new Error("FATHOM_API_KEY is not set. Add it in Supabase secrets.");
   const qs = new URLSearchParams({ include_transcript: "true", include_summary: "true" });
   if (since) qs.set("created_after", since);
 
@@ -192,13 +192,13 @@ Deno.serve(async (req) => {
     // again. One press against an unconfigured function would silently burn a slice
     // of history that only a manual delete could recover.
     if (!OPENAI_API_KEY) {
-      return json({ error: "OPENAI_API_KEY is not set — add it in Supabase secrets and redeploy this function." }, 503);
+      return json({ error: "OPENAI_API_KEY is not set. Add it in Supabase secrets and redeploy this function." }, 503);
     }
 
     // Fails CLOSED like every other AI path in this project.
     const { data: allowed, error: rlErr } = await db.rpc("check_ai_rate_limit", { p_fn: "meeting-intelligence", p_max: 40 });
     if (rlErr) console.error("check_ai_rate_limit failed", rlErr.message);
-    if (allowed !== true) return json({ error: "Rate limit reached — please try again in a little while." }, 429);
+    if (allowed !== true) return json({ error: "Rate limit reached. Please try again in a little while." }, 429);
 
     // Bounded per invocation: an Edge Function has a wall clock, and a 79-meeting
     // backfill must not be one request that times out and loses everything. The
@@ -353,7 +353,7 @@ Deno.serve(async (req) => {
     return json({
       processed, skipped, tasksCreated, decisionsLogged, memoriesWritten, failures,
       cursor,
-      // The page uses this to decide whether to offer "keep going" — a 79-meeting
+      // The page uses this to decide whether to offer "keep going", a 79-meeting
       // backfill is many presses, and pretending otherwise would look stalled.
       more: meetings.length === limit,
     });

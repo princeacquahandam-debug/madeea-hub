@@ -3,7 +3,7 @@
  *
  * Same reason as demoTasks: in live mode every entry goes to the database and
  * this file is never touched. In demo the mutations would be no-ops, which
- * would leave a clock-in button that visibly does nothing — and the tracker is
+ * would leave a clock-in button that visibly does nothing, and the tracker is
  * the one feature whose whole point is that starting it is required.
  */
 import type { TimeEntry } from "@/types/db";

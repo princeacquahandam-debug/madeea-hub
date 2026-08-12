@@ -1,5 +1,5 @@
 /**
- * CommandHistory — recent, pinned, and most-used commands with a pin toggle.
+ * CommandHistory. Recent, pinned, and most-used commands with a pin toggle.
  * Rows re-run the stored prompt when activated.
  */
 import { Star } from "lucide-react";

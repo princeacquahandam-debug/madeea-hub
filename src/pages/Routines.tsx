@@ -12,8 +12,8 @@ import { cn } from "@/lib/utils";
  * §5.7, and Reichelle at 1:08:12: "update the attendance sheet daily" is a real
  * job nobody should have to remember to create each morning.
  *
- * The rule is built with controls rather than typed as an RRULE string — an EA
- * should not have to know RFC 5545 to say "every Monday" — but it is STORED as
+ * The rule is built with controls rather than typed as an RRULE string, an EA
+ * should not have to know RFC 5545 to say "every Monday", but it is STORED as
  * the standard string, so a proper library can take over later without touching
  * the data.
  */
@@ -53,7 +53,7 @@ export default function Routines() {
   useEffect(() => {
     if (active.length) materialize.mutate(active);
     // Deliberately only on the set of active routines changing, not on every
-    // render — this writes rows.
+    // render, this writes rows.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active.length]);
 
@@ -67,8 +67,8 @@ export default function Routines() {
   // recurrence rule is very easy to get subtly wrong.
   const preview = nextOccurrences(rule, new Date(), 5);
 
-  /* "FREQ=WEEKLY" with no BYDAY is legal RFC 5545 — it means weekly on the
-     start day — so the engine happily returns dates for it. But this form shows
+  /* "FREQ=WEEKLY" with no BYDAY is legal RFC 5545, it means weekly on the
+     start day, so the engine happily returns dates for it. But this form shows
      seven day buttons, and deselecting all of them reads as "no days", not as
      "silently use today's weekday". Treated as incomplete here so the UI means
      what it appears to mean. */
@@ -106,7 +106,7 @@ export default function Routines() {
           <Repeat size={24} className="mx-auto mb-3 text-faint" />
           <p className="font-medium">No routines yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-faint">
-            Anything you do on a rhythm — the Monday report, the daily attendance sheet,
+            Anything you do on a rhythm, the Monday report, the daily attendance sheet,
             month-end invoicing. Set it once and the task turns up by itself.
           </p>
         </div>
@@ -218,14 +218,14 @@ export default function Routines() {
             <div>
               <label className="field-label">Client</label>
               <select className="input" value={form.clientId} onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))}>
-                <option value="">— No client —</option>
+                <option value="">No client</option>
                 {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
               <label className="field-label">Assignee</label>
               <select className="input" value={form.assigneeId} onChange={(e) => setForm((f) => ({ ...f, assigneeId: e.target.value }))}>
-                <option value="">— Unassigned —</option>
+                <option value="">Unassigned</option>
                 {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name}{m.is_me ? " (you)" : ""}</option>)}
               </select>
             </div>
@@ -244,7 +244,7 @@ export default function Routines() {
           {/* §5.7 wants this before saving: a recurrence rule is easy to get
               subtly wrong, and five real dates make the mistake obvious. */}
           <div className="rounded-lg bg-surface-2 p-3">
-            <p className="eyebrow mb-1.5">{invalid ? "Not scheduled yet" : `${describe(rule)} — next five`}</p>
+            <p className="eyebrow mb-1.5">{invalid ? "Not scheduled yet" : `${describe(rule)}. Next five`}</p>
             {invalid ? (
               <p className="text-xs text-amber-300">
                 {noDaysPicked ? "Pick at least one day of the week." : "That combination never occurs."}

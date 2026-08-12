@@ -1,9 +1,9 @@
 /**
- * Email Helper — context assembly for a grounded reply.
+ * Email Helper. Context assembly for a grounded reply.
  *
  * The Communication Center already drafts replies, but it sends the model three
  * fields: sender, subject, body. That produces a competent generic email, which is
- * exactly the problem — it reads like it was written by someone who has never met
+ * exactly the problem, it reads like it was written by someone who has never met
  * the client.
  *
  * This file assembles what the app already knows and the draft was missing:
@@ -120,7 +120,7 @@ export function assembleEmailContext(
     null;
 
   // Prefer the real thread id. Falling back to "everything from this client" is
-  // deliberately second choice — it's a wider net and can pull in unrelated
+  // deliberately second choice, it's a wider net and can pull in unrelated
   // subjects, so it only runs when the sync didn't give us a thread.
   const sameThread = message.thread_id
     ? messages.filter((m) => m.thread_id === message.thread_id && m.id !== message.id)
@@ -189,7 +189,7 @@ export function assembleEmailContext(
  * Three bands rather than a boolean, because the right opening line differs: on
  * time needs no reference to timing at all, mildly late warrants a light
  * acknowledgement, and a breach needs a real apology up front. Getting this wrong
- * in either direction is conspicuous — apologising for a same-day reply looks
+ * in either direction is conspicuous. Apologising for a same-day reply looks
  * anxious; breezing past a four-day delay looks careless.
  */
 export function assessLateness(
@@ -211,20 +211,20 @@ export function assessLateness(
     return {
       waitingLabel: label,
       breached: true,
-      instruction: `This reply is ${label} late against the agreed response time. Open with a short, genuine apology for the delay — one sentence, no excuses, then get straight to the substance.`,
+      instruction: `This reply is ${label} late against the agreed response time. Open with a short, genuine apology for the delay. One sentence, no excuses, then get straight to the substance.`,
     };
   }
   if (hours > t.ok) {
     return {
       waitingLabel: label,
       breached: false,
-      instruction: `They have been waiting ${label}. Acknowledge the wait briefly and lightly ("sorry for the slow reply") — do not over-apologise.`,
+      instruction: `They have been waiting ${label}. Acknowledge the wait briefly and lightly ("sorry for the slow reply"). Do not over-apologise.`,
     };
   }
   return { waitingLabel: label, breached: false, instruction: null };
 }
 
-/** True when there's nothing beyond the message itself — no client, no history. */
+/** True when there's nothing beyond the message itself. No client, no history. */
 export function isThinEmailContext(ctx: EmailContext): boolean {
   return !ctx.client && !ctx.thread.length && !ctx.openItems.length;
 }
@@ -265,14 +265,14 @@ export function replyPromptInputs(ctx: EmailContext, opts: ReplyOptions): Record
     reply_to_body: ctx.message.body,
     received: ctx.message.when,
     client: ctx.client
-      ? `${ctx.client.name} — ${ctx.client.title}, ${ctx.client.company}`
-      : "(sender is not in the Client Vault — keep it professionally neutral)",
+      ? `${ctx.client.name}. ${ctx.client.title}, ${ctx.client.company}`
+      : "(sender is not in the Client Vault. Keep it professionally neutral)",
     tone: opts.toneOverride || ctx.client?.tone || "Professional",
     their_preferences: ctx.client?.preferences_notes || "(none recorded)",
     remembered_about_them: memoryPromptLines(ctx.memories),
     earlier_on_this_thread: thread,
     what_we_owe_them: open,
-    timing_instruction: ctx.lateness.instruction ?? "Replied within the agreed time — do not mention timing at all.",
+    timing_instruction: ctx.lateness.instruction ?? "Replied within the agreed time. Do not mention timing at all.",
     extra_points_from_the_ea: opts.points || "(none)",
   };
 }

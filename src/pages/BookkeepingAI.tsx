@@ -7,7 +7,7 @@ export default function BookkeepingAI() {
     <div>
       <PageHeader
         title="Bookkeeping AI"
-        subtitle="AI-powered financial documents — expense reports, invoices, budgets and financial briefs"
+        subtitle="AI-powered financial documents. Expense reports, invoices, budgets and financial briefs"
       />
       <GeneratorTool tool="bookkeeping" formats={BOOKKEEPING_TYPES} />
     </div>

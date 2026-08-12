@@ -34,13 +34,13 @@ const mapTask = (r: TaskRow): Task => ({
   updated_at: (r as { updated_at?: string | null }).updated_at ?? null,
   created_at: (r as { created_at?: string | null }).created_at ?? null,
   completed_at: (r as { completed_at?: string | null }).completed_at ?? null,
-  // Keep the FK, not just the joined name — the timeline needs to match on id.
+  // Keep the FK, not just the joined name, the timeline needs to match on id.
   client_id: r.client_id ?? null,
   assignee_id: (r as { assignee_id?: string | null }).assignee_id ?? null,
   /* blocked / blocker_note were being dropped here. The row carried them (the
      select is `*`) but this mapper never copied them across, so in LIVE mode
      every task arrived unblocked and the EOD draft's blockers section could
-     never populate — the one place the board is supposed to feed it. Demo mode
+     never populate, the one place the board is supposed to feed it. Demo mode
      hid it, because the seed objects are used as-is and skip this function. */
   blocked: (r as { blocked?: boolean }).blocked ?? false,
   blocker_note: (r as { blocker_note?: string | null }).blocker_note ?? null,
@@ -72,7 +72,7 @@ export function useTasks() {
       if (!supabase) {
         // Demo mode has no DB, so edits live in localStorage and are layered
         // over the seed tasks here: reassignments, and any other field change
-        // (status being the one that matters — that is the board).
+        // (status being the one that matters, that is the board).
         const overrides = loadAssignees();
         const patches = loadTaskPatches();
         return [...loadDemoTasks(), ...seed.TASKS].map((t) => {
@@ -99,7 +99,7 @@ export function useTasks() {
  * Reading the raw seed row is a trap that has bitten twice now. Every edit in
  * demo mode is stored as an override rather than written back into the seed
  * array, so `seed.TASKS.find(...)` returns the task as it shipped, not as it
- * is — which silently skipped the approval check on any task whose approval
+ * is, which silently skipped the approval check on any task whose approval
  * flag had been set through the UI.
  */
 function demoTask(id: string): Task | undefined {
@@ -113,7 +113,7 @@ export function useTaskMutations() {
   const qc = useQueryClient();
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["tasks"] });
-    // Any task write may have produced activity — a status move, a priority
+    // Any task write may have produced activity, a status move, a priority
     // change, a due date. Refreshing the feed here keeps it honest without each
     // mutation having to know which verbs it triggered.
     qc.invalidateQueries({ queryKey: ["task_activity"] });
@@ -158,7 +158,7 @@ export function useTaskMutations() {
           throw new Error("This task needs approval before it can be completed.");
         }
         // Live, DB triggers stamp completed_at (0014/0016) and write the move to
-        // task_activity (0029). Demo has no triggers, so mirror both here — the
+        // task_activity (0029). Demo has no triggers, so mirror both here, the
         // activity feed being empty in the one mode the team reviews in is how
         // the drag bug hid for a week.
         const before = current;
@@ -198,7 +198,7 @@ export function useTaskMutations() {
     onSettled: invalidate,
   });
 
-  // client_id was always a column on `tasks`, but nothing ever set it — so every
+  // client_id was always a column on `tasks`, but nothing ever set it, so every
   // task created in the app came out "Unassigned". Voice capture needs it, and so
   // does the manual form.
   type TaskInput = {
@@ -238,7 +238,7 @@ export function useTaskMutations() {
           recurrence: input.recurrence ?? "none",
           depends_on: input.depends_on ?? null,
           // Demo mode dropped these, so a task created here belonged to nobody
-          // and its blocker vanished — which left the EOD draft empty.
+          // and its blocker vanished, which left the EOD draft empty.
           client_id: input.client_id ?? null,
           assignee_id: input.assignee_id ?? null,
           blocked: input.blocked ?? false,
@@ -270,7 +270,7 @@ export function useTaskMutations() {
   const update = useMutation({
     mutationFn: async ({ id, ...fields }: Partial<TaskInput> & { id: string }) => {
       if (!supabase) {
-        /* Mirror what the 0029 trigger does, which fires on ANY update — not
+        /* Mirror what the 0029 trigger does, which fires on ANY update, not
            just the board's. Editing a task in the modal changes status through
            HERE, not through setStatus, so logging only there left the feed
            silent for exactly the edits people make most. */
@@ -406,7 +406,7 @@ export function useMeetings() {
 // ---------------- client docs ----------------
 // The Vault has no file store, so a client's "documents" are the AI Suite outputs
 // logged against them in ai_generations. Fetched lazily, per client, only when a
-// prep packet opens — there's no need to hold every generation in memory.
+// prep packet opens. There's no need to hold every generation in memory.
 export function useClientDocs(clientId: string | null | undefined) {
   return useQuery<ClientDoc[]>({
     queryKey: ["client-docs", clientId],
@@ -472,7 +472,7 @@ export function useMeetingNotes() {
         .from("meeting_notes")
         .select("id,fathom_recording_id,title,meeting_url,share_url,recorded_at,attendees,transcript_chars,summary,extracted,status,error,created_at")
         .order("recorded_at", { ascending: false, nullsFirst: false });
-      if (error) return [];   // not migrated yet — empty, never invented
+      if (error) return [];   // not migrated yet. Empty, never invented
       return (data as any[]).map((n) => ({
         ...n,
         attendees: Array.isArray(n.attendees) ? n.attendees : [],
@@ -752,7 +752,7 @@ export function useReminders() {
         .select("id,label,remind_at,dismissed,task_id")
         .eq("dismissed", false)
         .order("remind_at", { ascending: true });
-      if (error) return []; // table not migrated yet — degrade gracefully
+      if (error) return []; // table not migrated yet. Degrade gracefully
       return data as Reminder[];
     },
     retry: false,
@@ -798,7 +798,7 @@ export interface Member {
   is_me: boolean;
 }
 
-// open_tasks / clients used to be hardcoded numbers here — a workload view that
+// open_tasks / clients used to be hardcoded numbers here, a workload view that
 // looked real and wasn't. They're derived from the demo tasks/clients below, the
 // same way live mode derives them.
 const DEMO_MEMBER_BASE: Omit<Member, "open_tasks" | "clients">[] = [
@@ -819,10 +819,10 @@ function demoMembers(): Member[] {
   }));
 }
 
-/** The signed-in user in demo mode — there is no real auth, so assume the admin. */
+/** The signed-in user in demo mode. There is no real auth, so assume the admin. */
 export const DEMO_ME = "demo-1";
 
-// Current user's role. NOTE: this is for UI gating only — the real boundary is
+// Current user's role. NOTE: this is for UI gating only, the real boundary is
 // Postgres RLS (admins-only writes on memberships, workspace isolation).
 export function useMyRole() {
   return useQuery<MemberRole>({
@@ -886,7 +886,7 @@ export function useMemberMutations() {
       // returns no error when a policy filters the row out and 0 rows change).
       const { data, error } = await supabase.from("memberships").update({ role }).eq("user_id", user_id).select("user_id");
       if (error) throw error;
-      if (!data || data.length === 0) throw new Error("Change not saved — admin rights required, or the member is in another workspace.");
+      if (!data || data.length === 0) throw new Error("Change not saved. Admin rights required, or the member is in another workspace.");
     },
     onSuccess: invalidate,
   });
@@ -895,7 +895,7 @@ export function useMemberMutations() {
       if (!supabase) { demoDelete("members", user_id); return; }
       const { data, error } = await supabase.from("memberships").delete().eq("user_id", user_id).select("user_id");
       if (error) throw error;
-      if (!data || data.length === 0) throw new Error("Not removed — admin rights required, or the member is in another workspace.");
+      if (!data || data.length === 0) throw new Error("Not removed. Admin rights required, or the member is in another workspace.");
     },
     onSuccess: invalidate,
   });
@@ -903,7 +903,7 @@ export function useMemberMutations() {
 }
 
 // Invite a teammate. The edge function verifies the caller is an admin and uses
-// the service role server-side — if it isn't deployed yet, callers get a clear
+// the service role server-side. If it isn't deployed yet, callers get a clear
 // fallback message (the page still works for monitoring + role management).
 export function useInviteMember() {
   return useMutation({
@@ -949,11 +949,11 @@ export function useSnoozeMutations() {
       if (error) {
         // Same rule as memories/notes (see isMissingTable + commit "Stop the Memory
         // Helper hiding real save failures"): only a genuinely-missing table falls
-        // back to local storage. Every other failure — an RLS refusal, a network
-        // drop — is thrown and surfaced. A snooze kept only in this browser would
+        // back to local storage. Every other failure, an RLS refusal, a network
+        // drop. Is thrown and surfaced. A snooze kept only in this browser would
         // diverge from the shared workspace and quietly mislead: the nag looks
         // silenced for everyone when it isn't.
-        if (!isMissingTable(error)) throw new Error(error.message || "Couldn't snooze that — please try again.");
+        if (!isMissingTable(error)) throw new Error(error.message || "Couldn't snooze that. Please try again.");
         saveSnooze(item_type, item_id, until); // pre-migration fallback
       }
     },
@@ -964,7 +964,7 @@ export function useSnoozeMutations() {
 }
 
 // ---------------- memory (Memory Helper) ----------------
-// Table arrives with migration 0017. Until it's applied — and in demo mode — this
+// Table arrives with migration 0017. Until it's applied (and in demo mode) this
 // falls back to the local write overlay, the same way reminders and snoozes do, so
 // the page works rather than showing an error nobody can act on.
 export function useMemories() {
@@ -989,7 +989,7 @@ export function useMemories() {
  *
  * The local-storage fallback below exists for exactly one situation: migration 0017
  * hasn't been applied, so nothing typed should be lost. Once the table DOES exist,
- * falling back on any error is actively harmful — the read path returns database
+ * falling back on any error is actively harmful, the read path returns database
  * rows, so a locally-stashed entry is never displayed again. The user watches what
  * they typed disappear and is told nothing.
  *
@@ -1074,11 +1074,11 @@ export function useMemoryMutations() {
 // Table arrives with migration 0019. Same graceful pattern as memories: demo mode
 // and a not-yet-migrated live workspace both fall back to the local write overlay,
 // so nothing typed is lost and the page works rather than showing a dead error.
-// The demo seed only shows for demo mode (no creds) — a live workspace waiting on
+// The demo seed only shows for demo mode (no creds), a live workspace waiting on
 // the migration gets an empty pad, never invented notes.
 const DEMO_NOTES: Note[] = [
-  { id: "demo-note-1", client_id: null, title: "Office parking code", body: "Parking code for the Harrington office is 4471 — expires end of quarter.", pinned: true, created_at: "2026-07-18T09:00:00Z", updated_at: "2026-07-18T09:00:00Z" },
-  { id: "demo-note-2", client_id: null, title: "Handover watch", body: "Priya mentioned she's switching PAs in Q1 — keep handover notes tidy.", pinned: false, created_at: "2026-07-20T14:00:00Z", updated_at: "2026-07-20T14:00:00Z" },
+  { id: "demo-note-1", client_id: null, title: "Office parking code", body: "Parking code for the Harrington office is 4471. Expires end of quarter.", pinned: true, created_at: "2026-07-18T09:00:00Z", updated_at: "2026-07-18T09:00:00Z" },
+  { id: "demo-note-2", client_id: null, title: "Handover watch", body: "Priya mentioned she's switching PAs in Q1. Keep handover notes tidy.", pinned: false, created_at: "2026-07-20T14:00:00Z", updated_at: "2026-07-20T14:00:00Z" },
 ];
 
 export function useNotes() {
@@ -1091,7 +1091,7 @@ export function useNotes() {
         .select("id,client_id,title,body,pinned,created_at,updated_at")
         .order("pinned", { ascending: false })
         .order("updated_at", { ascending: false });
-      if (error) return applyDemo<Note>("notes", []); // not migrated yet — empty, never invented
+      if (error) return applyDemo<Note>("notes", []); // not migrated yet. Empty, never invented
       return data as Note[];
     },
     retry: false,
@@ -1372,8 +1372,8 @@ export function useRoutineMutations() {
   /**
    * Turn everything due into real tasks.
    *
-   * There is no job runner in this stack — the plan assumes Inngest and we do
-   * not have it — so this is called when the Routines page opens. That is
+   * There is no job runner in this stack, the plan assumes Inngest and we do
+   * not have it, so this is called when the Routines page opens. That is
    * enough here for one reason: attendance gating means an EA opens this app
    * every working morning, so "when someone opens it" and "daily" are the same
    * event in practice.
@@ -1550,7 +1550,7 @@ export function useSavedMutations() {
 // ---------------- SOP recordings (migration 0028) ----------------
 
 /**
- * Recordings, newest first. Yours only — the RLS policy says so and so does the
+ * Recordings, newest first. Yours only, the RLS policy says so and so does the
  * product decision behind it: a recording of an EA working shows their inbox
  * and other clients' names, and they will only record honestly if it is not
  * being watched. The SOP written from it is the shareable artifact.
@@ -1599,7 +1599,7 @@ export function useRecordingMutations() {
       const uid = auth.user?.id;
       if (!uid) throw new Error("Not signed in.");
       // Namespaced by user id because the storage policy checks the first path
-      // segment — see 0028.
+      // segment. See 0028.
       const path = `${uid}/${Date.now()}.webm`;
       const up = await supabase.storage.from("sop-recordings").upload(path, input.blob, {
         contentType: "video/webm",
@@ -1634,7 +1634,7 @@ export function useRecordingMutations() {
 
 /**
  * A time-limited URL for playback. The bucket is private, so there is no
- * permanent link to hand out — which is the point: a share is a decision with
+ * permanent link to hand out, which is the point: a share is a decision with
  * an expiry, not a URL that outlives the reason it was sent.
  */
 export async function recordingUrl(r: Recording): Promise<string | null> {
@@ -1647,7 +1647,7 @@ export async function recordingUrl(r: Recording): Promise<string | null> {
 // ---------------- time tracking (migration 0027) ----------------
 
 /** The EA's own local date as YYYY-MM-DD. Not toISOString(), which shifts the
- *  day for anyone west of UTC — and an EA in Manila finishing at 01:00 is still
+ *  day for anyone west of UTC, and an EA in Manila finishing at 01:00 is still
  *  working the previous day. */
 export function workDate(now: Date = new Date()): string {
   const p = (n: number) => String(n).padStart(2, "0");
@@ -1662,7 +1662,7 @@ export function entrySeconds(e: TimeEntry, now: number = Date.now()): number {
 }
 
 /**
- * Time entries. Yours, or everyone's for an admin — the RLS policy decides, so
+ * Time entries. Yours, or everyone's for an admin, the RLS policy decides, so
  * the same query serves the EA's timesheet and HR's payroll view without the
  * client choosing which rows it is allowed to ask for.
  */
@@ -1769,7 +1769,7 @@ export function useSubmitEod() {
 
 /**
  * Delete a report. RLS decides who may: you can remove your own, and an admin
- * can remove any — including the imported July rows, which have no owner.
+ * can remove any. Including the imported July rows, which have no owner.
  */
 export function useDeleteEod() {
   const qc = useQueryClient();

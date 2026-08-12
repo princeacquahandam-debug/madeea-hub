@@ -5,7 +5,7 @@
  * localStorage has roughly five, and writing one there would throw a quota
  * error that takes every other demo store down with it. The blob lives as an
  * object URL for the session so the flow can be exercised, and is gone on
- * reload — which is the honest behaviour for a store that has no backend.
+ * reload, which is the honest behaviour for a store that has no backend.
  */
 import type { Recording } from "@/types/db";
 

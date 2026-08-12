@@ -22,13 +22,13 @@ const TONE: FormField = {
 export const QUICK_ACTION_SCHEMAS: Record<string, QuickActionSchema> = {
   // ---- Drafting & Writing ----
   "Draft Email Response": {
-    howTo: "Paste the email you need to reply to and choose a tone — the AI writes a ready-to-send reply.",
+    howTo: "Paste the email you need to reply to and choose a tone, the AI writes a ready-to-send reply.",
     fields: [
       {
         name: "email",
         label: "Email to reply to",
         type: "textarea",
-        placeholder: "Paste the client's email — the latest message, or the whole thread if context matters.",
+        placeholder: "Paste the client's email, the latest message, or the whole thread if context matters.",
       },
       { name: "scope", label: "Reply scope", type: "select", options: ["Just the latest message", "The whole thread"] },
       TONE,
@@ -41,7 +41,7 @@ export const QUICK_ACTION_SCHEMAS: Record<string, QuickActionSchema> = {
     ],
   },
   "Draft Executive Email": {
-    howTo: "Tell the AI who it's for and the key points — it drafts a polished executive email.",
+    howTo: "Tell the AI who it's for and the key points, it drafts a polished executive email.",
     fields: [
       { name: "recipient", label: "Recipient", type: "text", placeholder: "e.g. James Harrington, CFO" },
       { name: "subject", label: "Subject / Purpose", type: "text", placeholder: "e.g. Follow up on board meeting agenda" },
@@ -55,7 +55,7 @@ export const QUICK_ACTION_SCHEMAS: Record<string, QuickActionSchema> = {
     ],
   },
   "Write Meeting Agenda": {
-    howTo: "Describe the meeting and topics — the AI returns a timed, structured agenda.",
+    howTo: "Describe the meeting and topics, the AI returns a timed, structured agenda.",
     fields: [
       { name: "meeting", label: "Meeting purpose", type: "text", placeholder: "e.g. Weekly leadership sync, Q3 board meeting" },
       { name: "attendees", label: "Attendees (optional)", type: "text", placeholder: "e.g. James Harrington, Priya Nair, David Osei" },
@@ -88,7 +88,7 @@ export const QUICK_ACTION_SCHEMAS: Record<string, QuickActionSchema> = {
     ],
   },
   "Summarize Document": {
-    howTo: "Paste any document or long text — the AI returns a concise summary with the key points.",
+    howTo: "Paste any document or long text, the AI returns a concise summary with the key points.",
     fields: [
       {
         name: "document",
@@ -126,7 +126,7 @@ export const QUICK_ACTION_SCHEMAS: Record<string, QuickActionSchema> = {
     ],
   },
   "Optimize Daily Schedule": {
-    howTo: "Paste today's tasks and meetings — the AI returns a focused, time-blocked plan.",
+    howTo: "Paste today's tasks and meetings, the AI returns a focused, time-blocked plan.",
     fields: [
       {
         name: "schedule",
@@ -178,14 +178,14 @@ export const QUICK_ACTION_SCHEMAS: Record<string, QuickActionSchema> = {
     ],
   },
   "Competitor Snapshot": {
-    howTo: "Give your company and rivals — the AI returns a side-by-side competitor snapshot.",
+    howTo: "Give your company and rivals, the AI returns a side-by-side competitor snapshot.",
     fields: [
-      { name: "company", label: "Your company / product", type: "text", placeholder: "e.g. MadeEA — premium EA services" },
+      { name: "company", label: "Your company / product", type: "text", placeholder: "e.g. MadeEA. Premium EA services" },
       {
         name: "competitors",
         label: "Competitors to compare",
         type: "textarea",
-        placeholder: "e.g. Athena, Time etc, Belay — compare on pricing, positioning, target client",
+        placeholder: "e.g. Athena, Time etc, Belay. Compare on pricing, positioning, target client",
       },
       { name: "focus", label: "Comparison focus (optional)", type: "text", placeholder: "e.g. pricing, features, positioning" },
     ],
@@ -253,7 +253,7 @@ export const QUICK_ACTION_SCHEMAS: Record<string, QuickActionSchema> = {
     ],
   },
   "Project Status Update": {
-    howTo: "Describe where the project stands — the AI writes a clear status update.",
+    howTo: "Describe where the project stands, the AI writes a clear status update.",
     fields: [
       { name: "project", label: "Project", type: "text", placeholder: "e.g. CRM migration, Website relaunch" },
       {
@@ -269,13 +269,13 @@ export const QUICK_ACTION_SCHEMAS: Record<string, QuickActionSchema> = {
 
   // ---- Basic Automations ----
   "Run Inbox Triage": {
-    howTo: "Paste your unread emails — the AI sorts them by priority with a suggested next action for each.",
+    howTo: "Paste your unread emails, the AI sorts them by priority with a suggested next action for each.",
     fields: [
       {
         name: "emails",
         label: "Emails to triage",
         type: "textarea",
-        placeholder: "Paste a list of emails (sender, subject, snippet) — one per line or pasted straight from your inbox.",
+        placeholder: "Paste a list of emails (sender, subject, snippet). One per line or pasted straight from your inbox.",
       },
       {
         name: "priorities",
@@ -325,7 +325,7 @@ export const QUICK_ACTION_SCHEMAS: Record<string, QuickActionSchema> = {
     ],
   },
   "Social Post Scheduler": {
-    howTo: "Give the theme and cadence — the AI drafts a scheduled set of social posts.",
+    howTo: "Give the theme and cadence, the AI drafts a scheduled set of social posts.",
     fields: [
       { name: "topic", label: "Topic / theme", type: "text", placeholder: "e.g. productivity tips for founders, MadeEA service launch" },
       { name: "platforms", label: "Platforms", type: "text", placeholder: "e.g. LinkedIn, X, Instagram" },
@@ -362,7 +362,7 @@ export const QUICK_ACTION_SCHEMAS: Record<string, QuickActionSchema> = {
 
   // ---- Quick rail extras (shared labels) ----
   "Generate Meeting Brief": {
-    howTo: "Paste the transcript or notes — the AI returns a structured brief with decisions and action items.",
+    howTo: "Paste the transcript or notes, the AI returns a structured brief with decisions and action items.",
     fields: [
       {
         name: "source",
@@ -409,7 +409,7 @@ export const QUICK_ACTION_SCHEMAS: Record<string, QuickActionSchema> = {
  * context field plus an optional tone selector keeps every action usable.
  */
 export const DEFAULT_QUICK_ACTION: { howTo: string; fields: FormField[] } = {
-  howTo: "Add the context and details for this action — the more you give the AI, the better the result.",
+  howTo: "Add the context and details for this action, the more you give the AI, the better the result.",
   fields: [
     {
       name: "context",

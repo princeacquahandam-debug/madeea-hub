@@ -1,4 +1,4 @@
-// Edge Function: slack-sync   (Verify JWT: OFF — auth enforced in code)
+// Edge Function: slack-sync   (Verify JWT: OFF. Auth enforced in code)
 // Pulls recent messages from channels the bot is in into the messages table.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 

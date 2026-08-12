@@ -3,8 +3,8 @@ import { useEffect, useLayoutEffect, useState } from "react";
 /**
  * A per-page guided tour, same look and feel as the app's first-login GuidedTour
  * but scoped to one screen. It auto-runs the first time someone opens the page
- * (tracked per storageKey), can be replayed, and — unlike the global tour, which
- * only spotlights always-visible chrome — it scrolls each target into view
+ * (tracked per storageKey), can be replayed, and. Unlike the global tour, which
+ * only spotlights always-visible chrome, it scrolls each target into view
  * first, so it works on a long page whose sections sit below the fold.
  */
 export interface TourStep {

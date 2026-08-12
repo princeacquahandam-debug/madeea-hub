@@ -56,7 +56,7 @@ export default function Homework() {
     try {
       const out = await generate({
         tool: "homework",
-        format: `Homework brief — next ${horizonDays} days`,
+        format: `Homework brief. Next ${horizonDays} days`,
         inputs: { outstanding: homeworkBriefInput(items), horizon: `${horizonDays} days` },
       });
       setBrief(out);
@@ -71,7 +71,7 @@ export default function Homework() {
     <div>
       <PageHeader
         title="Homework Helper"
-        subtitle="What you owe before the deadline arrives — built from your real meetings and tasks."
+        subtitle="What you owe before the deadline arrives. Built from your real meetings and tasks."
         action={
           <button className="btn-primary" onClick={writeBrief} disabled={busy || !items.length}>
             <Sparkles size={15} />

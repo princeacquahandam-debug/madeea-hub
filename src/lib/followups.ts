@@ -1,16 +1,16 @@
 /**
  * Follow-up nudges: things that were sent or started and then went quiet.
  *
- * Pure and network-free — computed on demand and memoised at the call site. At a
+ * Pure and network-free. Computed on demand and memoised at the call site. At a
  * few hundred rows this costs microseconds; the "run it nightly" instinct is about
  * server cost, and there is no server doing this work.
  *
  * Two kinds, and the distinction matters:
  *
- *   dead thread — WE emailed THEM and no reply came back. This is the blind spot:
+ *   dead thread. WE emailed THEM and no reply came back. This is the blind spot:
  *                 it never appears in an inbox, so it's the thing that actually
  *                 falls through the cracks.
- *   stale task  — a task nobody has touched (status unchanged) and isn't done.
+ *   stale task, a task nobody has touched (status unchanged) and isn't done.
  *
  * Deliberately NOT flagged here: inbound mail we haven't answered. That's already
  * surfaced as an SLA breach (lib/sla.ts). Flagging it again under a second name
@@ -29,7 +29,7 @@ export interface Flag {
   itemId: string;
   title: string;
   subtitle: string;
-  /** Human explanation of WHY this is flagged — shown verbatim in the UI. */
+  /** Human explanation of WHY this is flagged. Shown verbatim in the UI. */
   reason: string;
   days: number;
   path: string;
@@ -73,7 +73,7 @@ export function findFollowUps(
   // --- Dead threads: we wrote, nobody wrote back -----------------------------
   for (const m of messages) {
     if (m.direction !== "outbound") continue; // inbound is the SLA feature's job
-    if (m.reply_received_at) continue; // they answered — not dead
+    if (m.reply_received_at) continue; // they answered, not dead
     if (m.category === "archive") continue; // explicitly dealt with
 
     const days = daysSince(m.received_at, now);
@@ -102,7 +102,7 @@ export function findFollowUps(
     if (t.status === "done") continue;
 
     // updated_at is bumped by a DB trigger on any change. Before migration 0013 it
-    // won't exist, so fall back to the due date's absence of movement — but never
+    // won't exist, so fall back to the due date's absence of movement, but never
     // invent a timestamp: no signal means no flag.
     const touched = t.updated_at ?? null;
     const days = daysSince(touched, now);
@@ -124,7 +124,7 @@ export function findFollowUps(
     });
   }
 
-  // Oldest first — the thing rotting longest is the thing to deal with.
+  // Oldest first, the thing rotting longest is the thing to deal with.
   return flags.sort((a, b) => b.days - a.days);
 }
 

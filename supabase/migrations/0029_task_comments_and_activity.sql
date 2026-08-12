@@ -1,4 +1,4 @@
--- 0029_task_comments_and_activity.sql — Conversation on the work, and a log of it.
+-- 0029_task_comments_and_activity.sql. Conversation on the work, and a log of it.
 --
 -- Run once in the Supabase SQL editor, after 0028_sop_recordings.sql.
 --
@@ -7,7 +7,7 @@
 -- The insight worth keeping from that document: the conversation belongs ON the
 -- task, not in a separate messenger. A general chat loses to Slack, which the
 -- client already has open. A thread pinned to a specific piece of work does not,
--- because Slack cannot do it — and the 10 Aug audit says a feature only earns
+-- because Slack cannot do it, and the 10 Aug audit says a feature only earns
 -- its place if it beats the tool the client already pays for (§5.6).
 --
 -- It also answers the question left open in docs/PERMISSIONS.md: "Can a client
@@ -16,8 +16,8 @@
 --
 -- Activity is written by TRIGGERS, following the precedent 0015 set for
 -- reassignment: "an audit trail the application can forget to write isn't an
--- audit trail." Any path that moves a task — the board, the modal, a bulk
--- update, someone running SQL by hand — gets logged.
+-- audit trail." Any path that moves a task, the board, the modal, a bulk
+-- update, someone running SQL by hand. Gets logged.
 --
 -- task_events (0015) is left exactly as it is. It is the reassignment-specific
 -- log with its own trigger, and rewriting it into this table would mean
@@ -80,8 +80,8 @@ create index if not exists task_activity_task_idx on task_activity (workspace_id
 alter table task_activity enable row level security;
 
 -- Append-only, and enforced rather than documented: there is a read policy and
--- nothing else. With RLS on, absent means denied, so nobody — including an
--- admin, including the app — can quietly rewrite what happened.
+-- nothing else. With RLS on, absent means denied, so nobody. Including an
+-- admin, including the app. Can quietly rewrite what happened.
 drop policy if exists "task activity read" on task_activity;
 create policy "task activity read" on task_activity for select to authenticated
   using (workspace_id = my_workspace());
@@ -111,7 +111,7 @@ begin
     values (new.id, new.workspace_id, 'due', old.due_at::text, new.due_at::text);
   end if;
 
-  -- The blocker note is the interesting half, not the boolean — "why" is what
+  -- The blocker note is the interesting half, not the boolean: "why" is what
   -- someone reading this back next week actually needs.
   if new.blocked is distinct from old.blocked then
     insert into task_activity (task_id, workspace_id, verb, from_value, to_value)

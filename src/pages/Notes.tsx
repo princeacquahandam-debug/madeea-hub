@@ -26,10 +26,10 @@ export default function Notes() {
         body: draft.body.trim(),
         client_id: draft.client_id || null,
       });
-      // Keep the chosen client — most people add several notes about the same one.
+      // Keep the chosen client. Most people add several notes about the same one.
       setDraft({ title: "", body: "", client_id: draft.client_id });
     } catch (e) {
-      // The draft is NOT cleared on failure — retyping is worse than a full box.
+      // The draft is NOT cleared on failure. Retyping is worse than a full box.
       setSaveError(e instanceof Error ? e.message : "Could not save that note.");
     }
   }
@@ -49,7 +49,7 @@ export default function Notes() {
     <div>
       <PageHeader
         title="Notes"
-        subtitle="A shared scratchpad for the team — anything that doesn't belong on a task, a client, or in the calendar yet."
+        subtitle="A shared scratchpad for the team. Anything that doesn't belong on a task, a client, or in the calendar yet."
       />
 
       {/* Honest scope: this is deliberately NOT the Memory Helper. Say so, so the two
@@ -58,9 +58,9 @@ export default function Notes() {
         <div className="flex items-start gap-2">
           <Info size={15} className="mt-0.5 shrink-0 text-accent-soft" />
           <div className="text-xs leading-relaxed text-muted">
-            <p className="mb-1 font-medium text-zinc-200">Notes are just for people — nothing else reads them.</p>
+            <p className="mb-1 font-medium text-zinc-200">Notes are just for people. Nothing else reads them.</p>
             The whole team shares this pad. If you want something to shape the AI's email drafts and briefings,
-            record it in the <strong className="text-zinc-200">Memory Helper</strong> instead — that's the one the
+            record it in the <strong className="text-zinc-200">Memory Helper</strong> instead, that's the one the
             assistant reads. Notes stay a quiet place to park a thought.
           </div>
         </div>
@@ -94,7 +94,7 @@ export default function Notes() {
                 value={draft.client_id}
                 onChange={(e) => setDraft((d) => ({ ...d, client_id: e.target.value }))}
               >
-                <option value="">General — the whole desk</option>
+                <option value="">General, the whole desk</option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -240,8 +240,8 @@ export default function Notes() {
                 <p className="font-medium">{notes.length ? "Nothing matches that" : "No notes yet"}</p>
                 <p className="max-w-md text-sm text-faint">
                   {notes.length
-                    ? "Search matches words in the title and body — try a word that actually appears in a note."
-                    : "Jot down the first thing that doesn't have a home yet — a door code, a reminder to ask someone something."}
+                    ? "Search matches words in the title and body. Try a word that actually appears in a note."
+                    : "Jot down the first thing that doesn't have a home yet, a door code, a reminder to ask someone something."}
                 </p>
               </div>
             )}

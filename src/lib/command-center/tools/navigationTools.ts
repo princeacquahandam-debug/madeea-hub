@@ -1,5 +1,5 @@
 /**
- * Navigation tools — open pages / settings by natural-language target.
+ * Navigation tools. Open pages / settings by natural-language target.
  * Resolves against the app's NAV table plus a few aliases so "open my clients"
  * or "take me to email" land on the right route.
  */
@@ -30,7 +30,7 @@ const ALIASES: Record<string, string> = {
   /* studio / communication studio / bookkeeping / finance removed with their
      routes. An alias outliving its page sends the assistant somewhere the
      router bounces, so "take me to bookkeeping" would silently land on the
-     Dashboard — worse than answering that there is no such page. */
+     Dashboard. Worse than answering that there is no such page. */
   settings: "/settings",
   admin: "/admin",
   "admin panel": "/admin",

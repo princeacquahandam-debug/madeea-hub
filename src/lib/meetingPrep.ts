@@ -1,5 +1,5 @@
 /**
- * Meeting prep packets — context assembly.
+ * Meeting prep packets. Context assembly.
  *
  * `assemblePrepContext` is deliberately pure and synchronous: it takes data the
  * app has already fetched and reduces it to the *minimum* that's useful walking
@@ -7,12 +7,12 @@
  * the browser that isn't already on screen somewhere.
  *
  * Everything degrades: a meeting with no matching client still produces a valid
- * packet — the client-derived sections just come back empty, and the UI shows
+ * packet, the client-derived sections just come back empty, and the UI shows
  * what it has rather than erroring.
  */
 import type { Client, Meeting, Message, Task } from "@/types/db";
 
-/** A doc surfaced for a client — an AI Suite generation logged against them. */
+/** A doc surfaced for a client, an AI Suite generation logged against them. */
 export interface ClientDoc {
   id: string;
   tool: string;

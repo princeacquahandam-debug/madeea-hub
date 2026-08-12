@@ -1,4 +1,4 @@
-// Madeline's animated "orb" — a morphing gradient sphere wrapped in a cloud of
+// Madeline's animated "orb", a morphing gradient sphere wrapped in a cloud of
 // 60 orbiting particles (3D). The orbit geometry is authored for a 126px logical
 // sphere (see orb.css keyframes) and scaled to the requested display size.
 //
@@ -6,7 +6,7 @@
 // animation drives `transform`, which would otherwise clobber an inline scale
 // and render the orb at full 126px.
 const LOGICAL = 126;
-// Many more particles than orbit keyframes (60) — extras reuse orbits with
+// Many more particles than orbit keyframes (60). Extras reuse orbits with
 // distinct durations/delays so the cloud looks dense without new keyframes.
 const COUNT = 150;
 // Deterministic pseudo-random so each particle keeps a stable size/shade.

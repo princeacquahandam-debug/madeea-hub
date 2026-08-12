@@ -1,5 +1,5 @@
 /**
- * Thresholds for follow-up nudges, per category — a client who's gone quiet
+ * Thresholds for follow-up nudges, per category, a client who's gone quiet
  * warrants a faster poke than an internal thread or a back-burner task.
  *
  * localStorage for now (same idiom as the SLA settings). Belongs in a workspace

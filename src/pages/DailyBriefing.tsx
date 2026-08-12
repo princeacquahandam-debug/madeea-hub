@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { generate } from "@/lib/ai";
 import { briefingPromptInputs, buildBriefing, isQuietDay } from "@/lib/briefing";
 
-/** When the last briefing was opened — drives the "new since" section. */
+/** When the last briefing was opened. Drives the "new since" section. */
 const LAST_SEEN_KEY = "madeea-briefing-last-seen";
 
 export default function DailyBriefing() {
@@ -22,7 +22,7 @@ export default function DailyBriefing() {
   const { data: memories = [] } = useMemories();
   const cfg = useSlaSettings((s) => s.config);
 
-  // Read once on mount, then stamp — so the "new since" line refers to the
+  // Read once on mount, then stamp, so the "new since" line refers to the
   // PREVIOUS visit, not this one.
   const [lastSeen] = useState<string | null>(() => localStorage.getItem(LAST_SEEN_KEY));
   useEffect(() => {

@@ -49,7 +49,7 @@ export default function AutomationPage() {
 
   return (
     <div>
-      <PageHeader title="Automation Dashboard" subtitle="MadeEA's core automation suite — built for elite executive operations" />
+      <PageHeader title="Automation Dashboard" subtitle="MadeEA's core automation suite. Built for elite executive operations" />
 
       {note && <div className="mb-4 rounded-lg border border-border bg-surface-2 px-4 py-2 text-sm text-muted">{note}</div>}
 

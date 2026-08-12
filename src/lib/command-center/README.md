@@ -14,20 +14,20 @@ prompt ──▶ intentParser ──▶ commandRouter ──▶ tool.execute(Too
                                 (confirm gate)     (extensibility seam)
 ```
 
-- **`intentParser.ts`** — offline heuristic that classifies a prompt into an
+- **`intentParser.ts`**: offline heuristic that classifies a prompt into an
   `Intent` + `params`. Single place mapping language → intent; an AI classifier
   can replace the body behind `parseIntent()` unchanged.
-- **`toolRegistry.ts`** — `registerTool()` / `getTool()`. The router only knows
+- **`toolRegistry.ts`**: `registerTool()` / `getTool()`. The router only knows
   intents, so adding a capability never touches the router.
-- **`commandRouter.ts`** — resolves the tool, runs `validate`, decides
+- **`commandRouter.ts`**: resolves the tool, runs `validate`, decides
   ready / needs-confirm / invalid, then `runTool` (error-safe).
-- **`permissionManager.ts`** — high-risk gate. Confirms on a tool's static
+- **`permissionManager.ts`**: high-risk gate. Confirms on a tool's static
   `permissions: "confirm"` or a destructive verb (send/delete/archive…).
-- **`conversationMemory.ts`** — rolling window + last result, so "write an email
+- **`conversationMemory.ts`**: rolling window + last result, so "write an email
   about **that**" resolves across turns.
-- **`search.ts`** — tiny ranker over an in-memory index (react-query data + local
+- **`search.ts`**: tiny ranker over an in-memory index (react-query data + local
   stores) for instant search-as-you-type.
-- **`tools/`** — one Tool per capability (create / generate / search / navigate).
+- **`tools/`**: one Tool per capability (create / generate / search / navigate).
 
 ## Folder map (adapted to the app's conventions)
 
@@ -63,7 +63,7 @@ Then add a matcher for `create_invoice` in `intentParser.ts`. That's it.
 
 Writes go to local zustand stores (instant, works in the static demo) **and**
 through the live Supabase mutations when configured. AI runs through
-`lib/ai.ts` — real model in live mode, a labelled fallback in demo.
+`lib/ai.ts`: real model in live mode, a labelled fallback in demo.
 
 ## Future-ready
 

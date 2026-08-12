@@ -9,7 +9,7 @@
  *  - `validateParsed` is the gate every model response passes through.
  *
  * The model is good at reading intent out of rambling speech and writing a clean
- * title. It is NOT trusted for date arithmetic — LLMs routinely get "what date is
+ * title. It is NOT trusted for date arithmetic. LLMs routinely get "what date is
  * next Friday" wrong, and a task silently due on the wrong day is worse than one
  * with no date at all. So when the transcript contains a relative date expression,
  * the locally-computed date wins. The model's date is only used when local parsing
@@ -19,7 +19,7 @@ import type { Client, Priority } from "@/types/db";
 
 export interface ParsedTask {
   title: string;
-  /** "YYYY-MM-DD", or "" for no due date — same shape the Tasks form uses. */
+  /** "YYYY-MM-DD", or "" for no due date. Same shape the Tasks form uses. */
   due: string;
   client_id: string | null;
   priority: Priority;
@@ -130,7 +130,7 @@ const FILLERS = [
 ];
 
 /**
- * Phrases that carry the date/priority — already captured as structured fields, so
+ * Phrases that carry the date/priority. Already captured as structured fields, so
  * leaving them in the title just duplicates them ("Send the pack by friday, it's
  * urgent" when due=Friday and priority=urgent are right there in the form).
  */
@@ -155,10 +155,10 @@ export function cleanTitle(text: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/** Full deterministic parse — the fallback, and the source of truth for dates. */
+/** Full deterministic parse, the fallback, and the source of truth for dates. */
 export function localParse(transcript: string, clients: Client[], now = new Date()): ParseResult {
   const client = matchClient(transcript, clients);
-  // If the note was nothing but date/priority words, cleaning strips it to nothing —
+  // If the note was nothing but date/priority words, cleaning strips it to nothing,
   // keep the raw transcript rather than handing back an empty title.
   const title = cleanTitle(transcript) || transcript.trim();
   return {
@@ -171,7 +171,7 @@ export function localParse(transcript: string, clients: Client[], now = new Date
   };
 }
 
-/** Whatever shape the model returns — assume nothing. */
+/** Whatever shape the model returns. Assume nothing. */
 export interface RawParsed {
   title?: unknown;
   due_date?: unknown;
@@ -204,7 +204,7 @@ export function validateParsed(
   if (localDate) {
     due = localDate;
     if (typeof raw.due_date === "string" && raw.due_date.slice(0, 10) !== localDate) {
-      // Don't silently discard the disagreement — the user should know we overrode it.
+      // Don't silently discard the disagreement, the user should know we overrode it.
       notes.push(`Used ${localDate} from "${transcript.match(/\b(today|tomorrow|next week|next month|end of (the )?week|(next |this )?(mon|tues|wednes|thurs|fri|satur|sun)day)\b/i)?.[0] ?? "the date you said"}" rather than the model's ${String(raw.due_date).slice(0, 10)}.`);
     }
   } else if (typeof raw.due_date === "string" && raw.due_date.trim()) {
@@ -231,7 +231,7 @@ export function validateParsed(
   if (!client_id && typeof raw.client_tag === "string" && raw.client_tag.trim()) {
     const matched = matchClient(raw.client_tag, clients);
     if (matched) client_id = matched.id;
-    else notes.push(`No client named "${raw.client_tag}" in the Vault — left unassigned.`);
+    else notes.push(`No client named "${raw.client_tag}" in the Vault. Left unassigned.`);
   }
 
   const priority = PRIORITIES.includes(raw.priority as Priority)

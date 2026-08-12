@@ -1,5 +1,5 @@
 /**
- * OptionRow — the one selectable row primitive shared by suggestions, history,
+ * OptionRow, the one selectable row primitive shared by suggestions, history,
  * and search results, so keyboard highlight, hover, and layout stay identical
  * everywhere. Rows are `role="option"` for a proper ARIA listbox.
  */

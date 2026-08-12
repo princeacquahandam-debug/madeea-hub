@@ -7,7 +7,7 @@ import { marked } from "marked";
  * `marked` does NOT sanitize (the `sanitize` option was removed in v8), so raw
  * HTML in the source passes straight through. Markdown here is not all
  * first-party: it comes from automation output, AI replies, SOP bodies and
- * client/task fields, any of which another workspace member can author — and
+ * client/task fields, any of which another workspace member can author, and
  * under the shared-workspace model everyone reads everyone's rows. So treat all
  * of it as untrusted and purify before it reaches the DOM.
  *
@@ -21,7 +21,7 @@ export function renderMarkdown(markdown: string): string {
 /** Strip scripts, event handlers and javascript: URLs from an HTML string. */
 export function sanitizeHtml(html: string): string {
   // No ADD_ATTR. DOMPurify already allows `rel` by default and deliberately
-  // strips `target` — adding it back would re-permit attacker-authored
+  // strips `target`: adding it back would re-permit attacker-authored
   // <a target="_blank"> with no rel=noopener, which is the opposite of the goal.
   // marked never emits target, so nothing legitimate needs it.
   return DOMPurify.sanitize(html, {

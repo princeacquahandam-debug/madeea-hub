@@ -1,5 +1,5 @@
 /**
- * CommandCenter — the centered, glassmorphic modal. Owns keyboard navigation
+ * CommandCenter, the centered, glassmorphic modal. Owns keyboard navigation
  * (↑/↓ move, Enter activate/run, Tab completes a suggestion) over a single flat
  * option list derived from the current mode:
  *   - empty query, no history → Suggested + Smart + Recent/Pinned

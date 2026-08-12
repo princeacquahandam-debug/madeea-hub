@@ -1,11 +1,11 @@
 /**
- * Memory Helper — durable facts the desk shouldn't have to re-learn.
+ * Memory Helper. Durable facts the desk shouldn't have to re-learn.
  *
  * READ THIS BEFORE EXTENDING. The name oversells what this is, so the boundary is
  * stated here rather than left to be discovered:
  *
  *   This is a CURATED memory. A human wrote every entry, or confirmed it. Recall is
- *   keyword and client matching — plain token overlap, no embeddings, no semantics.
+ *   keyword and client matching. Plain token overlap, no embeddings, no semantics.
  *   "Doesn't like early calls" will NOT match a search for "scheduling".
  *
  * The UI says so too, in those words. An automatic memory that silently misses
@@ -14,7 +14,7 @@
  *
  * What makes this more than a notes page is the wiring: entries flow into the other
  * helpers' context (see lib/emailContext.ts), so a preference recorded once shapes
- * every draft afterwards. That's the whole point — capture in one place, surface
+ * every draft afterwards. That's the whole point. Capture in one place, surface
  * everywhere.
  *
  * Pure and network-free. The store lives in the DB (migration 0017); this file only
@@ -47,11 +47,11 @@ export const KIND_LABEL: Record<MemoryKind, string> = {
 };
 
 export const KIND_HELP: Record<MemoryKind, string> = {
-  preference: "How they like things done — surfaces in email drafts.",
+  preference: "How they like things done. Surfaces in email drafts.",
   fact: "Something true about them or their business.",
-  commitment: "Something we promised — surfaces in the daily briefing.",
+  commitment: "Something we promised. Surfaces in the daily briefing.",
   context: "Background worth knowing, not directly actionable.",
-  goal: "A stated priority — the Focus Helper checks the diary against these.",
+  goal: "A stated priority, the Focus Helper checks the diary against these.",
 };
 
 export const KIND_TONE: Record<MemoryKind, string> = {
@@ -62,7 +62,7 @@ export const KIND_TONE: Record<MemoryKind, string> = {
   goal: "urgent",
 };
 
-/** Words too common to carry meaning — matching on these makes everything relevant. */
+/** Words too common to carry meaning. Matching on these makes everything relevant. */
 const STOPWORDS = new Set([
   "the", "a", "an", "and", "or", "but", "if", "to", "of", "in", "on", "at", "for", "with",
   "is", "are", "was", "were", "be", "been", "it", "this", "that", "these", "those", "as",
@@ -85,7 +85,7 @@ export function tokenise(text: string): string[] {
 export interface RecallQuery {
   /** Restrict/boost to one client. */
   clientId?: string | null;
-  /** Free text to match against — an email body, a meeting title. */
+  /** Free text to match against, an email body, a meeting title. */
   text?: string;
   /** Kinds to consider. Defaults to all. */
   kinds?: MemoryKind[];
@@ -101,8 +101,8 @@ export interface Recalled extends MemoryEntry {
  * Deterministic recall.
  *
  * Ordering, highest first:
- *   1. pinned entries for this client   — always relevant, that's what pinning means
- *   2. keyword overlap with the text    — more shared words ranks higher
+ *   1. pinned entries for this client. Always relevant, that's what pinning means
+ *   2. keyword overlap with the text. More shared words ranks higher
  *   3. other entries for this client
  *
  * Entries about a DIFFERENT client are excluded entirely when a client is given.
@@ -168,7 +168,7 @@ export function searchMemories(memories: MemoryEntry[], query: string): MemoryEn
   });
 }
 
-/** Recalled entries as prompt lines. Kind is included — it changes how they're used. */
+/** Recalled entries as prompt lines. Kind is included, it changes how they're used. */
 export function memoryPromptLines(entries: Recalled[]): string {
   if (!entries.length) return "(nothing recorded)";
   return entries
@@ -183,7 +183,7 @@ export function clientName(clients: Client[], id: string | null): string {
 
 /** Seeds the "what should I record?" empty state with something concrete. */
 export const MEMORY_EXAMPLES = [
-  "Never schedule calls before 10am — school run.",
+  "Never schedule calls before 10am. School run.",
   "Prefers a one-line summary at the top of every document.",
   "Hates attachments; send links instead.",
   "We promised a quarterly review deck each January.",

@@ -1,5 +1,5 @@
 /**
- * Command history store — remembers recent commands, usage counts, and pinned
+ * Command history store. Remembers recent commands, usage counts, and pinned
  * favorites. Backs the "Recent Commands" and pinned rows in the Command Center.
  * Persisted to localStorage so history survives reloads (mirrors the favorites
  * store pattern used elsewhere in the app).

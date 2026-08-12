@@ -1,5 +1,5 @@
 /**
- * Tool registry — the extensibility seam.
+ * Tool registry, the extensibility seam.
  *
  * Tools register themselves here at import time. The router resolves an intent
  * to a tool purely through this map, so adding a capability is a one-liner

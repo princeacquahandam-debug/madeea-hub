@@ -1,4 +1,4 @@
-// Supabase Edge Function: voice-parse  (self-contained — paste as-is)
+// Supabase Edge Function: voice-parse  (self-contained. Paste as-is)
 // POST { transcript, clients: [{ id, name, company }], today } -> { parsed }
 //
 // Turns a spoken note into structured task fields with Claude. Deliberately does
@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
       "You convert an executive assistant's spoken note into a single structured task. " +
       "Extract ONLY what the speaker actually said. Never invent a due date, a client, or detail " +
       "that was not stated or clearly implied. If something wasn't mentioned, return null. " +
-      "Speech-to-text output is messy — ignore filler words and self-corrections, and write a clean " +
+      "Speech-to-text output is messy. Ignore filler words and self-corrections, and write a clean " +
       "imperative title. Priority is 'normal' unless urgency was expressed.";
 
     const user = [

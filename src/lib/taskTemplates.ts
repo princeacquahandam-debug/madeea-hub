@@ -1,6 +1,6 @@
 import type { Priority } from "@/types/db";
 
-// Common EA workflows — one-click starting points for a task + its checklist.
+// Common EA workflows. One-click starting points for a task + its checklist.
 export interface TaskTemplate {
   name: string;
   title: string;

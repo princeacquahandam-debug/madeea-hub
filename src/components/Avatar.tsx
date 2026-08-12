@@ -21,7 +21,7 @@ export function Avatar({ name, url, className }: { name: string; url?: string | 
   }
   return (
     <div className={cn("flex items-center justify-center rounded-full bg-accent/20 font-semibold text-accent-soft", className)}>
-      {initials(name) || "—"}
+      {initials(name) || "-"}
     </div>
   );
 }

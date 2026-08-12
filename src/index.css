@@ -109,7 +109,7 @@
 }
 
 /* ---------------------------------------------------------------- */
-/* Ambient animated background — fixed behind everything (z-0).      */
+/* Ambient animated background. Fixed behind everything (z-0).      */
 /* ---------------------------------------------------------------- */
 .ambient {
   position: fixed;
@@ -149,7 +149,7 @@
 }
 
 /* ---------------------------------------------------------------- */
-/* Skeleton loaders — soft placeholder blocks with a shining sweep   */
+/* Skeleton loaders. Soft placeholder blocks with a shining sweep   */
 /* that travels across while real content is still loading.          */
 /* ---------------------------------------------------------------- */
 .skeleton {
@@ -163,7 +163,7 @@
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  /* The shine — a bright band that sweeps left→right. White reads on both the
+  /* The shine, a bright band that sweeps left→right. White reads on both the
      light (cream) and dark (navy) skeleton bases. */
   background: linear-gradient(
     90deg,
@@ -193,19 +193,19 @@
 }
 
 /* ---------------------------------------------------------------- */
-/* Dashboard greeting — gradient display headline.                   */
+/* Dashboard greeting. Gradient display headline.                   */
 /* ---------------------------------------------------------------- */
 .greeting-title {
   display: inline-block;
   font-size: 40px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  /* Descenders (g, y) and the period were clipping — give the text-clip box a
+  /* Descenders (g, y) and the period were clipping. Give the text-clip box a
      bit of vertical breathing room. */
   line-height: 1.2;
   padding-bottom: 0.12em;
   width: fit-content;
-  /* Solid orange — no gradient. */
+  /* Solid orange. No gradient. */
   color: #fd5811;
 }
 [data-theme="light"] .greeting-title {
@@ -215,7 +215,7 @@
   .greeting-title { font-size: 30px; }
 }
 
-/* Page entrance — a pure OPACITY fade (no transform). A transform here would (a)
+/* Page entrance, a pure OPACITY fade (no transform). A transform here would (a)
    linger as the containing block for `position: fixed` modals (trapping their
    backdrop in the content area) and (b) promote the wrapper to a compositing
    layer that could drop its first child from paint. Opacity does neither. */
@@ -226,7 +226,7 @@
   100% { opacity: 1; transform: translateX(0); }
 }
 
-/* Sidebar link switching — active bar grows, item slides in, icon pops. */
+/* Sidebar link switching. Active bar grows, item slides in, icon pops. */
 @keyframes navItemIn {
   0% { transform: translateX(-5px); opacity: 0.45; }
   100% { transform: translateX(0); opacity: 1; }
@@ -255,7 +255,7 @@
 }
 
 /* ---------------------------------------------------------------- */
-/* Task Manager drag & drop — drop bounce, column pulse, lifted card. */
+/* Task Manager drag & drop. Drop bounce, column pulse, lifted card. */
 /* ---------------------------------------------------------------- */
 @keyframes cardDrop {
   0% { transform: scale(1.04); box-shadow: 0 18px 40px rgba(253, 88, 17, 0.3); }
@@ -281,7 +281,7 @@
   .card-drop, .col-drop-active { animation: none !important; }
 }
 
-/* Modals — solid (not glass) so they read cleanly over the dark scrim; white in
+/* Modals. Solid (not glass) so they read cleanly over the dark scrim; white in
    light mode. */
 .modal-panel {
   background: var(--modal-bg);
@@ -292,7 +292,7 @@
 }
 
 /* ---------------------------------------------------------------- */
-/* Madeline AI — orb + quick-actions marquee + status pulse.         */
+/* Madeline AI. Orb + quick-actions marquee + status pulse.         */
 /* ---------------------------------------------------------------- */
 @keyframes flagPulse { 0%, 100% { opacity: 0.9; } 50% { opacity: 0.35; } }
 @keyframes qaMarquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
@@ -354,7 +354,7 @@
   inset: 0;
   border-radius: 50%;
   overflow: hidden;
-  /* ~5% fill — a faint glass bubble so the orbiting particles read as the orb. */
+  /* ~5% fill, a faint glass bubble so the orbiting particles read as the orb. */
   background: radial-gradient(circle at 35% 30%, rgba(255, 200, 150, 0.06) 0%, rgba(255, 150, 70, 0.045) 46%, rgba(253, 88, 17, 0.03) 72%, rgba(253, 88, 17, 0.015) 100%);
   box-shadow:
     inset 0 0 0 1.5px rgba(255, 196, 150, 0.4),
@@ -412,7 +412,7 @@
 }
 
 @layer components {
-  /* Glass panels — translucent, blurred, sitting over the ambient layer. */
+  /* Glass panels. Translucent, blurred, sitting over the ambient layer. */
   .card {
     position: relative;
     /* Allow cards to shrink inside flex/grid tracks (prevents mobile overflow). */
@@ -421,7 +421,7 @@
        ambient background reads through. Uses the surface channel token, so it
        resolves per theme (white in light, deep navy in dark). Blur kept modest
        (8px) because backdrop-filter re-samples the animated background every
-       frame — a smaller radius keeps that cheap. */
+       frame, a smaller radius keeps that cheap. */
     background: rgb(var(--c-surface) / 0.5);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
@@ -430,7 +430,7 @@
     transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
     @apply rounded-2xl;
   }
-  /* madeea.ai-style container hover — a rotating orange gradient beam travels
+  /* madeea.ai-style container hover, a rotating orange gradient beam travels
      around the border (revealed on hover) plus a soft glow and gentle lift.
      `.no-hover` opts a card out. */
   .card:not(.no-hover)::before {
@@ -505,7 +505,7 @@
     @apply font-semibold;
     animation: navItemIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  /* Growing accent bar on the active link — slides in when selection changes. */
+  /* Growing accent bar on the active link. Slides in when selection changes. */
   .nav-item.active::before {
     content: "";
     position: absolute;
@@ -559,7 +559,7 @@
    * places and broke two things:
    *
    *   Touch. A tablet has no hover, so a delete or complete button was simply
-   *   invisible and unreachable — and the EAs review this on iPads.
+   *   invisible and unreachable, and the EAs review this on iPads.
    *
    *   Keyboard. An opacity-0 button is still focusable, so tabbing moved focus
    *   to something nobody could see. The focus ring was there; the control was
@@ -623,7 +623,7 @@
 
 /* Legibility: the app was authored dark-only with many hardcoded light
    text utilities. Under the light theme, remap the common body-text ones
-   to dark ink. (text-white is left alone — it sits on the accent button.) */
+   to dark ink. (text-white is left alone, it sits on the accent button.) */
 [data-theme="light"] .text-zinc-100,
 [data-theme="light"] .text-zinc-200,
 [data-theme="light"] .text-zinc-300,
@@ -645,7 +645,7 @@
   border: 1px solid var(--c-border);
 }
 /* Amber/yellow accents (SLA "at risk", high priority, needs-prep) are too pale
-   on a light background — darken to an amber that reads on white. */
+   on a light background. Darken to an amber that reads on white. */
 [data-theme="light"] .text-amber-200,
 [data-theme="light"] .text-amber-300,
 [data-theme="light"] .text-amber-400,
@@ -656,7 +656,7 @@
 [data-theme="light"] .text-yellow-400 {
   color: #a16207;
 }
-/* Urgency reds — make them prominent on the light cream theme (SLA breached,
+/* Urgency reds. Make them prominent on the light cream theme (SLA breached,
    at-risk, urgent priority, errors). */
 [data-theme="light"] .text-red-200,
 [data-theme="light"] .text-red-300,
@@ -687,7 +687,7 @@
 }
 
 /* ===================================================================== */
-/* AI Command Center — glassmorphism surface, animations, typing dots.    */
+/* AI Command Center. Glassmorphism surface, animations, typing dots.    */
 /* ===================================================================== */
 @layer components {
   .cc-glass {
@@ -709,7 +709,7 @@
   box-shadow: 0 24px 60px -12px rgba(21, 46, 71, 0.18);
 }
 
-/* Motion — entrance, success pop, and the typing indicator. */
+/* Motion. Entrance, success pop, and the typing indicator. */
 @keyframes cc-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cc-scale-in {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }

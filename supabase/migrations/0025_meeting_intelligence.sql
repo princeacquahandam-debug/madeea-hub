@@ -1,9 +1,9 @@
--- 0025_meeting_intelligence.sql — read Fathom transcripts, give back the tasks,
+-- 0025_meeting_intelligence.sql. Read Fathom transcripts, give back the tasks,
 -- decisions and memory hiding inside them.
 --
 -- The proposal's problem is that meetings evaporate: 79 transcripts captured, one
 -- action-items file untouched since March, nothing feeding the knowledge base.
--- The fix is not another place to read notes — it is routing each extraction into
+-- The fix is not another place to read notes, it is routing each extraction into
 -- the tables the team ALREADY works from:
 --
 --   action items  -> tasks      (owned, dated, on the board they already use)
@@ -13,7 +13,7 @@
 --   open questions-> stay on the note     (nowhere to route them, so they stay put)
 --
 -- A separate "meeting notes" silo would reproduce the exact failure the proposal
--- describes — a file nobody opens. Only decisions get a new table, because the
+-- describes, a file nobody opens. Only decisions get a new table, because the
 -- Hub genuinely has nowhere to put "we chose X, on this date, for this reason".
 
 -- ---------- one structured note per recording ----------

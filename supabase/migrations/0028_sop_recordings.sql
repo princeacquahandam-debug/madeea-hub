@@ -1,10 +1,10 @@
--- 0028_sop_recordings.sql — Screen recordings, and the SOPs they become.
+-- 0028_sop_recordings.sql. Screen recordings, and the SOPs they become.
 --
 -- Run once in the Supabase SQL editor, after 0027_time_tracking.sql.
 --
 -- §4.6. Prince called this "a serious feature" (29:00-30:57) after seeing Wing
 -- Assistant's recorder. The 09 Aug direction is sharper about why: Wing has a
--- recorder, nobody has the LOOP —
+-- recorder, nobody has the LOOP,
 --
 --   EA records how they do a task
 --     -> the recording becomes an SOP

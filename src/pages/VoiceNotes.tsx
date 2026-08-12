@@ -8,7 +8,7 @@ import { useClients, useMemoryMutations, useTaskMutations } from "@/data/hooks";
 import { KIND_LABEL, MEMORY_KINDS, type MemoryKind } from "@/lib/memory";
 import type { Priority } from "@/types/db";
 
-/** Below this the browser suspects it misheard — nudge the user to read it back. */
+/** Below this the browser suspects it misheard. Nudge the user to read it back. */
 const LOW_CONFIDENCE = 0.6;
 const HISTORY_KEY = "madeea-voice-history";
 const MAX_HISTORY = 12;
@@ -120,7 +120,7 @@ export default function VoiceNotes() {
     <div>
       <PageHeader
         title="Voice-Note Helper"
-        subtitle="Say it once. It becomes a task or something the desk remembers — after you've checked it."
+        subtitle="Say it once. It becomes a task or something the desk remembers. After you've checked it."
       />
 
       <div className="grid gap-5 lg:grid-cols-[1fr_20rem]">
@@ -157,7 +157,7 @@ export default function VoiceNotes() {
                   {speech.state === "unsupported" && (
                     <p className="mb-3 flex items-center justify-center gap-2 text-xs text-muted">
                       <Keyboard size={14} />
-                      This browser can't listen (Safari on iPhone, typically) — type it instead.
+                      This browser can't listen (Safari on iPhone, typically). Type it instead.
                     </p>
                   )}
                   {speech.state === "denied" && (
@@ -202,7 +202,7 @@ export default function VoiceNotes() {
                 {lowConfidence && !speech.listening && (
                   <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-400">
                     <AlertTriangle size={12} />
-                    Not sure it heard that correctly — worth a read before continuing.
+                    Not sure it heard that correctly. Worth a read before continuing.
                   </p>
                 )}
               </div>
@@ -322,7 +322,7 @@ export default function VoiceNotes() {
                     value={form.client_id}
                     onChange={(e) => setForm((f) => ({ ...f, client_id: e.target.value }))}
                   >
-                    <option value="">— {dest === "task" ? "Unassigned" : "General"} —</option>
+                    <option value="">{dest === "task" ? "Unassigned" : "General"}</option>
                     {clients.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
@@ -385,7 +385,7 @@ export default function VoiceNotes() {
             ))}
             {!history.length && (
               <p className="py-6 text-center text-xs text-faint">
-                Captures you save appear here — stored on this device only.
+                Captures you save appear here. Stored on this device only.
               </p>
             )}
           </div>

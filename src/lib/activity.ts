@@ -1,17 +1,17 @@
 /**
- * Per-client activity log — a read-only aggregation over data that already exists.
+ * Per-client activity log, a read-only aggregation over data that already exists.
  *
  * No new store, no new table: it queries tasks, messages and meetings, filters them
  * to one client, and merges them into a single descending timeline. Pure and
  * network-free.
  *
  * Five event kinds, because a "touchpoint" isn't one shape:
- *   task_created / task_completed — a task is two events, not one. When it was
+ *   task_created / task_completed, a task is two events, not one. When it was
  *       started and when it was delivered answer different questions, and "what did
  *       we do for this client last month" is mostly about the second.
- *   email_in / email_out — both directions, so the log shows the back-and-forth
+ *   email_in / email_out. Both directions, so the log shows the back-and-forth
  *       rather than a client emailing into a void.
- *   meeting — one event, at starts_at.
+ *   meeting. One event, at starts_at.
  */
 import type { Client, Meeting, Message, Task, TaskEvent } from "@/types/db";
 
@@ -33,12 +33,12 @@ export interface ActivityEntry {
   /** What happened, in plain words: "Task completed", "Email received". */
   action: string;
   at: string;
-  /** Status of the underlying item at this point — priority, category, etc. */
+  /** Status of the underlying item at this point. Priority, category, etc. */
   status: string | null;
   /** Where clicking goes. Deep links into the real item, never a copy of it. */
   href: string;
   /**
-   * True when the timestamp is inferred rather than recorded — completed tasks
+   * True when the timestamp is inferred rather than recorded. Completed tasks
    * that predate the completed_at column fall back to created_at. Better to admit
    * the estimate than to present a guess as a fact.
    */
@@ -100,7 +100,7 @@ export function buildActivity(
 
     if (t.status === "done") {
       // Tasks completed before migration 0014 have no completed_at; created_at is
-      // the only timestamp they carry, so it's the floor — flagged as approximate.
+      // the only timestamp they carry, so it's the floor. Flagged as approximate.
       const at = t.completed_at ?? t.created_at;
       if (at) {
         entries.push({
@@ -118,7 +118,7 @@ export function buildActivity(
     }
   }
 
-  // Reassignments — who moved this client's work onto whose plate, and when.
+  // Reassignments, who moved this client's work onto whose plate, and when.
   const clientTaskIds = new Map(
     sources.tasks.filter((t) => isFor(client, t.client_id, t.client_name)).map((t) => [t.id, t]),
   );
@@ -171,7 +171,7 @@ export function buildActivity(
       action: new Date(mt.starts_at) > now ? "Meeting scheduled" : "Meeting",
       at: mt.starts_at,
       status: mt.status,
-      // Meetings have no page of their own — the prep packet IS the detail view.
+      // Meetings have no page of their own, the prep packet IS the detail view.
       href: `/?meeting=${mt.id}`,
     });
   }

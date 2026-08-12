@@ -11,7 +11,7 @@ import type { SavedItem } from "@/types/db";
  * way back is remembering where it was.
  *
  * Every row is a POINTER, resolved live. A saved task shows its current title
- * and status, not the copy taken when it was saved — a stale bookmark is worse
+ * and status, not the copy taken when it was saved, a stale bookmark is worse
  * than none, because it is confidently wrong.
  */
 const KIND_META: Record<SavedItem["kind"], { icon: typeof CheckSquare; label: string; to: (id: string) => string }> = {

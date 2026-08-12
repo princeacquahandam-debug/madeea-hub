@@ -2,7 +2,7 @@
  * Task comments and activity while running WITHOUT Supabase (demo mode).
  *
  * Live, triggers write the activity. Demo has no database and therefore no
- * triggers, so the equivalent events are recorded here — otherwise the feed
+ * triggers, so the equivalent events are recorded here. Otherwise the feed
  * would sit empty in the one mode the team actually reviews the app in, and
  * "the activity log is the transparency product" would be a claim nobody can
  * see working.

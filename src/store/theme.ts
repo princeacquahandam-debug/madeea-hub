@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-// Command Center theme — dark (default) or light. Persisted to localStorage and
+// Command Center theme. Dark (default) or light. Persisted to localStorage and
 // reflected on <html data-theme> (which drives every CSS token in index.css).
 export type Theme = "dark" | "light";
 

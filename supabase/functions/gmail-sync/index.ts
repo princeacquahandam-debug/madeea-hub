@@ -25,7 +25,7 @@ async function accessToken(refresh: string): Promise<string> {
   // Log the provider's detail; don't return it to the browser.
   if (!r.ok) {
     console.error("google token refresh failed", r.status, JSON.stringify(t));
-    throw new Error("Google connection expired — please reconnect in Integrations.");
+    throw new Error("Google connection expired. Please reconnect in Integrations.");
   }
   return t.access_token;
 }
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     // Service role for this read only: 0016 revokes refresh_token from the
     // `authenticated` role so the browser can never read it, which also means
     // the caller's own token can't. owner_id is pinned to the JWT-verified user
-    // above, so this reads exactly one row — the caller's — and never anyone
+    // above, so this reads exactly one row (the caller's) and never anyone
     // else's. Everything below still runs through the caller's RLS-scoped client.
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: cred, error: credErr } = await admin

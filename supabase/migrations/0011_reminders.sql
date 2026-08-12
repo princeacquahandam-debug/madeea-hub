@@ -1,4 +1,4 @@
--- 0011_reminders.sql — user reminders / follow-ups (isolated table).
+-- 0011_reminders.sql. User reminders / follow-ups (isolated table).
 -- The frontend degrades gracefully if this isn't applied yet (reminders just
 -- don't show), so it can't break the rest of the app.
 create table reminders (

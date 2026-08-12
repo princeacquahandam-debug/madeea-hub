@@ -55,9 +55,9 @@ begin
     (uid, c_james, 'James Harrington', 'JH', 'Board Meeting Agenda Request', 'Could you please send over the agenda for Thursday''s board meeting by tomorrow morning?', 'Could you please send over the agenda for Thursday''s board meeting by tomorrow morning?', 'urgent'),
     (uid, c_priya, 'Priya Nair', 'PN', 'Postponing Thursday meeting', 'I need to reschedule our Thursday check-in. Can we move it to next Monday instead?', 'I need to reschedule our Thursday check-in. Can we move it to next Monday instead?', 'reply'),
     (uid, null, 'CFO Office', 'CO', 'Q3 Expense Report Due', 'Reminder: Q3 expense reports are due by end of month.', 'Reminder: Q3 expense reports are due by end of month. Please ensure all receipts are submitted.', 'delegate'),
-    (uid, c_david, 'Travel Agent', 'TA', 'SF Flight Options — David Osei', 'Here are three flight options for Mr. Osei''s San Francisco trip.', 'Here are three flight options for Mr. Osei''s San Francisco trip. Please confirm preference.', 'reply'),
-    (uid, null, 'Newsletter Service', 'NS', 'Weekly industry digest — Issue #142', 'This week in executive leadership: AI adoption trends, market analysis, and more.', 'This week in executive leadership: AI adoption trends, market analysis, and more.', 'archive'),
-    (uid, null, 'HR Team', 'HT', 'Team offsite planning — Q4', 'We''re planning the Q4 team offsite and need input on preferred dates and venues.', 'We''re planning the Q4 team offsite and need input on preferred dates and venues.', 'delegate');
+    (uid, c_david, 'Travel Agent', 'TA', 'SF Flight Options. David Osei', 'Here are three flight options for Mr. Osei''s San Francisco trip.', 'Here are three flight options for Mr. Osei''s San Francisco trip. Please confirm preference.', 'reply'),
+    (uid, null, 'Newsletter Service', 'NS', 'Weekly industry digest. Issue #142', 'This week in executive leadership: AI adoption trends, market analysis, and more.', 'This week in executive leadership: AI adoption trends, market analysis, and more.', 'archive'),
+    (uid, null, 'HR Team', 'HT', 'Team offsite planning. Q4', 'We''re planning the Q4 team offsite and need input on preferred dates and venues.', 'We''re planning the Q4 team offsite and need input on preferred dates and venues.', 'delegate');
 
   insert into meetings (owner_id, client_id, title, status) values
     (uid, c_james, 'Board Prep Call', 'prepared'),

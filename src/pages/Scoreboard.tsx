@@ -46,7 +46,7 @@ export default function Scoreboard() {
     try {
       const out = await generate({
         tool: "scoreboard",
-        format: `Performance narrative — last ${periodDays} days`,
+        format: `Performance narrative. Last ${periodDays} days`,
         inputs: { facts: scoreboardFacts(board) },
       });
       setNarrative(out);
@@ -61,7 +61,7 @@ export default function Scoreboard() {
     <div>
       <PageHeader
         title="Scoreboard Helper"
-        subtitle="How the desk actually performed — measured, not estimated."
+        subtitle="How the desk actually performed. Measured, not estimated."
         action={
           <button className="btn-primary" onClick={writeNarrative} disabled={busy}>
             <Sparkles size={15} />
@@ -115,7 +115,7 @@ export default function Scoreboard() {
               Dismiss
             </button>
           </div>
-          <OutputViewer output={narrative} title={`Scoreboard — last ${periodDays} days`} />
+          <OutputViewer output={narrative} title={`Scoreboard. Last ${periodDays} days`} />
         </section>
       )}
 

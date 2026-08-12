@@ -1,5 +1,5 @@
 /**
- * ToolExecution — the "loading experience". Instead of a spinner, shows an
+ * ToolExecution, the "loading experience". Instead of a spinner, shows an
  * animated typing indicator with a live progress verb (Creating…, Searching…,
  * Thinking…) while a tool runs, and a success/error flourish when it resolves.
  */

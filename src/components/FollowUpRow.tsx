@@ -9,7 +9,7 @@ const ICONS = { dead_thread: MailQuestion, stale_task: Clock3 } as const;
 
 /**
  * One flagged item: what it is, WHY it's flagged, and the two things you can do
- * about it. Snoozing is the "stop nagging me" escape hatch — without it, a nudge
+ * about it. Snoozing is the "stop nagging me" escape hatch. Without it, a nudge
  * you've consciously decided to ignore would just keep shouting.
  */
 export function FollowUpRow({ flag, onAction }: { flag: Flag; onAction?: () => void }) {
@@ -28,7 +28,7 @@ export function FollowUpRow({ flag, onAction }: { flag: Flag; onAction?: () => v
       await snooze.mutateAsync({ item_type: flag.itemType, item_id: flag.itemId, days: snoozeDays });
       onAction?.();
     } catch (e) {
-      setSnoozeError(e instanceof Error ? e.message : "Couldn't snooze that — please try again.");
+      setSnoozeError(e instanceof Error ? e.message : "Couldn't snooze that. Please try again.");
     }
   }
 

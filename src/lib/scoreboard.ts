@@ -1,5 +1,5 @@
 /**
- * Scoreboard Helper — how the desk actually performed over a period.
+ * Scoreboard Helper. How the desk actually performed over a period.
  *
  * Pure and network-free (see lib/sla.ts, lib/followups.ts for the same shape).
  *
@@ -7,9 +7,9 @@
  * flattering itself:
  *
  *  1. Missing data is `null`, never 0. A period with no measurable threads has no
- *     average response time — reporting "0h" would read as instant replies, which
+ *     average response time. Reporting "0h" would read as instant replies, which
  *     is the exact opposite of the truth. Every metric carries `value: number|null`
- *     and the UI renders "—" for null.
+ *     and the UI renders "-" for null.
  *
  *  2. Period metrics only compare like with like. A point-in-time number (how many
  *     items are open right now) has no honest previous-period counterpart, because
@@ -32,7 +32,7 @@ export interface Metric {
   /** Change vs the previous period, as a fraction. Null when either side is null. */
   deltaPct: number | null;
   direction: "up" | "down" | "flat" | "unknown";
-  /** Lets the UI colour a rise green or red — fewer breaches is better, not worse. */
+  /** Lets the UI colour a rise green or red. Fewer breaches is better, not worse. */
   higherIsBetter: boolean;
   unit: MetricUnit;
   /** True when there is no comparable previous value by definition. */
@@ -70,7 +70,7 @@ export interface Scoreboard {
   warnings: string[];
 }
 
-/** Minimal shape of a workspace member — kept local so this file stays data-layer free. */
+/** Minimal shape of a workspace member. Kept local so this file stays data-layer free. */
 export interface ScoreMember {
   user_id: string;
   name: string;
@@ -201,7 +201,7 @@ export function buildScoreboard(
     metric("completed", "Tasks completed", completedNow, completedPrev, { higherIsBetter: true }),
     metric("created", "Tasks created", createdNow, createdPrev, {
       higherIsBetter: true,
-      caveat: "Volume in, not performance — read it next to completions.",
+      caveat: "Volume in, not performance. Read it next to completions.",
     }),
     metric("open", "Open right now", openNow, null, { higherIsBetter: false, pointInTime: true }),
     metric("overdue", "Overdue right now", overdueNow, null, {
@@ -290,9 +290,9 @@ export function buildScoreboard(
   };
 }
 
-/** "12" / "3.4h" / "—" — one place, so every surface formats a metric the same way. */
+/** "12" / "3.4h" / "-". One place, so every surface formats a metric the same way. */
 export function formatMetric(m: Pick<Metric, "value" | "unit">): string {
-  if (m.value === null) return "—";
+  if (m.value === null) return "-";
   if (m.unit === "hours") return `${m.value < 10 ? m.value.toFixed(1) : Math.round(m.value)}h`;
   return String(m.value);
 }

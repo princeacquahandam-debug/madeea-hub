@@ -1,4 +1,4 @@
--- 0007_sops.sql — Working SOPs (Playbooks): executable checklists + success criteria.
+-- 0007_sops.sql. Working SOPs (Playbooks): executable checklists + success criteria.
 
 create table sops (
   id uuid primary key default gen_random_uuid(),

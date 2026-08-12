@@ -3,7 +3,7 @@
  *
  * In live mode every task goes to the database and this file is never touched.
  * In demo mode the mutations are no-ops, which would leave voice capture with a
- * Save button that visibly does nothing — so created tasks are kept in
+ * Save button that visibly does nothing, so created tasks are kept in
  * localStorage instead, purely so the flow can be exercised in the preview.
  */
 import type { Task } from "@/types/db";

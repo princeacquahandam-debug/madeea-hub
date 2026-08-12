@@ -124,7 +124,7 @@ export default function Communication() {
               {list.map((m) => {
                 const late = isBreaching(m, clientFor(m), cfg);
                 const waiting = waitingHours(m, cfg);
-                // Only an UNANSWERED breach is actionable — that's what gets the alarm
+                // Only an UNANSWERED breach is actionable, that's what gets the alarm
                 // styling. An answered-but-late thread is history: worth recording, but
                 // flagging it red implies work that no longer exists.
                 const breached = late && waiting !== null;
@@ -152,7 +152,7 @@ export default function Communication() {
                       )}
                       <Badge tone={m.category}>{categoryLabel[m.category]}</Badge>
                       {m.category_locked || m.triage_source === "manual" ? (
-                        <span className="pill bg-zinc-500/15 text-faint" title="You filed this by hand — the organiser won't touch it again">
+                        <span className="pill bg-zinc-500/15 text-faint" title="You filed this by hand, the organiser won't touch it again">
                           <Lock size={11} />
                           Your call
                         </span>

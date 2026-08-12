@@ -4,8 +4,8 @@
  *
  * Why local: in demo mode the seed data is empty and the Supabase mutations are
  * no-ops, so writes would vanish. Persisting here (localStorage) keeps the
- * Command Center genuinely functional — created items are immediately visible
- * and searchable — in both the hosted demo and a real deployment. When Supabase
+ * Command Center genuinely functional. Created items are immediately visible
+ * and searchable. In both the hosted demo and a real deployment. When Supabase
  * IS configured, useCommandCenter also writes tasks/reminders through the live
  * mutations; this store then acts as an instant optimistic echo.
  */

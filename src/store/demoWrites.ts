@@ -1,7 +1,7 @@
 /**
  * Demo-mode writes.
  *
- * Every mutation in hooks.ts was gated on `if (!supabase) return;` — correct for a
+ * Every mutation in hooks.ts was gated on `if (!supabase) return;`: correct for a
  * read-only fallback, but it meant that in the published preview a dozen buttons
  * (delete a client, toggle an automation, triage an email, change a role) silently
  * did nothing. A button that looks live and isn't is worse than no button.

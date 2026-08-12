@@ -144,7 +144,7 @@ export function ClientActivity({ client }: { client: Client }) {
                         <span className="block truncate text-xs text-faint">
                           {e.action} · {formatTime(e.at)}
                           {e.approximate && (
-                            <span title="Completed before the app recorded completion times — date approximate">
+                            <span title="Completed before the app recorded completion times. Date approximate">
                               {" "}· approx
                             </span>
                           )}

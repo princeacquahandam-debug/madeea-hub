@@ -1,5 +1,5 @@
 /**
- * Workspace search — a tiny, allocation-light ranker shared by the search tools
+ * Workspace search, a tiny, allocation-light ranker shared by the search tools
  * and the live search-as-you-type in the UI. Operates on an in-memory index
  * (built once per open from react-query data + local stores), so results return
  * in well under the 50ms local-data target with no network.

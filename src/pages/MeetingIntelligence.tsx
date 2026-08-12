@@ -28,7 +28,7 @@ export default function MeetingIntelligence() {
 
   useEffect(() => { intelStatus().then((s) => setConfigured(s.configured)).catch(() => {}); }, []);
 
-  // Either secret missing blocks a sync. Reported one at a time — both banners at
+  // Either secret missing blocks a sync. Reported one at a time. Both banners at
   // once reads as two problems when it is one unfinished setup, and Fathom comes
   // first because there is nothing to extract from until it answers.
   const missingKey: "FATHOM_API_KEY" | "OPENAI_API_KEY" | null =
@@ -95,8 +95,8 @@ export default function MeetingIntelligence() {
             Add <code className="text-zinc-200">{missingKey}</code> to your Supabase secrets and redeploy the
             <code className="mx-1 text-zinc-200">meeting-intelligence</code> function
             {missingKey === "FATHOM_API_KEY"
-              ? " — it's the source the sync reads from."
-              : " — it's the model that does the extracting."}
+              ? ", it's the source the sync reads from."
+              : ", it's the model that does the extracting."}
             {" "}Syncing is disabled until then, so no meeting gets marked unreadable over a missing key.
             Everything already extracted stays readable.
           </span>
@@ -105,7 +105,7 @@ export default function MeetingIntelligence() {
       {more && !busy && !error && (
         <div className="card mb-4 flex items-center gap-2 p-3 text-sm text-muted">
           <ArrowRight size={15} className="shrink-0 text-accent-soft" />
-          There&apos;s more history behind this batch — press <span className="text-zinc-200">Keep going</span> to work back through it.
+          There&apos;s more history behind this batch. Press <span className="text-zinc-200">Keep going</span> to work back through it.
         </div>
       )}
       {error && (
@@ -132,7 +132,7 @@ export default function MeetingIntelligence() {
           <p className="text-sm text-faint">Loading…</p>
         ) : notes.length === 0 ? (
           <div className="card p-10 text-center text-sm text-faint">
-            No meetings read yet. Press <span className="text-zinc-300">Sync from Fathom</span> — it works through your
+            No meetings read yet. Press <span className="text-zinc-300">Sync from Fathom</span>· it works through your
             history a few at a time, so you can start now and keep going.
           </div>
         ) : (
@@ -168,7 +168,7 @@ export default function MeetingIntelligence() {
       {tab === "decisions" && (
         <div className="card p-5">
           <p className="mb-4 text-xs text-faint">
-            Append-only. Every entry cites the line it came from, and nothing here can be edited or deleted — a
+            Append-only. Every entry cites the line it came from, and nothing here can be edited or deleted, a
             decision log you can quietly rewrite isn&apos;t one.
           </p>
           {decisions.length === 0 ? (
@@ -261,7 +261,7 @@ function NoteDetail({ note }: { note: MeetingNote }) {
         <Section
           icon={<CheckSquare size={14} className="text-emerald-400" />}
           title={`Action items (${items.length})`}
-          subtitle="Already on the task board — these aren't a second copy to work from."
+          subtitle="Already on the task board. These aren't a second copy to work from."
         >
           <ul className="space-y-2.5">
             {items.map((a, i) => (
@@ -299,7 +299,7 @@ function NoteDetail({ note }: { note: MeetingNote }) {
         <Section
           icon={<HelpCircle size={14} className="text-amber-400" />}
           title={`Open questions (${questions.length})`}
-          subtitle="Unresolved and unrouted — these stay here on purpose, because there's nowhere honest to file them."
+          subtitle="Unresolved and unrouted. These stay here on purpose, because there's nowhere honest to file them."
         >
           <ul className="space-y-2.5">
             {questions.map((q, i) => (

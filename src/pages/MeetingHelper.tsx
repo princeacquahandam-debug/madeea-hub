@@ -26,7 +26,7 @@ export default function MeetingHelper() {
   const [notesFor, setNotesFor] = useState<Meeting | null>(null);
   const [notes, setNotes] = useState("");
   // Extraction is deterministic, but the EA edits the result before anything is
-  // created — so the edited list is state, re-seeded whenever the notes change.
+  // created, so the edited list is state, re-seeded whenever the notes change.
   const [items, setItems] = useState<ActionItem[]>([]);
   const [recap, setRecap] = useState("");
   const [busy, setBusy] = useState(false);
@@ -85,7 +85,7 @@ export default function MeetingHelper() {
     try {
       const out = await generate({
         tool: "meeting_followup",
-        format: `Recap — ${notesFor.title}`,
+        format: `Recap. ${notesFor.title}`,
         inputs: recapPromptInputs(notesFor.title, notesFor.with, notes, items, clients),
       });
       setRecap(out);
@@ -100,7 +100,7 @@ export default function MeetingHelper() {
     <div>
       <PageHeader
         title="Meeting Helper"
-        subtitle="Prep before, and follow-through after — notes become real tasks, with dates read from your own wording."
+        subtitle="Prep before, and follow-through after. Notes become real tasks, with dates read from your own wording."
       />
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -143,7 +143,7 @@ export default function MeetingHelper() {
         <section className="card p-5">
           <div className="mb-3 flex items-center gap-2">
             <ListChecks size={16} className="text-accent-soft" />
-            <h2 className="font-semibold">Happened — capture the follow-through</h2>
+            <h2 className="font-semibold">Happened. Capture the follow-through</h2>
             <span className="ml-auto text-xs text-faint">{past.length}</span>
           </div>
           <div className="space-y-2">
@@ -190,7 +190,7 @@ export default function MeetingHelper() {
               />
               <p className="mt-2 text-xs text-faint">{extractionSummary(notes, items)}</p>
               <p className="mt-2 text-[11px] leading-snug text-faint">
-                Extraction is done in code, not by the AI — every item below comes from a line you
+                Extraction is done in code, not by the AI. Every item below comes from a line you
                 actually typed, and dates are read from your wording rather than guessed.
               </p>
             </div>
@@ -289,11 +289,11 @@ export default function MeetingHelper() {
             </div>
             {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
             {recap ? (
-              <OutputViewer output={recap} title={`Recap — ${notesFor.title}`} />
+              <OutputViewer output={recap} title={`Recap. ${notesFor.title}`} />
             ) : (
               <div className="flex flex-col items-center justify-center gap-2 py-6 text-center text-faint">
                 <FileText size={24} />
-                <p className="text-xs">The AI writes the recap prose — it doesn't decide what was agreed</p>
+                <p className="text-xs">The AI writes the recap prose, it doesn't decide what was agreed</p>
               </div>
             )}
           </div>

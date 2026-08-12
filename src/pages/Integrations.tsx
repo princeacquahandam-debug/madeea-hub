@@ -127,7 +127,7 @@ export default function Integrations() {
               <Mail size={20} className="text-accent-soft" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold">Google — Gmail & Calendar</h3>
+              <h3 className="font-semibold">Google. Gmail & Calendar</h3>
               {googleConnected ? (
                 <span className="pill bg-emerald-500/15 text-emerald-400">Connected</span>
               ) : (
@@ -175,7 +175,7 @@ export default function Integrations() {
         </div>
       </div>
 
-      {/* Team email organiser — read-only status. The n8n schedule drives it; there
+      {/* Team email organiser. Read-only status. The n8n schedule drives it; there
           is deliberately no "run now" button, because gmail_sync_state is
           service-role-write-only and one member must not be able to force a
           re-pull of someone else's mailbox. */}
@@ -234,7 +234,7 @@ export default function Integrations() {
         <div className="text-sm text-muted">
           <p className="font-medium text-zinc-200">How connections work</p>
           <p className="mt-1">
-            OAuth runs server-side via Supabase Edge Functions — tokens are stored encrypted and the
+            OAuth runs server-side via Supabase Edge Functions. Tokens are stored encrypted and the
             browser never sees a provider secret. Connecting Google redirects you to Google's consent
             screen, then back here to sync.
           </p>

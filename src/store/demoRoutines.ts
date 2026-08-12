@@ -4,7 +4,7 @@
  * Materialised occurrences are tracked here too, because the uniqueness that
  * stops duplicates is a database index in live mode and there is no database
  * here. Without it, opening the app twice on a Monday would create Monday's
- * task twice — which is precisely the failure the index exists to prevent.
+ * task twice, which is precisely the failure the index exists to prevent.
  */
 import type { Routine } from "@/types/db";
 
@@ -26,7 +26,7 @@ export const removeDemoRoutine = (id: string): void =>
 /** "<routineId>|<YYYY-MM-DD>" for every occurrence already turned into a task. */
 export const loadDemoRuns = (): string[] => read<string>(M_KEY);
 
-/** Returns false when this occurrence already exists — the index's job. */
+/** Returns false when this occurrence already exists, the index's job. */
 export const claimDemoRun = (routineId: string, occurrence: string): boolean => {
   const key = `${routineId}|${occurrence}`;
   const runs = loadDemoRuns();

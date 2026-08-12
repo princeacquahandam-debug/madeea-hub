@@ -1,12 +1,12 @@
 /**
- * AI Command Center — shared types.
+ * AI Command Center. Shared types.
  *
  * Architectural note: the Command Center is built around a *tool-calling* core.
  * A user's natural-language prompt is classified into an `Intent` + `params` by
  * the intent parser, the router looks up the matching `Tool` in the registry,
  * and the tool's `execute()` runs against a `ToolContext` (data, mutations,
  * navigation, AI, stores) assembled by the React layer. New capabilities are
- * added by registering a new Tool — no core code changes. See ./toolRegistry.
+ * added by registering a new Tool. No core code changes. See ./toolRegistry.
  */
 import type { LucideIcon } from "lucide-react";
 

@@ -1,10 +1,10 @@
 /**
- * AI generation tools — everything that produces text via the server-side model
+ * AI generation tools. Everything that produces text via the server-side model
  * (lib/ai.ts, real in live mode, labelled fallback in demo).
  *
  * A `genTool` factory builds each one so they stay DRY, yet every capability is
  * still a *distinct* registered Tool with its own intent, icon, validation, and
- * input mapping — new generative tools are one object literal away.
+ * input mapping. New generative tools are one object literal away.
  *
  * Conversation context: each tool folds the last assistant result into its
  * inputs (`_context`) so follow-ups like "now write an email about that" carry
@@ -14,7 +14,7 @@ import { Mail, FileText, ScanText, WandSparkles, Languages, GraduationCap, Code2
 import type { LucideIcon } from "lucide-react";
 import type { Intent, Tool, ToolContext, ToolResult, PermissionLevel } from "../types";
 
-/** Most recent assistant answer — the referent for "that"/"it" follow-ups. */
+/** Most recent assistant answer, the referent for "that"/"it" follow-ups. */
 function priorContext(ctx: ToolContext): string {
   for (let i = ctx.conversation.length - 1; i >= 0; i--) {
     if (ctx.conversation[i].role === "assistant") return ctx.conversation[i].content;

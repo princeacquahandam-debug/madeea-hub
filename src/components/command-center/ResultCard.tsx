@@ -1,5 +1,5 @@
 /**
- * ResultCard — renders a resolved ToolResult by kind (text, created, navigate,
+ * ResultCard. Renders a resolved ToolResult by kind (text, created, navigate,
  * search, entity, error). Text output reuses the app's markdown pipeline
  * (renderMarkdown + .md-body) so AI answers match the Communication Studio styling.
  */

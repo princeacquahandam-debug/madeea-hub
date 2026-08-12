@@ -69,7 +69,7 @@ export default function Travel() {
     try {
       const out = await generate({
         tool: "travel",
-        format: `Travel itinerary — ${legs[0]?.from || "?"} to ${legs[legs.length - 1]?.to || "?"}`,
+        format: `Travel itinerary. ${legs[0]?.from || "?"} to ${legs[legs.length - 1]?.to || "?"}`,
         inputs: { itinerary: tripFacts(trip, opts) },
       });
       setOutput(out);
@@ -86,7 +86,7 @@ export default function Travel() {
     <div>
       <PageHeader
         title="Travel Helper"
-        subtitle="Every duration, layover and timezone shift is calculated here — the writer only puts words around them."
+        subtitle="Every duration, layover and timezone shift is calculated here, the writer only puts words around them."
       />
 
       <datalist id="tz-list">
@@ -218,14 +218,14 @@ export default function Travel() {
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <Stat
                 label="Leave home by"
-                value={trip.leaveHomeBy ? formatInZone(trip.leaveHomeBy, opts.homeZone) : "—"}
+                value={trip.leaveHomeBy ? formatInZone(trip.leaveHomeBy, opts.homeZone) : "-"}
                 small
               />
-              <Stat label="Door to door" value={trip.totalElapsedMinutes === null ? "—" : formatMinutes(trip.totalElapsedMinutes)} />
-              <Stat label="In the air" value={trip.totalTravelMinutes === null ? "—" : formatMinutes(trip.totalTravelMinutes)} />
+              <Stat label="Door to door" value={trip.totalElapsedMinutes === null ? "-" : formatMinutes(trip.totalElapsedMinutes)} />
+              <Stat label="In the air" value={trip.totalTravelMinutes === null ? "-" : formatMinutes(trip.totalTravelMinutes)} />
               <Stat
                 label="Clock change"
-                value={trip.jetLagHours === null ? "—" : `${trip.jetLagHours > 0 ? "+" : ""}${trip.jetLagHours}h`}
+                value={trip.jetLagHours === null ? "-" : `${trip.jetLagHours > 0 ? "+" : ""}${trip.jetLagHours}h`}
               />
             </div>
 
@@ -286,7 +286,7 @@ export default function Travel() {
             </div>
             {blocking && !output && (
               <p className="mb-3 text-xs text-red-300">
-                There are critical problems above. Fix them first — the document will faithfully repeat them.
+                There are critical problems above. Fix them first, the document will faithfully repeat them.
               </p>
             )}
             {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
@@ -354,7 +354,7 @@ function NumField({ label, value, onChange }: { label: string; value: number; on
   );
 }
 
-/** Free text with suggestions — any IANA zone works, not just the common ones. */
+/** Free text with suggestions. Any IANA zone works, not just the common ones. */
 function ZoneField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   const id = useId();
   const errId = `${id}-err`;

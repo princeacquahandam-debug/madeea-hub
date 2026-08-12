@@ -1,4 +1,4 @@
--- 0021_eod_reports.sql — End-of-day reports + task blockers.
+-- 0021_eod_reports.sql. End-of-day reports + task blockers.
 --
 -- Consolidated from a feature branch that was cut against an OLDER checkout. That
 -- branch shipped three migrations (0013_task_history_and_snoozes, 0016_eod,
@@ -9,9 +9,9 @@
 --     assignee_id), task_events, snoozes, and their triggers already exist here
 --     via 0013_followups / 0014_activity_log / 0015_delegation. Re-applying it
 --     would have added a SECOND reassignment trigger (duplicate task_events rows)
---     and, worse, re-created a `for all` write policy on task_events — undoing the
+--     and, worse, re-created a `for all` write policy on task_events. Undoing the
 --     audit-trail lockdown 0020 just applied.
---   * DROPPED: the branch 0016's re-declare of the completed_at stamping trigger —
+--   * DROPPED: the branch 0016's re-declare of the completed_at stamping trigger,
 --     0014 already stamps completed_at (tasks_touch_completed_at).
 --   * KEPT (below): task blocker columns, the eod_reports table + RLS, and the
 --     one-identity canonical-name trigger.
@@ -28,7 +28,7 @@ alter table tasks add column if not exists blocker_note text;
 
 -- ---------- eod_reports ----------
 -- One submitted report per person per day. This is what makes "did Bryan report
--- yesterday?" answerable — compliance % and the coverage heatmap only mean
+-- yesterday?" answerable. Compliance % and the coverage heatmap only mean
 -- something because submitting is a deliberate act, not a computed view.
 create table if not exists eod_reports (
   id uuid primary key default gen_random_uuid(),

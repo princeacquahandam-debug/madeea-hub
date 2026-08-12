@@ -1,4 +1,4 @@
-/* MadeEA — Madeline orb particle orbits (ported verbatim from the design mockup). */
+/* MadeEA. Madeline orb particle orbits (ported verbatim from the design mockup). */
 @keyframes orbSpin{100%{transform:rotateY(360deg) rotateX(360deg);}}
 @keyframes orbit1{0%,100%{transform:rotateZ(-316deg) rotateY(316deg) translateX(24px) rotateZ(316deg);opacity:0.85;}50%{transform:rotateZ(-316deg) rotateY(316deg) translateX(28px) rotateZ(316deg);opacity:1;}}
 @keyframes orbit2{0%,100%{transform:rotateZ(-219deg) rotateY(218deg) translateX(17px) rotateZ(219deg);opacity:0.85;}50%{transform:rotateZ(-219deg) rotateY(218deg) translateX(19px) rotateZ(219deg);opacity:1;}}

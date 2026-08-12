@@ -3,7 +3,7 @@
  *
  * In live mode assignee_id is a real column and a DB trigger logs every change to
  * task_events. Demo mode has no database and no auth, so reassignment is kept here
- * and merged over the seed tasks — otherwise the reassign control would be a button
+ * and merged over the seed tasks. Otherwise the reassign control would be a button
  * that visibly does nothing. The UI says so rather than implying it persisted.
  */
 import type { TaskEvent } from "@/types/db";

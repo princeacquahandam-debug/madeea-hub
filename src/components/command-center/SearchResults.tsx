@@ -1,5 +1,5 @@
 /**
- * SearchResults — instant workspace search rows. Purely presentational; the
+ * SearchResults. Instant workspace search rows. Purely presentational; the
  * ranking/index lives in the orchestrator so results appear as you type.
  */
 import { OptionRow } from "./OptionRow";
@@ -14,7 +14,7 @@ export function SearchResults({
   empty?: boolean;
 }) {
   if (empty) {
-    return <p className="px-3 py-8 text-center text-sm text-faint">No matching items — press <kbd className="cc-kbd">↵</kbd> to run your command.</p>;
+    return <p className="px-3 py-8 text-center text-sm text-faint">No matching items. Press <kbd className="cc-kbd">↵</kbd> to run your command.</p>;
   }
   if (!options.length) return null;
   return (

@@ -1,4 +1,4 @@
--- 0013_followups.sql — follow-up nudges, dead-thread detection, and the reply
+-- 0013_followups.sql. Follow-up nudges, dead-thread detection, and the reply
 -- timestamps the SLA feature also needs. One migration covers both, because both
 -- were blocked on the same gap: the app only ever stored INBOUND mail, so it could
 -- neither tell how fast we replied nor notice that someone never replied to us.

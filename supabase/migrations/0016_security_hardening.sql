@@ -1,12 +1,12 @@
 -- 0016_security_hardening.sql
 -- Must sort AFTER 0015: it rewrites handle_new_user and the storage/credential
 -- grants, and the migration runner applies files in filename order. It was
--- briefly numbered 0013, which collides with 0013_followups — a version already
+-- briefly numbered 0013, which collides with 0013_followups, a version already
 -- recorded in this project's migration history, so `db push` would have skipped
 -- this file silently and shipped none of the fixes below.
 --
 -- Closes the gaps found in the security audit. Keeps the ONE shared workspace
--- model from 0012 (every member sees all workspace data — intentional), but
+-- model from 0012 (every member sees all workspace data. Intentional), but
 -- makes *getting into* that workspace invite-only, and stops the browser from
 -- ever touching provider tokens.
 --
@@ -101,7 +101,7 @@ drop policy if exists "owner all" on slack_credentials;
 -- ============ C) storage: client-avatars ============
 
 -- Bucket-level limits: the UI's accept="image/*" is only a file-picker hint and
--- the client passes its own contentType, so enforce it here. Public read stays —
+-- the client passes its own contentType, so enforce it here. Public read stays,
 -- avatars render from a public URL by design.
 update storage.buckets
   set public = true,
@@ -109,12 +109,12 @@ update storage.buckets
       allowed_mime_types = array['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif']
   where id = 'client-avatars';
 
--- Previous policies checked only bucket_id: ANY authenticated account — member
--- or not — could overwrite or delete every avatar and upload any file type, and
+-- Previous policies checked only bucket_id: ANY authenticated account. Member
+-- or not. Could overwrite or delete every avatar and upload any file type, and
 -- update had USING with no WITH CHECK (so a row could be mutated out of the
 -- bucket entirely). Honest scope of the fix: the file_size_limit/mime allowlist
 -- above and the WITH CHECK below are the real wins. A workspace MEMBER can still
--- overwrite any avatar — under the shared-workspace model that is in scope by
+-- overwrite any avatar. Under the shared-workspace model that is in scope by
 -- design, the same as every other table.
 drop policy if exists "client avatars read" on storage.objects;
 drop policy if exists "client avatars write" on storage.objects;
@@ -123,7 +123,7 @@ drop policy if exists "client avatars delete" on storage.objects;
 
 -- my_workspace() is schema-qualified: these policies live in the storage schema,
 -- where an unqualified name resolves against whatever search_path is in effect.
--- "is not null" means "is a member of the workspace" — non-members can't write.
+-- "is not null" means "is a member of the workspace". Non-members can't write.
 create policy "client avatars read" on storage.objects for select to public
   using (bucket_id = 'client-avatars');
 create policy "client avatars write" on storage.objects for insert to authenticated

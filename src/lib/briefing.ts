@@ -1,11 +1,11 @@
 /**
- * Daily Briefing Helper — the day, assembled.
+ * Daily Briefing Helper, the day, assembled.
  *
  * This file adds almost no new logic on purpose. Everything it reports is already
  * computed somewhere: lib/focus.ts ranks the work, lib/homework.ts finds what's
  * owed, lib/sla.ts knows who's waiting, lib/memory.ts holds the commitments. A
  * second, subtly different implementation of "what's urgent" would drift from the
- * first and the two would quietly disagree — which is how an EA ends up trusting
+ * first and the two would quietly disagree, which is how an EA ends up trusting
  * neither.
  *
  * So the briefing composes. Its own contribution is narrow and specific:
@@ -14,7 +14,7 @@
  *   - what's actually NEW since the last briefing, which is the only reason to read
  *     one twice
  *   - a coverage note when a section is empty because there's no data rather than
- *     because there's nothing to do — those two look identical and mean opposite
+ *     because there's nothing to do. Those two look identical and mean opposite
  *     things
  */
 import type { Client, Meeting, Message, Task } from "@/types/db";
@@ -50,7 +50,7 @@ export interface Briefing {
   commitments: Recalled[];
   /** Items that first appeared since the timestamp passed in. */
   newSinceLast: string[];
-  /** Empty-section explanations — "no data" vs "nothing to do". */
+  /** Empty-section explanations: "no data" vs "nothing to do". */
   coverage: string[];
 }
 
@@ -125,14 +125,14 @@ export function buildBriefing(
     .slice(0, 6)
     .map(({ _hours, ...rest }) => rest);
 
-  // Homework restricted to today — a briefing is about today, not the week.
+  // Homework restricted to today, a briefing is about today, not the week.
   const dueToday = findHomework(
     { meetings, tasks, clients, messages, preppedMeetingIds: new Set() },
     { ...DEFAULT_HOMEWORK_CONFIG, horizonDays: 1 },
     now,
   );
 
-  // Commitments are the memory kind that belongs in a briefing — a recorded promise
+  // Commitments are the memory kind that belongs in a briefing, a recorded promise
   // is exactly the thing that gets forgotten between the day it's made and the day
   // it's due.
   const commitments = recall(memories, { kinds: ["commitment"], limit: 5 });
@@ -171,7 +171,7 @@ export function buildBriefing(
     coverage.push("No mail is synced, so nothing can be reported as waiting on a reply.");
   }
   if (!memories.length) {
-    coverage.push("No commitments recorded yet — add them in the Memory Helper and they'll appear here.");
+    coverage.push("No commitments recorded yet. Add them in the Memory Helper and they'll appear here.");
   }
 
   return {
@@ -202,13 +202,13 @@ export function briefingPromptInputs(b: Briefing): Record<string, string> {
       ? b.meetingsToday.map((m) => `- ${m.time} ${m.title} with ${m.with}`).join("\n")
       : "(none)",
     top_priorities: b.focus.length
-      ? b.focus.map((f, i) => `${i + 1}. ${f.title} (${f.subtitle}) — ${f.reasons.map((r) => r.label).join("; ")}`).join("\n")
+      ? b.focus.map((f, i) => `${i + 1}. ${f.title} (${f.subtitle}). ${f.reasons.map((r) => r.label).join("; ")}`).join("\n")
       : "(nothing ranked)",
     waiting_on_a_reply: b.waiting.length
       ? b.waiting.map((w) => `- ${w.subject} from ${w.who}, waiting ${w.waited}${w.breached ? " (past the agreed time)" : ""}`).join("\n")
       : "(none)",
     due_today: b.dueToday.length
-      ? b.dueToday.map((h) => `- ${h.title} (${h.subtitle}) — ${h.reason}`).join("\n")
+      ? b.dueToday.map((h) => `- ${h.title} (${h.subtitle}). ${h.reason}`).join("\n")
       : "(none)",
     standing_commitments: b.commitments.length
       ? b.commitments.map((c) => `- ${c.body}`).join("\n")

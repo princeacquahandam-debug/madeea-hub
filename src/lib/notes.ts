@@ -1,12 +1,12 @@
 /**
- * Notes — a free-text scratchpad for the desk.
+ * Notes, a free-text scratchpad for the desk.
  *
  * READ THIS BEFORE EXTENDING, because it sits one door down from the Memory Helper
  * and the two must not blur together:
  *
- *   Memory  — curated, kind-tagged facts that flow INTO the other helpers' prompts
+ *   Memory. Curated, kind-tagged facts that flow INTO the other helpers' prompts
  *             (see lib/memory.ts). Recorded once, surfaced everywhere.
- *   Notes   — this. A shared pad. Nothing but a human ever reads a note. No recall,
+ *   Notes, this. A shared pad. Nothing but a human ever reads a note. No recall,
  *             no wiring, no AI. That restraint is the feature: it's the place to put
  *             something before you know what it is, without it leaking into a draft.
  *
@@ -63,7 +63,7 @@ export function noteHeading(n: Note): string {
 
 /** Seeds the empty state, and the demo, with something concrete. */
 export const NOTE_EXAMPLES = [
-  "Parking code for the Harrington office is 4471 — expires end of quarter.",
-  "Priya mentioned she's switching PAs in Q1 — keep handover notes tidy.",
+  "Parking code for the Harrington office is 4471. Expires end of quarter.",
+  "Priya mentioned she's switching PAs in Q1. Keep handover notes tidy.",
   "Ask David about the offsite dates before booking anything.",
 ];

@@ -1,4 +1,4 @@
--- Grant rio.castillo a workspace seat — 2026-07-29
+-- Grant rio.castillo a workspace seat. 2026-07-29
 --
 -- Symptom: signed in as rio.castillo, the EOD page shows "Sign in to draft and
 -- submit" and hides the submit box. Cause: the account has a login but NO row in
@@ -8,7 +8,7 @@
 -- Why the seat is missing: since migration 0020, membership is granted only when
 -- an `invites` row is consumed at email confirmation. rio.castillo was never in
 -- the invite list, so the account was created (or confirmed) with no seat.
--- Re-inviting now does nothing — confirmation already happened — so the seat is
+-- Re-inviting now does nothing (confirmation already happened) so the seat is
 -- inserted directly here.
 --
 -- CONFIRM THE EMAIL below matches the account (adjust if it isn't rio.castillo@madeeas.com).

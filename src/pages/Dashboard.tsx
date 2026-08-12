@@ -48,7 +48,7 @@ export default function Dashboard() {
   );
   const atRisk = slas.filter((s) => s.sla.status === "at_risk" || s.sla.status === "breached");
 
-  // Unanswered mail that has already blown the threshold — the thing you most need
+  // Unanswered mail that has already blown the threshold, the thing you most need
   // to see without navigating anywhere.
   const breachedMail = useMemo(() => {
     const dl = dayLength(cfg);
@@ -125,7 +125,7 @@ export default function Dashboard() {
             <button className="text-xs text-accent-soft hover:underline" onClick={() => nav("/tasks")}>View all</button>
           </div>
           <div className="space-y-2">
-            {/* Breached SLAs jump the queue — they're the most time-sensitive thing here. */}
+            {/* Breached SLAs jump the queue, they're the most time-sensitive thing here. */}
             {breachedMail.map(({ m, client, label }) => (
               <button
                 key={m.id}
@@ -149,7 +149,7 @@ export default function Dashboard() {
                   <p className="truncate text-sm font-medium">{t.title}</p>
                   <p className="truncate text-xs text-faint">{t.client_name} · {t.due_label}</p>
                 </div>
-                {/* Who's carrying this — reassignable without leaving the dashboard. */}
+                {/* Who's carrying this. Reassignable without leaving the dashboard. */}
                 <AssigneePicker task={t} />
                 <Badge tone={t.priority}>{priorityLabel[t.priority]}</Badge>
               </div>

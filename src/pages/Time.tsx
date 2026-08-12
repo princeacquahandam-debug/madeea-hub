@@ -14,7 +14,7 @@ function hm(seconds: number): string {
   return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
 }
 
-/** The running clock, where seconds DO matter — it is the proof it is running. */
+/** The running clock, where seconds DO matter, it is the proof it is running. */
 function hms(seconds: number): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${p(Math.floor(seconds / 3600))}:${p(Math.floor((seconds % 3600) / 60))}:${p(seconds % 60)}`;
@@ -65,7 +65,7 @@ export default function Time() {
     [entries, today, now],
   );
 
-  /** Days worked, newest first — the EA's own timesheet. */
+  /** Days worked, newest first, the EA's own timesheet. */
   const byDay = useMemo(() => {
     const map = new Map<string, TimeEntry[]>();
     for (const e of mine) {
@@ -76,7 +76,7 @@ export default function Time() {
     return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   }, [mine]);
 
-  /** Totals per cutoff period — what a payslip is calculated from. */
+  /** Totals per cutoff period. What a payslip is calculated from. */
   const byCutoff = useMemo(() => {
     const map = new Map<string, { seconds: number; days: Set<string> }>();
     for (const e of mine) {
@@ -95,7 +95,7 @@ export default function Time() {
     <div>
       <PageHeader
         title="Time"
-        subtitle="Clock in to start your day. Attendance is recorded from this — no tracker, no attendance."
+        subtitle="Clock in to start your day. Attendance is recorded from this. No tracker, no attendance."
       />
 
       {/* ---- the clock ---- */}
@@ -118,7 +118,7 @@ export default function Time() {
             <div className="min-w-[200px] flex-1">
               <label className="field-label" htmlFor="time-task">What are you working on? (optional)</label>
               <select id="time-task" className="input" value={taskId} onChange={(e) => setTaskId(e.target.value)}>
-                <option value="">— No specific task —</option>
+                <option value="">No specific task</option>
                 {openTasks.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
               </select>
             </div>
@@ -137,7 +137,7 @@ export default function Time() {
         )}
         <p className="mt-3 flex items-center gap-1.5 text-xs text-faint">
           <Clock size={12} /> Today: <strong className="text-zinc-200">{hm(todaySeconds)}</strong>
-          {todaySeconds === 0 && " — nothing logged yet, so today counts as absent."}
+          {todaySeconds === 0 && ". Nothing logged yet, so today counts as absent."}
         </p>
       </section>
 
@@ -167,7 +167,7 @@ export default function Time() {
         <h2 className="mb-3 font-semibold">Timesheet</h2>
         {byDay.length === 0 && (
           <p className="text-sm text-faint">
-            Nothing logged yet. Clock in above and the day appears here — and in your attendance.
+            Nothing logged yet. Clock in above and the day appears here, and in your attendance.
           </p>
         )}
         <div className="space-y-4">

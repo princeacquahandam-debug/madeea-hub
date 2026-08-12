@@ -60,7 +60,7 @@ export default function EmailHelper() {
     try {
       const out = await generate({
         tool: "email_reply",
-        format: `${opts.intent} — ${ctx.message.subject}`,
+        format: `${opts.intent}. ${ctx.message.subject}`,
         inputs: replyPromptInputs(ctx, opts),
       });
       setDraft(out);
@@ -147,7 +147,7 @@ export default function EmailHelper() {
                     <h2 className="font-semibold">What the draft will know</h2>
                     {isThinEmailContext(ctx) && (
                       <span className="ml-auto text-xs text-faint">
-                        Sender isn't in the Vault — limited context
+                        Sender isn't in the Vault. Limited context
                       </span>
                     )}
                   </div>
@@ -215,7 +215,7 @@ export default function EmailHelper() {
                       <ul className="space-y-1 text-xs">
                         {ctx.memories.map((m) => (
                           <li key={m.id} className="text-muted">
-                            {m.body} <span className="text-faint">— {m.why}</span>
+                            {m.body} <span className="text-faint">· {m.why}</span>
                           </li>
                         ))}
                       </ul>
@@ -313,7 +313,7 @@ export default function EmailHelper() {
                   <p className="field-label">Draft</p>
                   {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
                   {draft ? (
-                    <OutputViewer output={draft} title={`Reply — ${ctx.message.subject}`} />
+                    <OutputViewer output={draft} title={`Reply. ${ctx.message.subject}`} />
                   ) : (
                     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center text-faint">
                       <Mail size={26} />

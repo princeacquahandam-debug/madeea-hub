@@ -1,7 +1,7 @@
 /**
  * Tool registration entrypoint. Importing this module (done once, from
  * useCommandCenter) registers every built-in tool. To add a capability, create
- * a Tool and add it to BUILTIN_TOOLS — nothing else changes.
+ * a Tool and add it to BUILTIN_TOOLS. Nothing else changes.
  *
  * `registerTool` (re-exported) is also the public API for runtime/plugin tools:
  *   registerTool({ name: "Create Invoice", intent: "create_invoice", ... })

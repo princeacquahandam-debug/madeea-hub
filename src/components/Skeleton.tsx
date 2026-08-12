@@ -26,7 +26,7 @@ export function SkeletonCard({ lines = 3 }: { lines?: number }) {
 }
 
 /**
- * Full-page placeholder — a title, a subtitle and a grid of card shells.
+ * Full-page placeholder, a title, a subtitle and a grid of card shells.
  * Used as the Suspense fallback while a lazily-loaded page chunk downloads,
  * so the content area shimmers instead of going blank.
  */

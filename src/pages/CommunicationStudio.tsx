@@ -7,7 +7,7 @@ export default function CommunicationStudio() {
     <div>
       <PageHeader
         title="Communication Studio"
-        subtitle="AI-powered writing for every executive communication need — powered by AI"
+        subtitle="AI-powered writing for every executive communication need. Powered by AI"
       />
       <GeneratorTool tool="studio" formats={STUDIO_FORMATS} />
     </div>

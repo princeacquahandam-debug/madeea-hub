@@ -28,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
   // AuthProvider sits inside QueryClientProvider (see App.tsx), so the cache is
-  // reachable here — it has to be dropped when the identity changes.
+  // reachable here, it has to be dropped when the identity changes.
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       // Drop every cached query when the identity changes. Without this, one
-      // person's data (and their cached role — useMyRole has a 15s staleTime)
+      // person's data (and their cached role. UseMyRole has a 15s staleTime)
       // is served to the next user in the same tab: sign out as an admin, sign
       // in as an EA, and the Admin panel briefly renders for them.
       if (event === "SIGNED_IN" || event === "SIGNED_OUT") queryClient.clear();
@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     async signOut() {
       if (supabase) await supabase.auth.signOut();
-      // Revoking server access is only half of it — the browser still holds
+      // Revoking server access is only half of it, the browser still holds
       // transcripts, prep packets and cached rows. Clear both, and do it even if
       // signOut() above threw, so a failed network call can't leave data behind.
       clearLocalWorkspaceData();

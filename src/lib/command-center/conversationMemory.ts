@@ -1,5 +1,5 @@
 /**
- * Conversation memory — maintains multi-turn context so follow-ups like
+ * Conversation memory. Maintains multi-turn context so follow-ups like
  * "now write an email about that" resolve without re-stating the subject.
  *
  * It keeps a rolling window of messages plus the last assistant output, and
@@ -27,7 +27,7 @@ export class ConversationMemory {
     return [...this.messages];
   }
 
-  /** The most recent assistant answer — the referent for "that"/"it". */
+  /** The most recent assistant answer, the referent for "that"/"it". */
   lastResult(): string {
     return this.lastOutput;
   }
@@ -40,7 +40,7 @@ export class ConversationMemory {
   resolveReferences(prompt: string): string {
     const refersBack = /\b(that|this|it|the above|the previous|those)\b/i.test(prompt);
     if (refersBack && this.lastOutput) {
-      return `${prompt}\n\n(Context — the previous result this refers to:)\n${this.lastOutput}`;
+      return `${prompt}\n\n(Context, the previous result this refers to:)\n${this.lastOutput}`;
     }
     return prompt;
   }

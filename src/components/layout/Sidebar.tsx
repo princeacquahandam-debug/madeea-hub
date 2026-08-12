@@ -157,7 +157,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
 
         {/* Avatar + gear, the same pair the expanded sidebar shows. This slot
             used to hold a theme toggle, so collapsing the sidebar silently
-            swapped one control for another — the gear you were aiming at became
+            swapped one control for another, the gear you were aiming at became
             a sun. The toggle is not lost: TopBar has had one all along, which is
             also why having a second one here was a duplicate. */}
         <div className="mt-3 flex flex-col items-center gap-3 border-t border-border pt-4">
@@ -213,7 +213,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
       </div>
 
       <NavScroller className="px-3 space-y-5 pb-2">
-        {/* Distinct tour anchors per group — two groups sharing one data-tour value
+        {/* Distinct tour anchors per group. Two groups sharing one data-tour value
             would make the guided tour highlight whichever it found first. */}
         {groups.map((group) => {
           const open = openGroups[group];
@@ -270,7 +270,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
         )}
       </NavScroller>
 
-      {/* Academy promo — opens the MadeEA Academy (walkthrough + playbooks).
+      {/* Academy promo. Opens the MadeEA Academy (walkthrough + playbooks).
           Dismissible: the card is a wrapper rather than one big button, because a
           <button> cannot legally contain the dismiss <button>. Nesting them makes
           the inner click ambiguous and breaks keyboard navigation. */}
@@ -286,7 +286,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
             type="button"
             onClick={dismissAcademyPromo}
             aria-label="Hide the Academy tip"
-            title="Hide this — you can bring it back in Settings"
+            title="Hide this. You can bring it back in Settings"
             className="absolute right-1.5 top-1.5 z-10 grid h-6 w-6 place-items-center rounded-lg text-white/70 transition-colors hover:bg-black/15 hover:text-white"
           >
             <X size={14} />
@@ -325,7 +325,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
             {user?.initials ?? "SM"}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{user?.name ?? "—"}</p>
+            <p className="truncate text-sm font-medium">{user?.name ?? "-"}</p>
             <p className="truncate text-xs text-faint">Elite EA</p>
           </div>
           <SettingsIcon size={15} className="text-faint transition-colors group-hover:text-text" />

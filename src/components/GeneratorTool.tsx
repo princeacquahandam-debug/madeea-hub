@@ -79,7 +79,7 @@ export function GeneratorTool({
             <span className="pill bg-emerald-500/15 text-emerald-400 ml-auto">{badge}</span>
           </div>
           {active.howTo && <p className="mb-1 text-xs text-muted">{active.howTo}</p>}
-          {active.example && <p className="mb-3 text-xs text-faint">Example — {active.example}</p>}
+          {active.example && <p className="mb-3 text-xs text-faint">Example. {active.example}</p>}
           {!active.howTo && !active.example && <div className="mb-3" />}
 
           <div className="mb-3 flex items-center gap-2">

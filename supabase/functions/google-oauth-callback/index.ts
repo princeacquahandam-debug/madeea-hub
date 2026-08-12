@@ -1,14 +1,14 @@
-// Edge Function: google-oauth-callback   (Verify JWT: OFF — Google redirects here with no auth header)
+// Edge Function: google-oauth-callback   (Verify JWT: OFF. Google redirects here with no auth header)
 // Exchanges the auth code for tokens, stores them, and bounces back to the app.
 //
 // This endpoint runs with the service role and cannot authenticate the caller
 // (Google sends the browser here with no bearer token), so the state row is the
 // only identity signal. Validating the state alone is NOT enough: an attacker
 // could mint a state, send the link to a victim, and have the VICTIM's Google
-// tokens filed under the attacker's owner_id — handing the attacker the victim's
+// tokens filed under the attacker's owner_id. Handing the attacker the victim's
 // inbox. Two checks close that:
-//   1. expires_at — states are short-lived, so a stale lure dies (10 min).
-//   2. expected_email — the id_token's email must equal the email of the user who
+//   1. expires_at. States are short-lived, so a stale lure dies (10 min).
+//   2. expected_email, the id_token's email must equal the email of the user who
 //      STARTED the flow. A victim consenting on an attacker's link produces a
 //      different address and is rejected before any token is stored.
 // Consequence: the Google account you connect must match your MadeEA login email.
@@ -23,7 +23,7 @@ const APP_ORIGINS = (Deno.env.get("APP_ORIGINS") ?? "")
 /**
  * Read the email claim out of a Google id_token.
  * The token came straight from Google's token endpoint over TLS, authenticated
- * with our client_secret, so the channel — not the signature — is what we trust
+ * with our client_secret, so the channel (not the signature) is what we trust
  * here; we are not accepting this token from the browser.
  */
 function emailFromIdToken(idToken: string | undefined): string | null {
@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
 
   // Single-use regardless of what happens next.
   await admin.from("oauth_states").delete().eq("state", state);
-  // Opportunistic sweep — nothing else prunes this table.
+  // Opportunistic sweep. Nothing else prunes this table.
   await admin.from("oauth_states").delete().lt("expires_at", new Date().toISOString());
 
   if (!st.expires_at || new Date(st.expires_at).getTime() < Date.now()) {

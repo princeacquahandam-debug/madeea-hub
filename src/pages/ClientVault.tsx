@@ -48,7 +48,7 @@ export default function ClientVault() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!supabase) { setUploadErr("Upload needs Supabase — paste an image URL instead."); return; }
+    if (!supabase) { setUploadErr("Upload needs Supabase. Paste an image URL instead."); return; }
     setUploading(true); setUploadErr("");
     try {
       const ext = file.name.split(".").pop() || "png";
@@ -58,7 +58,7 @@ export default function ClientVault() {
       const { data } = supabase.storage.from("client-avatars").getPublicUrl(path);
       setForm((f) => ({ ...f, image: data.publicUrl }));
     } catch {
-      setUploadErr("Upload failed — paste an image URL instead.");
+      setUploadErr("Upload failed. Paste an image URL instead.");
     } finally {
       setUploading(false);
     }
@@ -118,7 +118,7 @@ export default function ClientVault() {
                   </button>
                 </div>
               </div>
-              {/* Response-time SLA — the headline service metric for this client. */}
+              {/* Response-time SLA, the headline service metric for this client. */}
               <div className="mt-4 rounded-lg bg-surface-2 px-3 py-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="eyebrow">Response</span>
@@ -143,7 +143,7 @@ export default function ClientVault() {
                 )}
               </div>
 
-              {/* Lead EA — accountability, not access control: every EA still sees
+              {/* Lead EA. Accountability, not access control: every EA still sees
                   every client (RLS from 0012 is unchanged). */}
               {(() => {
                 const lead = members.find((m) => m.user_id === c.lead_ea_id) ?? null;
@@ -239,7 +239,7 @@ export default function ClientVault() {
                         <div className="rounded-lg bg-surface-2 p-3">
                           <p className="eyebrow">Average</p>
                           <p className="mt-1 flex items-center gap-1.5 text-lg font-semibold">
-                            {sla.avgHours === null ? "—" : formatDuration(sla.avgHours, dl)}
+                            {sla.avgHours === null ? "-" : formatDuration(sla.avgHours, dl)}
                             <TrendArrow trend={sla.trend} />
                           </p>
                           <p className="mt-0.5 text-[11px] text-faint">{TREND_LABEL[sla.trend]}</p>
@@ -247,7 +247,7 @@ export default function ClientVault() {
                         <div className="rounded-lg bg-surface-2 p-3">
                           <p className="eyebrow">Oldest Waiting</p>
                           <p className="mt-1 text-lg font-semibold">
-                            {sla.oldestWaitingHours === null ? "—" : formatDuration(sla.oldestWaitingHours, dl)}
+                            {sla.oldestWaitingHours === null ? "-" : formatDuration(sla.oldestWaitingHours, dl)}
                           </p>
                           <p className="mt-0.5 text-[11px] text-faint">
                             {sla.oldestWaitingCalendarHours === null

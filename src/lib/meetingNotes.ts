@@ -1,19 +1,19 @@
 /**
- * Meeting Helper — turning notes into follow-through.
+ * Meeting Helper. Turning notes into follow-through.
  *
  * The prep half of meetings already exists (lib/meetingPrep.ts). The half that was
  * missing is what happens afterwards: a meeting generates commitments, and right
  * now nothing in the app catches them. They live in someone's notebook until they
  * don't.
  *
- * Extraction here is DELIBERATELY deterministic — no model call. Two reasons:
+ * Extraction here is DELIBERATELY deterministic. No model call. Two reasons:
  *
  *  1. Dates. Same argument as lib/voiceTask.ts: models routinely get "what date is
  *     next Friday" wrong, and this file reuses that module's parser rather than
  *     re-deriving it. A task silently due on the wrong day is worse than one with
  *     no date.
  *  2. Fabrication. An action item the meeting never agreed to is far more damaging
- *     than a missed one — the EA chases the client about something imaginary. Every
+ *     than a missed one, the EA chases the client about something imaginary. Every
  *     item produced here is traceable to a line the user actually typed, and that
  *     source line is shown in the UI next to it.
  *
@@ -30,7 +30,7 @@ export interface ActionItem {
   due: string;
   priority: Priority;
   client_id: string | null;
-  /** Who took it on, if the note named someone. Free text — not a user record. */
+  /** Who took it on, if the note named someone. Free text, not a user record. */
   owner: string;
   /** The exact line this came from, shown so the EA can check it against reality. */
   source: string;
@@ -42,7 +42,7 @@ const MIN_LINE_CHARS = 8;
 const MAX_ITEMS = 30;
 
 /**
- * Verbs and markers that signal a commitment rather than a note. Kept broad — a
+ * Verbs and markers that signal a commitment rather than a note. Kept broad, a
  * false positive costs one untick, a false negative loses a commitment entirely,
  * and the EA reviews the list before anything is created either way.
  */
@@ -52,10 +52,10 @@ const ACTION_CUES =
 /** Lines that are structure, not content. */
 const HEADING = /^(agenda|attendees|present|apologies|notes|minutes|discussion|decisions?|actions?|next steps?|summary|aob|any other business)\s*:?\s*$/i;
 
-const BULLET = /^\s*(?:[-*•·–—]|\d+[.)]|\[\s?\]|\[x\]i?)\s*/i;
+const BULLET = /^\s*(?:[-*•·–. ]|\d+[.)]|\[\s?\]|\[x\]i?)\s*/i;
 
 /**
- * "James to send the deck" / "Priya will confirm" — capture the owner and strip it
+ * "James to send the deck" / "Priya will confirm". Capture the owner and strip it
  * from the title, so the task reads as an instruction rather than a transcript.
  */
 const OWNER_PREFIX = /^@?([A-Z][a-zA-Z'’-]+(?:\s+[A-Z][a-zA-Z'’-]+)?)\s+(?:to|will|is going to|agreed to|has to|should)\s+/;
@@ -72,7 +72,7 @@ function looksLikeAction(line: string): boolean {
 export interface ExtractSources {
   notes: string;
   clients: Client[];
-  /** The meeting's client — the default owner of any item that doesn't name one. */
+  /** The meeting's client, the default owner of any item that doesn't name one. */
   defaultClientId: string | null;
 }
 
@@ -112,7 +112,7 @@ export function extractActions(
     if (seen.has(key)) continue;
     seen.add(key);
 
-    // The owner's name is matched against the Vault too — "James to send the deck"
+    // The owner's name is matched against the Vault too: "James to send the deck"
     // in a meeting about a different client still belongs to James.
     const named = matchClient(stripped, clients) ?? (owner ? matchClient(owner, clients) : null);
 
@@ -135,7 +135,7 @@ export function extractActions(
 export function extractionSummary(notes: string, items: ActionItem[]): string {
   if (!notes.trim()) return "Paste your notes above and the action items will appear here.";
   if (!items.length) {
-    return "No commitments found. Extraction looks for lines with an action in them — try phrasing as “Bryan to send the deck by Friday”.";
+    return "No commitments found. Extraction looks for lines with an action in them. Try phrasing as “Bryan to send the deck by Friday”.";
   }
   const dated = items.filter((i) => i.due).length;
   return `${items.length} action${items.length === 1 ? "" : "s"} found${dated ? `, ${dated} with a date read from your wording` : ", none with a date in the wording"}. Untick anything that isn't real.`;
@@ -160,7 +160,7 @@ export function recapPromptInputs(
       ? chosen
           .map(
             (i) =>
-              `- ${i.title}${i.owner ? ` (owner: ${i.owner})` : ""}${i.due ? ` — due ${i.due}` : ""}${
+              `- ${i.title}${i.owner ? ` (owner: ${i.owner})` : ""}${i.due ? `: due ${i.due}` : ""}${
                 nameFor(i.client_id) ? ` [${nameFor(i.client_id)}]` : ""
               }`,
           )

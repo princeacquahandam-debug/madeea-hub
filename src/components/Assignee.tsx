@@ -48,7 +48,7 @@ export function AssigneeAvatar({
 
 /**
  * Click the avatar to reassign. In demo mode there's no database, so the change is
- * kept locally — the menu says so rather than implying it saved to a server.
+ * kept locally, the menu says so rather than implying it saved to a server.
  */
 export function AssigneePicker({ task, size = "sm" }: { task: Task; size?: "sm" | "md" }) {
   const { data: members = [] } = useWorkspaceMembers();
@@ -121,7 +121,7 @@ export function AssigneePicker({ task, size = "sm" }: { task: Task; size?: "sm" 
           )}
           {!isSupabaseConfigured && (
             <p className="border-t border-border px-2 py-1.5 pt-2 text-[11px] text-faint">
-              Demo mode — saved in this browser only.
+              Demo mode. Saved in this browser only.
             </p>
           )}
         </div>

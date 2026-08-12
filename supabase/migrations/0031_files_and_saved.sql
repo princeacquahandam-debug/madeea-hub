@@ -1,4 +1,4 @@
--- 0031_files_and_saved.sql — Shared files, and a place to keep things.
+-- 0031_files_and_saved.sql. Shared files, and a place to keep things.
 --
 -- Run once in the Supabase SQL editor, after 0030.
 --
@@ -9,8 +9,8 @@
 -- Drive; a file the workspace owns does not.
 --
 -- SAVED. Wing's sidebar has a "Saved" section, and the reason it earns a place
--- is that an EA reads something on Monday they need on Thursday — a task, a
--- recording, a comment — and the alternative is remembering where it was.
+-- is that an EA reads something on Monday they need on Thursday, a task, a
+-- recording, a comment, and the alternative is remembering where it was.
 
 -- ---------- the bucket ----------
 -- Private, like sop-recordings. Files here are client documents: contracts,

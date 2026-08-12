@@ -1,4 +1,4 @@
--- 0009_client_avatars.sql — client images (upload or URL), with a public bucket.
+-- 0009_client_avatars.sql. Client images (upload or URL), with a public bucket.
 
 alter table clients add column avatar_url text;
 

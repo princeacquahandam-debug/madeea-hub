@@ -1,8 +1,8 @@
 /**
- * Demo dataset — ONLY loaded when the app is built with VITE_DEMO=1.
+ * Demo dataset. ONLY loaded when the app is built with VITE_DEMO=1.
  *
  * seed.ts deliberately ships empty arrays ("no dummy data, never seeded"), and
- * that contract is unchanged: a normal build — dev, Vercel, or Pages — still sees
+ * that contract is unchanged: a normal build (dev, Vercel, or Pages) still sees
  * empty arrays and reads real records from Supabase. This file exists purely so a
  * preview build has something on screen to click, and it is inert everywhere else.
  */
@@ -20,7 +20,7 @@ const at = (dayOffset: number, hour: number, min = 0): string => {
 };
 
 /**
- * Like `at`, but never lands on a weekend — nudged back to the preceding Friday.
+ * Like `at`, but never lands on a weekend. Nudged back to the preceding Friday.
  * Without this, a demo email that happens to arrive on a Saturday accrues zero
  * business hours and the client looks flawless for reasons that aren't real.
  */
@@ -35,7 +35,7 @@ const weekdayAt = (daysAgo: number, hour: number, min = 0): Date => {
 /**
  * One inbound email plus the reply we sent `replyAfterHours` WORKING hours later
  * (null = still unanswered). Authored in working hours because that's the unit the
- * SLA metric measures in — writing these as calendar hours makes a "slow" reply
+ * SLA metric measures in. Writing these as calendar hours makes a "slow" reply
  * across a weekend land as a fast one.
  */
 let seq = 0;
@@ -155,7 +155,7 @@ export const MEETINGS: Meeting[] = [
     time: "9:30 AM",
     status: "pending",
   },
-  // Past meeting — surfaces as "last meeting" inside Priya's prep packet.
+  // Past meeting. Surfaces as "last meeting" inside Priya's prep packet.
   {
     id: "demo-meeting-0",
     title: "Q2 Board Review",
@@ -236,7 +236,7 @@ export const TASKS: Task[] = [
     recurrence: "none",
     depends_on: null,
   },
-  // Delivered work — the entries that answer "what did we do last month".
+  // Delivered work, the entries that answer "what did we do last month".
   {
     id: "demo-task-5",
     assignee_id: "demo-1",
@@ -254,7 +254,7 @@ export const TASKS: Task[] = [
     recurrence: "none",
     depends_on: null,
   },
-  // Bryan is carrying too much — the imbalance the workload view exists to show.
+  // Bryan is carrying too much, the imbalance the workload view exists to show.
   {
     id: "demo-task-7",
     assignee_id: "demo-2",
@@ -289,7 +289,7 @@ export const TASKS: Task[] = [
     recurrence: "none",
     depends_on: null,
   },
-  // Nobody has picked this up — a legitimate state, not a broken row.
+  // Nobody has picked this up, a legitimate state, not a broken row.
   {
     id: "demo-task-9",
     assignee_id: null,
@@ -327,7 +327,7 @@ export const TASKS: Task[] = [
 ];
 
 /**
- * Something WE sent. `replyAfterDays: null` means they never wrote back — which is
+ * Something WE sent. `replyAfterDays: null` means they never wrote back, which is
  * exactly the blind spot this feature exists to surface: it sits in Sent, not the
  * inbox, so nothing in the app would otherwise notice it going quiet.
  */
@@ -369,11 +369,11 @@ function sent(opts: {
 // before that, so the trend indicator has two periods to compare.
 export const MESSAGES: Message[] = [
   // --- Priya: answered within the hour, and quicker than last month. On Track, improving. ---
-  thread({ client: PRIYA, subject: "Re: Q3 board pack — one more thing", preview: "Can you add the headcount forecast before Thursday? The committee will ask.", daysAgo: 2, hour: 9, replyAfterHours: 1 }),
-  thread({ client: PRIYA, subject: "Committee papers", preview: "Circulating Thursday — anything outstanding from your side?", daysAgo: 9, hour: 11, replyAfterHours: 2 }),
+  thread({ client: PRIYA, subject: "Re: Q3 board pack. One more thing", preview: "Can you add the headcount forecast before Thursday? The committee will ask.", daysAgo: 2, hour: 9, replyAfterHours: 1 }),
+  thread({ client: PRIYA, subject: "Committee papers", preview: "Circulating Thursday. Anything outstanding from your side?", daysAgo: 9, hour: 11, replyAfterHours: 2 }),
   thread({ client: PRIYA, subject: "Auditor intro", preview: "Happy to make the introduction if useful.", daysAgo: 17, hour: 15, replyAfterHours: 1.5 }),
   thread({ client: PRIYA, subject: "Travel for the offsite", preview: "Can we look at the Thursday flights instead?", daysAgo: 26, hour: 10, replyAfterHours: 2 }),
-  // previous period — slower, which is what makes the trend "improving"
+  // previous period. Slower, which is what makes the trend "improving"
   thread({ client: PRIYA, subject: "Q2 minutes", preview: "Could you send the signed copy?", daysAgo: 38, hour: 14, replyAfterHours: 6 }),
   thread({ client: PRIYA, subject: "Board dinner", preview: "Do we have a venue yet?", daysAgo: 46, hour: 9, replyAfterHours: 5 }),
   thread({ client: PRIYA, subject: "Headcount plan", preview: "Sharing the draft for comment.", daysAgo: 55, hour: 16, replyAfterHours: 7 }),
@@ -383,7 +383,7 @@ export const MESSAGES: Message[] = [
   thread({ client: MARCUS, subject: "invoice question", preview: "is the retainer inclusive of the photography day?", daysAgo: 8, hour: 12, replyAfterHours: 21 }),
   thread({ client: MARCUS, subject: "Re: kickoff", preview: "works for me, send an invite whenever", daysAgo: 15, hour: 16, replyAfterHours: 24 }),
   thread({ client: MARCUS, subject: "site visit", preview: "can we push to the following week?", daysAgo: 23, hour: 9, replyAfterHours: 19 }),
-  // previous period — was merely slow, not breaching; he has got worse
+  // previous period. Was merely slow, not breaching; he has got worse
   thread({ client: MARCUS, subject: "logo files", preview: "which format do you need these in?", daysAgo: 41, hour: 11, replyAfterHours: 10 }),
   thread({ client: MARCUS, subject: "contract", preview: "signed and returned", daysAgo: 52, hour: 15, replyAfterHours: 11 }),
 
@@ -392,17 +392,17 @@ export const MESSAGES: Message[] = [
   thread({ client: ELENA, subject: "Partner offsite dates", preview: "Which of the three weeks works?", daysAgo: 12, hour: 14, replyAfterHours: 13 }),
   thread({ client: ELENA, subject: "Re: valuation deck", preview: "Two comments on the appendix.", daysAgo: 21, hour: 10, replyAfterHours: 11 }),
   thread({ client: ELENA, subject: "Introductions", preview: "Connecting you with our new CFO.", daysAgo: 29, hour: 13, replyAfterHours: 10 }),
-  // previous period — comfortably same-day
+  // previous period. Comfortably same-day
   thread({ client: ELENA, subject: "Q2 fee note", preview: "Approved, please proceed.", daysAgo: 36, hour: 9, replyAfterHours: 4 }),
   thread({ client: ELENA, subject: "Diary clash", preview: "Can we move Tuesday's call?", daysAgo: 44, hour: 16, replyAfterHours: 5 }),
   thread({ client: ELENA, subject: "Retainer renewal", preview: "Let's discuss terms for next year.", daysAgo: 58, hour: 11, replyAfterHours: 5 }),
 
   // --- Mail WE sent. The ones with no reply are the dead threads. ---
-  sent({ client: MARCUS, to: "Marcus Bell", subject: "Re: invoice question — revised schedule", preview: "Attaching the revised fee schedule. Let me know if the photography day works.", daysAgo: 6, hour: 11, replyAfterDays: null }),
-  sent({ client: ELENA, to: "Elena Fischer", subject: "Lease review — clause 14 redline", preview: "Redlined draft attached, flagging the break clause for your view.", daysAgo: 3, hour: 15, replyAfterDays: null }),
-  sent({ client: null, to: "Tom Whitfield", subject: "Q3 offsite logistics", preview: "Chasing the venue contract — can you confirm the numbers?", daysAgo: 7, hour: 9, replyAfterDays: null }),
+  sent({ client: MARCUS, to: "Marcus Bell", subject: "Re: invoice question. Revised schedule", preview: "Attaching the revised fee schedule. Let me know if the photography day works.", daysAgo: 6, hour: 11, replyAfterDays: null }),
+  sent({ client: ELENA, to: "Elena Fischer", subject: "Lease review. Clause 14 redline", preview: "Redlined draft attached, flagging the break clause for your view.", daysAgo: 3, hour: 15, replyAfterDays: null }),
+  sent({ client: null, to: "Tom Whitfield", subject: "Q3 offsite logistics", preview: "Chasing the venue contract. Can you confirm the numbers?", daysAgo: 7, hour: 9, replyAfterDays: null }),
   // Control: answered, so it must NOT be flagged.
-  sent({ client: PRIYA, to: "Priya Raman", subject: "Board pack — final", preview: "Final version attached ahead of Thursday.", daysAgo: 5, hour: 16, replyAfterDays: 1 }),
+  sent({ client: PRIYA, to: "Priya Raman", subject: "Board pack. Final", preview: "Final version attached ahead of Thursday.", daysAgo: 5, hour: 16, replyAfterDays: 1 }),
 ];
 
 // Automations for the preview. Descriptions say what each one DOES; nothing here
@@ -431,7 +431,7 @@ export const AUTOMATIONS: Automation[] = [
   {
     id: "demo-auto-3",
     name: "Executive Summary Inbox",
-    description: "Triages the inbox — archives newsletters and surfaces only what needs executive attention.",
+    description: "Triages the inbox. Archives newsletters and surfaces only what needs executive attention.",
     status: "paused",
     last_run: new Date(now - 5 * 3_600_000).toLocaleString(),
     total_runs: 51,

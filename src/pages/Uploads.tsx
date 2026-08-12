@@ -38,7 +38,7 @@ export default function Uploads() {
     for (const f of Array.from(list)) {
       // The bucket caps at 50MB; saying so up front beats a failed upload.
       if (f.size > 50 * 1024 * 1024) {
-        setError(`"${f.name}" is ${humanSize(f.size)} — the limit is 50 MB.`);
+        setError(`"${f.name}" is ${humanSize(f.size)}, the limit is 50 MB.`);
         continue;
       }
       upload.mutate({ file: f, clientId: client || null });
@@ -54,7 +54,7 @@ export default function Uploads() {
     <div>
       <PageHeader
         title="Uploads"
-        subtitle="Documents the whole team can find — not a link in someone's inbox."
+        subtitle="Documents the whole team can find, not a link in someone's inbox."
         action={
           <button className="btn-primary" onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
             {upload.isPending ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
@@ -96,7 +96,7 @@ export default function Uploads() {
         <div className="card p-8 text-center">
           <FileText size={24} className="mx-auto mb-3 text-faint" />
           <p className="font-medium">No files yet</p>
-          <p className="mt-1 text-sm text-faint">Contracts, briefs, brand assets — anything the next EA will need.</p>
+          <p className="mt-1 text-sm text-faint">Contracts, briefs, brand assets. Anything the next EA will need.</p>
         </div>
       )}
 

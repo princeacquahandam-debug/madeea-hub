@@ -1,5 +1,5 @@
 /**
- * ConversationPanel — the running transcript. Each turn shows the user's prompt,
+ * ConversationPanel, the running transcript. Each turn shows the user's prompt,
  * then a live ToolExecution indicator while running, and a ResultCard once
  * resolved. Auto-scrolls to the newest turn.
  */

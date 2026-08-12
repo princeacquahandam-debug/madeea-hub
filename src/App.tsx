@@ -5,7 +5,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { CommandCenterProvider } from "@/hooks/useCommandCenter";
 import { AppShell } from "@/components/layout/AppShell";
 // Login and Dashboard are eager: Login is the gate before the shell, and
-// Dashboard is the "/" landing route — keeping it eager means the first paint
+// Dashboard is the "/" landing route. Keeping it eager means the first paint
 // never suspends (instant, no shimmer flash on cold load).
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
@@ -24,7 +24,7 @@ const Integrations = lazy(() => import("@/pages/Integrations"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const Changelog = lazy(() => import("@/pages/Changelog"));
-/* Deliberately NOT imported — see the notes beside the routes below. Every one
+/* Deliberately NOT imported. See the notes beside the routes below. Every one
    of these pages is still in src/pages; only the route and the nav entry are
    gone, so restoring one is two lines.
 
@@ -70,7 +70,7 @@ function Gate() {
         <Route path="/routines" element={<Routines />} />
         <Route path="/automation" element={<AutomationPage />} />
         <Route path="/integrations" element={<Integrations />} />
-        {/* Unmounted, not merely de-navved — a nav-only removal leaves the URL
+        {/* Unmounted, not merely de-navved, a nav-only removal leaves the URL
             working. Reasoning for each sits beside the nav list in
             lib/constants.ts.
 

@@ -1,16 +1,16 @@
 /**
- * Homework Helper — the prep you owe before a commitment lands.
+ * Homework Helper, the prep you owe before a commitment lands.
  *
  * Pure and network-free, same shape as lib/followups.ts and lib/sla.ts, so it can
  * be tested directly and called from a page without a round trip.
  *
  * The distinction from Follow-ups is deliberate and load-bearing:
  *
- *   follow-up — something you already DID went quiet. Backward-looking.
- *   homework  — something you have NOT done yet, and a fixed deadline is coming
+ *   follow-up. Something you already DID went quiet. Backward-looking.
+ *   homework. Something you have NOT done yet, and a fixed deadline is coming
  *               to meet it. Forward-looking.
  *
- * Everything here is anchored to a real timestamp already in the database — a
+ * Everything here is anchored to a real timestamp already in the database, a
  * meeting's `starts_at` or a task's `due_at`. A row with no timestamp produces no
  * homework rather than a guess: an invented deadline would sort above real ones
  * and push genuine work down the list.
@@ -33,7 +33,7 @@ export interface HomeworkItem {
   /** Stable across recomputes so UI state sticks to the item. */
   id: string;
   kind: HomeworkKind;
-  /** What the homework is about — a meeting title or a task title. */
+  /** What the homework is about, a meeting title or a task title. */
   title: string;
   /** Who it concerns. */
   subtitle: string;
@@ -63,7 +63,7 @@ export const DEFAULT_HOMEWORK_CONFIG: HomeworkConfig = {
 };
 
 /**
- * Rounded to whole days rather than claiming "tomorrow" — 30 hours out can be
+ * Rounded to whole days rather than claiming "tomorrow". 30 hours out can be
  * two calendar days away depending on the hour, and the precise wording isn't
  * worth being wrong about.
  */
@@ -133,7 +133,7 @@ export interface HomeworkSources {
   preppedMeetingIds: Set<string>;
 }
 
-/** Most recent contact in EITHER direction — an email we sent counts as contact. */
+/** Most recent contact in EITHER direction, an email we sent counts as contact. */
 function lastContactAt(client: Client, messages: Message[]): number | null {
   let latest: number | null = null;
   for (const m of messages) {
@@ -156,12 +156,12 @@ export function findHomework(
 
   // ---- Meetings coming up: what you owe before you walk in --------------------
   for (const m of meetings) {
-    if (!m.starts_at) continue; // no real time on the row — nothing honest to say
+    if (!m.starts_at) continue; // no real time on the row. Nothing honest to say
     const starts = new Date(m.starts_at).getTime();
     if (Number.isNaN(starts)) continue;
 
     const hoursUntil = (starts - now.getTime()) / HOUR;
-    // A meeting that already happened isn't homework — it's history. Tasks are
+    // A meeting that already happened isn't homework, it's history. Tasks are
     // treated differently below, because an overdue task is still owed.
     if (hoursUntil < 0) continue;
     if (starts - now.getTime() > horizonMs) continue;
@@ -195,7 +195,7 @@ export function findHomework(
           subtitle: who,
           reason:
             waiting.length === 1
-              ? `You're meeting them with 1 of their emails still unanswered — "${waiting[0].subject || "(no subject)"}"`
+              ? `You're meeting them with 1 of their emails still unanswered: "${waiting[0].subject || "(no subject)"}"`
               : `You're meeting them with ${waiting.length} of their emails still unanswered`,
           action: "Reply before the meeting, or lead with it as the first agenda item",
           path: "/communication",
@@ -212,7 +212,7 @@ export function findHomework(
           kind: "open_items_before_meeting",
           title: m.title,
           subtitle: who,
-          reason: `${open.length} open item${open.length === 1 ? "" : "s"} for this client — they may ask`,
+          reason: `${open.length} open item${open.length === 1 ? "" : "s"} for this client, they may ask`,
           action: `Have a status ready for each, starting with "${open[0].title}"`,
           path: "/tasks",
         });
@@ -227,7 +227,7 @@ export function findHomework(
           kind: "cold_before_meeting",
           title: m.title,
           subtitle: who,
-          reason: `No contact either way in ${daysSinceContact} days — you'd be walking in cold`,
+          reason: `No contact either way in ${daysSinceContact} days. You'd be walking in cold`,
           action: "Skim their Client Vault notes and last thread before the call",
           path: "/clients",
         });
@@ -243,7 +243,7 @@ export function findHomework(
     if (Number.isNaN(due)) continue;
 
     const hoursUntil = (due - now.getTime()) / HOUR;
-    // Overdue tasks stay on the list — unlike meetings, the obligation survives
+    // Overdue tasks stay on the list. Unlike meetings, the obligation survives
     // the deadline. Future ones are cut off at the horizon.
     if (due - now.getTime() > horizonMs) continue;
 
@@ -260,10 +260,10 @@ export function findHomework(
         kind: "blocked",
         title: t.title,
         subtitle: who,
-        reason: `Can't start — waiting on "${blocker.title}"`,
+        reason: `Can't start. Waiting on "${blocker.title}"`,
         action: "Clear the blocker first, or drop the dependency if it's stale",
       });
-      // A blocked task can't also be "not started" in any useful sense — the
+      // A blocked task can't also be "not started" in any useful sense, the
       // reason it hasn't started is already stated above.
       continue;
     }
@@ -311,13 +311,13 @@ export function summarise(items: HomeworkItem[]): Record<Severity, number> {
 }
 
 /**
- * Flattened for the model. Only facts that came out of the database — the prompt
+ * Flattened for the model. Only facts that came out of the database, the prompt
  * carries no numbers this file didn't compute.
  */
 export function homeworkBriefInput(items: HomeworkItem[]): string {
   if (!items.length) return "(nothing outstanding)";
   return items
     .slice(0, 25)
-    .map((i) => `- [${HOMEWORK_KIND_LABEL[i.kind]}] ${i.title} (${i.subtitle}) — ${i.reason}. Due ${i.dueLabel}.`)
+    .map((i) => `- [${HOMEWORK_KIND_LABEL[i.kind]}] ${i.title} (${i.subtitle}). ${i.reason}. Due ${i.dueLabel}.`)
     .join("\n");
 }

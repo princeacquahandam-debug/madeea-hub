@@ -2,7 +2,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 /**
  * Client side of Meeting Intelligence. The browser only ever asks the Edge
- * Function to run a sync — it never holds the Fathom key or the model key, and it
+ * Function to run a sync, it never holds the Fathom key or the model key, and it
  * never writes the extracted rows itself. Everything it then displays it reads
  * back through normal RLS-scoped queries.
  */
@@ -15,7 +15,7 @@ export interface SyncResult {
   memoriesWritten: number;
   failures: string[];
   cursor: string | null;
-  /** True when the batch filled up — there is more history behind it. */
+  /** True when the batch filled up. There is more history behind it. */
   more: boolean;
 }
 

@@ -1,5 +1,5 @@
 /**
- * Command router — turns a ParsedCommand into an executable decision.
+ * Command router. Turns a ParsedCommand into an executable decision.
  *
  * Two phases keep UI concerns (confirmation dialogs) out of the tools:
  *   1. `route(parsed, ctx)` resolves the tool, runs `validate`, and reports

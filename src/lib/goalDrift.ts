@@ -1,5 +1,5 @@
 /**
- * Goal drift — does the diary match what the boss said matters?
+ * Goal drift. Does the diary match what the boss said matters?
  *
  * The uncomfortable question an EA is well placed to ask and rarely does: the
  * stated priority was the fundraise, so why did this week go on internal
@@ -9,14 +9,14 @@
  * TWO HONESTY CONSTRAINTS, both load-bearing, both surfaced in the UI:
  *
  *  1. This measures MEETINGS, not HOURS. No meeting in this schema carries an end
- *     time (see types/db.ts — `starts_at` only), so "80% of your week" is not
+ *     time (see types/db.ts: `starts_at` only), so "80% of your week" is not
  *     computable and is not claimed. "9 of 12 meetings" is true and checkable;
  *     a percentage of time would be invented.
  *
  *  2. Connection is judged by shared keywords between the goal and the meeting
  *     title, not by meaning. A meeting that advances a goal under different
  *     wording will read as unconnected. That undercounts alignment, which is the
- *     safe direction to be wrong in — it prompts a human to look, rather than
+ *     safe direction to be wrong in, it prompts a human to look, rather than
  *     quietly reassuring them everything is fine.
  *
  * Pure and network-free, like the rest of lib/.
@@ -48,7 +48,7 @@ export interface GoalDrift {
   headline: string | null;
   /** What this measure can and can't see. Always rendered. */
   caveats: string[];
-  /** True when no goals are recorded — a prompt, not a finding. */
+  /** True when no goals are recorded, a prompt, not a finding. */
   noGoals: boolean;
 }
 
@@ -78,7 +78,7 @@ export function computeGoalDrift(
   const total = inPeriod.length;
 
   const caveats = [
-    "Counted by meetings, not hours — no meeting on record carries an end time.",
+    "Counted by meetings, not hours. No meeting on record carries an end time.",
     "A meeting counts towards a goal when they share a keyword, so work described in different words won't be matched.",
   ];
 
@@ -96,7 +96,7 @@ export function computeGoalDrift(
   }
 
   // A meeting can serve more than one goal, so alignment is computed per goal and
-  // "unconnected" is the set matching none — not total minus the sum.
+  // "unconnected" is the set matching none, not total minus the sum.
   const connected = new Set<string>();
 
   const alignments: GoalAlignment[] = goals.map((g) => {
@@ -130,7 +130,7 @@ export function computeGoalDrift(
     if (starved) {
       headline = `Nothing in the last ${periodDays} days connects to “${starved.goal}”. ${unconnected} of ${total} meetings connect to no stated goal.`;
     } else if (unconnectedPct !== null && unconnectedPct >= 50) {
-      headline = `${unconnected} of ${total} meetings — ${unconnectedPct}% — connect to none of your stated goals.`;
+      headline = `${unconnected} of ${total} meetings (${unconnectedPct}%) connect to none of your stated goals.`;
     } else {
       headline = `${total - unconnected} of ${total} meetings connect to a stated goal.`;
     }

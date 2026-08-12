@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
    grey trays you have to read the headings of.
 
    Their board is white with pastel fills. Ours is dark, so the same idea has to
-   be inverted — a low-opacity wash over the navy, and a solid dot in the header
+   be inverted, a low-opacity wash over the navy, and a solid dot in the header
    carrying the actual colour. The palette is untouched: these are the tones the
    app already uses for pending, in-flight and done. */
 const COLUMNS: { key: TaskStatus; label: string; dot: string; wash: string; edge: string }[] = [
@@ -43,7 +43,7 @@ const dueDisplay = (t: Task): string =>
     : t.due_label || "No date";
 
 /**
- * A short, stable reference for a task — "T-4F2A".
+ * A short, stable reference for a task: "T-4F2A".
  *
  * So a task can be NAMED. "Can you look at T-4F2A" works in Slack, in an EOD
  * line and out loud; "the moodboard one, the second one down" does not. Derived
@@ -103,7 +103,7 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, onSave, isSaved
       <div className="flex items-start gap-2">
         <GripVertical size={14} className="mt-0.5 shrink-0 text-faint" />
         <p className="flex-1 text-sm font-medium">{task.title}</p>
-        {/* Who this is for. Click to reassign — the overlay copy shown while dragging
+        {/* Who this is for. Click to reassign, the overlay copy shown while dragging
             gets a plain avatar, since a menu inside a drag preview makes no sense. */}
         {overlay ? <AssigneeAvatar member={null} /> : <AssigneePicker task={task} />}
         {/* Saved stays lit once set, so the card shows its own state rather than
@@ -207,19 +207,19 @@ function SortableCard({ task, blocked, onDelete, onEdit, onComplete, onSave, isS
 function Column({ status, label, dot, wash, edge, items, blockedIds, onDelete, onEdit, onComplete, onAdd, onSave, savedIds, commentCounts, focusId, justDroppedId, dropActive }: { status: TaskStatus; label: string; dot: string; wash: string; edge: string; items: Task[]; blockedIds: Set<string>; onDelete: (id: string) => void; onEdit: (t: Task) => void; onComplete: (id: string) => void; onAdd: (status: TaskStatus) => void; onSave: (t: Task) => void; savedIds: Set<string>; commentCounts: Record<string, number>; focusId?: string | null; justDroppedId?: string | null; dropActive?: boolean }) {
   /* useDroppable, not useSortable. A column is a container you drop INTO; it is
      never itself dragged. useSortable additionally registered each column as a
-     draggable and, because it reads the nearest SortableContext above it — of
-     which there is none — resolved its own index to -1.
+     draggable and, because it reads the nearest SortableContext above it. Of
+     which there is none. Resolved its own index to -1.
 
      The highlight is driven by `dropActive` from the parent rather than this
      hook's own `isOver`. With closestCorners, hovering a column that already has
      cards resolves `over` to the nearest CARD, so the column's own isOver stays
-     false and col-drop-active never applied — the class was effectively dead.
+     false and col-drop-active never applied, the class was effectively dead.
      The parent already computes the destination column, so it is the honest
      source for "where will this land". */
   const { setNodeRef } = useDroppable({ id: status, data: { type: "column" } });
   return (
     <div className={cn("flex flex-col overflow-hidden rounded-xl border transition-colors", edge, wash, dropActive && "col-drop-active")}>
-      {/* Header carries the colour, and its own Add — you add a task WHERE it
+      {/* Header carries the colour, and its own Add. You add a task WHERE it
           belongs rather than adding to To Do and dragging it across. */}
       <div className="flex items-center gap-2 border-b border-inherit px-3.5 py-2.5">
         <span className={cn("h-2 w-2 shrink-0 rounded-full", dot)} />
@@ -248,7 +248,7 @@ function Column({ status, label, dot, wash, edge, items, blockedIds, onDelete, o
 /* Reference links and files on a task (R-4.7.2).
  *
  * Links only for now, and the field says so rather than showing an upload
- * control that does nothing — P-1: a half-feature is worse than an absent one.
+ * control that does nothing. P-1: a half-feature is worse than an absent one.
  * File upload needs a Supabase Storage bucket and a retention decision, which
  * is a deliberate choice rather than something to slip in. The stored shape
  * already carries kind:"file", so uploads drop in without a migration. */
@@ -290,7 +290,7 @@ function AttachmentsField({ items, onChange }: { items: TaskAttachment[]; onChan
         </div>
       )}
       <div className="flex gap-2">
-        <input className="input flex-1" placeholder="Label — e.g. Final deck" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <input className="input flex-1" placeholder="Label. E.g. Final deck" value={label} onChange={(e) => setLabel(e.target.value)} />
         <input
           className="input flex-[1.4]"
           placeholder="Paste a link (Google Doc, Drive, anything)"
@@ -343,7 +343,7 @@ function ProgressField({ items, onAdd }: { items: TaskProgress[]; onAdd: (body: 
 
 const VIEW_KEY = "madeea-tasks-view";
 
-/** "3m" / "2h" / "5d" — a thread is read by recency, not by date. */
+/** "3m" / "2h" / "5d", a thread is read by recency, not by date. */
 function ago(iso: string): string {
   const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
   if (s < 60) return "just now";
@@ -407,7 +407,7 @@ function TaskThread({ taskId }: { taskId: string }) {
           </div>
         ))}
 
-        {/* Activity is quieter than conversation on purpose — it is context for
+        {/* Activity is quieter than conversation on purpose, it is context for
             the thread, not the point of it. */}
         {activity.filter((a) => a.verb !== "commented").slice(0, 12).map((a) => (
           <p key={a.id} className="px-1 text-[11px] text-faint">
@@ -566,7 +566,7 @@ export default function Tasks() {
   const me = members.find((m) => m.is_me);
   // MUST be memoised: this feeds a useEffect that calls setBoard. A fresh array on
   // every render meant the effect re-ran on every render, setting state, re-rendering,
-  // rebuilding the array — an infinite loop ("Maximum update depth exceeded").
+  // rebuilding the array, an infinite loop ("Maximum update depth exceeded").
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return tasks.filter((t) => {
@@ -575,7 +575,7 @@ export default function Tasks() {
       if (who !== "all" && who !== "mine" && who !== "unassigned" && t.assignee_id !== who) return false;
       if (!needle) return true;
       /* Searches everything you might remember it by, including the reference
-         and the notes — "the one about the printer" only finds it if the notes
+         and the notes: "the one about the printer" only finds it if the notes
          are searched, and they are where that sentence actually lives. */
       return [t.title, t.client_name, t.notes ?? "", t.blocker_note ?? "", taskRef(t.id)]
         .join(" ")
@@ -702,7 +702,7 @@ export default function Tasks() {
     <div>
       <PageHeader
         title="Task Manager"
-        // The instruction has to match the view you are actually looking at —
+        // The instruction has to match the view you are actually looking at,
         // there is nothing to drag in the list.
         subtitle={view === "list" ? "Every task, soonest first. Change status from the dropdown." : "Drag cards between columns to update status"}
         action={
@@ -735,7 +735,7 @@ export default function Tasks() {
         <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
         <input
           className="input pl-9"
-          placeholder="Search tasks — title, client, notes, or reference…"
+          placeholder="Search tasks. Title, client, notes, or reference…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           aria-label="Search tasks"
@@ -784,7 +784,7 @@ export default function Tasks() {
         ))}
         {/* Board or list. A kanban is the right shape for moving work along and
             the wrong one for scanning forty tasks for the one you half-remember
-            — the list sorts by due date and shows every task in one column.
+            the list sorts by due date and shows every task in one column.
             Stored, because whichever you prefer you prefer every day. */}
         <span className="ml-auto flex items-center gap-1 rounded-lg bg-surface-2 p-0.5">
           {([["board", "Board", Columns3], ["list", "List", ListIcon]] as const).map(([id, label, Icon]) => (
@@ -851,7 +851,7 @@ export default function Tasks() {
           </div>
           <div className="grid grid-cols-3 gap-3">
             {/* Status was only changeable by dragging, which meant no way to move
-                a task from the detail view at all — and no way at all on a phone. */}
+                a task from the detail view at all, and no way at all on a phone. */}
             <div>
               <label className="field-label" htmlFor="task-status">Status</label>
               <select id="task-status" className="input" value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as TaskStatus }))}>
@@ -894,7 +894,7 @@ export default function Tasks() {
             <div>
               <label className="field-label">Blocked by</label>
               <select className="input" value={form.dependsOn} onChange={(e) => setForm((f) => ({ ...f, dependsOn: e.target.value }))}>
-                <option value="">— None —</option>
+                <option value="">None</option>
                 {tasks.filter((t) => t.id !== editingId).map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
               </select>
             </div>
@@ -913,7 +913,7 @@ export default function Tasks() {
             <span className="flex-1">
               <span className="block text-[13px] font-medium">Needs approval before it can be completed</span>
               <span className="block text-[11px] text-faint">
-                For work a client sees — an email to their customer, a published post, an invoice.
+                For work a client sees, an email to their customer, a published post, an invoice.
                 It waits in Review until an admin signs it off.
               </span>
             </span>
@@ -939,7 +939,7 @@ export default function Tasks() {
             <textarea
               id="task-notes"
               className="input min-h-[84px] resize-y"
-              placeholder="Anything worth remembering about this task — context, a phone number, what you tried."
+              placeholder="Anything worth remembering about this task. Context, a phone number, what you tried."
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
             />
@@ -967,14 +967,14 @@ export default function Tasks() {
             <div>
               <label className="field-label">Client</label>
               <select className="input" value={form.clientId} onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))}>
-                <option value="">— No client —</option>
+                <option value="">No client</option>
                 {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
               <label className="field-label">Assignee</label>
               <select className="input" value={form.assigneeId} onChange={(e) => setForm((f) => ({ ...f, assigneeId: e.target.value }))}>
-                <option value="">— Unassigned —</option>
+                <option value="">Unassigned</option>
                 {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name}{m.is_me ? " (you)" : ""}</option>)}
               </select>
             </div>
@@ -992,7 +992,7 @@ export default function Tasks() {
             if (t?.approved_at) {
               return (
                 <p className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-400">
-                  <ShieldCheck size={13} /> Approved — this can now be completed.
+                  <ShieldCheck size={13} /> Approved, this can now be completed.
                 </p>
               );
             }
@@ -1007,7 +1007,7 @@ export default function Tasks() {
             );
           })()}
 
-          {/* Only on a task that exists — there is nothing to comment on, and no
+          {/* Only on a task that exists. There is nothing to comment on, and no
               id to hang a comment from, until it has been created. */}
           {editingId && <TaskThread taskId={editingId} />}
         </div>
@@ -1016,7 +1016,7 @@ export default function Tasks() {
       {/* Templates */}
       <Modal open={templates} onClose={() => setTemplates(false)}>
         <h2 className="mb-1 text-lg font-semibold">Start from a template</h2>
-        <p className="mb-4 text-sm text-muted">Common EA workflows — creates a task with its checklist ready to tweak.</p>
+        <p className="mb-4 text-sm text-muted">Common EA workflows. Creates a task with its checklist ready to tweak.</p>
         <div className="space-y-2">
           {TASK_TEMPLATES.map((t) => (
             <button key={t.name} onClick={() => fromTemplate(t)} className="flex w-full flex-col rounded-lg border border-border p-3 text-left transition-colors hover:border-accent/40">

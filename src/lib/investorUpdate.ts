@@ -1,11 +1,11 @@
 /**
- * Investor-Update Helper — assembles the period's real activity into the skeleton
+ * Investor-Update Helper. Assembles the period's real activity into the skeleton
  * of an update, then hands that skeleton to the writing engine.
  *
  * The point of this file is the separation it enforces. Everything the model is
  * allowed to state as fact is computed HERE, from rows in the database, and shown
  * to the EA before a single token is generated. The model's job is prose, not
- * arithmetic — it is explicitly told to reuse the supplied figures verbatim and to
+ * arithmetic, it is explicitly told to reuse the supplied figures verbatim and to
  * mark anything else [TBC].
  *
  * That matters more for this document than any other in the app. An investor
@@ -30,7 +30,7 @@ export interface UpdateInputs {
   company: string;
   recipients: string;
   periodLabel: string;
-  /** Headline business figures — ARR, runway, headcount. The EA's numbers, not ours. */
+  /** Headline business figures. ARR, runway, headcount. The EA's numbers, not ours. */
   headlineMetrics: string;
   asks: string;
   lowlights: string;
@@ -201,14 +201,14 @@ export function updatePromptInputs(f: UpdateFacts, i: UpdateInputs): Record<stri
     recipients: i.recipients,
     period: i.periodLabel || `${f.from.toDateString()} → ${f.to.toDateString()}`,
     tone: i.tone,
-    headline_metrics_from_the_user: i.headlineMetrics || "(none supplied — omit a metrics section rather than inventing one)",
+    headline_metrics_from_the_user: i.headlineMetrics || "(none supplied. Omit a metrics section rather than inventing one)",
     measured_activity: measured,
     delivered_this_period: delivered,
     meetings_held: meetings,
     client_activity: clients,
     risks_and_blockers: f.risks.length ? f.risks.map((r) => `- ${r}`).join("\n") : "(none detected)",
     lowlights_from_the_user: i.lowlights || "(none supplied)",
-    asks: i.asks || "(none supplied — omit the asks section)",
+    asks: i.asks || "(none supplied. Omit the asks section)",
     data_caveats: f.warnings.length ? f.warnings.join(" ") : "(none)",
   };
 }

@@ -1,7 +1,7 @@
 /**
  * Uploads and saved items while running WITHOUT Supabase (demo mode).
  *
- * Saved items go to localStorage — they are a few short rows and surviving a
+ * Saved items go to localStorage, they are a few short rows and surviving a
  * reload is the whole point of a bookmark.
  *
  * File BLOBS stay in memory, for the same reason recordings do: localStorage

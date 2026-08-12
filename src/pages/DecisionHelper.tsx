@@ -52,7 +52,7 @@ export default function DecisionHelper() {
       setRecord(
         await generate({
           tool: "decision",
-          format: `Decision record — ${question || "untitled"}`,
+          format: `Decision record. ${question || "untitled"}`,
           inputs: decisionPromptInputs(question, context, result),
         }),
       );
@@ -79,7 +79,7 @@ export default function DecisionHelper() {
           <ShieldAlert size={15} className="mt-0.5 shrink-0 text-amber-400" />
           <div className="text-xs leading-relaxed text-amber-100/90">
             <p className="mb-1 font-medium text-amber-200">You decide. This does the arithmetic.</p>
-            The options, the criteria and — most importantly — the weights are your judgement. All
+            The options, the criteria and (most importantly) the weights are your judgement. All
             this does is multiply and sort, then tell you which weight would have to change to flip
             the answer. The AI writes the record afterwards; it is not asked what to choose, and it
             is instructed not to say.
@@ -216,7 +216,7 @@ export default function DecisionHelper() {
                           }
                           aria-label={`${o.label || "Option"} scored on ${c.label}`}
                         >
-                          <option value="">—</option>
+                          <option value="">-</option>
                           {Array.from({ length: MAX_SCORE + 1 }, (_, n) => (
                             <option key={n} value={n}>
                               {n}
@@ -230,7 +230,7 @@ export default function DecisionHelper() {
                   <input
                     className="input mt-2 py-1 text-xs"
                     aria-label={`Note for ${o.label || `option ${options.indexOf(o) + 1}`}`}
-                    placeholder="Note (optional) — anything the score doesn't capture"
+                    placeholder="Note (optional). Anything the score doesn't capture"
                     value={o.note}
                     onChange={(e) =>
                       setOptions((prev) => prev.map((x) => (x.id === o.id ? { ...x, note: e.target.value } : x)))
@@ -247,7 +247,7 @@ export default function DecisionHelper() {
           <section className="card p-5">
             <h2 className="mb-3 font-semibold">Where the numbers land</h2>
 
-            {/* The verdict, computed from the EA's own weights — never the model's
+            {/* The verdict, computed from the EA's own weights. Never the model's
                 opinion. See verdict() in lib/decision.ts for why that distinction
                 is the whole design. */}
             <div
@@ -264,7 +264,7 @@ export default function DecisionHelper() {
               <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-100">
                 <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                 <span>
-                  Within {CLOSE_MARGIN} points — the numbers don't decide this. Choose on judgement
+                  Within {CLOSE_MARGIN} points, the numbers don't decide this. Choose on judgement
                   and write down why.
                 </span>
               </div>
@@ -308,7 +308,7 @@ export default function DecisionHelper() {
                         <strong className="text-zinc-200">{s.flipsTo}</strong> would win instead.
                       </>
                     ) : (
-                      <>the lead would vanish — <strong className="text-zinc-200">nothing would be clearly ahead</strong>.</>
+                      <>the lead would vanish. <strong className="text-zinc-200">nothing would be clearly ahead</strong>.</>
                     )}
                   </li>
                 ))}
@@ -316,7 +316,7 @@ export default function DecisionHelper() {
             ) : (
               <p className="text-xs text-faint">
                 {result.leader
-                  ? "No single weight change flips the result — the ranking is robust to how you've weighted things."
+                  ? "No single weight change flips the result, the ranking is robust to how you've weighted things."
                   : "Score the options to see this."}
               </p>
             )}
@@ -347,11 +347,11 @@ export default function DecisionHelper() {
             </div>
             {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
             {record ? (
-              <OutputViewer output={record} title={`Decision — ${question || "record"}`} />
+              <OutputViewer output={record} title={`Decision. ${question || "record"}`} />
             ) : (
               <div className="flex flex-col items-center justify-center gap-2 py-6 text-center text-faint">
                 <FileText size={22} />
-                <p className="text-xs">A record of what you weighed and why — for the file, not a recommendation</p>
+                <p className="text-xs">A record of what you weighed and why, for the file, not a recommendation</p>
               </div>
             )}
           </section>

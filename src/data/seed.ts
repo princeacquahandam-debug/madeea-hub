@@ -4,9 +4,9 @@ import * as demo from "@/data/demo";
 // No dummy data. These empty arrays are the read-only fallback used ONLY in
 // demo mode (no Supabase credentials). In live mode every page reads the user's
 // real Supabase data. Real records are created through the app (CRUD) or synced
-// from integrations (Gmail/Calendar) — never seeded.
+// from integrations (Gmail/Calendar). Never seeded.
 //
-// Sample data is loaded only in demo mode (no Supabase) — i.e. local dev, or a
+// Sample data is loaded only in demo mode (no Supabase). I.e. local dev, or a
 // build that explicitly opts into the public demo (VITE_ALLOW_DEMO=true /
 // VITE_DEMO=1). A real deployment with Supabase env set never uses these arrays
 // (the hooks read live data), so this stays out of production data paths.
@@ -21,7 +21,7 @@ export const MESSAGES: Message[] = DEMO ? demo.MESSAGES : [];
 export const MEETINGS: Meeting[] = DEMO ? demo.MEETINGS : [];
 export const AUTOMATIONS: Automation[] = DEMO ? demo.AUTOMATIONS : [];
 
-// Default SOPs (product templates, not user data) — fallback for demo mode.
+// Default SOPs (product templates, not user data). Fallback for demo mode.
 // In live mode these are seeded globally by migration 0007.
 export const SOPS: Sop[] = [
   {

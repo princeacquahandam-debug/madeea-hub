@@ -1,5 +1,5 @@
 /**
- * Intent parser — natural-language → { intent, params, confidence }.
+ * Intent parser. Natural-language → { intent, params, confidence }.
  *
  * This is a fast, fully-offline heuristic classifier (runs in well under a
  * millisecond, so search/parse feel instant and work in the static demo with no
@@ -223,7 +223,7 @@ const MATCHERS: Matcher[] = [
 ];
 
 /**
- * Classify a raw prompt. Public entrypoint — keep this signature stable so an
+ * Classify a raw prompt. Public entrypoint. Keep this signature stable so an
  * AI classifier can replace the body without ripples.
  */
 export function parseIntent(raw: string): ParsedCommand {

@@ -2,7 +2,7 @@
 //
 // The server half of the team email organizer. n8n has no user session, so this
 // function authenticates with a shared secret instead of a JWT and does every
-// privileged thing itself. n8n only ever sees message metadata — never a Google
+// privileged thing itself. n8n only ever sees message metadata. Never a Google
 // refresh token, never an access token.
 //
 //   POST { action: "members" }
@@ -21,7 +21,7 @@
 //
 // WHY --no-verify-jwt is safe here: the gateway's JWT check is replaced by the
 // x-n8n-secret check below, which fails closed when the secret is unset. Nothing
-// in this function trusts anything else the caller says about identity — the
+// in this function trusts anything else the caller says about identity, the
 // mailbox is always addressed by user_id, and that user_id must resolve to a
 // real membership before a single Gmail call is made.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
@@ -70,7 +70,7 @@ async function accessToken(refresh: string): Promise<string> {
   const t = await r.json();
   if (!r.ok) {
     console.error("google token refresh failed", r.status, JSON.stringify(t));
-    throw new Error("Google connection expired — this member must reconnect in Integrations.");
+    throw new Error("Google connection expired, this member must reconnect in Integrations.");
   }
   return t.access_token;
 }
@@ -122,7 +122,7 @@ async function listMembers(db: ReturnType<typeof admin>) {
     console.error("google_credentials read failed", error.message);
     throw new Error("Could not list connected mailboxes.");
   }
-  // Only the ids leave this scope — the tokens stay in this function.
+  // Only the ids leave this scope, the tokens stay in this function.
   const ids = (creds ?? []).filter((c) => c.refresh_token).map((c) => c.owner_id as string);
   if (!ids.length) return [];
 
@@ -150,7 +150,7 @@ async function fetchMailbox(db: ReturnType<typeof admin>, userId: string, max: n
   }
   if (!cred?.refresh_token) throw new Error("Google not connected");
 
-  // Cursor. A brand-new mailbox starts 2 days back rather than at the epoch —
+  // Cursor. A brand-new mailbox starts 2 days back rather than at the epoch,
   // enough to look alive on the first run without importing a decade of mail.
   const { data: state } = await db
     .from("gmail_sync_state").select("last_internal_date").eq("owner_id", userId).maybeSingle();
@@ -179,7 +179,7 @@ async function fetchMailbox(db: ReturnType<typeof admin>, userId: string, max: n
 
   if (incoming.length) {
     // Which of these do we already have? Skipping them keeps this function from
-    // ever rewriting a row — no upsert, so a human's filing can't be clobbered.
+    // ever rewriting a row. No upsert, so a human's filing can't be clobbered.
     const ids = incoming.map((m: { id: string }) => m.id);
     const { data: known } = await db
       .from("messages").select("gmail_id").eq("workspace_id", workspaceId).in("gmail_id", ids);
@@ -241,7 +241,7 @@ async function fetchMailbox(db: ReturnType<typeof admin>, userId: string, max: n
       if (insErr) {
         console.error("message insert failed", JSON.stringify(insErr));
         // The caller here is an operator holding the shared secret, not a
-        // browser, so the real Postgres error is more useful than it is risky —
+        // browser, so the real Postgres error is more useful than it is risky,
         // without it a failed run is undiagnosable from outside the dashboard.
         throw new Error(
           `Could not store the fetched mail: ${insErr.message}` +
@@ -390,12 +390,12 @@ Deno.serve(async (req) => {
         return json(await fetchMailbox(db, userId, max));
       } catch (e) {
         // Record the failure against the mailbox so it shows up in the app, then
-        // report it — one member's expired token must not stall the whole run.
+        // report it. One member's expired token must not stall the whole run.
         const msg = e instanceof Error ? e.message : String(e);
         try {
           const ws = await memberWorkspace(db, userId);
           await noteSyncResult(db, userId, ws, { last_status: "error", last_error: msg.slice(0, 500) });
-        } catch { /* membership already gone — nothing to record against */ }
+        } catch { /* membership already gone. Nothing to record against */ }
         return json({ user_id: userId, error: msg, rules: [], messages: [], pulled: 0 }, 200);
       }
     }

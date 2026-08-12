@@ -2,7 +2,7 @@
  * Cache for generated meeting prep packets, keyed by meeting id.
  *
  * Persisted to localStorage so opening a packet a second time is instant and
- * doesn't re-hit the model. "Regenerate" is the manual invalidation — there is no
+ * doesn't re-hit the model. "Regenerate" is the manual invalidation. There is no
  * TTL, because the user is the one who knows whether the underlying data moved.
  */
 import { create } from "zustand";

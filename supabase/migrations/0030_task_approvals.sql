@@ -1,4 +1,4 @@
--- 0030_task_approvals.sql — Sign-off before client-facing work is called done.
+-- 0030_task_approvals.sql. Sign-off before client-facing work is called done.
 --
 -- Run once in the Supabase SQL editor, after 0029.
 --
@@ -6,11 +6,11 @@
 -- in the same transaction that adds it, and the SQL editor runs a whole script
 -- as one. Run PART 1 on its own, then PART 2. If you paste the lot and see
 -- "unsafe use of new value of enum type", that is exactly this and nothing is
--- broken — just run part 2 separately.
+-- broken. Just run part 2 separately.
 --
 -- Ported from PROJECT_PLAN §5.3. Some assistant output goes straight to a
 -- client: an email to their customer, a published post, an invoice. A task
--- marked as needing approval cannot be closed by the person who did it — it
+-- marked as needing approval cannot be closed by the person who did it, it
 -- lands in Review and waits for an admin.
 --
 -- This is the "trust dial" that lets an EA be given more rope over time without
@@ -25,7 +25,7 @@ alter table tasks add column if not exists approved_by uuid references auth.user
 alter table tasks add column if not exists approved_at timestamptz;
 
 comment on column tasks.requires_approval is
-  'Client-facing output. Cannot reach done without an approver — enforced by enforce_task_approval().';
+  'Client-facing output. Cannot reach done without an approver. Enforced by enforce_task_approval().';
 
 create index if not exists tasks_review_idx on tasks (workspace_id, status) where status = 'review';
 

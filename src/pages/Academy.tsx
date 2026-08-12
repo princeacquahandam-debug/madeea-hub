@@ -64,7 +64,7 @@ export default function Academy() {
             <Play size={38} className="ml-1" fill="currentColor" />
           </span>
           <span className="text-[17px] font-bold text-white [text-shadow:0_2px_10px_rgba(0,0,0,0.4)]">
-            Navigating the Command Center — Full Walkthrough
+            Navigating the Command Center. Full Walkthrough
           </span>
           <span className="text-[13.5px] text-white/70">12:48 · Start here</span>
         </div>

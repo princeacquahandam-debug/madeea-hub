@@ -46,7 +46,7 @@ export default function MemoryHelper() {
       });
       setDraft({ kind: draft.kind, body: "", client_id: draft.client_id, source: "" });
     } catch (e) {
-      // The entry is NOT cleared on failure — retyping something you already typed
+      // The entry is NOT cleared on failure. Retyping something you already typed
       // is a worse outcome than seeing the box stay full with an error above it.
       setSaveError(e instanceof Error ? e.message : "Could not save that memory.");
     }
@@ -67,7 +67,7 @@ export default function MemoryHelper() {
           <div className="text-xs leading-relaxed text-muted">
             <p className="mb-1 font-medium text-zinc-200">This is a curated memory, not an automatic one.</p>
             Nothing is remembered unless you write it here. Recall matches on{" "}
-            <strong className="text-zinc-200">keywords and client</strong>, not meaning — “doesn't like
+            <strong className="text-zinc-200">keywords and client</strong>, not meaning. “doesn't like
             early calls” won't be found by searching “scheduling”. Entries you add against a client
             flow into that client's email drafts automatically, and never into anyone else's.
           </div>
@@ -108,7 +108,7 @@ export default function MemoryHelper() {
                 value={draft.client_id}
                 onChange={(e) => setDraft((d) => ({ ...d, client_id: e.target.value }))}
               >
-                <option value="">General — the whole desk</option>
+                <option value="">General, the whole desk</option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -214,7 +214,7 @@ export default function MemoryHelper() {
                   <button
                     className="rounded-md p-1.5 text-faint transition-colors hover:bg-accent/10 hover:text-accent"
                     onClick={() => update.mutate({ id: m.id, pinned: !m.pinned })}
-                    title={m.pinned ? "Unpin" : "Pin — always surface this for this client"}
+                    title={m.pinned ? "Unpin" : "Pin. Always surface this for this client"}
                     aria-label={m.pinned ? `Unpin ${m.body}` : `Pin ${m.body}`}
                   >
                     {m.pinned ? <PinOff size={14} /> : <Pin size={14} />}
@@ -239,7 +239,7 @@ export default function MemoryHelper() {
                 </p>
                 <p className="max-w-md text-sm text-faint">
                   {memories.length
-                    ? "Search matches words, not meaning — try a word that actually appears in the entry."
+                    ? "Search matches words, not meaning. Try a word that actually appears in the entry."
                     : "Start with one client preference. It'll show up in their next email draft."}
                 </p>
               </div>

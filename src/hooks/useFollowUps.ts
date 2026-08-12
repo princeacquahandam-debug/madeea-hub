@@ -1,6 +1,6 @@
 /**
  * One source of truth for follow-up flags, shared by the bell, the Dashboard, the
- * inbox and the task board — so the count in the badge always matches the list you
+ * inbox and the task board, so the count in the badge always matches the list you
  * land on.
  *
  * Recomputed on demand and memoised. The brief asked for a nightly job; at this

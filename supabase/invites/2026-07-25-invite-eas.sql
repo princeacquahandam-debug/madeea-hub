@@ -1,4 +1,4 @@
--- Invite EAs into the shared workspace — 2026-07-25
+-- Invite EAs into the shared workspace. 2026-07-25
 --   angelica.roma@madeeas.com
 --   johncarlo.japitana@madeeas.com
 --   rowena.petran@madeeas.com
@@ -6,7 +6,7 @@
 --   fj.caballes@madeeas.com
 --   laura.esteban@madeeas.com
 --
--- One-off operational script, NOT a schema migration — do not add it to the
+-- One-off operational script, NOT a schema migration. Do not add it to the
 -- migration runner (it seeds invite rows, it doesn't change structure).
 --
 -- Preferred path is still the app's Admin panel "Invite by email", which does
@@ -14,7 +14,7 @@
 -- only if the Admin panel or its email delivery isn't working and you're driving
 -- it from the Supabase dashboard by hand.
 --
--- TWO STEPS ARE REQUIRED — the SQL below is only step 1:
+-- TWO STEPS ARE REQUIRED, the SQL below is only step 1:
 --
 --   1. (this file) Pre-authorize the addresses in `invites`. handle_new_user reads
 --      this row to decide membership; without it a signup gets NO seat (see 0016).

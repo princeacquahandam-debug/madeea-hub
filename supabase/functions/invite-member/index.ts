@@ -1,11 +1,11 @@
-// Supabase Edge Function: invite-member  (self-contained — paste as-is)
+// Supabase Edge Function: invite-member  (self-contained. Paste as-is)
 // POST { email } -> { ok, email }
 // Invites a teammate into the CALLER'S workspace as an EA.
 //
 // Security:
 //  - Auth is enforced in-code (deploy with Verify JWT OFF so browser CORS
 //    preflight passes; we still require + validate the bearer token here).
-//  - The caller must be an *admin* of their workspace — checked against the DB
+//  - The caller must be an *admin* of their workspace. Checked against the DB
 //    using THEIR token (RLS-scoped), not anything sent from the browser.
 //  - The workspace_id attached to the invite is read server-side from the
 //    caller's membership, so a client cannot inject another workspace.
@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     const { data: me } = await userClient
       .from("memberships").select("workspace_id, role").eq("user_id", authed.user.id).limit(1).maybeSingle();
     if (!me) return json({ error: "no workspace" }, 403);
-    if (me.role !== "admin") return json({ error: "forbidden — admins only" }, 403);
+    if (me.role !== "admin") return json({ error: "forbidden. Admins only" }, 403);
 
     const { email } = await req.json().catch(() => ({ email: "" }));
     const addr = String(email ?? "").trim().toLowerCase();
@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
 
     // Service role: record the invite server-side, then send it. handle_new_user
     // reads this row (never the signup metadata) to decide membership. Role is
-    // hardcoded to 'ea' — it is deliberately not accepted from the body, so an
+    // hardcoded to 'ea', it is deliberately not accepted from the body, so an
     // invite can never mint an admin.
     const admin = createClient(URL, SERVICE);
 
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
     const { error } = await admin.auth.admin.inviteUserByEmail(addr);
     if (error) {
       // Only clean up an invite this call created. A pending invite that already
-      // existed is someone else's in-flight invite — leave it alone.
+      // existed is someone else's in-flight invite. Leave it alone.
       if (!existing) await admin.from("invites").delete().eq("email", addr).is("accepted_at", null);
       return json({ error: error.message }, 400);
     }

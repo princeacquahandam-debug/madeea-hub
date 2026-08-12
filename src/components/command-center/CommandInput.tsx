@@ -1,5 +1,5 @@
 /**
- * CommandInput — the large command bar. The mic button dictates into the input
+ * CommandInput, the large command bar. The mic button dictates into the input
  * using the browser's own speech engine (see lib/speech.ts) when the browser
  * supports it, and falls back to a disabled control with an honest reason when it
  * doesn't. Keyboard handling is delegated up to CommandCenter so all navigation
@@ -23,7 +23,7 @@ export const CommandInput = forwardRef<HTMLInputElement, Props>(function Command
   const supported = isSpeechSupported();
   const [listening, setListening] = useState(false);
   const sessionRef = useRef<Dictation | null>(null);
-  // The text already in the box when dictation starts — spoken words are appended
+  // The text already in the box when dictation starts. Spoken words are appended
   // to it rather than replacing it, so the mic adds to a half-typed command.
   const baseRef = useRef("");
 
@@ -78,7 +78,7 @@ export const CommandInput = forwardRef<HTMLInputElement, Props>(function Command
           supported
             ? listening
               ? "Stop listening"
-              : "Voice input — dictate your command"
+              : "Voice input. Dictate your command"
             : "Voice input isn't supported in this browser"
         }
         aria-label={

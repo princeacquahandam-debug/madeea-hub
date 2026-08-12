@@ -8,7 +8,7 @@ import { teamWorkload, unassignedCount } from "@/lib/team";
 
 function fmtDate(s: string) {
   const d = new Date(s);
-  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return isNaN(d.getTime()) ? "-" : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
 export default function Admin() {
@@ -24,7 +24,7 @@ export default function Admin() {
   const [email, setEmail] = useState("");
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
-  // UI gate only — RLS is the real boundary (admins-only writes, workspace isolation).
+  // UI gate only. RLS is the real boundary (admins-only writes, workspace isolation).
   if (!roleLoading && role !== "admin") {
     return (
       <div className="mx-auto max-w-md pt-10 text-center">
@@ -62,7 +62,7 @@ export default function Admin() {
   function changeRole(user_id: string, role: "admin" | "ea") {
     setNotice(null);
     setRole.mutate({ user_id, role }, {
-      onError: () => setNotice({ kind: "err", text: "Couldn't update role — your account may not have admin rights." }),
+      onError: () => setNotice({ kind: "err", text: "Couldn't update role. Your account may not have admin rights." }),
     });
   }
 
@@ -70,7 +70,7 @@ export default function Admin() {
     if (!window.confirm(`Remove ${name} from the workspace? They'll lose access immediately.`)) return;
     setNotice(null);
     remove.mutate({ user_id }, {
-      onError: () => setNotice({ kind: "err", text: "Couldn't remove member — admin rights required." }),
+      onError: () => setNotice({ kind: "err", text: "Couldn't remove member. Admin rights required." }),
     });
   }
 
@@ -103,7 +103,7 @@ export default function Admin() {
       </div>
 
       {/* Invite */}
-            {/* Who is carrying what — derived from real assignments, not a stored number. */}
+            {/* Who is carrying what. Derived from real assignments, not a stored number. */}
       <section className="card mb-4 p-5">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-semibold">Team Workload</h2>

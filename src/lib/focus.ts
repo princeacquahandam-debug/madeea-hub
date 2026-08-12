@@ -1,5 +1,5 @@
 /**
- * Focus Helper — what to do right now, and why.
+ * Focus Helper. What to do right now, and why.
  *
  * The app already tells you what's wrong in several places: SLA breaches, stale
  * follow-ups, homework due. What it never does is put them in one order. An EA
@@ -8,7 +8,7 @@
  *
  * The design constraint that matters: **the ranking must be explainable**. Every
  * item carries the list of reasons that produced its score, and the UI shows them.
- * A black-box "priority score" is worse than no ranking — the EA can't tell whether
+ * A black-box "priority score" is worse than no ranking, the EA can't tell whether
  * to trust it, so they fall back to guessing and the feature is dead weight.
  *
  * Weights are declared in SCORING below rather than scattered through the code, so
@@ -106,7 +106,7 @@ export function rankFocus({ tasks, messages, clients, cfg }: FocusSources, now =
     }
 
     if (t.status === "in_progress") {
-      reasons.push({ label: "Already started — finish it", points: SCORING.inProgress });
+      reasons.push({ label: "Already started. Finish it", points: SCORING.inProgress });
     }
 
     if (t.updated_at) {
@@ -125,7 +125,7 @@ export function rankFocus({ tasks, messages, clients, cfg }: FocusSources, now =
       }
     }
 
-    // No signal at all means no opinion — don't manufacture a ranking for it.
+    // No signal at all means no opinion. Don't manufacture a ranking for it.
     if (!reasons.length) continue;
 
     items.push({
@@ -155,7 +155,7 @@ export function rankFocus({ tasks, messages, clients, cfg }: FocusSources, now =
     if (hours > t.risk) {
       const overDays = Math.floor((hours - t.risk) / 24);
       const extra = Math.min(overDays * SCORING.mailBreachedPerDay, SCORING.mailBreachedPerDayCap);
-      reasons.push({ label: `Past the agreed response time — waiting ${waited}`, points: SCORING.mailBreached + extra });
+      reasons.push({ label: `Past the agreed response time. Waiting ${waited}`, points: SCORING.mailBreached + extra });
     } else if (hours > t.ok) {
       reasons.push({ label: `Waiting ${waited}, past the target reply time`, points: SCORING.mailOverdueSoft });
     } else if (hours > 0) {
@@ -176,13 +176,13 @@ export function rankFocus({ tasks, messages, clients, cfg }: FocusSources, now =
   }
 
   // Highest score first. Ties broken so an actionable item beats a blocked one of
-  // equal score — the whole point is to hand back something you can start.
+  // equal score, the whole point is to hand back something you can start.
   return items.sort(
     (a, b) => b.score - a.score || Number(Boolean(a.blockedBy)) - Number(Boolean(b.blockedBy)),
   );
 }
 
-/** The shortlist. Blocked items are excluded here — you can't start them. */
+/** The shortlist. Blocked items are excluded here. You can't start them. */
 export function nextUp(items: FocusItem[], count = 3): FocusItem[] {
   return items.filter((i) => !i.blockedBy).slice(0, count);
 }
@@ -204,12 +204,12 @@ export function focusPromptInputs(items: FocusItem[]): Record<string, string> {
       ? top
           .map(
             (i, n) =>
-              `${n + 1}. [${i.kind}] ${i.title} (${i.subtitle}) — score ${i.score}; ${i.reasons
+              `${n + 1}. [${i.kind}] ${i.title} (${i.subtitle}). Score ${i.score}; ${i.reasons
                 .map((r) => `${r.label} ${r.points > 0 ? "+" : ""}${r.points}`)
-                .join("; ")}${i.blockedBy ? ` — BLOCKED by "${i.blockedBy}"` : ""}`,
+                .join("; ")}${i.blockedBy ? `: BLOCKED by "${i.blockedBy}"` : ""}`,
           )
           .join("\n")
-      : "(nothing ranked — no overdue, due or waiting work)",
+      : "(nothing ranked. No overdue, due or waiting work)",
     blocked_count: String(items.filter((i) => i.blockedBy).length),
   };
 }

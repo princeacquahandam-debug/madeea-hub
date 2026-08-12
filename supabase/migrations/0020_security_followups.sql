@@ -1,6 +1,6 @@
 -- 0020_security_followups.sql
 -- Follow-ups from the second security audit. 0016 closed the big holes; these are
--- the ones that survived it. Additive and idempotent — no row data changes.
+-- the ones that survived it. Additive and idempotent. No row data changes.
 --
 -- Summary:
 --   A) membership requires a CONFIRMED email  (closes invite squatting)
@@ -16,7 +16,7 @@
 -- The bug: on_auth_user_created fires on INSERT into auth.users, which happens
 -- BEFORE the address is proven. Any signup whose email matched a pending invite
 -- consumed it and got a full seat. Invite addresses are often guessable
--- (firstname@clientdomain), so an attacker who signed up first took the seat —
+-- (firstname@clientdomain), so an attacker who signed up first took the seat,
 -- and with it read/write over every client, task and message in the workspace.
 -- The only thing standing in the way was the Supabase "allow new signups" toggle,
 -- a dashboard setting with no enforcement in this repo.
@@ -28,7 +28,7 @@
 -- at INSERT for auto-confirm/admin-created accounts, at UPDATE otherwise.
 
 -- Shared grant logic, called from both triggers.
--- SECURITY DEFINER with a caller-supplied user id, so EXECUTE is revoked below —
+-- SECURITY DEFINER with a caller-supplied user id, so EXECUTE is revoked below,
 -- if this were reachable over /rest/v1/rpc it would hand out workspace seats.
 create or replace function grant_invited_membership(p_user uuid, p_email text)
 returns void language plpgsql security definer set search_path = public, pg_temp as $grant$
@@ -141,7 +141,7 @@ create policy "task events read" on task_events for select to authenticated
 -- Every "ws shared" policy validates workspace_id only. owner_id is a DEFAULT,
 -- not a constraint, so a hand-rolled POST could attribute a row to any member,
 -- and an UPDATE could rewrite authorship after the fact. Low severity under a
--- shared workspace — but the UI shows "who wrote this", and a field that can be
+-- shared workspace, but the UI shows "who wrote this", and a field that can be
 -- forged shouldn't be displayed as fact.
 --
 -- Service-role writes (the Edge Functions) run with auth.uid() null and are left
@@ -185,7 +185,7 @@ end $$;
 -- `to public` on storage.objects let the anon key (which ships in the frontend
 -- bundle) list every object in client-avatars. Paths are randomised and the URLs
 -- live only in the private clients table, so listing was the ONLY way an outsider
--- could discover them — and the result was every executive client's photo,
+-- could discover them, and the result was every executive client's photo,
 -- unauthenticated. The bucket stays public=true, so avatars still render from
 -- their public CDN URL; only discovery is removed.
 drop policy if exists "client avatars read" on storage.objects;

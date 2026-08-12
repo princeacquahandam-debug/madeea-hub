@@ -1,5 +1,5 @@
 /**
- * Travel Helper — itinerary maths that has to be right.
+ * Travel Helper. Itinerary maths that has to be right.
  *
  * Same principle as lib/voiceTask.ts: the model is good at prose and bad at
  * arithmetic, so it never gets to do the arithmetic. Every duration, layover,
@@ -8,7 +8,7 @@
  * settled and is told to reproduce them verbatim.
  *
  * A wrong flight duration in a nicely-worded itinerary is worse than no itinerary
- * — the exec plans around it and misses the flight.
+ * the exec plans around it and misses the flight.
  *
  * Timezones are handled with `Intl`, not by hand. Fixed UTC offsets look simpler
  * right up until a trip crosses a daylight-saving boundary, at which point every
@@ -83,7 +83,7 @@ export function isValidZone(zone: string): boolean {
 }
 
 /**
- * The zone's UTC offset, in minutes, AT a given instant — so it reflects whichever
+ * The zone's UTC offset, in minutes, AT a given instant, so it reflects whichever
  * side of a daylight-saving change the instant falls on.
  */
 export function offsetMinutes(instant: Date, zone: string): number {
@@ -118,7 +118,7 @@ const LOCAL_RE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/;
  *
  * Two passes: guess the offset by reading the zone at the naive instant, apply it,
  * then re-read the offset at the corrected instant. The second pass is what makes
- * times near a DST switch land correctly — the offset an hour before the change is
+ * times near a DST switch land correctly, the offset an hour before the change is
  * not the offset an hour after it.
  */
 export function localToUtc(local: string, zone: string): Date | null {
@@ -132,9 +132,9 @@ export function localToUtc(local: string, zone: string): Date | null {
   return Number.isNaN(out.getTime()) ? null : out;
 }
 
-/** An instant rendered as local wall time in a zone — "Tue 4 Nov, 18:40". */
+/** An instant rendered as local wall time in a zone: "Tue 4 Nov, 18:40". */
 export function formatInZone(instant: Date, zone: string): string {
-  if (!isValidZone(zone)) return "—";
+  if (!isValidZone(zone)) return "-";
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: zone,
     weekday: "short",
@@ -191,7 +191,7 @@ export interface ChecklistItem {
   dueLabel: string;
   /**
    * The same deadline as a number, so a real due date can be derived when these
-   * become tasks. Null means "do it now" rather than "no deadline" — parsing the
+   * become tasks. Null means "do it now" rather than "no deadline". Parsing the
    * label text back into a date would be a guess, and this is not the file for
    * guesses.
    */
@@ -229,7 +229,7 @@ function analyseLeg(leg: Leg): LegAnalysis {
     durationMinutes = (arriveUtc.getTime() - departUtc.getTime()) / MINUTE;
     if (durationMinutes < 0) {
       // Almost always a wrong date or a swapped timezone rather than time travel.
-      errors.push("Arrives before it departs — check the dates and the timezones");
+      errors.push("Arrives before it departs. Check the dates and the timezones");
     }
   }
 
@@ -265,7 +265,7 @@ function connectionFor(prev: LegAnalysis, next: LegAnalysis, minMinutes: number)
       airport,
       minutes,
       status: "tight",
-      note: `Under your ${formatMinutes(minMinutes)} minimum — no margin if the inbound is late`,
+      note: `Under your ${formatMinutes(minMinutes)} minimum. No margin if the inbound is late`,
     };
   }
   if (minutes > 5 * 60) {
@@ -295,7 +295,7 @@ export function analyseTrip(legs: Leg[], opts: TravelOptions, now = new Date()):
     if (a.durationMinutes !== null && a.durationMinutes > 20 * 60) {
       warnings.push({
         severity: "warning",
-        message: `${label} works out at ${formatMinutes(a.durationMinutes)} in the air — check the arrival date is right.`,
+        message: `${label} works out at ${formatMinutes(a.durationMinutes)} in the air. Check the arrival date is right.`,
       });
     }
     if (a.departUtc && isValidZone(a.leg.fromZone)) {
@@ -305,7 +305,7 @@ export function analyseTrip(legs: Leg[], opts: TravelOptions, now = new Date()):
           .slice(0, 2),
       );
       if (hour >= 22 || hour < 5) {
-        warnings.push({ severity: "info", message: `${label} is a red-eye — block the next morning lightly.` });
+        warnings.push({ severity: "info", message: `${label} is a red-eye. Block the next morning lightly.` });
       }
     }
     if (a.arriveUtc && isValidZone(a.leg.toZone)) {
@@ -317,7 +317,7 @@ export function analyseTrip(legs: Leg[], opts: TravelOptions, now = new Date()):
       if (hour >= 23 || hour < 4) {
         warnings.push({
           severity: "warning",
-          message: `${label} lands after hours — confirm late check-in with the hotel or it won't hold the room.`,
+          message: `${label} lands after hours. Confirm late check-in with the hotel or it won't hold the room.`,
         });
       }
     }
@@ -332,7 +332,7 @@ export function analyseTrip(legs: Leg[], opts: TravelOptions, now = new Date()):
     } else if (c.status === "tight") {
       warnings.push({
         severity: "warning",
-        message: `${c.airport}: only ${formatMinutes(c.minutes!)} to connect — ${c.note.toLowerCase()}.`,
+        message: `${c.airport}: only ${formatMinutes(c.minutes!)} to connect. ${c.note.toLowerCase()}.`,
       });
     }
   }
@@ -358,7 +358,7 @@ export function analyseTrip(legs: Leg[], opts: TravelOptions, now = new Date()):
     if (Math.abs(jetLagHours) >= 5) {
       warnings.push({
         severity: "info",
-        message: `${Math.abs(jetLagHours)}-hour clock change on arrival — keep the first working day light and shift sleep a day or two early.`,
+        message: `${Math.abs(jetLagHours)}-hour clock change on arrival. Keep the first working day light and shift sleep a day or two early.`,
       });
     }
   }
@@ -369,13 +369,13 @@ export function analyseTrip(legs: Leg[], opts: TravelOptions, now = new Date()):
   if (opts.international && opts.passportExpiry) {
     const daysLeftAtArrival = daysBetween(opts.passportExpiry, arriveUtc ?? now);
     if (daysLeftAtArrival === null) {
-      warnings.push({ severity: "warning", message: "Passport expiry date couldn't be read — check it manually." });
+      warnings.push({ severity: "warning", message: "Passport expiry date couldn't be read. Check it manually." });
     } else if (daysLeftAtArrival < 0) {
       warnings.push({ severity: "critical", message: "The passport expires before this trip. Nothing else matters until that's fixed." });
     } else if (daysLeftAtArrival < 180) {
       warnings.push({
         severity: "critical",
-        message: `Passport has ${daysLeftAtArrival} days left on arrival — under the six months most countries require on entry.`,
+        message: `Passport has ${daysLeftAtArrival} days left on arrival. Under the six months most countries require on entry.`,
       });
     }
   }
@@ -425,7 +425,7 @@ function buildChecklist(
       "hotel",
       "Reconfirm the hotel",
       late
-        ? "Arrival is after hours — the booking needs a guaranteed late check-in, in writing."
+        ? "Arrival is after hours, the booking needs a guaranteed late check-in, in writing."
         : "Confirmation number, check-in time, and whether breakfast is included.",
       late ? "Now" : "3 days before",
       late ? null : 3,
@@ -450,7 +450,7 @@ export function tripFacts(trip: TripAnalysis, opts: TravelOptions): string {
     );
   }
   lines.push("");
-  lines.push("Flights (times are local to each airport, already converted — reuse them exactly):");
+  lines.push("Flights (times are local to each airport, already converted. Reuse them exactly):");
   trip.legs.forEach((a, i) => {
     const dep = a.departUtc ? formatInZone(a.departUtc, a.leg.fromZone) : "[TBC]";
     const arr = a.arriveUtc ? formatInZone(a.arriveUtc, a.leg.toZone) : "[TBC]";
@@ -465,7 +465,7 @@ export function tripFacts(trip: TripAnalysis, opts: TravelOptions): string {
     lines.push("");
     lines.push("Connections:");
     trip.connections.forEach((c) =>
-      lines.push(`- ${c.airport}: ${c.minutes === null ? "[TBC]" : formatMinutes(c.minutes)} — ${c.note}`),
+      lines.push(`- ${c.airport}: ${c.minutes === null ? "[TBC]" : formatMinutes(c.minutes)}. ${c.note}`),
     );
   }
   if (trip.totalElapsedMinutes !== null) {

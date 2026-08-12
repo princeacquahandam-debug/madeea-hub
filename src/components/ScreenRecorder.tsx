@@ -88,7 +88,7 @@ export function ScreenRecorder({
       const surface = (display.getVideoTracks()[0]?.getSettings() as { displaySurface?: string })?.displaySurface;
       if (surface && surface !== "browser") {
         releaseStreams();
-        setError("Please share a browser tab rather than a window or your whole screen — a recording of your desktop can expose other clients' information.");
+        setError("Please share a browser tab rather than a window or your whole screen, a recording of your desktop can expose other clients' information.");
         return;
       }
 
@@ -101,7 +101,7 @@ export function ScreenRecorder({
           tracks.push(...mic.getAudioTracks());
           hasAudio = true;
         } catch {
-          // Refusing the mic is not a failure — narration is optional, and
+          // Refusing the mic is not a failure. Narration is optional, and
           // losing the whole recording over it would be absurd.
           hasAudio = false;
         }
@@ -158,7 +158,7 @@ export function ScreenRecorder({
     <Modal open={open} onClose={() => { if (phase !== "recording") { discard(); onClose(); } }}>
       <h2 className="mb-1 text-lg font-semibold">Record how you do it</h2>
       <p className="mb-4 text-sm text-muted">
-        Records this browser tab. Talk through what you are doing and it becomes an SOP —
+        Records this browser tab. Talk through what you are doing and it becomes an SOP,
         the written steps are what the next person follows.
       </p>
 
@@ -182,7 +182,7 @@ export function ScreenRecorder({
             <span className="text-xs text-faint">{withMic ? "on" : "off"}</span>
           </button>
           <p className="text-xs text-faint">
-            Ten minutes maximum. The recording is private to you and is deleted after 30 days —
+            Ten minutes maximum. The recording is private to you and is deleted after 30 days,
             the SOP you write from it is what lasts.
           </p>
           <button className="btn-primary w-full" onClick={() => void startRecording()}>

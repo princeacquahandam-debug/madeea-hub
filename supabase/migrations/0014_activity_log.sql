@@ -1,4 +1,4 @@
--- 0014_activity_log.sql — the two things a per-client timeline needs and the app
+-- 0014_activity_log.sql, the two things a per-client timeline needs and the app
 -- doesn't have: a "when was this actually done" timestamp on tasks, and a way to
 -- link a calendar meeting to a client.
 
@@ -28,7 +28,7 @@ create trigger tasks_touch_completed_at
   for each row execute function touch_completed_at();
 
 -- Backfill: tasks already done have no record of WHEN. created_at is the only
--- timestamp they have, so it's the honest floor — the UI marks these entries as
+-- timestamp they have, so it's the honest floor, the UI marks these entries as
 -- approximate rather than presenting a guess as fact.
 update tasks set completed_at = created_at
  where status = 'done' and completed_at is null;

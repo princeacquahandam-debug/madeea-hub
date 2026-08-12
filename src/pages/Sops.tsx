@@ -116,7 +116,7 @@ export default function Sops() {
     <div>
       <PageHeader
         title="SOPs"
-        subtitle="Working checklists — run each procedure to standard, every time"
+        subtitle="Working checklists. Run each procedure to standard, every time"
         action={
           <button className="btn-primary" onClick={() => setRecording(true)}>
             <Video size={15} /> Record how you do it
@@ -202,7 +202,7 @@ export default function Sops() {
                   <div className="mt-4">
                     <label className="field-label">Client (optional)</label>
                     <select className="input" value={clientId} onChange={(e) => setClientId(e.target.value)}>
-                      <option value="">— No client —</option>
+                      <option value="">No client</option>
                       {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>

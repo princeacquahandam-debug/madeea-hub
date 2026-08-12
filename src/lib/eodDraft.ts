@@ -35,7 +35,7 @@ const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, normal: 2, 
 
 /**
  * A task is blocked either because someone SAID so (blocked + blocker_note, new
- * in 0016) or because it's waiting on a dependency that isn't done — the board
+ * in 0016) or because it's waiting on a dependency that isn't done, the board
  * already derives and shows that second kind. Both are worth reporting, so the
  * draft picks up both, with the reason spelled out.
  */

@@ -14,8 +14,8 @@
 --            the EA knows where they left off. Her example: building a 3-day
 --            course with assessments.
 --
--- blocker_note is deliberately left alone. It means something specific — this
--- is blocked, and here is why — and it feeds the blockers section of the EOD
+-- blocker_note is deliberately left alone. It means something specific, this
+-- is blocked, and here is why, and it feeds the blockers section of the EOD
 -- draft (lib/eodDraft.ts). Folding general notes into it would put "spoke to
 -- the printer" in tomorrow's blockers list.
 -- ===========================================================================

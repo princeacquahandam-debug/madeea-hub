@@ -1,4 +1,4 @@
--- 0017_memory.sql — the Memory Helper's durable facts.
+-- 0017_memory.sql, the Memory Helper's durable facts.
 --
 -- SCOPE NOTE, because the name promises more than this delivers and that gap is
 -- worth writing down rather than discovering later:
@@ -8,8 +8,8 @@
 -- index, and no background job reading past emails and inferring facts.
 --
 -- That was a deliberate call. Automatic semantic recall over the whole workspace
--- needs pgvector, an embedding pipeline, a retrieval strategy, and — because this
--- is an invite-only shared workspace — an answer to "whose data can surface in
+-- needs pgvector, an embedding pipeline, a retrieval strategy, and, because this
+-- is an invite-only shared workspace, an answer to "whose data can surface in
 -- whose prompt". Shipping a keyword-matched curated store first means the schema
 -- that a later embedding layer would sit on already exists and is populated, and
 -- nothing claims to be smarter than it is in the meantime.

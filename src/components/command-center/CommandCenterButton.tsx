@@ -1,5 +1,5 @@
 /**
- * CommandCenterButton — the TopBar launcher. Opens the Command Center (same as
+ * CommandCenterButton, the TopBar launcher. Opens the Command Center (same as
  * ⌘/Ctrl-K) and advertises the shortcut. Kept tiny so it can drop into any
  * toolbar.
  */

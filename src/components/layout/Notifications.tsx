@@ -165,7 +165,7 @@ export function Notifications() {
                       {isUnread && !n.snooze && <span className="ml-auto mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
                     </div>
                     {snoozeErrId === n.id && (
-                      <p className="mt-1 pl-7 text-xs text-red-300">Couldn't snooze that — please try again.</p>
+                      <p className="mt-1 pl-7 text-xs text-red-300">Couldn't snooze that. Please try again.</p>
                     )}
                   </div>
                 );

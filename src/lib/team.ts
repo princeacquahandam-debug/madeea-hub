@@ -1,9 +1,9 @@
 /**
- * Team workload — who has what on their plate.
+ * Team workload, who has what on their plate.
  *
  * Pure and derived from the real task list. The Member type already carried an
- * `open_tasks` number, but it counted tasks by owner_id — i.e. tasks a person
- * CREATED, not tasks assigned to them — which is a different (and for workload
+ * `open_tasks` number, but it counted tasks by owner_id. I.e. tasks a person
+ * CREATED, not tasks assigned to them, which is a different (and for workload
  * balancing, useless) question. Everything here counts by assignee.
  */
 import type { Member } from "@/data/hooks";
@@ -47,13 +47,13 @@ export function teamWorkload(members: Member[], tasks: Task[], now = new Date())
     .sort((a, b) => b.overdue - a.overdue || b.open - a.open);
 }
 
-/** Tasks nobody has picked up. Not an error state — just work with no owner yet. */
+/** Tasks nobody has picked up. Not an error state. Just work with no owner yet. */
 export const unassignedCount = (tasks: Task[]): number =>
   tasks.filter((t) => !t.assignee_id && t.status !== "done").length;
 
 /**
  * Deterministic colour per member, so the same person is the same colour on every
- * screen. Avatars are initials — there's no photo upload for team members.
+ * screen. Avatars are initials. There's no photo upload for team members.
  */
 const AVATAR_TONES = [
   "bg-accent/20 text-accent-soft",

@@ -1,4 +1,4 @@
-// Edge Function: google-oauth-url   (Verify JWT: ON — default)
+// Edge Function: google-oauth-url   (Verify JWT: ON. Default)
 // Returns a Google consent URL for the signed-in user and records an OAuth state.
 //
 // Security:

@@ -1,13 +1,13 @@
 /**
  * A thin, typed wrapper over the browser Web Speech API (SpeechRecognition).
  *
- * The API ships under two names — `SpeechRecognition` (spec) and
- * `webkitSpeechRecognition` (Chrome/Edge/Safari) — and isn't in TypeScript's lib
+ * The API ships under two names: `SpeechRecognition` (spec) and
+ * `webkitSpeechRecognition` (Chrome/Edge/Safari), and isn't in TypeScript's lib
  * DOM types, so the minimal shape we actually use is declared here rather than
  * pulled in wholesale. Firefox has no support at all; `isSpeechSupported` lets the
  * UI show a disabled control with an honest reason instead of a dead button.
  *
- * Recognition runs entirely in the browser's own engine — no audio is sent
+ * Recognition runs entirely in the browser's own engine. No audio is sent
  * anywhere by this app.
  */
 
@@ -57,7 +57,7 @@ function getCtor(): SpeechRecognitionCtor | null {
 export const isSpeechSupported = (): boolean => getCtor() !== null;
 
 export interface DictationHandlers {
-  /** Fires as words come in — interim text included, so the input updates live. */
+  /** Fires as words come in. Interim text included, so the input updates live. */
   onTranscript: (text: string, isFinal: boolean) => void;
   onError?: (message: string) => void;
   onEnd?: () => void;
@@ -69,7 +69,7 @@ export interface Dictation {
 
 /**
  * Start a single dictation session. Returns a handle to stop it, or null if the
- * browser can't do speech. The caller decides what to do with the text — this
+ * browser can't do speech. The caller decides what to do with the text, this
  * never touches the DOM itself.
  */
 export function startDictation(handlers: DictationHandlers): Dictation | null {
@@ -94,7 +94,7 @@ export function startDictation(handlers: DictationHandlers): Dictation | null {
 
   rec.onerror = (e) => {
     // "no-speech" and "aborted" are ordinary ways a session ends, not failures to
-    // shout about — only surface the ones a user could act on.
+    // shout about. Only surface the ones a user could act on.
     if (e.error !== "no-speech" && e.error !== "aborted") {
       handlers.onError?.(
         e.error === "not-allowed"

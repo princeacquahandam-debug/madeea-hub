@@ -1,4 +1,4 @@
--- 0005_integrations.sql — Google (Gmail + Calendar) OAuth + sync support.
+-- 0005_integrations.sql. Google (Gmail + Calendar) OAuth + sync support.
 
 -- short-lived OAuth state (written/read by Edge Functions via service role)
 create table oauth_states (
