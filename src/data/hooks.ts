@@ -7,7 +7,7 @@ import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
 import { IMPORTED_EOD } from "@/data/eodImport";
 import { loadDemoEod, saveDemoEod, removeDemoEod } from "@/store/demoEod";
-import { addDemoTask, loadDemoTasks, removeDemoTask, updateDemoTask } from "@/store/demoTasks";
+import { addDemoTask, loadDemoTasks, loadTaskPatches, removeDemoTask, updateDemoTask } from "@/store/demoTasks";
 import { loadSnoozes, saveSnooze } from "@/store/demoSnoozes";
 import { loadAssignees, loadDemoTaskEvents, saveAssignee } from "@/store/demoAssignees";
 import { applyDemo, demoCreate, demoDelete, demoId, demoPatch } from "@/store/demoWrites";
@@ -49,12 +49,15 @@ export function useTasks() {
     queryKey: ["tasks"],
     queryFn: async () => {
       if (!supabase) {
-        // Demo mode has no DB, so reassignments live in localStorage and are
-        // layered over the seed tasks here.
+        // Demo mode has no DB, so edits live in localStorage and are layered
+        // over the seed tasks here: reassignments, and any other field change
+        // (status being the one that matters — that is the board).
         const overrides = loadAssignees();
-        return [...loadDemoTasks(), ...seed.TASKS].map((t) =>
-          t.id in overrides ? { ...t, assignee_id: overrides[t.id] } : t,
-        );
+        const patches = loadTaskPatches();
+        return [...loadDemoTasks(), ...seed.TASKS].map((t) => {
+          const merged = t.id in patches ? { ...t, ...patches[t.id] } : t;
+          return t.id in overrides ? { ...merged, assignee_id: overrides[t.id] } : merged;
+        });
       }
       const { data, error } = await supabase
         .from("tasks")

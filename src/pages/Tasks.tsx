@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors,
-  closestCorners, type DragEndEvent, type DragOverEvent, type DragStartEvent,
+  useDroppable, closestCorners, type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove,
@@ -98,10 +98,21 @@ function SortableCard({ task, blocked, onDelete, onEdit, focused, justDropped }:
   );
 }
 
-function Column({ status, label, items, blockedIds, onDelete, onEdit, focusId, justDroppedId }: { status: TaskStatus; label: string; items: Task[]; blockedIds: Set<string>; onDelete: (id: string) => void; onEdit: (t: Task) => void; focusId?: string | null; justDroppedId?: string | null }) {
-  const { setNodeRef, isOver } = useSortable({ id: status, data: { type: "column" } });
+function Column({ status, label, items, blockedIds, onDelete, onEdit, focusId, justDroppedId, dropActive }: { status: TaskStatus; label: string; items: Task[]; blockedIds: Set<string>; onDelete: (id: string) => void; onEdit: (t: Task) => void; focusId?: string | null; justDroppedId?: string | null; dropActive?: boolean }) {
+  /* useDroppable, not useSortable. A column is a container you drop INTO; it is
+     never itself dragged. useSortable additionally registered each column as a
+     draggable and, because it reads the nearest SortableContext above it — of
+     which there is none — resolved its own index to -1.
+
+     The highlight is driven by `dropActive` from the parent rather than this
+     hook's own `isOver`. With closestCorners, hovering a column that already has
+     cards resolves `over` to the nearest CARD, so the column's own isOver stays
+     false and col-drop-active never applied — the class was effectively dead.
+     The parent already computes the destination column, so it is the honest
+     source for "where will this land". */
+  const { setNodeRef } = useDroppable({ id: status, data: { type: "column" } });
   return (
-    <div className={cn("card flex flex-col p-4 transition-colors", isOver && "col-drop-active")}>
+    <div className={cn("card flex flex-col p-4 transition-colors", dropActive && "col-drop-active")}>
       <div className="mb-3 flex items-center gap-2">
         <h2 className="text-[15px] font-bold">{label}</h2>
         <span className="pill bg-surface-2 text-faint">{items.length}</span>
@@ -134,6 +145,8 @@ export default function Tasks() {
   const staleTasks = flags.filter((f) => f.kind === "stale_task");
   const [board, setBoard] = useState<Board>(group([]));
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Which column the card would land in right now. Drives the drop highlight.
+  const [overCol, setOverCol] = useState<TaskStatus | null>(null);
   // Drives the drop-bounce animation on the card that was just released.
   const [justDroppedId, setJustDroppedId] = useState<string | null>(null);
   const [modal, setModal] = useState(false);
@@ -184,12 +197,19 @@ export default function Tasks() {
   };
   const activeTask = activeId ? Object.values(board).flat().find((t) => t.id === activeId) ?? null : null;
 
-  function onDragStart(e: DragStartEvent) { setActiveId(String(e.active.id)); }
+  function onDragStart(e: DragStartEvent) {
+    setActiveId(String(e.active.id));
+    setOverCol(columnOf(String(e.active.id)));
+  }
   function onDragOver(e: DragOverEvent) {
     const { active, over } = e;
-    if (!over) return;
+    if (!over) { setOverCol(null); return; }
     const from = columnOf(String(active.id));
     const to = columnOf(String(over.id));
+    // Track the destination even when it has not changed, so the highlight
+    // follows the pointer for the whole drag rather than only on the frame the
+    // card crosses a boundary.
+    setOverCol(to);
     if (!from || !to || from === to) return;
     setBoard((b) => {
       const moving = b[from].find((t) => t.id === active.id);
@@ -206,6 +226,7 @@ export default function Tasks() {
   function onDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     setActiveId(null);
+    setOverCol(null);
     // Trigger the drop bounce on the released card, then clear it.
     const droppedId = String(active.id);
     setJustDroppedId(droppedId);
@@ -327,10 +348,10 @@ export default function Tasks() {
           ))}
         </div>
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
+        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setActiveId(null); setOverCol(null); }}>
           <div className="grid gap-4 lg:grid-cols-3">
             {COLUMNS.map((col) => (
-              <Column key={col.key} status={col.key} label={col.label} items={board[col.key]} blockedIds={blockedIds} onDelete={(id) => remove.mutate(id)} onEdit={startEdit} focusId={focusId} justDroppedId={justDroppedId} />
+              <Column key={col.key} status={col.key} label={col.label} items={board[col.key]} blockedIds={blockedIds} onDelete={(id) => remove.mutate(id)} onEdit={startEdit} focusId={focusId} justDroppedId={justDroppedId} dropActive={activeId !== null && overCol === col.key} />
             ))}
           </div>
           <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
