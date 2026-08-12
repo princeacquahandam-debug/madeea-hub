@@ -12,6 +12,9 @@ import {
   Brain,
   Clock,
   Video,
+  Upload,
+  Bookmark,
+  GraduationCap,
   StickyNote,
   type LucideIcon,
 } from "lucide-react";
@@ -41,10 +44,19 @@ export const NAV: NavItem[] = [
   { to: "/quick-actions", label: "AI Quick Actions", icon: Zap, group: "Operations" },
   { to: "/clients", label: "Client Vault", icon: Users, group: "Operations" },
   { to: "/notes", label: "Notes", icon: StickyNote, group: "Operations" },
-  { to: "/sops", label: "SOPs", icon: ClipboardCheck, group: "Operations" },
-  /* Next to SOPs because that is the loop: record it, then write it up. It was
-     a strip inside the SOPs page, which is where nobody found it. */
-  { to: "/videos", label: "Videos", icon: Video, group: "Operations" },
+  /* "Workflows", not "SOPs". PROJECT_PLAN §5.6 treats them as the same thing —
+     a reusable procedure with ordered steps — and "workflow" is the word the
+     team and the reference product both use out loud. The route stays /sops so
+     every existing link and bookmark still works. */
+  { to: "/sops", label: "Workflows", icon: ClipboardCheck, group: "Operations" },
+  /* Next to Workflows because that is the loop: record it, then write it up. */
+  { to: "/videos", label: "Madeline Videos", icon: Video, group: "Operations" },
+  { to: "/uploads", label: "Uploads", icon: Upload, group: "Operations" },
+  { to: "/saved", label: "Saved", icon: Bookmark, group: "Operations" },
+  /* The Academy was routed but never in the nav — the only way in was a promo
+     card in the sidebar footer, which is dismissible, so dismissing it hid the
+     training entirely. "Training Center" is what the team calls it. */
+  { to: "/academy", label: "Training Center", icon: GraduationCap, group: "Operations" },
   // The day closes here: what you did, and that you were there to do it.
   { to: "/eod", label: "EOD Reports", icon: ClipboardList, group: "Operations" },
   { to: "/time", label: "Time", icon: Clock, group: "Operations" },

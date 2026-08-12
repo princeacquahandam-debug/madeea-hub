@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Video, Trash2, Clock, Play } from "lucide-react";
+import { Video, Trash2, Clock, Play, Bookmark } from "lucide-react";
 import { PageHeader, Modal, Badge } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import { ScreenRecorder } from "@/components/ScreenRecorder";
-import { recordingUrl, useRecordingMutations, useRecordings } from "@/data/hooks";
+import { recordingUrl, useRecordingMutations, useRecordings, useSaved, useSavedMutations } from "@/data/hooks";
 import type { Recording } from "@/types/db";
 
 /**
@@ -19,6 +20,9 @@ const daysLeft = (iso: string) => Math.max(0, Math.ceil((new Date(iso).getTime()
 export default function Videos() {
   const { data: recordings = [], isLoading } = useRecordings();
   const { save, remove } = useRecordingMutations();
+  const { data: saved = [] } = useSaved();
+  const { toggle } = useSavedMutations();
+  const savedIds = new Set(saved.filter((s) => s.kind === "recording").map((s) => s.target_id));
   const [recording, setRecording] = useState(false);
   const [playing, setPlaying] = useState<{ title: string; url: string } | null>(null);
 
@@ -76,6 +80,13 @@ export default function Videos() {
               <div className="mb-2 flex items-start gap-2">
                 <Video size={15} className="mt-0.5 shrink-0 text-accent" />
                 <p className="min-w-0 flex-1 truncate text-sm font-medium">{r.title}</p>
+                <button
+                  className={cn("icon-btn shrink-0", savedIds.has(r.id) ? "text-accent" : "reveal-on-hover text-faint hover:text-accent")}
+                  onClick={() => toggle.mutate({ kind: "recording", targetId: r.id, label: r.title, saved: savedIds.has(r.id) })}
+                  aria-label={savedIds.has(r.id) ? `Remove ${r.title} from saved` : `Save ${r.title}`}
+                >
+                  <Bookmark size={13} fill={savedIds.has(r.id) ? "currentColor" : "none"} />
+                </button>
                 <button
                   className="icon-btn reveal-on-hover shrink-0 text-faint hover:text-red-400"
                   onClick={() => remove.mutate(r)}

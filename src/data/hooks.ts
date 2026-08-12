@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
@@ -11,6 +11,7 @@ import { addDemoTask, loadDemoTasks, loadTaskPatches, removeDemoTask, updateDemo
 import { addDemoTime, loadDemoTime, removeDemoTime, updateDemoTime } from "@/store/demoTime";
 import { addDemoRecording, loadDemoRecordings, removeDemoRecording } from "@/store/demoRecordings";
 import { addDemoActivity, addDemoComment, loadDemoActivity, loadDemoComments, removeDemoComment } from "@/store/demoComments";
+import { addDemoFile, addDemoSaved, loadDemoFiles, loadDemoSaved, removeDemoFile, removeDemoSaved } from "@/store/demoFiles";
 import { loadSnoozes, saveSnooze } from "@/store/demoSnoozes";
 import { loadAssignees, loadDemoTaskEvents, saveAssignee } from "@/store/demoAssignees";
 import { applyDemo, demoCreate, demoDelete, demoId, demoPatch } from "@/store/demoWrites";
@@ -1309,6 +1310,125 @@ export function useCommentMutations() {
   });
 
   return { add, remove };
+}
+
+// ---------------- files + saved (migration 0031) ----------------
+
+export function useFiles() {
+  return useQuery<WorkspaceFile[]>({
+    queryKey: ["files"],
+    queryFn: async () => {
+      if (!supabase) return loadDemoFiles();
+      const { data, error } = await supabase
+        .from("files")
+        .select("id,folder_id,client_id,task_id,name,mime_type,size_bytes,storage_key,uploaded_by,created_at")
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (error) return []; // migration not applied yet
+      return data as WorkspaceFile[];
+    },
+    retry: false,
+  });
+}
+
+export function useFileMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["files"] });
+
+  const upload = useMutation({
+    mutationFn: async ({ file, clientId }: { file: File; clientId?: string | null }) => {
+      if (!supabase) {
+        addDemoFile(
+          {
+            id: demoId(), folder_id: null, client_id: clientId ?? null, task_id: null,
+            name: file.name, mime_type: file.type || null, size_bytes: file.size,
+            storage_key: "", uploaded_by: "demo", created_at: new Date().toISOString(),
+          },
+          URL.createObjectURL(file),
+        );
+        return;
+      }
+      /* Path carries the original name so a download does not arrive called
+         "8f3a-2b1c". Prefixed with a timestamp because two people uploading
+         "invoice.pdf" must not overwrite each other. */
+      const safe = file.name.replace(/[^\w.\-]+/g, "_");
+      const key = `${Date.now()}-${safe}`;
+      const up = await supabase.storage.from("workspace-files").upload(key, file, {
+        contentType: file.type || "application/octet-stream",
+        upsert: false,
+      });
+      if (up.error) throw up.error;
+      const { error } = await supabase.from("files").insert({
+        name: file.name, mime_type: file.type || null, size_bytes: file.size,
+        storage_key: key, client_id: clientId ?? null,
+      });
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  const remove = useMutation({
+    mutationFn: async (f: WorkspaceFile) => {
+      if (!supabase) { removeDemoFile(f.id); return; }
+      // Object first: a failure here leaves the row pointing at it for a retry,
+      // where the reverse orphans the object with nothing referencing it.
+      if (f.storage_key) await supabase.storage.from("workspace-files").remove([f.storage_key]);
+      const { error } = await supabase.from("files").delete().eq("id", f.id);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  return { upload, remove };
+}
+
+/** A signed URL to download. Private bucket, so links expire. */
+export async function fileUrl(f: WorkspaceFile): Promise<string | null> {
+  if (!supabase) return f.local_url ?? null;
+  const { data, error } = await supabase.storage.from("workspace-files").createSignedUrl(f.storage_key, 3600);
+  return error ? null : data.signedUrl;
+}
+
+export function useSaved() {
+  return useQuery<SavedItem[]>({
+    queryKey: ["saved_items"],
+    queryFn: async () => {
+      if (!supabase) return loadDemoSaved();
+      const { data, error } = await supabase
+        .from("saved_items")
+        .select("id,kind,target_id,label,created_at")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) return [];
+      return data as SavedItem[];
+    },
+    retry: false,
+  });
+}
+
+export function useSavedMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["saved_items"] });
+
+  const toggle = useMutation({
+    mutationFn: async ({ kind, targetId, label, saved }: { kind: SavedItem["kind"]; targetId: string; label?: string; saved: boolean }) => {
+      if (!supabase) {
+        if (saved) removeDemoSaved(kind, targetId);
+        else addDemoSaved({ id: demoId(), kind, target_id: targetId, label: label ?? null, created_at: new Date().toISOString() });
+        return;
+      }
+      if (saved) {
+        const { error } = await supabase.from("saved_items").delete().eq("kind", kind).eq("target_id", targetId);
+        if (error) throw error;
+        return;
+      }
+      const { error } = await supabase.from("saved_items").insert({ kind, target_id: targetId, label: label ?? null });
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  return { toggle };
 }
 
 // ---------------- SOP recordings (migration 0028) ----------------

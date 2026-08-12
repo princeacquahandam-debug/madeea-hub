@@ -124,6 +124,44 @@ export interface TaskActivity {
   actor_name?: string | null;
 }
 
+/** A document the workspace owns, rather than a link that rots (migration 0031). */
+export interface WorkspaceFile {
+  id: string;
+  folder_id: string | null;
+  client_id: string | null;
+  task_id: string | null;
+  name: string;
+  mime_type: string | null;
+  size_bytes: number;
+  storage_key: string;
+  uploaded_by: string | null;
+  created_at: string;
+  /** Demo mode only: an in-memory object URL, gone on reload. */
+  local_url?: string | null;
+}
+
+export interface Folder {
+  id: string;
+  parent_id: string | null;
+  name: string;
+  client_id: string | null;
+  created_at: string;
+}
+
+/**
+ * A pointer to something worth finding again (migration 0031).
+ *
+ * Deliberately a reference and not a copy: saving a task must not freeze it as
+ * it was, because a stale copy is worse than no bookmark.
+ */
+export interface SavedItem {
+  id: string;
+  kind: "task" | "recording" | "file" | "sop" | "note" | "eod";
+  target_id: string;
+  label: string | null;
+  created_at: string;
+}
+
 /**
  * A screen recording that becomes an SOP (migration 0028).
  *

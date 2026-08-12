@@ -8,11 +8,11 @@ import {
   SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus, Trash2, GripVertical, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2, Columns3, List as ListIcon, Search, MessageSquare, Send, ShieldCheck } from "lucide-react";
+import { Plus, Trash2, GripVertical, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2, Columns3, List as ListIcon, Search, MessageSquare, Send, ShieldCheck, Bookmark } from "lucide-react";
 import type { Task, TaskStatus, Priority, Subtask, Recurrence, TaskProgress, TaskAttachment, TaskActivity } from "@/types/db";
 import { Badge, PageHeader, Modal } from "@/components/ui";
 import { SkeletonCard } from "@/components/Skeleton";
-import { useTasks, useTaskMutations, useClients, useTaskComments, useTaskActivity, useCommentMutations, useCommentCounts, useMyRole } from "@/data/hooks";
+import { useTasks, useTaskMutations, useClients, useTaskComments, useTaskActivity, useCommentMutations, useCommentCounts, useMyRole, useSaved, useSavedMutations } from "@/data/hooks";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { AssigneePicker, AssigneeAvatar } from "@/components/Assignee";
 import { useWorkspaceMembers } from "@/data/hooks";
@@ -90,7 +90,7 @@ const group = (tasks: Task[]): Board => ({
   done: tasks.filter((t) => t.status === "done"),
 });
 
-function CardBody({ task, blocked, onDelete, onEdit, onComplete, comments = 0, overlay }: { task: Task; blocked?: boolean; onDelete?: () => void; onEdit?: () => void; onComplete?: () => void; comments?: number; overlay?: boolean }) {
+function CardBody({ task, blocked, onDelete, onEdit, onComplete, onSave, isSaved, comments = 0, overlay }: { task: Task; blocked?: boolean; onDelete?: () => void; onEdit?: () => void; onComplete?: () => void; onSave?: () => void; isSaved?: boolean; comments?: number; overlay?: boolean }) {
   const stop = (e: React.PointerEvent) => e.stopPropagation();
   const subDone = task.subtasks.filter((s) => s.done).length;
   const due = relativeDue(task);
@@ -106,6 +106,18 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, comments = 0, o
         {/* Who this is for. Click to reassign — the overlay copy shown while dragging
             gets a plain avatar, since a menu inside a drag preview makes no sense. */}
         {overlay ? <AssigneeAvatar member={null} /> : <AssigneePicker task={task} />}
+        {/* Saved stays lit once set, so the card shows its own state rather than
+            hiding it until you hover. */}
+        {onSave && (
+          <button
+            className={cn("icon-btn", isSaved ? "text-accent" : "reveal-on-hover text-faint hover:text-accent")}
+            onPointerDown={stop}
+            onClick={onSave}
+            aria-label={isSaved ? "Remove from saved" : "Save this task"}
+          >
+            <Bookmark size={13} fill={isSaved ? "currentColor" : "none"} />
+          </button>
+        )}
         {onEdit && (
           <button className="icon-btn reveal-on-hover text-faint hover:text-accent" onPointerDown={stop} onClick={onEdit} aria-label="Edit task">
             <Pencil size={13} />
@@ -175,7 +187,7 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, comments = 0, o
   );
 }
 
-function SortableCard({ task, blocked, onDelete, onEdit, onComplete, comments, focused, justDropped }: { task: Task; blocked: boolean; onDelete: () => void; onEdit: () => void; onComplete: () => void; comments?: number; focused?: boolean; justDropped?: boolean }) {
+function SortableCard({ task, blocked, onDelete, onEdit, onComplete, onSave, isSaved, comments, focused, justDropped }: { task: Task; blocked: boolean; onDelete: () => void; onEdit: () => void; onComplete: () => void; onSave: () => void; isSaved: boolean; comments?: number; focused?: boolean; justDropped?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   return (
     // data-task-id is the scroll anchor for the /tasks?task=<id> deep link from the
@@ -187,12 +199,12 @@ function SortableCard({ task, blocked, onDelete, onEdit, onComplete, comments, f
         justDropped && "card-drop",
         focused && "ring-2 ring-accent ring-offset-2 ring-offset-bg",
       )}>
-      <CardBody task={task} blocked={blocked} onDelete={onDelete} onEdit={onEdit} onComplete={onComplete} comments={comments} />
+      <CardBody task={task} blocked={blocked} onDelete={onDelete} onEdit={onEdit} onComplete={onComplete} onSave={onSave} isSaved={isSaved} comments={comments} />
     </div>
   );
 }
 
-function Column({ status, label, dot, wash, edge, items, blockedIds, onDelete, onEdit, onComplete, onAdd, commentCounts, focusId, justDroppedId, dropActive }: { status: TaskStatus; label: string; dot: string; wash: string; edge: string; items: Task[]; blockedIds: Set<string>; onDelete: (id: string) => void; onEdit: (t: Task) => void; onComplete: (id: string) => void; onAdd: (status: TaskStatus) => void; commentCounts: Record<string, number>; focusId?: string | null; justDroppedId?: string | null; dropActive?: boolean }) {
+function Column({ status, label, dot, wash, edge, items, blockedIds, onDelete, onEdit, onComplete, onAdd, onSave, savedIds, commentCounts, focusId, justDroppedId, dropActive }: { status: TaskStatus; label: string; dot: string; wash: string; edge: string; items: Task[]; blockedIds: Set<string>; onDelete: (id: string) => void; onEdit: (t: Task) => void; onComplete: (id: string) => void; onAdd: (status: TaskStatus) => void; onSave: (t: Task) => void; savedIds: Set<string>; commentCounts: Record<string, number>; focusId?: string | null; justDroppedId?: string | null; dropActive?: boolean }) {
   /* useDroppable, not useSortable. A column is a container you drop INTO; it is
      never itself dragged. useSortable additionally registered each column as a
      draggable and, because it reads the nearest SortableContext above it — of
@@ -223,7 +235,7 @@ function Column({ status, label, dot, wash, edge, items, blockedIds, onDelete, o
       </div>
       <SortableContext id={status} items={items.map((t) => t.id)} strategy={verticalListSortingStrategy}>
         <div ref={setNodeRef} className="min-h-[180px] flex-1 space-y-2 p-3">
-          {items.map((t) => <SortableCard key={t.id} task={t} blocked={blockedIds.has(t.id)} onDelete={() => onDelete(t.id)} onEdit={() => onEdit(t)} onComplete={() => onComplete(t.id)} comments={commentCounts[t.id] ?? 0} focused={focusId === t.id} justDropped={justDroppedId === t.id} />)}
+          {items.map((t) => <SortableCard key={t.id} task={t} blocked={blockedIds.has(t.id)} onDelete={() => onDelete(t.id)} onEdit={() => onEdit(t)} onComplete={() => onComplete(t.id)} onSave={() => onSave(t)} isSaved={savedIds.has(t.id)} comments={commentCounts[t.id] ?? 0} focused={focusId === t.id} justDropped={justDroppedId === t.id} />)}
           {items.length === 0 && (
             <p className="rounded-lg border border-dashed border-current/15 py-8 text-center text-xs text-faint">Drop here</p>
           )}
@@ -534,6 +546,9 @@ export default function Tasks() {
      effect, so the preferred view is the first thing painted instead of the
      board flashing for a frame on every load. */
   const { data: commentCounts = {} } = useCommentCounts();
+  const { data: savedRows = [] } = useSaved();
+  const { toggle: saveToggle } = useSavedMutations();
+  const savedIds = new Set(savedRows.filter((s) => s.kind === "task").map((s) => s.target_id));
   const { data: myRole } = useMyRole();
   const isAdmin = myRole === "admin";
   const [q, setQ] = useState("");
@@ -813,7 +828,7 @@ export default function Tasks() {
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setActiveId(null); setOverCol(null); }}>
           <div className="grid gap-4 lg:grid-cols-3">
             {COLUMNS.map((col) => (
-              <Column key={col.key} status={col.key} label={col.label} dot={col.dot} wash={col.wash} edge={col.edge} items={board[col.key]} blockedIds={blockedIds} onDelete={(id) => remove.mutate(id)} onEdit={startEdit} onComplete={(id) => setStatus.mutate({ id, status: "done" })} onAdd={startCreate} commentCounts={commentCounts} focusId={focusId} justDroppedId={justDroppedId} dropActive={activeId !== null && overCol === col.key} />
+              <Column key={col.key} status={col.key} label={col.label} dot={col.dot} wash={col.wash} edge={col.edge} items={board[col.key]} blockedIds={blockedIds} onDelete={(id) => remove.mutate(id)} onEdit={startEdit} onComplete={(id) => setStatus.mutate({ id, status: "done" })} onAdd={startCreate} onSave={(t) => saveToggle.mutate({ kind: "task", targetId: t.id, label: t.title, saved: savedIds.has(t.id) })} savedIds={savedIds} commentCounts={commentCounts} focusId={focusId} justDroppedId={justDroppedId} dropActive={activeId !== null && overCol === col.key} />
             ))}
           </div>
           <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
