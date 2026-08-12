@@ -15,6 +15,7 @@ import {
   Upload,
   Repeat,
   Bookmark,
+  KeyRound,
   GraduationCap,
   StickyNote,
   type LucideIcon,
@@ -55,6 +56,7 @@ export const NAV: NavItem[] = [
   { to: "/routines", label: "Routines", icon: Repeat, group: "Operations" },
   { to: "/uploads", label: "Uploads", icon: Upload, group: "Operations" },
   { to: "/saved", label: "Saved", icon: Bookmark, group: "Operations" },
+  { to: "/credentials", label: "Password Manager", icon: KeyRound, group: "Operations" },
   /* The Academy was routed but never in the nav, the only way in was a promo
      card in the sidebar footer, which is dismissible, so dismissing it hid the
      training entirely. "Training Center" is what the team calls it. */

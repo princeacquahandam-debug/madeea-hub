@@ -147,6 +147,25 @@ export interface Routine {
   created_at: string;
 }
 
+/**
+ * A stored login (migration 0033). The secret is ciphertext; the key lives only
+ * in the browser. See lib/vault.ts for what that does and does not protect.
+ */
+export interface Credential {
+  id: string;
+  label: string;
+  url: string | null;
+  username: string | null;
+  category: string | null;
+  notes: string | null;
+  secret_ciphertext: string;
+  secret_nonce: string;
+  key_version: number;
+  client_id: string | null;
+  rotated_at: string | null;
+  created_at: string;
+}
+
 /** A document the workspace owns, rather than a link that rots (migration 0031). */
 export interface WorkspaceFile {
   id: string;

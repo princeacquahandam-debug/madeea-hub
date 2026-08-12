@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem, Routine } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem, Routine, Credential } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
@@ -14,6 +14,7 @@ import { addDemoActivity, addDemoComment, loadDemoActivity, loadDemoComments, re
 import { addDemoFile, addDemoSaved, loadDemoFiles, loadDemoSaved, removeDemoFile, removeDemoSaved } from "@/store/demoFiles";
 import { addDemoRoutine, claimDemoRun, loadDemoRoutines, removeDemoRoutine, updateDemoRoutine } from "@/store/demoRoutines";
 import { isoDate, nextOccurrences } from "@/lib/recurrence";
+import type { Sealed } from "@/lib/vault";
 import { loadSnoozes, saveSnooze } from "@/store/demoSnoozes";
 import { loadAssignees, loadDemoTaskEvents, saveAssignee } from "@/store/demoAssignees";
 import { applyDemo, demoCreate, demoDelete, demoId, demoPatch } from "@/store/demoWrites";
@@ -1312,6 +1313,104 @@ export function useCommentMutations() {
   });
 
   return { add, remove };
+}
+
+// ---------------- credential vault (migration 0033) ----------------
+
+/** Salt and verifier for the workspace. Null salt means the vault is unset up. */
+export function useVaultMeta() {
+  return useQuery<{ salt: string | null; verifier: Sealed | null }>({
+    queryKey: ["vault_meta"],
+    queryFn: async () => {
+      if (!supabase) {
+        return {
+          salt: localStorage.getItem("madeea-demo-vault-salt"),
+          verifier: JSON.parse(localStorage.getItem("madeea-demo-vault-verifier") || "null"),
+        };
+      }
+      const { data, error } = await supabase.from("workspaces").select("vault_salt,vault_verifier").limit(1).maybeSingle();
+      if (error || !data) return { salt: null, verifier: null };
+      return { salt: data.vault_salt ?? null, verifier: (data.vault_verifier as Sealed) ?? null };
+    },
+    retry: false,
+  });
+}
+
+export function useCredentials() {
+  return useQuery<Credential[]>({
+    queryKey: ["credentials"],
+    queryFn: async () => {
+      if (!supabase) return JSON.parse(localStorage.getItem("madeea-demo-credentials") || "[]");
+      const { data, error } = await supabase
+        .from("credentials")
+        .select("id,label,url,username,category,notes,secret_ciphertext,secret_nonce,key_version,client_id,rotated_at,created_at")
+        .order("label");
+      if (error) return []; // migration not applied yet
+      return data as Credential[];
+    },
+    retry: false,
+  });
+}
+
+export function useCredentialMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["credentials"] });
+    qc.invalidateQueries({ queryKey: ["vault_meta"] });
+  };
+
+  /** First-time setup: store the salt and a verifier, never the passphrase. */
+  const initVault = useMutation({
+    mutationFn: async ({ salt, verifier }: { salt: string; verifier: Sealed }) => {
+      if (!supabase) {
+        localStorage.setItem("madeea-demo-vault-salt", salt);
+        localStorage.setItem("madeea-demo-vault-verifier", JSON.stringify(verifier));
+        return;
+      }
+      const { data: ws } = await supabase.from("workspaces").select("id").limit(1).maybeSingle();
+      if (!ws) throw new Error("No workspace.");
+      const { error } = await supabase.from("workspaces").update({ vault_salt: salt, vault_verifier: verifier }).eq("id", ws.id);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  const save = useMutation({
+    mutationFn: async (row: Omit<Credential, "id" | "created_at" | "rotated_at">) => {
+      if (!supabase) {
+        const rows: Credential[] = JSON.parse(localStorage.getItem("madeea-demo-credentials") || "[]");
+        rows.push({ ...row, id: demoId(), rotated_at: null, created_at: new Date().toISOString() });
+        localStorage.setItem("madeea-demo-credentials", JSON.stringify(rows));
+        return;
+      }
+      const { error } = await supabase.from("credentials").insert(row);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      if (!supabase) {
+        const rows: Credential[] = JSON.parse(localStorage.getItem("madeea-demo-credentials") || "[]");
+        localStorage.setItem("madeea-demo-credentials", JSON.stringify(rows.filter((r) => r.id !== id)));
+        return;
+      }
+      const { error } = await supabase.from("credentials").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  /** Append-only. The table has no update or delete policy, by design. */
+  const logAccess = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: "view" | "copy" | "reveal" }) => {
+      if (!supabase) return;
+      await supabase.from("credential_access_log").insert({ credential_id: id, action });
+    },
+  });
+
+  return { initVault, save, remove, logAccess };
 }
 
 // ---------------- routines (migration 0032) ----------------

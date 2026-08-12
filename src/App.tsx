@@ -37,6 +37,7 @@ const Videos = lazy(() => import("@/pages/Videos"));
 const Uploads = lazy(() => import("@/pages/Uploads"));
 const Saved = lazy(() => import("@/pages/Saved"));
 const Routines = lazy(() => import("@/pages/Routines"));
+const Credentials = lazy(() => import("@/pages/Credentials"));
 const Notes = lazy(() => import("@/pages/Notes"));
 const Academy = lazy(() => import("@/pages/Academy"));
 const MeetingIntelligence = lazy(() => import("@/pages/MeetingIntelligence"));
@@ -68,6 +69,7 @@ function Gate() {
         <Route path="/uploads" element={<Uploads />} />
         <Route path="/saved" element={<Saved />} />
         <Route path="/routines" element={<Routines />} />
+        <Route path="/credentials" element={<Credentials />} />
         <Route path="/automation" element={<AutomationPage />} />
         <Route path="/integrations" element={<Integrations />} />
         {/* Unmounted, not merely de-navved, a nav-only removal leaves the URL
