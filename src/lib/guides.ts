@@ -62,11 +62,14 @@ export const GUIDES: Record<string, Guide> = {
     ],
   },
   "/sops": {
-    title: "How SOPs work",
+    // "Workflows", matching the nav and the page. This still said SOPs.
+    title: "How Workflows work",
     points: [
-      "Open a procedure, “Start workflow”, and tick each step, the deliverables show what “done” means.",
+      "Open a procedure, pick the client and task, and tick each step as you go.",
+      "Finishing marks the task done, so the work lands in today's EOD without retyping it.",
+      "Run the same procedure for several clients at once, each with its own progress.",
       "“Pin to screen” keeps the checklist floating while you work anywhere in the app.",
-      "Steps tagged ✨ run the matching AI tool for you and auto-tick.",
+      "Steps tagged ✨ run the matching AI action for you and auto-tick.",
     ],
   },
   "/automation": {

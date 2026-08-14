@@ -12,6 +12,10 @@
 
 export type DemoEntity =
   | "clients" | "automations" | "messages" | "members" | "reminders" | "sop_runs"
+  // "sops" so a workflow authored in demo mode persists. The team reviews this
+  // app in demo mode, so authoring that only worked against Supabase would look
+  // broken to everyone who actually looks at it.
+  | "sops"
   // Memory (0017) uses this overlay for two cases, not one: demo mode, and a live
   // workspace where the migration hasn't been applied yet. In the latter, losing
   // what someone just typed would be the worst outcome, so writes land here.

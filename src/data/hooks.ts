@@ -229,8 +229,12 @@ export function useTaskMutations() {
   const create = useMutation({
     mutationFn: async (input: TaskInput) => {
       if (!supabase) {
+        // The id is returned, not just written. A caller that needs to link
+        // something to the new task (a workflow run, 0035) cannot do that if
+        // create() reports nothing back.
+        const id = `local-${Date.now()}`;
         addDemoTask({
-          id: `local-${Date.now()}`,
+          id,
           title: input.title,
           client_name: seed.CLIENTS.find((c) => c.id === input.client_id)?.name ?? "Unassigned",
           due_label: input.due_at ? new Date(`${input.due_at}T12:00:00`).toLocaleDateString("en-GB", { weekday: "long" }) : "",
@@ -251,9 +255,9 @@ export function useTaskMutations() {
           attachments: input.attachments ?? [],
           completed_at: null,
         });
-        return;
+        return { id };
       }
-      const { error } = await supabase.from("tasks").insert({
+      const { data, error } = await supabase.from("tasks").insert({
         title: input.title, priority: input.priority ?? "normal", due_at: input.due_at ?? null, status: input.status ?? "todo",
         subtasks: input.subtasks ?? [], recurrence: input.recurrence ?? "none", depends_on: input.depends_on ?? null,
         client_id: input.client_id ?? null,
@@ -264,8 +268,9 @@ export function useTaskMutations() {
         progress: input.progress ?? [],
         attachments: input.attachments ?? [],
         requires_approval: input.requires_approval ?? false,
-      });
+      }).select("id").single();
       if (error) throw error;
+      return { id: data.id as string };
     },
     onSettled: invalidate,
   });
@@ -664,7 +669,9 @@ export function useSops() {
   return useQuery<Sop[]>({
     queryKey: ["sops"],
     queryFn: async () => {
-      if (!supabase) return seed.SOPS;
+      // applyDemo so a workflow authored in demo mode shows up beside the
+      // seeded ones. Before this, "New workflow" appeared to do nothing.
+      if (!supabase) return applyDemo("sops", seed.SOPS);
       const { data, error } = await supabase
         .from("sops")
         .select("id,title,description,category,steps,success_criteria")
@@ -683,7 +690,7 @@ export function useSopRuns() {
       if (!supabase) return applyDemo<SopRun>("sop_runs", []);
       const { data, error } = await supabase
         .from("sop_runs")
-        .select("id,sop_id,client_id,checked,status,started_at,completed_at")
+        .select("id,sop_id,client_id,task_id,checked,status,started_at,completed_at")
         .order("started_at", { ascending: false });
       if (error) throw error;
       return data as SopRun[];
@@ -696,10 +703,10 @@ export function useSopMutations() {
   const invalidate = () => qc.invalidateQueries({ queryKey: ["sop_runs"] });
 
   const start = useMutation({
-    mutationFn: async ({ sop_id, client_id }: { sop_id: string; client_id?: string | null }) => {
+    mutationFn: async ({ sop_id, client_id, task_id }: { sop_id: string; client_id?: string | null; task_id?: string | null }) => {
       if (!supabase) {
         const run: SopRun = {
-          id: demoId(), sop_id, client_id: client_id ?? null, checked: [],
+          id: demoId(), sop_id, client_id: client_id ?? null, task_id: task_id ?? null, checked: [],
           status: "in_progress", started_at: new Date().toISOString(), completed_at: null,
         };
         demoCreate("sop_runs", run);
@@ -707,8 +714,8 @@ export function useSopMutations() {
       }
       const { data, error } = await supabase
         .from("sop_runs")
-        .insert({ sop_id, client_id: client_id ?? null, checked: [], status: "in_progress" })
-        .select("id,sop_id,client_id,checked,status,started_at,completed_at")
+        .insert({ sop_id, client_id: client_id ?? null, task_id: task_id ?? null, checked: [], status: "in_progress" })
+        .select("id,sop_id,client_id,task_id,checked,status,started_at,completed_at")
         .single();
       if (error) throw error;
       return data as SopRun;
@@ -740,7 +747,47 @@ export function useSopMutations() {
     onSettled: invalidate,
   });
 
-  return { start, setChecked, complete };
+  /* Authoring. The library was read-only: the only .from("sops") call was a
+     select, so a workflow could only be created by writing SQL. A library
+     nobody can add to stops being a library the first time the work changes.
+
+     Admin-only, which is the policy 0007 already set and a deliberate product
+     choice rather than an oversight: EAs run workflows, admins define them,
+     which is what "standardised output" means (Rowena 54:55). */
+  const saveSop = useMutation({
+    mutationFn: async (sop: Omit<Sop, "id"> & { id?: string }) => {
+      const row = {
+        title: sop.title,
+        description: sop.description,
+        category: sop.category,
+        steps: sop.steps,
+        success_criteria: sop.success_criteria,
+      };
+      if (!supabase) {
+        if (sop.id) demoPatch("sops", sop.id, row);
+        else demoCreate("sops", { ...row, id: demoId() });
+        return;
+      }
+      const { error } = sop.id
+        ? await supabase.from("sops").update(row).eq("id", sop.id)
+        : await supabase.from("sops").insert(row);
+      if (error) throw error;
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["sops"] }),
+  });
+
+  const removeSop = useMutation({
+    mutationFn: async (id: string) => {
+      if (!supabase) { demoDelete("sops", id); return; }
+      // is_active rather than delete: runs reference this row, and past runs
+      // are the record that the procedure was followed.
+      const { error } = await supabase.from("sops").update({ is_active: false }).eq("id", id);
+      if (error) throw error;
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["sops"] }),
+  });
+
+  return { start, setChecked, complete, saveSop, removeSop };
 }
 
 // ---------------- reminders ----------------

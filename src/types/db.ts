@@ -448,6 +448,8 @@ export interface SopRun {
   id: string;
   sop_id: string;
   client_id: string | null;
+  /** The task this run is doing (0035). How a finished workflow reaches the EOD. */
+  task_id?: string | null;
   checked: string[];
   status: "in_progress" | "completed";
   started_at: string;
