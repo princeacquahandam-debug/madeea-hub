@@ -21,61 +21,89 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type NavGroup = "Operations" | "Insights";
+/* ---------------------------------------------------------------------------
+   Nav groups, in sidebar order.
+
+   The problem this solves: "Operations" held 18 of the 21 items. A group label
+   that applies to almost everything sorts nothing, so the sidebar was one flat
+   18-item scan every time, and the two items NOT in it were the two nobody
+   could find.
+
+   Each group answers a different question the EA is asking when they reach for
+   the sidebar, which is what makes them scannable rather than arbitrary:
+
+     My Day          what do I do now
+     Clients & Files where is that thing for this client
+     Playbook        how do we do this
+     Insights        what does the work add up to
+     Setup           configure once, then forget
+
+   "AI Suite" is gone because the 09 Aug cut emptied it and an expandable group
+   that opens onto nothing is worse than no group. "Second Brain" is gone
+   because §7 removes it by name (8:39).
+   --------------------------------------------------------------------------- */
+export const NAV_GROUPS = ["My Day", "Clients & Files", "Playbook", "Insights", "Setup"] as const;
+export type NavGroup = (typeof NAV_GROUPS)[number];
 
 export interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
-  /* "AI Suite" is gone because it had no members left after the 09 Aug cut, and
-     an expandable group that opens onto nothing is worse than no group.
-
-     "Second Brain" is gone because §7 of the 10 Aug audit removes it by name
-     (8:39, "a skilled VA already has ChatGPT open with their own prompts"). The
-     two pages filed under it are not that feature, so they moved to Insights
-     rather than being cut with it. */
   group: NavGroup;
   badge?: string;
 }
 
 export const NAV: NavItem[] = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, group: "Operations" },
-  /* Ordered by the EA's actual day, not by when each page happened to be built.
-     §9.3 records the sequence the team worked out by asking "pag ako EA, anong
-     gagawin ko?" Calendar, then email, then tasks, then research, then the EOD,
-     with the clock running around all of it (Rowena 44:00, 1:15:46; Reichelle
-     45:24).
+  /* ---- My Day -------------------------------------------------------------
+     The daily loop, in the order §9.3 records the team working out by asking
+     "pag ako EA, anong gagawin ko?" (Rowena 44:00, 1:15:46; Reichelle 45:24):
+     email, then tasks, then research, then the EOD, with the clock around it.
 
-     The change that matters: Communication sits ABOVE Tasks. An EA opens their
-     inbox first and works out what the day is from it; the board is where that
-     turns into work. The old order put the board first because it was built
-     first. Calendar is not here yet, it is §5.7, parked pending OQ-3. */
-  { to: "/communication", label: "Communication Center", icon: Mail, group: "Operations" },
-  { to: "/tasks", label: "Task Manager", icon: CheckSquare, group: "Operations" },
-  { to: "/quick-actions", label: "AI Quick Actions", icon: Zap, group: "Operations" },
-  { to: "/clients", label: "Client Vault", icon: Users, group: "Operations" },
-  { to: "/notes", label: "Notes", icon: StickyNote, group: "Operations" },
-  /* "Workflows", not "SOPs". PROJECT_PLAN §5.6 treats them as the same thing,
-     a reusable procedure with ordered steps, and "workflow" is the word the
-     team and the reference product both use out loud. The route stays /sops so
-     every existing link and bookmark still works. */
-  { to: "/sops", label: "Workflows", icon: ClipboardCheck, group: "Operations" },
-  /* Next to Workflows because that is the loop: record it, then write it up. */
-  { to: "/videos", label: "Madeline Videos", icon: Video, group: "Operations" },
-  { to: "/routines", label: "Routines", icon: Repeat, group: "Operations" },
-  { to: "/uploads", label: "Uploads", icon: Upload, group: "Operations" },
-  { to: "/saved", label: "Saved", icon: Bookmark, group: "Operations" },
-  { to: "/credentials", label: "Password Manager", icon: KeyRound, group: "Operations" },
-  /* The Academy was routed but never in the nav, the only way in was a promo
+     Communication sits ABOVE Tasks on purpose. An EA opens their inbox first
+     and works out what the day is from it; the board is where that turns into
+     work. The old order put the board first because it was built first.
+
+     Calendar would be the first item here. It is §5.7, parked pending OQ-3. */
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, group: "My Day" },
+  { to: "/communication", label: "Communication Center", icon: Mail, group: "My Day" },
+  { to: "/tasks", label: "Task Manager", icon: CheckSquare, group: "My Day" },
+  { to: "/quick-actions", label: "AI Quick Actions", icon: Zap, group: "My Day" },
+  // The day closes here: what you did, and that you were there to do it.
+  { to: "/eod", label: "EOD Reports", icon: ClipboardList, group: "My Day" },
+  { to: "/time", label: "Time", icon: Clock, group: "My Day" },
+
+  /* ---- Clients & Files ----------------------------------------------------
+     Everything you go looking FOR rather than work you do. The client record
+     and their logins sit together because that is how you arrive at them: you
+     open the client, then you need to get into their tools. */
+  { to: "/clients", label: "Client Vault", icon: Users, group: "Clients & Files" },
+  { to: "/credentials", label: "Password Manager", icon: KeyRound, group: "Clients & Files" },
+  { to: "/notes", label: "Notes", icon: StickyNote, group: "Clients & Files" },
+  { to: "/uploads", label: "Uploads", icon: Upload, group: "Clients & Files" },
+  { to: "/saved", label: "Saved", icon: Bookmark, group: "Clients & Files" },
+
+  /* ---- Playbook -----------------------------------------------------------
+     Work defined once and reused, which is the whole point of R-4.6.6: the SOP
+     library must be linked to the Academy. Grouping them makes that link a
+     thing you can see rather than a line in a spec. The loop reads top to
+     bottom: record it, write it up, put it on a schedule, learn it.
+
+     "Workflows", not "SOPs". PROJECT_PLAN §5.6 treats them as the same thing,
+     and "workflow" is the word the team and the reference product use out
+     loud. The route stays /sops so existing links still work. */
+  { to: "/sops", label: "Workflows", icon: ClipboardCheck, group: "Playbook" },
+  { to: "/videos", label: "Madeline Videos", icon: Video, group: "Playbook" },
+  { to: "/routines", label: "Routines", icon: Repeat, group: "Playbook" },
+  /* The Academy was routed but never in the nav. The only way in was a promo
      card in the sidebar footer, which is dismissible, so dismissing it hid the
      training entirely. "Training Center" is what the team calls it. */
-  { to: "/academy", label: "Training Center", icon: GraduationCap, group: "Operations" },
-  // The day closes here: what you did, and that you were there to do it.
-  { to: "/eod", label: "EOD Reports", icon: ClipboardList, group: "Operations" },
-  { to: "/time", label: "Time", icon: Clock, group: "Operations" },
-  // Set-up rather than daily work, so it sits at the bottom out of the way.
-  { to: "/automation", label: "Automation", icon: Workflow, group: "Operations" },
-  { to: "/integrations", label: "Integrations", icon: Plug, group: "Operations" },
+  { to: "/academy", label: "Training Center", icon: GraduationCap, group: "Playbook" },
+
+  /* ---- Setup --------------------------------------------------------------
+     Configured once, then forgotten. Bottom of the list, away from daily work
+     (nav-hierarchy: primary and secondary navigation stay separated). */
+  { to: "/automation", label: "Automation", icon: Workflow, group: "Setup" },
+  { to: "/integrations", label: "Integrations", icon: Plug, group: "Setup" },
   /* Cut by the 09 Aug product direction, which judged every feature on two
      questions: does it prove the EA's work, and does it make the EA replaceable
      without pain. These answered neither, and each loses to a free tool:
@@ -96,9 +124,10 @@ export const NAV: NavItem[] = [
      returns in one commit if Prince disagrees. Scoreboard is deliberately still
      here: it is to be REPURPOSED as the client proof surface, built from EOD and
      task data only, which is a build rather than a cut. */
-  /* Insights: both of these read the workspace and hand back evidence, rather
-     than taking a brief and writing something. That is the line between this
-     group and Operations.
+  /* ---- Insights -----------------------------------------------------------
+     Both of these read the workspace and hand back evidence, rather than taking
+     a brief and writing something. That is the line between this group and My
+     Day.
 
      P-4 for each, since §7 demands one:
        Meeting Intelligence  turns a call the EA sat through into tasks and

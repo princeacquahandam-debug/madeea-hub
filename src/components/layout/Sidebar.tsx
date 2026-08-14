@@ -1,21 +1,42 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import type { LucideIcon } from "lucide-react";
+import { NavLink, useLocation } from "react-router-dom";
 import {
   Settings as SettingsIcon,
   ShieldCheck,
-  GraduationCap,
-  X,
   ChevronLeft,
   ChevronDown,
-  Briefcase,
-  Bot,
+  Sun,
+  FolderOpen,
+  BookMarked,
   Brain,
+  SlidersHorizontal,
 } from "lucide-react";
 
-const GROUP_ICON = {
-  Operations: Briefcase,
+const GROUP_ICON: Record<NavGroup, LucideIcon> = {
+  "My Day": Sun,
+  "Clients & Files": FolderOpen,
+  Playbook: BookMarked,
   Insights: Brain,
-} as const;
+  Setup: SlidersHorizontal,
+};
+
+// Only My Day is open on a first visit. Everything else starts closed, so the
+// sidebar opens as five headings and six links instead of a 21-item wall. The
+// group holding the current page is force-opened below regardless.
+const DEFAULT_OPEN: Record<string, boolean> = { "My Day": true };
+const OPEN_KEY = "madeea-nav-open";
+
+// Slugs the guided tour targets. Kept beside the group list so renaming a group
+// cannot silently leave the tour pointing at a selector that stopped rendering,
+// which is exactly what happened to the old "ai-suite" step.
+const TOUR_ANCHOR: Record<NavGroup, string> = {
+  "My Day": "nav",
+  "Clients & Files": "clients-files",
+  Playbook: "playbook",
+  Insights: "insights",
+  Setup: "setup",
+};
 
 // Scrollable nav with no visible scrollbar; shows an animated down-chevron while
 // there is more content below the fold.
@@ -56,7 +77,7 @@ function NavScroller({ className, children }: { className?: string; children: Re
     </div>
   );
 }
-import { NAV, type NavGroup } from "@/lib/constants";
+import { NAV, NAV_GROUPS, type NavGroup } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyRole } from "@/data/hooks";
 import { useUI } from "@/store/ui";
@@ -66,20 +87,49 @@ import { cn } from "@/lib/utils";
 export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void; forceExpanded?: boolean }) {
   const { user } = useAuth();
   const { data: role } = useMyRole();
-  const navigate = useNavigate();
-  const { sidebarCollapsed, toggleSidebar, academyPromoDismissed, dismissAcademyPromo } = useUI();
-  // Derived from NAV rather than listed here. The old hardcoded list still
-  // named "AI Suite" after the 09 Aug cut emptied it, so the sidebar rendered a
-  // group header that expanded onto nothing. Deriving it means that cannot
-  // happen again: a group exists exactly while something is in it.
-  const groups = useMemo(
-    () => [...new Set(NAV.map((n) => n.group))] as NavGroup[],
-    [],
-  );
+  const { sidebarCollapsed, toggleSidebar } = useUI();
+  const { pathname } = useLocation();
+  // Intersected with NAV rather than taken from it, so the declared order in
+  // NAV_GROUPS decides the sidebar order while an empty group still cannot
+  // render. That last part matters: "AI Suite" sat here for weeks after the
+  // 09 Aug cut emptied it, as a header you could click to expand onto nothing.
+  const groups = useMemo(() => {
+    const present = new Set(NAV.map((n) => n.group));
+    return NAV_GROUPS.filter((g) => present.has(g));
+  }, []);
   const collapsed = sidebarCollapsed && !forceExpanded;
-  // Operations is the only group open by default on first load; the rest start collapsed.
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ Operations: true });
-  const toggleGroup = (g: string) => setOpenGroups((s) => ({ ...s, [g]: !s[g] }));
+
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    // Which groups you left open is a preference, and re-collapsing them on
+    // every reload made the sidebar feel like it was resetting itself.
+    try {
+      const saved = localStorage.getItem(OPEN_KEY);
+      return saved ? { ...DEFAULT_OPEN, ...JSON.parse(saved) } : { ...DEFAULT_OPEN };
+    } catch {
+      return { ...DEFAULT_OPEN };
+    }
+  });
+  const toggleGroup = (g: string) =>
+    setOpenGroups((s) => {
+      const next = { ...s, [g]: !s[g] };
+      try { localStorage.setItem(OPEN_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+      return next;
+    });
+
+  /* The group holding the current page is always open.
+     Without this the page you are ON disappears from the nav: visiting
+     /scoreboard with Insights collapsed rendered no link to it and no active
+     highlight anywhere, so the sidebar told you nothing about where you were.
+     Deliberately not persisted, since it is a consequence of the route rather
+     than something the user chose. */
+  const activeGroup = useMemo(
+    () =>
+      NAV.filter((n) => (n.to === "/" ? pathname === "/" : pathname.startsWith(n.to)))
+        // Longest match wins, so /saved does not lose to /.
+        .sort((a, b) => b.to.length - a.to.length)[0]?.group,
+    [pathname],
+  );
+  const isOpen = (g: string) => Boolean(openGroups[g]) || g === activeGroup;
 
   // ---------------------------------------------------------------- collapsed
   if (collapsed) {
@@ -99,19 +149,34 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
         </button>
 
         <NavScroller className="flex flex-col items-center gap-1">
-          {/* Each group is a toggle icon; its item-icons only show while open. */}
-          {groups.map((group) => {
-            const open = openGroups[group];
+          {/* Each group is a toggle icon; its item-icons only show while open.
+              A rule between groups, because with several open this is otherwise
+              twenty identical-sized icons in one column with nothing marking
+              where one group ends. The labels are gone here, so the grouping is
+              the only structure left and it has to survive collapse. */}
+          {groups.map((group, gi) => {
+            const open = isOpen(group);
             const GroupIcon = GROUP_ICON[group];
             return (
-              <div key={group} className="flex w-full flex-col items-center gap-1">
+              <div
+                key={group}
+                className={cn(
+                  "flex w-full shrink-0 flex-col items-center gap-1",
+                  gi > 0 && "mt-1 border-t border-border pt-2",
+                )}
+              >
                 <button
                   onClick={() => toggleGroup(group)}
                   title={`${group} (${open ? "hide" : "show"})`}
                   aria-label={`${open ? "Collapse" : "Expand"} ${group}`}
                   aria-expanded={open}
                   className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-xl transition-colors hover:bg-[var(--chip-bg)]",
+                    /* shrink-0 on every row in this column. It is a flex column
+                       with overflow-y:auto, and flex children shrink before the
+                       scrollbar appears, so with all five groups open (1131px
+                       of rows into 855px) the icons would be squeezed shorter
+                       instead of scrolling. */
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-[var(--chip-bg)]",
                     open ? "text-accent" : "text-faint",
                   )}
                 >
@@ -128,7 +193,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
                       aria-label={item.label}
                       className={({ isActive }) =>
                         cn(
-                          "flex h-10 w-10 items-center justify-center rounded-xl text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text",
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text",
                           isActive && "bg-[var(--nav-active-bg)] text-[color:var(--nav-active-text)]",
                         )
                       }
@@ -218,10 +283,13 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
         {/* Distinct tour anchors per group. Two groups sharing one data-tour value
             would make the guided tour highlight whichever it found first. */}
         {groups.map((group) => {
-          const open = openGroups[group];
+          const open = isOpen(group);
           const GroupIcon = GROUP_ICON[group];
           return (
-            <div key={group} data-tour={group === "Operations" ? "nav" : "insights"}>
+            /* The guided tour anchors on these. Two groups sharing one
+               data-tour value would make it highlight whichever it found
+               first, so each gets its own slug. */
+            <div key={group} data-tour={TOUR_ANCHOR[group]}>
               <button
                 onClick={() => toggleGroup(group)}
                 aria-expanded={open}
@@ -272,50 +340,18 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
         )}
       </NavScroller>
 
-      {/* Academy promo. Opens the MadeEA Academy (walkthrough + playbooks).
-          Dismissible: the card is a wrapper rather than one big button, because a
-          <button> cannot legally contain the dismiss <button>. Nesting them makes
-          the inner click ambiguous and breaks keyboard navigation. */}
-      {!academyPromoDismissed && (
-        <div
-          className="group relative mx-3 mb-3 rounded-2xl shadow-lg transition-transform hover:-translate-y-0.5"
-          style={{
-            background: "linear-gradient(150deg,#fd5811 0%,#ff8a3d 55%,#f5b544 100%)",
-            boxShadow: "0 8px 22px rgba(253,88,17,0.3)",
-          }}
-        >
-          <button
-            type="button"
-            onClick={dismissAcademyPromo}
-            aria-label="Hide the Academy tip"
-            title="Hide this. You can bring it back in Settings"
-            className="absolute right-1.5 top-1.5 z-10 grid h-6 w-6 place-items-center rounded-lg text-white/70 transition-colors hover:bg-black/15 hover:text-white"
-          >
-            <X size={14} />
-          </button>
+      {/* The Academy promo card used to sit here: a 150px orange block pinned
+          above the footer, advertising a page that had no nav entry.
 
-          <button
-            type="button"
-            onClick={() => {
-              onNavigate?.();
-              navigate("/academy");
-            }}
-            className="w-full rounded-2xl p-4 pr-9 text-left"
-          >
-            <div className="mb-1.5 flex items-center gap-1.5 text-[12.5px] font-extrabold text-white">
-              <GraduationCap size={15} />
-              Become a MadeEA Expert
-            </div>
-            <p className="mb-3 text-[12px] leading-snug text-white/90">
-              Learn to navigate the Command Center end to end and go from new user to power-user Pro.
-            </p>
-            <span className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-white px-3 py-2 text-[13px] font-bold text-[#152e47] transition-transform group-hover:scale-[1.02]">
-              <GraduationCap size={14} />
-              Learn More
-            </span>
-          </button>
-        </div>
-      )}
+          It has now lost its job twice over. The Training Center is a permanent
+          item under Playbook, so the card is no longer the only way in, and it
+          was occupying the bottom of a nav that just gained four group headers.
+          On a laptop it was covering the Insights and Setup rows outright, so
+          an ad for one page was hiding two others.
+
+          useUI still carries academyPromoDismissed and dismissAcademyPromo, and
+          Settings still exposes the reset, so restoring the card is this block
+          coming back. Nothing was removed from the store. */}
 
       <div className="border-t border-border p-3">
         <NavLink
