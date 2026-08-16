@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { PageSkeleton } from "@/components/Skeleton";
 import { AmbientBackground } from "./AmbientBackground";
@@ -11,10 +11,16 @@ import { GuideCard } from "@/components/GuideCard";
 import { CommandCenter } from "@/components/command-center";
 import { GuidedTour } from "@/components/GuidedTour";
 import { useUI } from "@/store/ui";
+import { useSlaSettings } from "@/store/slaSettings";
 
 export function AppShell() {
   const { navOpen, setNavOpen } = useUI();
   const location = useLocation();
+  /* SLA thresholds moved from localStorage to the sla_settings table (0036).
+     Pulled once here, at the first screen behind the login gate, rather than in
+     each of the nine pages that read them. */
+  const hydrateSla = useSlaSettings((s) => s.hydrate);
+  useEffect(() => { void hydrateSla(); }, [hydrateSla]);
 
   return (
     <div className="relative z-10 flex h-screen overflow-hidden bg-transparent">

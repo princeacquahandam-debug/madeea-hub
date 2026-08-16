@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PlayCircle, LogOut, ShieldCheck, Sparkles, RotateCcw, KeyRound, GraduationCap } from "lucide-react";
+import { PlayCircle, LogOut, ShieldCheck, Sparkles, RotateCcw, KeyRound, GraduationCap, AlertTriangle, Radio } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 import { useTour } from "@/store/tour";
 import { useMyRole } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
+import { useAlertRoutes, useAlertRouteMutations } from "@/data/hooks";
 import { useFollowUpSettings } from "@/store/followupSettings";
 import { useUI } from "@/store/ui";
 import { APP_VERSION } from "@/lib/changelog";
@@ -18,6 +19,7 @@ export default function Settings() {
   const startTour = useTour((s) => s.start);
   const { data: role } = useMyRole();
   const { config, update, reset } = useSlaSettings();
+  const slaLocal = useSlaSettings((st) => st.local);
   const { config: fu, update: updateFu, reset: resetFu } = useFollowUpSettings();
   const { academyPromoDismissed, restoreAcademyPromo } = useUI();
 
@@ -133,12 +135,31 @@ export default function Settings() {
           </button>
         </section>
 
+        {/* Where an SLA breach goes when one happens. Its own section rather
+            than a line in the SLA card, because the threshold and the
+            destination are edited by different people at different times. */}
+        <AlertRouting />
+
         <section className="card p-5">
           <p className="field-label">Response-time SLA</p>
           <p className="mb-4 text-sm text-muted">
             Thresholds for the On&nbsp;Track / At&nbsp;Risk / Breached flags on each client. Response time is
             measured to the <span className="text-zinc-200">first reply</span> on a thread.
+            {" "}Shared by the whole workspace. Individual clients can override these on their record.
           </p>
+
+          {/* Truth over completeness. These thresholds used to live in this
+              browser, so this notice is the difference between "the team's
+              definition of late" and "yours". */}
+          {slaLocal && (
+            <p className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-[12.5px] leading-relaxed text-amber-200">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+              <span>
+                Saved in this browser only. Run migration 0036 to share these across the workspace,
+                otherwise everyone carries their own definition of late.
+              </span>
+            </p>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -391,6 +412,105 @@ function ChangePassword() {
             {saving ? "Updating…" : "Update password"}
           </button>
         </form>
+      )}
+    </section>
+  );
+}
+
+
+/**
+ * Where alerts go.
+ *
+ * Deliberately shows 'Not connected' as a first-class state rather than hiding
+ * the section until something is wired. A field with nothing behind it that
+ * looks live is worse than an empty one that says so.
+ */
+function AlertRouting() {
+  const { data: routes = [], isLoading } = useAlertRoutes();
+  const { setRoute } = useAlertRouteMutations();
+  const { data: role } = useMyRole();
+  const isAdmin = role === "admin";
+  const sla = routes.find((r) => r.event === "sla_breach");
+
+  return (
+    <section className="card p-5">
+      <p className="field-label">Alerts</p>
+      <p className="mb-4 text-sm text-muted">
+        Where the app reaches out when something needs attention. Breach alerts go to the team,
+        not to the client: telling a client we were late, at the moment we are late, is not a
+        report. Client-facing reporting is the Scoreboard.
+      </p>
+
+      {isLoading ? (
+        <p className="text-sm text-faint">Loading…</p>
+      ) : !sla ? (
+        <p className="flex items-start gap-2 rounded-lg border border-border bg-surface-2/50 p-3 text-[12.5px] text-muted">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-400" />
+          Run migration 0036 to enable alert routing.
+        </p>
+      ) : (
+        <div className="rounded-lg border border-border p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Radio size={15} className={sla.is_active && sla.channel !== "none" ? "text-emerald-400" : "text-faint"} />
+            <span className="text-sm font-medium">SLA breach</span>
+            <span
+              className={
+                sla.is_active && sla.channel !== "none"
+                  ? "pill bg-emerald-500/15 text-emerald-400"
+                  : "pill bg-zinc-500/15 text-zinc-400"
+              }
+            >
+              {sla.is_active && sla.channel !== "none" ? "Connected" : "Not connected"}
+            </span>
+            <span className="ml-auto text-xs text-faint">to the EA and admins</span>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <label className="field-label" htmlFor="route-channel">Channel</label>
+              <select
+                id="route-channel"
+                className="input"
+                disabled={!isAdmin}
+                value={sla.channel}
+                onChange={(e) => setRoute.mutate({ event: "sla_breach", channel: e.target.value as "none" | "n8n" })}
+              >
+                <option value="none">Not connected</option>
+                <option value="n8n">n8n webhook</option>
+              </select>
+            </div>
+            <div>
+              <label className="field-label" htmlFor="route-target">Webhook path</label>
+              <input
+                id="route-target"
+                className="input"
+                disabled={!isAdmin || sla.channel === "none"}
+                placeholder="sla-breach"
+                defaultValue={sla.target ?? ""}
+                onBlur={(e) => setRoute.mutate({ event: "sla_breach", target: e.target.value.trim() || null })}
+              />
+            </div>
+          </div>
+
+          <label className="mt-3 flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 accent-[color:var(--accent)]"
+              disabled={!isAdmin || sla.channel === "none"}
+              checked={sla.is_active}
+              onChange={(e) => setRoute.mutate({ event: "sla_breach", is_active: e.target.checked })}
+            />
+            <span>
+              Send these
+              <span className="block text-xs text-faint">
+                The path is appended to the server's N8N_BASE_URL. The base URL and key are env vars,
+                never in the browser. With no base URL set, alerts are recorded as skipped rather than sent.
+              </span>
+            </span>
+          </label>
+
+          {!isAdmin && <p className="mt-3 text-xs text-faint">Admins change this.</p>}
+        </div>
       )}
     </section>
   );

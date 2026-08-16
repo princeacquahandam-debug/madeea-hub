@@ -7,6 +7,7 @@ import { MeetingPrepPacket } from "@/components/MeetingPrepPacket";
 import { useAuth } from "@/hooks/useAuth";
 import { useTasks, useMeetings, useClients, useMessages, useAutomations } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
+import { emitOnce } from "@/lib/alerts";
 import { clientSla, dayLength, formatDuration, waitingHours, thresholdsFor } from "@/lib/sla";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { FollowUpRow } from "@/components/FollowUpRow";
@@ -62,6 +63,26 @@ export default function Dashboard() {
       .filter((x) => x.hours > thresholdsFor(x.client, cfg).risk)
       .sort((a, b) => b.hours - a.hours);
   }, [messages, clients, cfg]);
+
+  /* The one place a Hub tab reaches outside itself today.
+     Every unanswered email past its threshold is announced once, ever. The
+     trigger is a render because there is no job runner in this stack, which is
+     fine here: an EA opens the dashboard every working morning, so "when
+     somebody looks" and "daily" are the same event. Five people opening it at
+     9am still produce one alert, because the dedupe is a unique index on the
+     server and not a flag in this browser. */
+  useEffect(() => {
+    for (const b of breachedMail) {
+      emitOnce("sla_breach", b.m.id, {
+        client: b.client?.name ?? b.m.client_name ?? null,
+        subject: b.m.subject,
+        sender: b.m.sender_name,
+        waiting_hours: Math.round(b.hours * 10) / 10,
+        waiting_label: b.label,
+        threshold_hours: thresholdsFor(b.client, cfg).risk,
+      });
+    }
+  }, [breachedMail, cfg]);
 
   const kpis = [
     { label: "Tasks Active", value: tasks.filter((t) => t.status !== "done").length },

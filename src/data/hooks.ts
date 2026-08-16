@@ -2100,3 +2100,64 @@ export function useAcademyMutations() {
 
   return { setLessonDone, grade };
 }
+
+// ---------------- alert routing (migration 0036) ----------------
+//
+// Where the app reaches out when something happens. The destination is a row
+// rather than a constant, because nobody has settled where these land and
+// picking a Slack channel on the team's behalf is not mine to do.
+
+export interface AlertRoute {
+  event: string;
+  channel: "none" | "n8n";
+  target: string | null;
+  audience: "internal" | "client";
+  is_active: boolean;
+}
+
+export function useAlertRoutes() {
+  return useQuery<AlertRoute[]>({
+    queryKey: ["alert-routes"],
+    queryFn: async () => {
+      // Demo mode has no server to route anything to, so it reports the honest
+      // state rather than a switch that pretends to work.
+      if (!supabase) return [{ event: "sla_breach", channel: "none", target: null, audience: "internal", is_active: false }];
+      const { data, error } = await supabase
+        .from("alert_routes").select("event,channel,target,audience,is_active");
+      if (error) return []; // migration not applied yet; Settings says so
+      return data as AlertRoute[];
+    },
+    retry: false,
+  });
+}
+
+export function useAlertRouteMutations() {
+  const qc = useQueryClient();
+  const setRoute = useMutation({
+    mutationFn: async ({ event, ...patch }: Partial<AlertRoute> & { event: string }) => {
+      if (!supabase) return;
+      const { error } = await supabase.from("alert_routes").update(patch).eq("event", event);
+      if (error) throw error;
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["alert-routes"] }),
+  });
+  return { setRoute };
+}
+
+/** What actually happened to the last alerts. The failure path, made visible. */
+export function useAlertDeliveries(limit = 20) {
+  return useQuery<{ id: string; event: string; subject_id: string; status: string; attempts: number; last_error: string | null; created_at: string }[]>({
+    queryKey: ["alert-deliveries", limit],
+    queryFn: async () => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from("alert_deliveries")
+        .select("id,event,subject_id,status,attempts,last_error,created_at")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) return [];
+      return data;
+    },
+    retry: false,
+  });
+}
