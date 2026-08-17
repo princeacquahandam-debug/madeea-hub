@@ -9,6 +9,7 @@ import { useClients, useMessages } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { dayLength, formatDuration, isBreaching, responseHours, waitingHours } from "@/lib/sla";
 import { useFollowUps } from "@/hooks/useFollowUps";
+import { SlackComposer } from "@/components/SlackComposer";
 
 const TABS = ["All", "Needs Follow-up", "Urgent", "Awaiting Reply", "Delegated"] as const;
 const categoryLabel: Record<string, string> = { urgent: "Urgent", reply: "Reply", delegate: "Delegate", archive: "Archive" };
@@ -24,7 +25,7 @@ const TAB_FILTER: Record<(typeof TABS)[number], (m: Message) => boolean> = {
 
 export default function Communication() {
   const navigate = useNavigate();
-  const { data: messages = [], isLoading } = useMessages();
+  const { data: messages = [], isLoading, refetch: refetchMessages } = useMessages();
   const { data: clients = [] } = useClients();
   const cfg = useSlaSettings((s) => s.config);
   const dl = dayLength(cfg);
@@ -112,6 +113,11 @@ export default function Communication() {
           </button>
         ))}
       </div>
+
+      {/* Slack, both directions. Pull reads the channel in; Send posts out and
+          records it here so the Communication Center shows a conversation
+          rather than only the inbound half. */}
+      <SlackComposer onSent={() => void refetchMessages()} />
 
       <div className="mb-4 flex gap-2">
         {TABS.map((t) => (

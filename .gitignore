@@ -25,3 +25,7 @@ mobile-*.png
 *.local
 __pycache__/
 *.pyc
+
+# Backups of local env files. Same rule as .env.local: never committed.
+.env.local.*
+.env.*.bak
