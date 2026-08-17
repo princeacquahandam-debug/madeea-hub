@@ -104,6 +104,31 @@
 > shared one set of tick boxes. Ticking a step for Vantage ticked it for Acme.
 > That is fixed. One run per client, each with its own progress.
 
+### Routines: the app remembers, not you
+
+> Recurring work is the work people forget. Not the big things. The small weekly
+> ones. Update the attendance sheet. Send the Friday report. Check the invoice
+> folder.
+>
+> You describe it once, every Monday, and from then on the task turns up on your
+> board by itself, already dated and assigned to you. When you finish it, it
+> lands in your EOD without you writing a line about it.
+>
+> Here is why it matters more than it sounds. Right now an EA is reliable because
+> they are diligent. That reliability lives in one person's head, so it leaves
+> when they leave and it wobbles when they are sick or busy. A routine moves that
+> reliability from the person into the system. A new EA is as reliable as the one
+> who left, on their first day, because the app is what remembers.
+>
+> And the client sees it. The recurring work shows up in the EOD on its own, so
+> the boring dependable stuff becomes visible. That is exactly the work a client
+> only notices when it stops happening.
+>
+> One honest caveat: tomorrow's task appears when somebody opens the app, not at
+> midnight. With everyone signing in daily for attendance that is the same thing
+> in practice. Making it a proper scheduled job is about an hour and it is on
+> next week's list.
+
 ### The Training Center is real
 
 > Made Ready is three days, ten lessons, with an assessment at the end of each.
