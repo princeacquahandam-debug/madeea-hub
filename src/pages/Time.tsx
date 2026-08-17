@@ -94,7 +94,7 @@ export default function Time() {
   return (
     <div>
       <PageHeader
-        title="Time"
+        title="Time Tracker"
         subtitle="Clock in to start your day. Attendance is recorded from this. No tracker, no attendance."
       />
 

@@ -105,7 +105,7 @@ export default function Communication() {
           form, so there is one implementation to keep correct. */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold text-faint">AI actions</span>
-        {["Write an Email", "Triage the Inbox", "Draft Social Posts", "Newsletter Draft"].map((a) => (
+        {["Write Email", "Triage the Inbox", "Draft Social Content", "Newsletter Draft"].map((a) => (
           <button
             key={a}
             onClick={() => navigate(`/quick-actions?action=${encodeURIComponent(a)}`)}

@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 
 const KIND: Record<LessonKind, { icon: LucideIcon; label: string }> = {
   reading: { icon: BookOpen, label: "Reading" },
-  video: { icon: Video, label: "Video" },
+  video: { icon: Video, label: "Video Instruction" },
   simulation: { icon: FlaskConical, label: "Simulation" },
 };
 

@@ -70,7 +70,7 @@ export const NAV: NavItem[] = [
   { to: "/quick-actions", label: "AI Quick Actions", icon: Zap, group: "My Day" },
   // The day closes here: what you did, and that you were there to do it.
   { to: "/eod", label: "EOD Reports", icon: ClipboardList, group: "My Day" },
-  { to: "/time", label: "Time", icon: Clock, group: "My Day" },
+  { to: "/time", label: "Time Tracker", icon: Clock, group: "My Day" },
 
   /* ---- Clients & Files ----------------------------------------------------
      Everything you go looking FOR rather than work you do. The client record
@@ -92,7 +92,7 @@ export const NAV: NavItem[] = [
      and "workflow" is the word the team and the reference product use out
      loud. The route stays /sops so existing links still work. */
   { to: "/sops", label: "Workflows", icon: ClipboardCheck, group: "Playbook" },
-  { to: "/videos", label: "Madeline Videos", icon: Video, group: "Playbook" },
+  { to: "/videos", label: "Video Instruction", icon: Video, group: "Playbook" },
   { to: "/routines", label: "Routines", icon: Repeat, group: "Playbook" },
   /* The Academy was routed but never in the nav. The only way in was a promo
      card in the sidebar footer, which is dismissible, so dismissing it hid the
@@ -159,12 +159,12 @@ export const NAV: NavItem[] = [
 // in QUICK_ACTION_GROUPS, otherwise the rail offers actions the menu cannot
 // open. Four of the six pointed at names retired by the §5.1 consolidation.
 export const QUICK_RAIL = [
-  "Write an Email",
+  "Write Email",
   "Triage the Inbox",
-  "Meeting Prep",
+  "Meeting Preparation",
   "Research Brief",
   "Status Report",
-  "Draft Social Posts",
+  "Draft Social Content",
 ];
 
 /* Audit §5.1: 22 down to 11, with the groups ordered by R-5.1.4's list of what
@@ -177,10 +177,10 @@ export const QUICK_RAIL = [
    Brian's 70+ bot library is the real subject of §5.1 and is not in this repo.
    Its shortlist is OQ-6, for Rowena and Brian. */
 export const QUICK_ACTION_GROUPS: { title: string; actions: string[] }[] = [
-  { title: "Email & Communication", actions: ["Write an Email", "Triage the Inbox", "Newsletter Draft"] },
-  { title: "Research", actions: ["Research Brief", "Summarize a Document"] },
-  { title: "Social & LinkedIn", actions: ["Draft Social Posts"] },
-  { title: "Meetings & Calendar", actions: ["Meeting Prep", "Plan the Calendar"] },
+  { title: "Email & Communication", actions: ["Write Email", "AI Draft Response", "Triage the Inbox", "Newsletter Draft"] },
+  { title: "Research", actions: ["Research Brief", "Summarize Document"] },
+  { title: "Social & LinkedIn", actions: ["Draft Social Content"] },
+  { title: "Meetings & Calendar", actions: ["Meeting Preparation", "Plan the Calendar"] },
   { title: "Reporting", actions: ["Status Report", "Expense Report", "Draft Invoice"] },
 ];
 

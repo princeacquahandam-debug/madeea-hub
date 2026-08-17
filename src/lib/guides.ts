@@ -61,6 +61,14 @@ export const GUIDES: Record<string, Guide> = {
       "The AI uses each client's tone & preferences when drafting for them.",
     ],
   },
+  "/videos": {
+    title: "How Video Instruction works",
+    points: [
+      "Record your screen with narration, up to ten minutes per clip.",
+      "Save it, then write it up as a workflow so the steps outlast the recording.",
+      "Playback uses a link that expires, so a recording cannot leak by URL.",
+    ],
+  },
   "/sops": {
     // "Workflows", matching the nav and the page. This still said SOPs.
     title: "How Workflows work",

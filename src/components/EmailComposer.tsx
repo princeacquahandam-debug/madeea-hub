@@ -48,7 +48,7 @@ export function EmailComposer({
     try {
       const out = await generate({
         tool: "quick_action",
-        format: "Write an Email",
+        format: "Write Email",
         inputs: {
           kind: context ? "Reply to a message" : "New email",
           context: context || `An email to ${to || "the recipient"}`,

@@ -31,7 +31,7 @@ function RecordingsStrip() {
       <span className="text-sm font-medium">
         {recordings.length} recording{recordings.length === 1 ? "" : "s"} waiting to be written up
       </span>
-      <span className="ml-auto text-xs text-accent-soft">Open Videos →</span>
+      <span className="ml-auto text-xs text-accent-soft">Open Video Instruction →</span>
     </button>
   );
 }

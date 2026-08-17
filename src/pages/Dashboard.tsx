@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTasks, useMeetings, useClients, useMessages, useAutomations } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { emitOnce } from "@/lib/alerts";
+import { EodCard } from "@/components/EodCard";
 import { clientSla, dayLength, formatDuration, waitingHours, thresholdsFor } from "@/lib/sla";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { FollowUpRow } from "@/components/FollowUpRow";
@@ -138,6 +139,12 @@ export default function Dashboard() {
           </div>
         </section>
       )}
+
+      {/* EOD -> Dashboard -> Task Manager. The report is built from the board,
+          so this shows what it would say right now and links to both ends. */}
+      <div className="mt-5">
+        <EodCard />
+      </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <section className="card p-5">

@@ -58,7 +58,7 @@ export const SOPS: Sop[] = [
       { id: "profiles", label: "Attendee profiles compiled", required: true },
       { id: "agenda", label: "Agenda drafted", required: true },
       { id: "docs", label: "Relevant documents attached", required: true },
-      { id: "brief", label: "AI meeting brief generated", required: false, ai_action: "Meeting Prep" },
+      { id: "brief", label: "AI meeting brief generated", required: false, ai_action: "Meeting Preparation" },
       { id: "reminder", label: "Pre-meeting reminder sent to participants", required: true },
     ],
     success_criteria: [

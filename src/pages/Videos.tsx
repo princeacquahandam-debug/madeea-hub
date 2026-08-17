@@ -34,8 +34,8 @@ export default function Videos() {
   return (
     <div>
       <PageHeader
-        title="Videos"
-        subtitle="Record how you do something once. The SOP written from it is what outlasts the video."
+        title="Video Instruction"
+        subtitle="Record how a job is done once, so the next person watches it instead of asking."
         action={
           <button className="btn-primary" onClick={() => setRecording(true)}>
             <Video size={15} /> Record

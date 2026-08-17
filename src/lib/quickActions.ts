@@ -47,7 +47,7 @@ const KIND = (name: string, label: string, options: string[]): FormField =>
 export const CURATED_QUICK_ACTIONS: Record<string, QuickActionSchema> = {
   // ---- Email and communication. R-5.1.4 puts this first: it is where the
   //      EA's day starts and where most of the volume is.
-  "Write an Email": {
+  "Write Email": {
     howTo: "Pick what kind of email it is, give the AI the context, and it drafts something ready to send.",
     example: "Reply, paste the client's message, Warm, confirm Friday 3pm and ask for the deck",
     fields: [
@@ -58,6 +58,22 @@ export const CURATED_QUICK_ACTIONS: Record<string, QuickActionSchema> = {
         placeholder: "Paste the email you are replying to, or describe the recipient and the purpose." },
       { name: "points", label: "Points to cover", type: "textarea",
         placeholder: "e.g. confirm Friday 3pm, request the deck, mention the CFO is attending" },
+      TONE,
+    ],
+  },
+  "AI Draft Response": {
+    /* The reply-to-this-message action. Distinct from Write Email: that one
+       starts from a blank page, this one starts from a message somebody sent
+       you and answers it. The Communication Center already invokes this format
+       when you hit Generate on a selected email. */
+    howTo: "Paste the message you need to answer and get a reply written for you.",
+    example: "Client asks to move Thursday, reply confirming Friday 3pm",
+    fields: [
+      { name: "message", label: "The message you are answering", type: "textarea",
+        placeholder: "Paste it in full, or the whole thread if the context matters." },
+      KIND("stance", "How to answer", ["Agree and confirm", "Acknowledge and buy time", "Decline politely", "Ask a clarifying question"]),
+      { name: "points", label: "Anything to include", type: "text",
+        placeholder: "e.g. propose Friday 3pm, mention the deck is attached" },
       TONE,
     ],
   },
@@ -91,7 +107,7 @@ export const CURATED_QUICK_ACTIONS: Record<string, QuickActionSchema> = {
 
   // ---- Social and LinkedIn. R-5.1.4 names both. Deliberately thin: the real
   //      social bots are Brian's, and which of them survive is OQ-6.
-  "Draft Social Posts": {
+  "Draft Social Content": {
     howTo: "Give the idea and the platform, and get posts written for it.",
     example: "LinkedIn, 3 posts, the exec's talk on hiring remote teams",
     fields: [
@@ -104,7 +120,7 @@ export const CURATED_QUICK_ACTIONS: Record<string, QuickActionSchema> = {
   },
 
   // ---- Meetings and calendar.
-  "Meeting Prep": {
+  "Meeting Preparation": {
     howTo: "Describe the meeting and get the agenda, the pre-read, or the prep checklist.",
     example: "Agenda, Q3 board meeting, 90 minutes, 6 attendees",
     fields: [
@@ -157,7 +173,7 @@ export const CURATED_QUICK_ACTIONS: Record<string, QuickActionSchema> = {
         placeholder: "e.g. anything over 200, anything without a receipt" },
     ],
   },
-  "Summarize a Document": {
+  "Summarize Document": {
     howTo: "Paste a long document and get the version somebody will actually read.",
     example: "40 page contract, summarised with the risky clauses called out",
     fields: [

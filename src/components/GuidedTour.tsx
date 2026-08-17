@@ -11,7 +11,7 @@ interface Step { selector?: string; title: string; body: string; needsNav?: bool
 const STEPS: Step[] = [
   { title: "Welcome to MadeEA", body: "Your one-stop command center for executive-assistant work. Here's a 30-second tour. Skip any time." },
   { selector: '[data-tour="nav"]', needsNav: true, title: "My Day", body: "Top to bottom is the order you work: inbox, then the board, then the EOD that closes the day. Start here every morning." },
-  { selector: '[data-tour="playbook"]', needsNav: true, title: "Playbook", body: "How the work is done, defined once and reused. Record a video, write it up as a workflow, put it on a schedule, and learn it in the Training Center." },
+  { selector: '[data-tour="playbook"]', needsNav: true, title: "Playbook", body: "How the work is done, defined once and reused. Record a Video Instruction, write it up as a workflow, put it on a schedule, and learn it in the Training Center." },
   { selector: '[data-tour="insights"]', needsNav: true, title: "Insights", body: "Meeting Intelligence turns a call into tasks and notes. The Client Scoreboard shows what actually moved this week, counted from your work rather than claimed." },
   { selector: '[data-tour="command-center"]', title: "AI Command Center. ⌘K", body: "Press Ctrl/⌘-K (or click Ask AI) to run anything in plain language: create tasks, draft emails, summarize documents, or search your whole workspace." },
   { title: "You're all set", body: "Each page has a collapsible 'How this works' guide, and you can replay this tour any time from Settings." },
