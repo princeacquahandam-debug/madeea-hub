@@ -12,6 +12,7 @@ import { CommandCenter } from "@/components/command-center";
 import { GuidedTour } from "@/components/GuidedTour";
 import { useUI } from "@/store/ui";
 import { useSlaSettings } from "@/store/slaSettings";
+import { useRoutineRunner } from "@/hooks/useRoutineRunner";
 
 export function AppShell() {
   const { navOpen, setNavOpen } = useUI();
@@ -21,6 +22,10 @@ export function AppShell() {
      each of the nine pages that read them. */
   const hydrateSla = useSlaSettings((s) => s.hydrate);
   useEffect(() => { void hydrateSla(); }, [hydrateSla]);
+  /* Routines create their tasks here, not on the Routines page. You set a
+     routine up once and never go back, so anchoring it to that page meant
+     Monday's task might never be created. */
+  useRoutineRunner();
 
   return (
     <div className="relative z-10 flex h-screen overflow-hidden bg-transparent">

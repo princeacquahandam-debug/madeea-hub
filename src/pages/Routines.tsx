@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { Repeat, Plus, Trash2, Pause, Play, CalendarClock } from "lucide-react";
 import { PageHeader, Modal, Badge } from "@/components/ui";
-import { useClients, useRoutineMutations, useRoutines, useWorkspaceMembers } from "@/data/hooks";
+import { useClients, useRoutineMutations, useRoutines, useWorkspaceMembers, DEMO_ME } from "@/data/hooks";
 import { DAY_LABELS, describe, nextOccurrences, toRRule, type Freq } from "@/lib/recurrence";
 import type { Priority, Routine } from "@/types/db";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,12 @@ import { cn } from "@/lib/utils";
  * the standard string, so a proper library can take over later without touching
  * the data.
  */
+/* Assignee preselected to you rather than blank. An unassigned routine used to
+   produce a task belonging to nobody, and the EOD is built from tasks assigned
+   to you, so that work never reached anybody's report. If you did not say who
+   it is for, it is yours. Migration 0037 covers routines created before this. */
+const mine = () => ({ ...BLANK, assigneeId: DEMO_ME });
+
 const BLANK = {
   name: "",
   title: "",
@@ -40,22 +46,18 @@ export default function Routines() {
   const { data: routines = [], isLoading } = useRoutines();
   const { data: clients = [] } = useClients();
   const { data: members = [] } = useWorkspaceMembers();
-  const { create, update, remove, materialize } = useRoutineMutations();
+  const { create, update, remove } = useRoutineMutations();
 
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState(BLANK);
+  /* Preselected to you, not blank. Assignee is optional, and an unassigned
+     routine used to produce a task belonging to nobody, which never reached
+     anybody's EOD. If you did not say who it is for, it is yours. */
+  const [form, setForm] = useState(mine);
 
-  /* Create anything due, once, when the page opens. There is no job runner in
-     this stack; attendance gating means an EA opens the app every working
-     morning, so this fires about as often as a daily cron would. It is
-     idempotent, so a second visit costs nothing. */
-  const active = useMemo(() => routines.filter((r) => r.is_active), [routines]);
-  useEffect(() => {
-    if (active.length) materialize.mutate(active);
-    // Deliberately only on the set of active routines changing, not on every
-    // render, this writes rows.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active.length]);
+  /* Materialisation moved to hooks/useRoutineRunner, mounted in AppShell, so it
+     runs when anyone opens the app rather than only when somebody visits this
+     page. Nobody revisits this page after setting a routine up, which meant
+     the tasks were never created. */
 
   const rule = toRRule({
     freq: form.freq,
@@ -87,7 +89,7 @@ export default function Routines() {
       is_active: true,
       lead_days: form.leadDays,
     });
-    setForm(BLANK);
+    setForm(mine());
     setModal(false);
   };
 
@@ -96,7 +98,7 @@ export default function Routines() {
       <PageHeader
         title="Routines"
         subtitle="Work that comes back. The task appears on its own, on the day it should."
-        action={<button className="btn-primary" onClick={() => { setForm(BLANK); setModal(true); }}><Plus size={15} /> New routine</button>}
+        action={<button className="btn-primary" onClick={() => { setForm(mine()); setModal(true); }}><Plus size={15} /> New routine</button>}
       />
 
       {isLoading && <p className="text-sm text-faint">Loading…</p>}
