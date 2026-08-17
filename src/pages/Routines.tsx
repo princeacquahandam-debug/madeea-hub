@@ -46,7 +46,7 @@ export default function Routines() {
   const { data: routines = [], isLoading } = useRoutines();
   const { data: clients = [] } = useClients();
   const { data: members = [] } = useWorkspaceMembers();
-  const { create, update, remove } = useRoutineMutations();
+  const { create, update, remove, materialize } = useRoutineMutations();
 
   const [modal, setModal] = useState(false);
   /* Preselected to you, not blank. Assignee is optional, and an unassigned
@@ -77,9 +77,13 @@ export default function Routines() {
   const noDaysPicked = form.freq === "WEEKLY" && form.byDay.length === 0;
   const invalid = noDaysPicked || preview.length === 0;
 
-  const submit = () => {
+  /* Materialise the new routine straight away.
+     The runner in AppShell fires once per page load, so without this the first
+     task would not appear until you next opened the app. Creating a routine and
+     seeing nothing happen is how a feature earns a reputation for not working. */
+  const submit = async () => {
     if (!form.name.trim()) return;
-    create.mutate({
+    const created = await create.mutateAsync({
       name: form.name.trim(),
       task_template: { title: form.title.trim() || form.name.trim(), priority: form.priority, notes: form.notes.trim() || undefined },
       rrule: rule,
@@ -91,6 +95,7 @@ export default function Routines() {
     });
     setForm(mine());
     setModal(false);
+    if (created?.is_active) materialize.mutate([created]);
   };
 
   return (
@@ -258,7 +263,7 @@ export default function Routines() {
             )}
           </div>
 
-          <button className="btn-primary w-full" onClick={submit} disabled={!form.name.trim() || invalid || create.isPending}>
+          <button className="btn-primary w-full" onClick={() => void submit()} disabled={!form.name.trim() || invalid || create.isPending}>
             {create.isPending ? "Creating…" : "Create routine"}
           </button>
         </div>

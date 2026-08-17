@@ -1490,11 +1490,20 @@ export function useRoutineMutations() {
   const create = useMutation({
     mutationFn: async (input: Omit<Routine, "id" | "created_at" | "last_run_on">) => {
       if (!supabase) {
-        addDemoRoutine({ ...input, id: demoId(), last_run_on: null, created_at: new Date().toISOString() });
-        return;
+        // Returned, not just written. The caller materialises the new routine
+        // immediately so its first task lands on the board now rather than on
+        // the next page load.
+        const row: Routine = { ...input, id: demoId(), last_run_on: null, created_at: new Date().toISOString() };
+        addDemoRoutine(row);
+        return row;
       }
-      const { error } = await supabase.from("routines").insert(input);
+      const { data, error } = await supabase
+        .from("routines")
+        .insert(input)
+        .select("id,name,task_template,rrule,timezone,client_id,assignee_id,is_active,lead_days,last_run_on,created_at")
+        .single();
       if (error) throw error;
+      return data as Routine;
     },
     onSettled: invalidate,
   });
