@@ -109,19 +109,10 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
       return { ...DEFAULT_OPEN };
     }
   });
-  const toggleGroup = (g: string) =>
-    setOpenGroups((s) => {
-      const next = { ...s, [g]: !s[g] };
-      try { localStorage.setItem(OPEN_KEY, JSON.stringify(next)); } catch { /* private mode */ }
-      return next;
-    });
-
-  /* The group holding the current page is always open.
-     Without this the page you are ON disappears from the nav: visiting
-     /scoreboard with Insights collapsed rendered no link to it and no active
-     highlight anywhere, so the sidebar told you nothing about where you were.
-     Deliberately not persisted, since it is a consequence of the route rather
-     than something the user chose. */
+  /* The group holding the current page, so it can open by DEFAULT.
+     Without that, visiting /scoreboard with Insights collapsed rendered no link
+     to it and no active highlight anywhere, and the sidebar told you nothing
+     about where you were. */
   const activeGroup = useMemo(
     () =>
       NAV.filter((n) => (n.to === "/" ? pathname === "/" : pathname.startsWith(n.to)))
@@ -129,7 +120,30 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
         .sort((a, b) => b.to.length - a.to.length)[0]?.group,
     [pathname],
   );
-  const isOpen = (g: string) => Boolean(openGroups[g]) || g === activeGroup;
+
+  /* A default, never a lock.
+     This used to read `openGroups[g] || g === activeGroup`, which forced the
+     active group open and made its header unclickable: you were on /time, My
+     Day was pinned open, and the toggle did nothing at all. A control that
+     looks interactive and is not is worse than no control.
+
+     So an explicit choice always wins. Only when the user has never touched a
+     group do we fall back to the default, which is My Day plus whichever group
+     holds the current page. */
+  const isOpen = (g: string) =>
+    g in openGroups ? openGroups[g] : Boolean(DEFAULT_OPEN[g]) || g === activeGroup;
+
+  /* Toggles from what is on SCREEN, not from what is stored.
+     An auto-expanded group has no stored value, so `!openGroups[g]` was
+     `!undefined` = true, which "opened" a group that was already open. Second
+     way the same click did nothing. */
+  const toggleGroup = (g: string) =>
+    setOpenGroups((s) => {
+      const visible = g in s ? s[g] : Boolean(DEFAULT_OPEN[g]) || g === activeGroup;
+      const next = { ...s, [g]: !visible };
+      try { localStorage.setItem(OPEN_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+      return next;
+    });
 
   // ---------------------------------------------------------------- collapsed
   if (collapsed) {
