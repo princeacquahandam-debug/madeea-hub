@@ -92,10 +92,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-function toUser(u: { email?: string } | undefined | null): SessionUser | null {
+/** Title-case an email local part: "rio.castillo" becomes "Rio Castillo". */
+function nameFromEmail(email: string): string {
+  return email
+    .split("@")[0]
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(" ");
+}
+
+function toUser(
+  u: { email?: string; user_metadata?: { full_name?: string; name?: string } } | undefined | null,
+): SessionUser | null {
   if (!u?.email) return null;
-  const name = u.email.split("@")[0];
-  return { email: u.email, name, initials: name.slice(0, 2).toUpperCase() };
+  /* The greeting used the raw email local part, so the first thing on screen
+     read "rio.castillo" rather than "Rio Castillo". Prefer the name Supabase
+     holds; fall back to a title-cased local part, which is right for the
+     firstname.lastname addresses this workspace uses. */
+  const name = u.user_metadata?.full_name?.trim() || u.user_metadata?.name?.trim() || nameFromEmail(u.email);
+  const initials = name.split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+  return { email: u.email, name, initials };
 }
 
 export function useAuth() {
