@@ -12,8 +12,19 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 const APP_ORIGINS = (Deno.env.get("APP_ORIGINS") ?? "")
   .split(",").map((o) => o.trim()).filter(Boolean);
 
-const SCOPES =
-  "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly openid email";
+/* gmail.send added for the Communication Center's compose flow.
+   Adding it here changes what NEW authorisations ask for; it does not touch a
+   token already granted. Anyone who connected before this keeps read-only
+   access and gains send only when they reconnect, so nobody is forced through
+   a re-consent by this line alone. gmail-send checks the granted scopes and
+   says precisely what is missing rather than failing at Google. */
+const SCOPES = [
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/calendar.readonly",
+  "openid",
+  "email",
+].join(" ");
 
 function corsFor(req: Request) {
   const origin = req.headers.get("Origin") ?? "";

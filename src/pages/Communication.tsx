@@ -10,6 +10,7 @@ import { useSlaSettings } from "@/store/slaSettings";
 import { dayLength, formatDuration, isBreaching, responseHours, waitingHours } from "@/lib/sla";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { SlackComposer } from "@/components/SlackComposer";
+import { EmailComposer } from "@/components/EmailComposer";
 
 const TABS = ["All", "Needs Follow-up", "Urgent", "Awaiting Reply", "Delegated"] as const;
 const categoryLabel: Record<string, string> = { urgent: "Urgent", reply: "Reply", delegate: "Delegate", archive: "Archive" };
@@ -25,6 +26,7 @@ const TAB_FILTER: Record<(typeof TABS)[number], (m: Message) => boolean> = {
 
 export default function Communication() {
   const navigate = useNavigate();
+  const [composing, setComposing] = useState(false);
   const { data: messages = [], isLoading, refetch: refetchMessages } = useMessages();
   const { data: clients = [] } = useClients();
   const cfg = useSlaSettings((s) => s.config);
@@ -113,6 +115,22 @@ export default function Communication() {
           </button>
         ))}
       </div>
+
+      {/* Compose: item 2 (send) and item 3 (AI draft) share this one surface,
+          because the draft has to land in the field the Send button reads. */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <button className="btn-primary" onClick={() => setComposing(true)}>
+          <Wand2 size={15} /> Write an email
+        </button>
+        <span className="text-xs text-faint">Draft it with AI, edit, and send through the connected Gmail account.</span>
+      </div>
+      <EmailComposer
+        open={composing}
+        onClose={() => setComposing(false)}
+        to={selected?.sender_email ?? ""}
+        subject={selected ? `Re: ${selected.subject}` : ""}
+        context={selected ? `From ${selected.sender_name}: ${selected.body}` : ""}
+      />
 
       {/* Slack, both directions. Pull reads the channel in; Send posts out and
           records it here so the Communication Center shows a conversation
