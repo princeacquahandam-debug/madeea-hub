@@ -3,18 +3,26 @@
 The first path out of the app. An SLA breach leaves the browser, crosses the
 server, reaches n8n, and leaves a row behind saying what happened.
 
-## Setup
+## State
+
+Applied and deployed to `madeea-hub` (`bglduxferbjmoeqzyypx`) on 17 Aug 2026.
+Migrations 0026 to 0036 are in. `emit-alert` is deployed, ACTIVE, and verified
+end to end against production.
+
+The route is live and reports **Not connected**, which is correct: no
+destination is configured, so deliveries record as `skipped` and nothing claims
+to have sent anything.
+
+## The one thing left
 
 ```bash
 supabase secrets set N8N_BASE_URL=https://your-n8n-host      # no trailing slash
-supabase secrets set N8N_API_KEY=...                         # rotate anything pasted into chat
-supabase functions deploy emit-alert
+supabase secrets set N8N_API_KEY=...
 ```
 
-Then in the app: Settings → Alerts → channel `n8n webhook`, path `sla-breach`,
-tick "Send these". Admins only.
-
-In n8n, a Webhook node listening on `POST /webhook/sla-breach`.
+Then in the app: Settings, Alerts, channel `n8n webhook`, path `sla-breach`,
+tick "Send these". Admins only. In n8n, a Webhook node on
+`POST /webhook/sla-breach`.
 
 ## Prove it
 
@@ -80,12 +88,18 @@ with the query above. `useAlertDeliveries()` exists and has no screen.
 
 | Claim | How |
 |---|---|
-| Migration applies in order | `npm run check:migrations`, 34/34 |
-| Thresholds shared, admin-only writes, tenant isolated | 15 assertions against real Postgres (PGlite) |
-| One alert per breach under concurrency | Same suite: four racing inserts, one row |
-| Nobody can forge or delete a delivery record | Same suite, as EA and as admin |
+| All 34 migrations apply in order | `npm run check:migrations` locally, then applied to production |
+| The 20 new tables, 11 new columns, 5 functions and 2 buckets exist | 14 assertions against production after the fact |
+| RLS on every new table; the answer key has no policy at all | Same production check |
+| Thresholds shared, admin-only writes, tenant isolated | 15 assertions against real Postgres |
+| One alert per breach under concurrency | Four racing inserts, one row |
+| Nobody can forge or delete a delivery record | As EA and as admin |
 | Retry, timeout and 4xx behaviour | 8 assertions against a real HTTP server |
+| The deployed function rejects an unauthenticated call | 401 from production |
+| A caller with no workspace gets no route | 404 from production |
+| A real member gets 200, `delivered: false`, and a `skipped` row | Live, with a minted session |
+| A repeat of the same breach is deduped | Live, second call returned `deduped: true` |
 
-**Not verified:** the live hop to n8n. No `N8N_BASE_URL` is set and I do not have
-the instance URL, so the last leg is exercised against a local server that
-behaves like n8n rather than against n8n itself.
+**Still not verified:** the hop to n8n itself. `N8N_BASE_URL` is unset, so the
+last leg has only been exercised against a local server that behaves like n8n.
+Everything up to that boundary is proven in production.

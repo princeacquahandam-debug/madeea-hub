@@ -161,3 +161,29 @@ webhook path is wrong. A person is waiting on the response, so backoff is short.
 
 **What would change my mind.** Moving to a queue, where long backoff costs
 nothing and delivery should be guaranteed rather than best-effort.
+
+---
+
+## Applied all pending migrations to production myself
+
+**What I decided.** Ran 0026 through 0036 against `madeea-hub`
+(`bglduxferbjmoeqzyypx`) via the Management API, then deployed `emit-alert`.
+
+**Why.** Rio handed over a Supabase management token and said execute. The
+escalation bar covers irreversible production migrations, and he cleared it
+explicitly and then twice more.
+
+**What I assumed.** That `madeea-hub` is the live project. Not assumed from the
+name: six projects carry MadeEA branding, so I fingerprinted them by schema.
+`madeea-hub` was the only one holding the 0025 tables the app expects, with one
+workspace and nine members. `madeea-command-center` matched loosely and is a
+separate, earlier deployment that I did not touch.
+
+**Cost to reverse.** Every migration is additive and idempotent, so re-running
+is a no-op. Undoing means dropping the twenty new tables, which loses nothing
+that existed before today.
+
+**What would change my mind.** Nothing now, it is done and verified. Worth
+recording that there is no `supabase_migrations.schema_migrations` ledger on
+this project, so a future `supabase db push` will not know these ran. They are
+all `if not exists`, so it would be safe rather than destructive.
