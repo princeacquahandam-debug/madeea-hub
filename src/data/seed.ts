@@ -118,4 +118,6 @@ export const SOPS: Sop[] = [
   },
 ];
 
-export const USER = { name: "FJ Caballes", role: "Elite EA", initials: "FC" };
+/* Who you are when the app runs without Supabase. Demo mode only: signed in
+   against a real workspace this comes from your profile, not here. */
+export const USER = { name: "Rio Castillo", role: "Elite EA", initials: "RC" };

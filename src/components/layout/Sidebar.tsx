@@ -364,7 +364,9 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{user?.name ?? "-"}</p>
-            <p className="truncate text-xs text-faint">Elite EA</p>
+            {/* Was hardcoded "Elite EA", which is wrong for an admin and wrong
+                for anybody whose title is not that. Read the real role. */}
+            <p className="truncate text-xs capitalize text-faint">{role === "admin" ? "Admin" : "Elite EA"}</p>
           </div>
           <SettingsIcon size={15} className="text-faint transition-colors group-hover:text-text" />
         </NavLink>
