@@ -17,51 +17,22 @@
  * on install. There is no API for that and there should not be. This gets you
  * to that single click and prints the link.
  *
- * SECRETS. Creating an app returns its signing secret and client secret. They
- * are written to .slack-app.local (gitignored) and never printed, because a
- * terminal is a log.
+ * SECRETS. Creating an app returns its signing secret and client secret. Those,
+ * the app id and the rotated refresh token all go to .slack-app.local
+ * (gitignored) and none of them are printed, because a terminal is a log.
  */
 
-const INPUT = process.argv[2];
-if (!INPUT || !INPUT.startsWith("xoxe")) {
-  console.error("Usage: node scripts/slack-create-app.mjs <xoxe-config-token>");
+import { accessToken, saveStore, apiWith } from "./slack-token.mjs";
+
+const TOKEN = await accessToken(process.argv[2]);
+if (!TOKEN) {
+  console.error("\nUsage: node scripts/slack-create-app.mjs <xoxe-config-token>");
   console.error("Get one at api.slack.com/apps -> 'Your App Configuration Tokens'.");
   process.exit(1);
 }
 
-/* Same pair problem as slack-add-scope.mjs: the panel shows an access token
-   (xoxe.xoxp-) and a refresh token (xoxe-1-), and only the first is accepted.
-   Take either. */
-let TOKEN = INPUT;
-if (!INPUT.startsWith("xoxe.xoxp-")) {
-  const r = await fetch("https://slack.com/api/tooling.tokens.rotate", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ refresh_token: INPUT }),
-  });
-  const d = await r.json();
-  if (!d.ok) {
-    console.error(`Could not exchange the refresh token: ${d.error}`);
-    console.error("Generate a fresh pair at api.slack.com/apps and try again.");
-    process.exit(1);
-  }
-  TOKEN = d.token;
-  console.log("exchanged the refresh token for an access token");
-}
-
-const api = async (method, body) => {
-  const r = await fetch(`https://slack.com/api/${method}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json; charset=utf-8" },
-    body: JSON.stringify(body ?? {}),
-  });
-  const d = await r.json();
-  if (!d.ok) {
-    const detail = d.errors ? "\n" + JSON.stringify(d.errors, null, 2) : "";
-    throw new Error(`${method}: ${d.error}${detail}`);
-  }
-  return d;
-};
+let appId = null;
+const api = apiWith(TOKEN, () => appId);
 
 /* Every scope is listed with the thing it lets the Communication Center do.
    Scopes are cheap to ask for NOW and expensive later: adding one means another
@@ -114,15 +85,10 @@ await api("apps.manifest.validate", { manifest });
 console.log("\nmanifest valid");
 
 const created = await api("apps.manifest.create", { manifest });
-const appId = created.app_id;
+appId = created.app_id;
 
 // Written, not printed. A terminal is a log and these are real secrets.
-const fs = await import("node:fs/promises");
-await fs.writeFile(
-  ".slack-app.local",
-  JSON.stringify({ app_id: appId, credentials: created.credentials }, null, 2),
-  "utf8",
-);
+await saveStore({ app_id: appId, credentials: created.credentials });
 
 console.log(`\napp created: ${appId}`);
 console.log("credentials written to .slack-app.local (gitignored, not printed)");
