@@ -12,15 +12,15 @@
 // When the decision lands, delegation becomes a different value passed in here
 // rather than a rewrite of this function.
 //
-// ── The scope problem, which is why this currently cannot send ────────────
-// google-oauth-url requests gmail.readonly and calendar.readonly. Sending needs
-// https://www.googleapis.com/auth/gmail.send, which is a change to the consent
-// screen AND a re-authorisation by every user who has already connected.
+// ── Who decides whether this token may send ───────────────────────────────
+// Google does, not us. This function does NOT pre-check the stored scope list:
+// that list is a record and a record can be stale, and a stale record that
+// blocks a send the account is entitled to make is worse than no record.
 //
-// This function is written correctly and will work the moment that scope is
-// granted. Until then Google returns 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT, and
-// this passes that back verbatim as `needs_scope` so the UI can say precisely
-// what is missing instead of failing vaguely. It never pretends to have sent.
+// It attempts the send and interprets Google's refusal. A missing gmail.send
+// comes back as needs_scope with the exact scope named; anything else is
+// reported as the real failure it is. It never pretends to have sent, and it
+// never refuses on its own guess.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
@@ -53,21 +53,33 @@ async function accessToken(refresh: string): Promise<string> {
 
 /** RFC 2822, base64url. Gmail wants the whole message, not fields. */
 function rawMessage(to: string, subject: string, body: string, from?: string, cc?: string): string {
-  const lines = [
+  const headers = [
     from ? `From: ${from}` : null,
     `To: ${to}`,
     cc ? `Cc: ${cc}` : null,
-    // Encoded, so a subject with an accent or an em dash does not corrupt.
+    // Encoded, so a subject with an accent or a non-ASCII character survives.
     `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
     "MIME-Version: 1.0",
     'Content-Type: text/plain; charset="UTF-8"',
     "Content-Transfer-Encoding: base64",
-    "",
-    btoa(unescape(encodeURIComponent(body))),
-  ].filter(Boolean);
-  return btoa(unescape(encodeURIComponent(lines.join("\r\n"))))
+  ].filter((h): h is string => h !== null);
+
+  /* The blank line between headers and body IS the message format.
+     This used to be one array ending in `.filter(Boolean)`, and "" is falsy, so
+     the separator was silently deleted. Everything then parsed as headers, the
+     body was dropped, and Gmail accepted it and returned a message id. The send
+     reported success and delivered an empty email, which is the worst kind of
+     failure: it looks like it worked at both ends.
+
+     Two pieces joined by an explicit blank line, so no filter can eat the thing
+     holding them apart. */
+  const encodedBody = btoa(unescape(encodeURIComponent(body)));
+  const message = headers.join("\r\n") + "\r\n\r\n" + encodedBody;
+
+  return btoa(unescape(encodeURIComponent(message)))
     .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -103,17 +115,17 @@ Deno.serve(async (req) => {
       return json({ error: "Google not connected for this account", failure: "not_connected", owner }, 400);
     }
 
-    /* Checked before we call Google, so the answer is specific rather than a
-       403 the UI has to guess at. */
-    if (!String(cred.scopes ?? "").includes(SEND_SCOPE)) {
-      return json({
-        error: "This Google connection can read mail but not send it.",
-        failure: "needs_scope",
-        missing_scope: SEND_SCOPE,
-        granted: cred.scopes,
-      }, 403);
-    }
+    /* Deliberately NOT pre-checking cred.scopes.
+       That was here, and it was wrong. The stored scope list is a record, and a
+       record can be stale: the callback used to save a local constant rather
+       than what Google returned, so an account that HAD been granted send was
+       recorded as read-only and this function refused a send Google would have
+       accepted. A cached permission that blocks a real one is worse than no
+       cache at all.
 
+       Google is the authority on what this token may do, so we ask Google by
+       attempting it, and interpret the refusal below. The record is still read,
+       but only to explain the failure afterwards. */
     const token = await accessToken(cred.refresh_token);
     const raw = rawMessage(to, subject || "(no subject)", text, body.from ? String(body.from) : undefined, body.cc);
 
@@ -124,10 +136,20 @@ Deno.serve(async (req) => {
     });
     const sent = await send.json();
     if (!send.ok) {
-      const reason = sent?.error?.status ?? sent?.error?.message ?? "send failed";
+      const reason = String(sent?.error?.status ?? sent?.error?.message ?? "send failed");
+      /* Google's own words for "this token lacks gmail.send". Anything else is
+         a real send failure and should not be dressed up as a permission
+         problem, because the fixes are completely different. */
+      const scopeProblem =
+        reason.includes("SCOPE") || reason.includes("insufficient") ||
+        (sent?.error?.details ?? []).some((d: { reason?: string }) => d.reason === "ACCESS_TOKEN_SCOPE_INSUFFICIENT");
       return json({
-        error: String(reason),
-        failure: String(reason).includes("SCOPE") ? "needs_scope" : "send_failed",
+        error: scopeProblem ? "This Google connection cannot send mail yet." : reason,
+        failure: scopeProblem ? "needs_scope" : "send_failed",
+        missing_scope: scopeProblem ? SEND_SCOPE : undefined,
+        // What the record claims, so a mismatch between this and Google's
+        // answer is visible rather than mysterious.
+        recorded_scopes: cred.scopes,
         detail: sent?.error,
       }, send.status);
     }

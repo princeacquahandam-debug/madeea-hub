@@ -14,8 +14,16 @@
 // Consequence: the Google account you connect must match your MadeEA login email.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const SCOPES =
-  "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly openid email";
+/* What we ASK for. Kept only as the fallback for the record, and deliberately
+   not the thing we store: see the note where the row is built. Must stay in
+   step with google-oauth-url. */
+const REQUESTED_SCOPES = [
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/calendar.readonly",
+  "openid",
+  "email",
+].join(" ");
 
 const APP_ORIGINS = (Deno.env.get("APP_ORIGINS") ?? "")
   .split(",").map((o) => o.trim()).filter(Boolean);
@@ -115,7 +123,18 @@ Deno.serve(async (req) => {
     owner_id: st.user_id,
     access_token: tok.access_token,
     token_expiry: new Date(Date.now() + (tok.expires_in ?? 3600) * 1000).toISOString(),
-    scopes: SCOPES,
+    /* What Google ACTUALLY granted, not what we asked for.
+       This used to store a local constant, which made the record a guess. It
+       was wrong in the quiet direction today: the request was updated to
+       include gmail.send, Google granted it, and the row still said read-only,
+       so gmail-send refused a send the account was entitled to make.
+
+       It can be wrong in the dangerous direction too. A user can untick a
+       permission on the consent screen, and a record that claims a scope we do
+       not hold means the app promises something Google will refuse.
+
+       tok.scope is Google's own answer. Believe it. */
+    scopes: typeof tok.scope === "string" && tok.scope.length ? tok.scope : REQUESTED_SCOPES,
     connected_at: new Date().toISOString(),
   };
   if (tok.refresh_token) row.refresh_token = tok.refresh_token; // keep prior one if Google omits it
