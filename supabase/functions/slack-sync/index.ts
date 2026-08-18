@@ -126,6 +126,20 @@ Deno.serve(async (req) => {
       detail.push(row);
     }
 
+    /* The app's own id, resolved from the bot token rather than asked for.
+       App Configuration Tokens can edit an app's manifest but cannot list which
+       apps exist, so the id has to come from somewhere. auth.test gives the bot
+       id and bots.info turns that into the app id, which saves somebody digging
+       through the Slack admin for a string they should not have to know. */
+    let appId: string | undefined;
+    try {
+      const who = await slack("auth.test", token);
+      if (who.bot_id) {
+        const b = await slack("bots.info", token, { bot: String(who.bot_id) });
+        appId = b.bot?.app_id;
+      }
+    } catch { /* diagnostics only; never fail the sync over this */ }
+
     const have = grantedScopes.split(",").map((x) => x.trim()).filter(Boolean);
     const missing = Object.keys(NEEDED).filter((n) => !have.includes(n));
 
@@ -134,6 +148,7 @@ Deno.serve(async (req) => {
       skipped,
       // The token's own answer, not our assumption about it.
       scopes: have,
+      app_id: appId,
       missing_scopes: missing.length ? missing.map((m) => ({ scope: m, needed_to: NEEDED[m] })) : undefined,
       can_send: have.includes("chat:write"),
       channels: channels.length,
