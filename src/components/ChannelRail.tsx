@@ -71,9 +71,16 @@ export function ChannelRail({
 /** The note for a channel that cannot do what you just asked of it. */
 export function ChannelNotice({ channel }: { channel: Channel }) {
   if (!channel.note) return null;
-  const tone = channel.status === "planned"
-    ? "border-border bg-surface-2/50 text-muted"
-    : "border-amber-500/40 bg-amber-500/5 text-amber-200";
+  /* A note is not automatically a warning. A connected channel can still carry
+     an operating detail (Slack needs the bot invited per channel), and painting
+     that amber would report a healthy integration as a problem. Amber is for
+     the states where something is actually unavailable. */
+  const tone =
+    channel.status === "connected"
+      ? "border-border bg-surface-2/50 text-muted"
+      : channel.status === "planned"
+        ? "border-border bg-surface-2/50 text-muted"
+        : "border-amber-500/40 bg-amber-500/5 text-amber-200";
   return (
     <p className={cn("rounded-lg border p-3 text-[12.5px] leading-relaxed", tone)}>
       <span className="font-semibold">{channel.label}: {STATUS_LABEL[channel.status]}.</span>{" "}

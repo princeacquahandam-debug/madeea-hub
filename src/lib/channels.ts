@@ -66,10 +66,13 @@ export const CHANNELS: Channel[] = [
     label: "Slack",
     icon: Hash,
     source: "slack",
-    // Reads fine; posting needs chat:write on the Slack app.
-    status: "read_only",
+    status: "connected",
     compose: "message",
-    note: "Reading works. Posting needs the chat:write scope added to the Slack app, then a reinstall.",
+    /* Reads and posts. The caveat is not a permission but a membership: Slack
+       only exposes a channel's history to a bot that is IN the channel, so an
+       uninvited channel looks empty rather than forbidden. Say so here, because
+       "no messages" and "not invited" are indistinguishable on screen. */
+    note: "Posting works. The bot only reads channels it has been invited to, so run /invite @MadeEA OS in each one you want pulled in.",
     tint: "#4A154B",
   },
   {
