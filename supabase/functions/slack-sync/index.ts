@@ -10,14 +10,32 @@ const CORS = {
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
 
+/* Slack returns the token's granted scopes in a response header on every call.
+   Captured here because "which scopes do we actually have" is the first
+   question whenever Slack refuses something, and reading it off a header beats
+   asking somebody to open the Slack admin and squint at a checklist. */
+let grantedScopes = "";
+
 async function slack(method: string, token: string, params: Record<string, string> = {}) {
   const r = await fetch(`https://slack.com/api/${method}?${new URLSearchParams(params)}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+  const hdr = r.headers.get("x-oauth-scopes");
+  if (hdr) grantedScopes = hdr;
   const d = await r.json();
   if (!d.ok) throw new Error(`slack ${method}: ${d.error}`);
   return d;
 }
+
+/** What the integration needs, and why, so a gap explains itself. */
+const NEEDED: Record<string, string> = {
+  "channels:read": "see which public channels the bot is in",
+  "groups:read": "see private channels the bot is in",
+  "channels:history": "read messages in public channels",
+  "groups:history": "read messages in private channels",
+  "users:read": "turn a Slack user id into a person's name",
+  "chat:write": "post a message from the Communication Center",
+};
 
 const ini = (n: string) => n.split(/[ .]/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 
@@ -108,9 +126,16 @@ Deno.serve(async (req) => {
       detail.push(row);
     }
 
+    const have = grantedScopes.split(",").map((x) => x.trim()).filter(Boolean);
+    const missing = Object.keys(NEEDED).filter((n) => !have.includes(n));
+
     return json({
       synced,
       skipped,
+      // The token's own answer, not our assumption about it.
+      scopes: have,
+      missing_scopes: missing.length ? missing.map((m) => ({ scope: m, needed_to: NEEDED[m] })) : undefined,
+      can_send: have.includes("chat:write"),
       channels: channels.length,
       channel_names: channels.map((c: { name: string }) => c.name),
       detail,
