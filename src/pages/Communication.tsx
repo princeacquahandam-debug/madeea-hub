@@ -1,15 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Sparkles, Mail, AlertTriangle, MailQuestion, Wand2, Lock, Inbox } from "lucide-react";
+import { Sparkles, Mail, AlertTriangle, MailQuestion, Wand2, Lock, Inbox, Hash } from "lucide-react";
 import type { Message } from "@/types/db";
 import { Badge, PageHeader } from "@/components/ui";
-import { initials } from "@/lib/utils";
+import { initials, cn } from "@/lib/utils";
 import { generate } from "@/lib/ai";
 import { useClients, useMessages } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { dayLength, formatDuration, isBreaching, responseHours, waitingHours } from "@/lib/sla";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { SlackComposer } from "@/components/SlackComposer";
+import { ChannelRail, ChannelNotice } from "@/components/ChannelRail";
+import { MessageRow } from "@/components/MessageRow";
+import { REAL_CHANNELS, channelById, type ChannelId } from "@/lib/channels";
 import { EmailComposer } from "@/components/EmailComposer";
 
 const TABS = ["All", "Needs Follow-up", "Urgent", "Awaiting Reply", "Delegated"] as const;
@@ -36,6 +39,8 @@ export default function Communication() {
   const { flags } = useFollowUps();
   const deadThreads = flags.filter((f) => f.kind === "dead_thread");
   const [tab, setTab] = useState<(typeof TABS)[number]>("All");
+  const [channel, setChannel] = useState<ChannelId>("all");
+  const [slackOpen, setSlackOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Deep link from the client activity timeline: /communication?message=<id>
   const [params, setParams] = useSearchParams();
@@ -50,10 +55,31 @@ export default function Communication() {
   const [busy, setBusy] = useState(false);
 
   const deadIds = new Map(deadThreads.map((f) => [f.itemId, f]));
-  const list =
+
+  /* Two independent questions, applied in order.
+     The channel says WHERE a message came from; the view says WHICH of them you
+     want to see. Keeping them separate is what lets Slack, WhatsApp and Discord
+     drop in without touching the filters. */
+  const active = channelById(channel);
+  const inChannel = (m: Message) =>
+    !active.source || (m as { source?: string }).source === active.source;
+
+  const list = (
     tab === "Needs Follow-up"
       ? messages.filter((m) => deadIds.has(m.id))
-      : messages.filter(TAB_FILTER[tab]);
+      : messages.filter(TAB_FILTER[tab])
+  ).filter(inChannel);
+
+  /* Per-channel counts for the rail. Counted off the unfiltered set so the
+     number does not change as you move between views, which would make it
+     read as a filter result rather than a channel size. */
+  const counts = useMemo(() => {
+    const out: Record<string, number> = { all: messages.length };
+    for (const c of REAL_CHANNELS) {
+      out[c.id] = messages.filter((m) => (m as { source?: string }).source === c.source).length;
+    }
+    return out;
+  }, [messages]);
   const selected = messages.find((m) => m.id === selectedId) ?? list[0] ?? null;
 
   useEffect(() => { setDraft(""); }, [selectedId]);
@@ -78,52 +104,43 @@ export default function Communication() {
     <div>
       <PageHeader title="Communication Center" subtitle="Triage, draft, and manage executive communications" />
 
-      <div className="card mb-4 p-3">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-muted">
-          {[
-            "Connect Gmail in Integrations (or use the samples below)",
-            "Pick a message to triage",
-            "Generate an AI draft reply",
-            "Copy or send your response",
-          ].map((step, i) => (
-            <span key={i} className="flex items-center gap-2">
-              {i > 0 && <span className="text-faint">·</span>}
-              <span className="flex items-center gap-1.5">
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent/20 text-[10px] font-semibold text-accent-soft">
-                  {i + 1}
-                </span>
-                {step}
-              </span>
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* R-5.1.3: the surviving actions belong where the work is, not behind a
-          menu of their own. These are the comms-domain four; the rest stay on
-          the Quick Actions page. Deep-links rather than a second copy of the
-          form, so there is one implementation to keep correct. */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-faint">AI actions</span>
-        {["Write Email", "Triage the Inbox", "Draft Social Content", "Newsletter Draft"].map((a) => (
+      {/* One toolbar. The old page stacked a how-it-works strip, an AI action
+          row, a compose row and a Slack panel before you reached a single
+          message: four bands of chrome above the content. */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <button className="btn-primary" onClick={() => setComposing(true)}>
+          <Wand2 size={15} /> Compose
+        </button>
+        {active.id === "slack" || active.id === "all" ? (
+          <button className="btn-ghost border border-border" onClick={() => setSlackOpen((v) => !v)}>
+            <Hash size={14} /> Slack
+          </button>
+        ) : null}
+        <span className="mx-1 h-5 w-px bg-[var(--border-strong)]" />
+        {TABS.map((t) => (
           <button
-            key={a}
-            onClick={() => navigate(`/quick-actions?action=${encodeURIComponent(a)}`)}
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium transition-colors hover:border-accent/40 hover:text-accent"
+            key={t}
+            onClick={() => setTab(t)}
+            aria-pressed={tab === t}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+              tab === t ? "bg-accent text-white" : "text-muted hover:bg-[var(--chip-bg)] hover:text-text",
+            )}
           >
-            <Sparkles size={12} className="text-accent-soft" /> {a}
+            {t}
+            {t === "Needs Follow-up" && deadThreads.length > 0 && (
+              <span className={cn(
+                "ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+                tab === t ? "bg-white/20" : "bg-amber-500/20 text-amber-400",
+              )}>
+                {deadThreads.length}
+              </span>
+            )}
           </button>
         ))}
+        <span className="ml-auto text-xs tabular-nums text-faint">{list.length} in view</span>
       </div>
 
-      {/* Compose: item 2 (send) and item 3 (AI draft) share this one surface,
-          because the draft has to land in the field the Send button reads. */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <button className="btn-primary" onClick={() => setComposing(true)}>
-          <Wand2 size={15} /> Write an email
-        </button>
-        <span className="text-xs text-faint">Draft it with AI, edit, and send through the connected Gmail account.</span>
-      </div>
       <EmailComposer
         open={composing}
         onClose={() => setComposing(false)}
@@ -132,109 +149,55 @@ export default function Communication() {
         context={selected ? `From ${selected.sender_name}: ${selected.body}` : ""}
       />
 
-      {/* Slack, both directions. Pull reads the channel in; Send posts out and
-          records it here so the Communication Center shows a conversation
-          rather than only the inbound half. */}
-      <SlackComposer onSent={() => void refetchMessages()} />
-
-      <div className="mb-4 flex gap-2">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium ${tab === t ? "bg-accent text-white" : "bg-surface-2 text-muted hover:text-zinc-100"}`}
-          >
-            {t}
-            {t === "Needs Follow-up" && deadThreads.length > 0 && (
-              <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${tab === t ? "bg-white/20" : "bg-amber-500/20 text-amber-400"}`}>
-                {deadThreads.length}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      {slackOpen && <SlackComposer onSent={() => void refetchMessages()} />}
 
       {isLoading ? (
         <p className="text-sm text-faint">Loading messages…</p>
       ) : messages.length === 0 ? (
         <div className="card p-10 text-center text-sm text-faint">No messages yet. Connect Gmail from Integrations to populate your inbox.</div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="card p-3">
-            <p className="px-2 pb-2 text-xs text-faint">{list.length} messages</p>
-            <div className="space-y-1">
+        <div className="grid gap-3 lg:grid-cols-[186px_minmax(0,1fr)] xl:grid-cols-[186px_minmax(0,1.6fr)_minmax(0,1fr)]">
+          {/* Channels. Primary navigation, kept apart from the view filters. */}
+          <aside className="card h-fit p-2">
+            <ChannelRail active={channel} counts={counts} onSelect={setChannel} />
+            {active.note && (
+              <div className="mt-2 px-1">
+                <ChannelNotice channel={active} />
+              </div>
+            )}
+          </aside>
+
+          <div className="card overflow-hidden p-0">
+            <div className="divide-y divide-border">
               {list.map((m) => {
                 const late = isBreaching(m, clientFor(m), cfg);
                 const waiting = waitingHours(m, cfg);
-                // Only an UNANSWERED breach is actionable, that's what gets the alarm
-                // styling. An answered-but-late thread is history: worth recording, but
-                // flagging it red implies work that no longer exists.
+                // Only an UNANSWERED breach is actionable. An answered-but-late
+                // thread is history: worth recording, but flagging it red
+                // implies work that no longer exists.
                 const breached = late && waiting !== null;
-                const missed = late && waiting === null;
-                const answeredIn = responseHours(m, cfg);
                 return (
-                <button
-                  key={m.id}
-                  onClick={() => setSelectedId(m.id)}
-                  className={`flex w-full gap-3 rounded-lg p-3 text-left transition-colors ${selected?.id === m.id ? "bg-surface-2" : "hover:bg-surface-2"} ${breached ? "border border-red-500/40 bg-red-500/5" : ""}`}
-                >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/20 text-xs font-semibold text-accent-soft">
-                    {initials(m.sender_name)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="truncate text-sm font-medium">{m.sender_name}</span>
-                      <span className="text-[11px] text-faint">{m.time}</span>
-                    </div>
-                    <p className="truncate text-sm">{m.subject}</p>
-                    <p className="truncate text-xs text-faint">{m.preview}</p>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      {m.direction === "outbound" && (
-                        <span className="pill bg-sky-500/15 text-sky-400">Sent</span>
-                      )}
-                      <Badge tone={m.category}>{categoryLabel[m.category]}</Badge>
-                      {m.category_locked || m.triage_source === "manual" ? (
-                        <span className="pill bg-zinc-500/15 text-faint" title="You filed this by hand, the organiser won't touch it again">
-                          <Lock size={11} />
-                          Your call
-                        </span>
-                      ) : m.triage_source ? (
-                        <span className="pill bg-violet-500/15 text-violet-300" title={m.triage_reason ?? undefined}>
-                          <Wand2 size={11} />
-                          Auto-filed
-                        </span>
-                      ) : (
-                        <span className="pill bg-zinc-500/15 text-faint" title="Waiting for the next organiser run">
-                          <Inbox size={11} />
-                          Unsorted
-                        </span>
-                      )}
-                      {deadIds.has(m.id) && (
-                        <span className="pill bg-amber-500/15 text-amber-400">
-                          <MailQuestion size={11} />
-                          {deadIds.get(m.id)!.reason}
-                        </span>
-                      )}
-                      {breached && (
-                        <span className="pill bg-red-500/15 text-red-400">
-                          <AlertTriangle size={11} />
-                          SLA Breached · waiting {formatDuration(waiting!, dl)}
-                        </span>
-                      )}
-                      {missed && answeredIn !== null && (
-                        <span className="pill bg-zinc-500/15 text-faint">
-                          Missed SLA · replied in {formatDuration(answeredIn, dl)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </button>
+                  <MessageRow
+                    key={m.id}
+                    m={m}
+                    selected={selected?.id === m.id}
+                    breached={breached}
+                    waitingLabel={waiting !== null ? formatDuration(waiting, dl) : undefined}
+                    onSelect={() => setSelectedId(m.id)}
+                  />
                 );
               })}
               {list.length === 0 && (
-                <p className="py-6 text-center text-xs text-faint">
-                  {tab === "Needs Follow-up" ? "Nothing is waiting on a reply." : "Nothing in this view."}
-                </p>
+                <div className="px-4 py-10 text-center">
+                  <p className="text-sm font-medium">
+                    {tab === "Needs Follow-up" ? "Nothing is waiting on a reply." : `No ${active.label === "All" ? "" : active.label + " "}messages in this view.`}
+                  </p>
+                  <p className="mx-auto mt-1 max-w-sm text-xs text-faint">
+                    {active.id === "slack"
+                      ? "Post in the channel the bot is in, then hit Slack to pull it."
+                      : "Try another channel or view, or pull the latest from Integrations."}
+                  </p>
+                </div>
               )}
             </div>
           </div>
