@@ -110,14 +110,18 @@ export function findFollowUps(
     if (days < cfg.taskDays) continue;
     if (muted.has(`task:${t.id}`)) continue;
 
-    const unassigned = !t.client_name || t.client_name === "Unassigned";
+    /* This subtitle is the CLIENT, and "Unassigned" was the wrong word for its
+       absence. It sits where a person's name would sit on a task card, so eight
+       tasks all assigned to Reichelle read as eight tasks nobody owned. Say what
+       is actually missing. */
+    const noClient = !t.client_name || t.client_name === "Unassigned";
     flags.push({
       id: `stale_task:${t.id}`,
       kind: "stale_task",
       itemType: "task",
       itemId: t.id,
       title: t.title,
-      subtitle: unassigned ? "Unassigned" : t.client_name,
+      subtitle: noClient ? "No client" : t.client_name,
       reason: `No update in ${days} ${plural(days)}`,
       days,
       path: "/tasks",

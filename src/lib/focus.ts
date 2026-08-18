@@ -132,7 +132,8 @@ export function rankFocus({ tasks, messages, clients, cfg }: FocusSources, now =
       id: `task:${t.id}`,
       kind: "task",
       title: t.title,
-      subtitle: !t.client_name || t.client_name === "Unassigned" ? "Unassigned" : t.client_name,
+      // The client, not the assignee. See the note in followups.ts.
+      subtitle: !t.client_name || t.client_name === "Unassigned" ? "No client" : t.client_name,
       score: reasons.reduce((s, r) => s + r.points, 0),
       reasons,
       path: "/tasks",
