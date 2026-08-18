@@ -47,11 +47,38 @@ Deno.serve(async (req) => {
     });
     const channels = (conv.channels ?? []).filter((c: { is_member: boolean }) => c.is_member).slice(0, 8);
 
+    /* Reports what actually happened, per channel, rather than one number.
+       The previous version did `if (!error) synced++`, so a channel the bot
+       could not read and a write the database refused both came back as
+       "synced: 0" and looked identical to an empty channel. Three different
+       problems wearing the same answer is the worst thing a sync can report. */
     let synced = 0;
+    let skipped = 0;
+    const detail: Record<string, unknown>[] = [];
+    const errors: string[] = [];
+
     for (const ch of channels) {
-      const hist = await slack("conversations.history", token, { channel: ch.id, limit: "10" });
-      for (const msg of hist.messages ?? []) {
-        if (msg.subtype || !msg.text || !msg.user) continue;
+      const row: Record<string, unknown> = { channel: ch.name, id: ch.id };
+      let hist;
+      try {
+        hist = await slack("conversations.history", token, { channel: ch.id, limit: "20" });
+      } catch (e) {
+        // Almost always a missing channels:history / groups:history scope, or
+        // the bot was removed from the channel. Say which channel.
+        row.error = String(e instanceof Error ? e.message : e);
+        errors.push(`#${ch.name}: ${row.error}`);
+        detail.push(row);
+        continue;
+      }
+
+      const all = hist.messages ?? [];
+      row.messages_seen = all.length;
+      let wrote = 0, skip = 0;
+      const writeErrors: string[] = [];
+
+      for (const msg of all) {
+        // Joins, leaves and channel-topic changes are not correspondence.
+        if (msg.subtype || !msg.text || !msg.user) { skip++; continue; }
         const sender = names[msg.user] ?? "Slack user";
         const { error } = await supa.from("messages").upsert(
           {
@@ -67,10 +94,28 @@ Deno.serve(async (req) => {
           },
           { onConflict: "workspace_id,slack_ts" },
         );
-        if (!error) synced++;
+        if (error) { writeErrors.push(error.message); } else { wrote++; }
       }
+
+      row.written = wrote;
+      row.skipped_non_messages = skip;
+      if (writeErrors.length) {
+        row.write_error = writeErrors[0];
+        errors.push(`#${ch.name}: ${writeErrors[0]}`);
+      }
+      synced += wrote;
+      skipped += skip;
+      detail.push(row);
     }
-    return json({ synced, channels: channels.length });
+
+    return json({
+      synced,
+      skipped,
+      channels: channels.length,
+      channel_names: channels.map((c: { name: string }) => c.name),
+      detail,
+      errors: errors.length ? errors : undefined,
+    });
   } catch (e) {
     return json({ error: String(e instanceof Error ? e.message : e) }, 500);
   }

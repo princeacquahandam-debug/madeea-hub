@@ -80,8 +80,26 @@ export default function Integrations() {
         } catch { /* ignore */ }
         setNote(`Slack: ${msg}`);
       } else {
-        const d = data as { synced?: number; channels?: number };
-        setNote(`Synced ${d.synced ?? 0} Slack messages from ${d.channels ?? 0} channels.`);
+        /* Say which channel and what was skipped, not just a number.
+           "Synced 0 messages from 1 channels" reads as broken, and the three
+           reasons it can be zero (nothing there, nothing readable, a write that
+           failed) all looked identical. */
+        const d = data as {
+          synced?: number; skipped?: number; channels?: number;
+          channel_names?: string[]; errors?: string[];
+        };
+        const where = d.channel_names?.length ? `#${d.channel_names.join(", #")}` : "no channels";
+        if (d.errors?.length) {
+          setNote(`Slack: ${d.errors[0]}`);
+        } else if ((d.synced ?? 0) > 0) {
+          setNote(`Pulled ${d.synced} message${d.synced === 1 ? "" : "s"} from ${where}.`);
+        } else if ((d.skipped ?? 0) > 0) {
+          setNote(`${where} has nothing new. ${d.skipped} item${d.skipped === 1 ? " was" : "s were"} skipped as joins or system notices rather than messages. Post something in Slack, then sync again.`);
+        } else if (!d.channels) {
+          setNote("The MadeEA bot is not in any channel yet. In Slack, run /invite @MadeEA in the channel you want to pull.");
+        } else {
+          setNote(`${where} is empty. Post something in Slack, then sync again.`);
+        }
         qc.invalidateQueries({ queryKey: ["messages"] });
       }
     } finally {
