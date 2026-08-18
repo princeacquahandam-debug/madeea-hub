@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import * as seed from "@/data/seed";
@@ -1830,15 +1831,19 @@ export function useTimeEntries() {
       if (!supabase) return loadDemoTime();
       const { data, error } = await supabase
         .from("time_entries")
-        .select("id,owner_id,task_id,client_id,started_at,ended_at,note,work_date,tasks(title)")
+        .select("id,owner_id,task_id,client_id,started_at,ended_at,note,early_reason,work_date,tasks(title),clients(name)")
         .order("started_at", { ascending: false })
         .limit(500);
       // Migration not applied yet: an empty timesheet is the honest answer, and
       // the page says so rather than showing an error where hours should be.
       if (error) return [];
-      return (data as unknown as (TimeEntry & { tasks: { title: string } | null })[]).map((r) => ({
+      return (data as unknown as (TimeEntry & {
+        tasks: { title: string } | null;
+        clients: { name: string } | null;
+      })[]).map((r) => ({
         ...r,
         task_title: r.tasks?.title ?? null,
+        client_name: r.clients?.name ?? null,
       }));
     },
     retry: false,
@@ -1873,15 +1878,24 @@ export function useTimeMutations() {
   });
 
   const stop = useMutation({
-    mutationFn: async (id: string) => {
+    /* Takes a reason, because clocking out early is the moment to ask. Asking
+       later means asking someone to reconstruct a Tuesday, and asking through a
+       dropdown of guessed options collects nothing worth reading. */
+    mutationFn: async (input: string | { id: string; early_reason?: string | null }) => {
+      const { id, early_reason } = typeof input === "string" ? { id: input, early_reason: null } : input;
       const ended_at = new Date().toISOString();
-      if (!supabase) { updateDemoTime(id, { ended_at }); return; }
-      const { error } = await supabase.from("time_entries").update({ ended_at }).eq("id", id);
+      const patch = { ended_at, ...(early_reason?.trim() ? { early_reason: early_reason.trim() } : {}) };
+      if (!supabase) { updateDemoTime(id, patch); return; }
+      const { error } = await supabase.from("time_entries").update(patch).eq("id", id);
       if (error) throw error;
     },
     onSettled: invalidate,
   });
 
+  /* Admin-only since 0041. An EA deleting a short day was the easiest way to
+     fake a timesheet and it left no trace, because the row stopped existing.
+     RLS refuses it now; the UI hides the control rather than offering a button
+     that silently does nothing. */
   const remove = useMutation({
     mutationFn: async (id: string) => {
       if (!supabase) { removeDemoTime(id); return; }
@@ -2166,6 +2180,97 @@ export function useAlertDeliveries(limit = 20) {
         .limit(limit);
       if (error) return [];
       return data;
+    },
+    retry: false,
+  });
+}
+
+// ---------------- time tracker: scope, policy, evidence ----------------
+
+/**
+ * The clients THIS EA may log time against.
+ *
+ * Reichelle's rule: an EA assigned to CandyPay sees CandyPay, and does not see
+ * or select another EA's clients. Assignment already exists as
+ * `clients.lead_ea_id`, so this reads it rather than inventing a second source
+ * of truth that could disagree with the client record.
+ *
+ * Admins see everything, because they cover and correct for everyone.
+ *
+ * Filtering happens here rather than in RLS deliberately. The client LIST is
+ * legitimately workspace-wide: the Client Vault, message triage and the
+ * dashboard all need to name a client an EA does not work on. What is scoped is
+ * where you may book hours, which is a narrower question than what you may see.
+ */
+export function useMyClients() {
+  const { data: clients = [] } = useClients();
+  const { data: role } = useMyRole();
+  const [uid, setUid] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!supabase) { setUid("demo"); return; }
+    supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
+  }, []);
+
+  return useMemo(() => {
+    if (role === "admin") return clients;
+    if (!uid) return [];
+    return clients.filter((c) => (c as { lead_ea_id?: string | null }).lead_ea_id === uid);
+  }, [clients, role, uid]);
+}
+
+export interface TimeSettings {
+  daily_hours: number;
+  screenshot_minutes: number;
+  screenshots_enabled: boolean;
+}
+
+/** Workspace time policy. Defaults match what Reichelle asked for. */
+export function useTimeSettings() {
+  return useQuery<TimeSettings>({
+    queryKey: ["time_settings"],
+    queryFn: async () => {
+      const fallback = { daily_hours: 8, screenshot_minutes: 10, screenshots_enabled: true };
+      if (!supabase) return fallback;
+      const { data, error } = await supabase
+        .from("time_settings")
+        .select("daily_hours,screenshot_minutes,screenshots_enabled")
+        .maybeSingle();
+      if (error || !data) return fallback;
+      return {
+        daily_hours: Number(data.daily_hours) || 8,
+        screenshot_minutes: Number(data.screenshot_minutes) || 10,
+        screenshots_enabled: data.screenshots_enabled !== false,
+      };
+    },
+    retry: false,
+  });
+}
+
+export interface TimeScreenshot {
+  id: string;
+  owner_id: string;
+  time_entry_id: string | null;
+  captured_at: string;
+  storage_path: string;
+  surface: string | null;
+}
+
+/** Screenshots for a day. Yours, or anyone's if you are an admin (RLS decides). */
+export function useTimeScreenshots(fromISO: string, toISO: string) {
+  return useQuery<TimeScreenshot[]>({
+    queryKey: ["time_screenshots", fromISO, toISO],
+    queryFn: async () => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from("time_screenshots")
+        .select("id,owner_id,time_entry_id,captured_at,storage_path,surface")
+        .gte("captured_at", fromISO)
+        .lte("captured_at", toISO)
+        .order("captured_at", { ascending: false })
+        .limit(300);
+      if (error) return [];
+      return data as TimeScreenshot[];
     },
     retry: false,
   });

@@ -243,8 +243,12 @@ export interface TimeEntry {
   note?: string | null;
   /** The working day this belongs to, in the EA's own local date. */
   work_date: string;
+  /** Why the EA clocked out before finishing the expected day. Free text on
+      purpose: the reasons worth reading are the ones no dropdown anticipated. */
+  early_reason?: string | null;
   /** Joined for display; never written. */
   task_title?: string | null;
+  client_name?: string | null;
   person_name?: string | null;
 }
 
