@@ -77,3 +77,60 @@ export async function syncSlack(): Promise<{ ok: boolean; synced?: number; chann
   if (data?.error) return { ok: false, detail: String(data.error) };
   return { ok: true, synced: data.synced, channels: data.channels };
 }
+
+export interface SlackChannelInfo {
+  id: string;
+  name: string;
+  is_member: boolean;
+  is_private: boolean;
+  members: number | null;
+  topic: string | null;
+  /** Reading needs membership, always. */
+  can_read: boolean;
+  /** Posting needs membership only for private channels. */
+  can_post: boolean;
+  /** "invite" or "scope", so the UI can name the fix rather than the symptom. */
+  blocked_reason: "invite" | "scope" | null;
+}
+
+export interface SlackDirectory {
+  ok: boolean;
+  channels: SlackChannelInfo[];
+  joined: number;
+  total: number;
+  can_post: boolean;
+  can_post_uninvited: boolean;
+  failure?: SlackFailure;
+  detail?: string;
+}
+
+/**
+ * The workspace's channels, so a picker can show real destinations.
+ *
+ * Replaces a free-text box that asked people to type a channel name from
+ * memory. Typing "#general" when the channel is "general" or guessing at one
+ * that does not exist both failed the same way, after sending, which is the
+ * worst moment to find out.
+ */
+export async function listSlackChannels(): Promise<SlackDirectory> {
+  const empty = { channels: [], joined: 0, total: 0, can_post: false, can_post_uninvited: false };
+  if (!supabase) return { ok: false, ...empty, failure: "not_configured", detail: "no backend in demo mode" };
+  const { data, error } = await supabase.functions.invoke("slack-channels", { body: {} });
+  if (error) {
+    let detail = error.message;
+    const ctx = (error as { context?: Response }).context;
+    if (ctx && typeof ctx.text === "function") {
+      try { detail = await ctx.text(); } catch { /* keep the status message */ }
+    }
+    return { ok: false, ...empty, failure: classify(detail), detail };
+  }
+  if (data?.error) return { ok: false, ...empty, failure: classify(String(data.error)), detail: String(data.error) };
+  return {
+    ok: true,
+    channels: data.channels ?? [],
+    joined: data.joined ?? 0,
+    total: data.total ?? 0,
+    can_post: !!data.can_post,
+    can_post_uninvited: !!data.can_post_uninvited,
+  };
+}

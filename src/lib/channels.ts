@@ -1,4 +1,6 @@
-import { Mail, Hash, MessageCircle, Gamepad2, Inbox, type LucideIcon } from "lucide-react";
+import { Inbox } from "lucide-react";
+import type { ComponentType, CSSProperties } from "react";
+import { SlackMark, GmailMark, WhatsAppMark, DiscordMark } from "@/components/BrandIcons";
 
 /**
  * Every place a client can reach us, declared once.
@@ -27,10 +29,14 @@ import { Mail, Hash, MessageCircle, Gamepad2, Inbox, type LucideIcon } from "luc
 export type ChannelId = "all" | "gmail" | "slack" | "whatsapp" | "discord";
 export type ChannelStatus = "connected" | "read_only" | "not_connected" | "planned";
 
+/* Loose enough to accept both a Lucide glyph and a hand-drawn brand mark, so a
+   channel can carry its real logo without the aggregate view needing one. */
+export type ChannelIcon = ComponentType<{ size?: string | number; className?: string; style?: CSSProperties }>;
+
 export interface Channel {
   id: ChannelId;
   label: string;
-  icon: LucideIcon;
+  icon: ChannelIcon;
   /** Matches `messages.source`. Null for the aggregate view. */
   source: string | null;
   status: ChannelStatus;
@@ -40,6 +46,15 @@ export interface Channel {
   note?: string;
   /** Brand tint, used only as a supporting cue. Never the sole signal. */
   tint: string;
+  /** Where someone goes to change this channel's connection. */
+  settingsPath?: string;
+  /**
+   * What is actually required to switch this on, in order.
+   * Kept as data because the honest answer differs a lot per channel: Slack was
+   * one scope and a reinstall, WhatsApp is a Meta Business review that takes
+   * days. A single "Connect" button implies those are the same job.
+   */
+  requires?: string[];
 }
 
 export const CHANNELS: Channel[] = [
@@ -55,16 +70,18 @@ export const CHANNELS: Channel[] = [
   {
     id: "gmail",
     label: "Gmail",
-    icon: Mail,
+    icon: GmailMark,
     source: "gmail",
     status: "connected",
     compose: "email",
     tint: "#EA4335",
+    settingsPath: "/integrations",
+    requires: ["Sign in with the Google account you send from"],
   },
   {
     id: "slack",
     label: "Slack",
-    icon: Hash,
+    icon: SlackMark,
     source: "slack",
     status: "connected",
     compose: "message",
@@ -74,26 +91,43 @@ export const CHANNELS: Channel[] = [
        "no messages" and "not invited" are indistinguishable on screen. */
     note: "Posting works. The bot only reads channels it has been invited to, so run /invite @MadeEA OS in each one you want pulled in.",
     tint: "#4A154B",
+    settingsPath: "/integrations",
+    requires: ["Invite @MadeEA OS to each channel you want to read"],
   },
   {
     id: "whatsapp",
     label: "WhatsApp",
-    icon: MessageCircle,
+    icon: WhatsAppMark,
     source: "whatsapp",
     status: "planned",
     compose: null,
     note: "Not built yet. clients.preferred_channel already records who wants WhatsApp, so the demand is visible before the integration exists.",
     tint: "#25D366",
+    /* Not a button we can add. WhatsApp Business is a Meta review with a
+       verified business and a dedicated number, measured in days, and saying
+       otherwise on screen would promise something nobody can deliver today. */
+    requires: [
+      "A Meta Business account, verified",
+      "A phone number not already on WhatsApp",
+      "Meta approval of the WhatsApp Business API (days, not minutes)",
+    ],
   },
   {
     id: "discord",
     label: "Discord",
-    icon: Gamepad2,
+    icon: DiscordMark,
     source: "discord",
     status: "planned",
     compose: null,
-    note: "Not built yet.",
+    note: "Not built yet. A bot token is all it takes, so this is the next one to switch on if a client lives in Discord.",
     tint: "#5865F2",
+    /* Genuinely close: Discord bots are a token and an invite, much like Slack
+       turned out to be. Listed so the difference from WhatsApp is visible. */
+    requires: [
+      "A Discord application with a bot user",
+      "The bot invited to the server",
+      "Its token stored as DISCORD_BOT_TOKEN",
+    ],
   },
 ];
 

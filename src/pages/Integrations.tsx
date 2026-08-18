@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Mail, Calendar, Slack, CheckCircle2, RefreshCw, Plug, Loader2, Wand2, AlertTriangle } from "lucide-react";
+import { Mail, Calendar, CheckCircle2, RefreshCw, Plug, Loader2, Wand2, AlertTriangle } from "lucide-react";
+import { SlackMark } from "@/components/BrandIcons";
 import { PageHeader } from "@/components/ui";
+import { ChannelConnections } from "@/components/ChannelConnections";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useMailboxSync } from "@/data/hooks";
 
@@ -137,6 +139,11 @@ export default function Integrations() {
         <div className="mb-4 rounded-lg border border-border bg-surface-2 px-4 py-2 text-sm text-muted">{note}</div>
       )}
 
+      {/* Channel state first: it is the question people arrive at this page
+          with, and it used to require three clicks inside the Communication
+          Center to answer. The account-level cards below are the plumbing. */}
+      <ChannelConnections />
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {/* Google (Gmail + Calendar) */}
         <div className="card flex flex-col p-5 md:col-span-2">
@@ -177,7 +184,7 @@ export default function Integrations() {
         <div className="card flex flex-col p-5">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-surface-2">
-              <Slack size={20} className="text-accent-soft" />
+              <SlackMark size={20} />
             </div>
             <div>
               <h3 className="font-semibold">Slack</h3>

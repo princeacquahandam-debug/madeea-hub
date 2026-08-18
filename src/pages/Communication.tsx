@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Sparkles, Mail, AlertTriangle, MailQuestion, Wand2, Lock, Inbox, Hash } from "lucide-react";
+import { Sparkles, Mail, Wand2, Lock } from "lucide-react";
+import { SlackMark } from "@/components/BrandIcons";
 import type { Message } from "@/types/db";
 import { Badge, PageHeader } from "@/components/ui";
 import { initials, cn } from "@/lib/utils";
@@ -53,6 +54,15 @@ export default function Communication() {
   }, [params, setParams]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+
+  /* Picking Slack in the rail should BE picking Slack, not picking Slack and
+     then finding the button that turns Slack on. Selecting the channel opens
+     its composer; leaving the channel closes it. Still a toggle, so it can be
+     dismissed while staying on the channel, but the default matches the intent
+     of the click that got you here. */
+  useEffect(() => {
+    setSlackOpen(channel === "slack");
+  }, [channel]);
 
   const deadIds = new Map(deadThreads.map((f) => [f.itemId, f]));
 
@@ -112,8 +122,12 @@ export default function Communication() {
           <Wand2 size={15} /> Compose
         </button>
         {active.id === "slack" || active.id === "all" ? (
-          <button className="btn-ghost border border-border" onClick={() => setSlackOpen((v) => !v)}>
-            <Hash size={14} /> Slack
+          <button
+            className="btn-ghost border border-border"
+            aria-pressed={slackOpen}
+            onClick={() => setSlackOpen((v) => !v)}
+          >
+            <SlackMark size={14} /> {slackOpen ? "Hide Slack" : "Slack"}
           </button>
         ) : null}
         <span className="mx-1 h-5 w-px bg-[var(--border-strong)]" />
@@ -193,8 +207,12 @@ export default function Communication() {
                     {tab === "Needs Follow-up" ? "Nothing is waiting on a reply." : `No ${active.label === "All" ? "" : active.label + " "}messages in this view.`}
                   </p>
                   <p className="mx-auto mt-1 max-w-sm text-xs text-faint">
+                    {/* Names the actual reason a Slack inbox is empty. Nine
+                        times out of ten it is not that nobody has spoken, it is
+                        that the bot was never invited, and those look identical
+                        from here. */}
                     {active.id === "slack"
-                      ? "Post in the channel the bot is in, then hit Slack to pull it."
+                      ? "Slack only shows channels the bot was invited to. Run /invite @MadeEA OS in the channel, then Pull messages."
                       : "Try another channel or view, or pull the latest from Integrations."}
                   </p>
                 </div>
