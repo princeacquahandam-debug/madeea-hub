@@ -1,5 +1,29 @@
 // Edge Function: gmail-sync   (Verify JWT: ON)
-// Pulls the signed-in user's recent inbox into the messages table.
+// Pulls the signed-in user's inbox into the messages table.
+//
+// WHAT CHANGED AND WHY.
+//
+// 1. It could not load an inbox. The list call was a bare maxResults=15 with no
+//    pagination, so "sync" meant "the newest fifteen" for ever. Running it twice
+//    fetched the same fifteen again. Anyone with more than fifteen emails simply
+//    could not get the rest, and nothing said so, which is worse than failing.
+//    Now it pages until it reaches `limit` or Gmail runs out, and it returns
+//    Gmail's own next page token so a caller can keep going deliberately rather
+//    than guessing whether more exists.
+//
+// 2. It reported success it had not verified. `if (!error) synced++` counted a
+//    row as synced whenever the write did not throw, so a message skipped as a
+//    duplicate and a message the database refused looked identical, and both
+//    looked like success. The same pattern was already removed from slack-sync
+//    for the same reason. Writes are now counted separately from failures and
+//    failures come back with their reason attached.
+//
+// 3. It never stored the sender's address. Only a display name was parsed out of
+//    the From header, so sender_email was null on every row ever synced. A
+//    Communication Center whose whole job is replying could not address a reply,
+//    and the composer opened with an empty To field. The address was in the
+//    header the entire time.
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const CORS = {
@@ -31,8 +55,26 @@ async function accessToken(refresh: string): Promise<string> {
 }
 
 const g = (token: string, u: string) => fetch(u, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json());
+
+/** "Rio Castillo <rio@x.com>" -> "Rio Castillo". Falls back to the raw value. */
 const senderName = (from: string) => (from.match(/^"?([^"<]+?)"?\s*</)?.[1] ?? from.replace(/<.*>/, "")).trim() || from;
+
+/** The half that was being thrown away: the address a reply has to go to. */
+const senderEmail = (from: string): string | null => {
+  const angled = from.match(/<([^>]+)>/)?.[1];
+  if (angled) return angled.trim().toLowerCase();
+  // A bare "someone@example.com" with no display name is still an address.
+  const bare = from.match(/[^\s<>,"]+@[^\s<>,"]+/)?.[0];
+  return bare ? bare.trim().toLowerCase() : null;
+};
+
 const ini = (n: string) => n.split(" ").map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+
+/* Gmail wants one request per message for the headers, so a large inbox is a
+   lot of round trips. Done in small concurrent batches: serial is slow enough
+   to hit the function's wall clock on a few hundred messages, and unbounded
+   concurrency gets rate limited by Google. */
+const BATCH = 8;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -44,6 +86,14 @@ Deno.serve(async (req) => {
     });
     const { data: u } = await supa.auth.getUser();
     if (!u?.user) return json({ error: "unauthorized" }, 401);
+
+    const body = await req.json().catch(() => ({}));
+    /* Capped rather than unbounded. "All" on a ten-year mailbox is tens of
+       thousands of messages and would time out halfway with no way to tell how
+       far it got. The page token in the response is how you continue. */
+    const limit = Math.min(Math.max(Number(body.limit ?? 50), 1), 500);
+    const query = typeof body.query === "string" && body.query.trim() ? body.query.trim() : "in:inbox";
+    let pageToken: string | undefined = typeof body.pageToken === "string" ? body.pageToken : undefined;
 
     // Service role for this read only: 0016 revokes refresh_token from the
     // `authenticated` role so the browser can never read it, which also means
@@ -60,29 +110,77 @@ Deno.serve(async (req) => {
     if (!cred?.refresh_token) return json({ error: "Google not connected" }, 400);
     const token = await accessToken(cred.refresh_token);
 
-    const list = await g(token, "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15&q=in:inbox");
-    let synced = 0;
-    for (const m of list.messages ?? []) {
-      const full = await g(token, `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`);
-      const headers: Record<string, string> = Object.fromEntries((full.payload?.headers ?? []).map((h: { name: string; value: string }) => [h.name, h.value]));
-      const sender = senderName(headers.From ?? "Unknown");
-      const { error } = await supa.from("messages").upsert(
-        {
-          gmail_id: m.id,
-          source: "gmail",
-          sender_name: sender,
-          sender_initials: ini(sender),
-          subject: headers.Subject ?? "(no subject)",
-          preview: full.snippet ?? "",
-          body: full.snippet ?? "",
-          category: "reply",
-          received_at: new Date(parseInt(full.internalDate ?? `${Date.now()}`)).toISOString(),
-        },
-        { onConflict: "workspace_id,gmail_id" },
-      );
-      if (!error) synced++;
+    // Collect ids across as many pages as `limit` calls for.
+    const ids: string[] = [];
+    let nextPageToken: string | undefined;
+    while (ids.length < limit) {
+      const url = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
+      url.searchParams.set("maxResults", String(Math.min(100, limit - ids.length)));
+      url.searchParams.set("q", query);
+      if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+      const list = await g(token, url.toString());
+      if (list.error) {
+        return json({ error: list.error?.message ?? "Gmail refused the list request", detail: list.error }, 502);
+      }
+      for (const m of list.messages ?? []) ids.push(m.id);
+
+      nextPageToken = list.nextPageToken;
+      if (!nextPageToken) break;
+      pageToken = nextPageToken;
     }
-    return json({ synced });
+
+    let synced = 0;
+    const failures: string[] = [];
+
+    for (let i = 0; i < ids.length; i += BATCH) {
+      const slice = ids.slice(i, i + BATCH);
+      await Promise.all(slice.map(async (id) => {
+        const full = await g(
+          token,
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}` +
+            `?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
+        );
+        if (full.error) { failures.push(`${id}: ${full.error?.message ?? "fetch failed"}`); return; }
+
+        const headers: Record<string, string> = Object.fromEntries(
+          (full.payload?.headers ?? []).map((h: { name: string; value: string }) => [h.name, h.value]),
+        );
+        const from = headers.From ?? "Unknown";
+        const sender = senderName(from);
+
+        const { error } = await supa.from("messages").upsert(
+          {
+            gmail_id: id,
+            source: "gmail",
+            sender_name: sender,
+            sender_email: senderEmail(from),
+            sender_initials: ini(sender),
+            subject: headers.Subject ?? "(no subject)",
+            preview: full.snippet ?? "",
+            body: full.snippet ?? "",
+            category: "reply",
+            received_at: new Date(parseInt(full.internalDate ?? `${Date.now()}`)).toISOString(),
+          },
+          { onConflict: "workspace_id,gmail_id" },
+        );
+        // Counted only when the write actually succeeded, and the reason kept
+        // when it did not. The old version treated both as a success.
+        if (error) failures.push(`${id}: ${error.message}`);
+        else synced++;
+      }));
+    }
+
+    return json({
+      synced,
+      seen: ids.length,
+      failed: failures.length,
+      // First few only: enough to diagnose, not enough to bury the numbers.
+      errors: failures.length ? failures.slice(0, 5) : undefined,
+      // Present when Gmail has more beyond what this call took. Its absence is
+      // the only honest way to say "that was the whole inbox".
+      next_page_token: nextPageToken,
+    });
   } catch (e) {
     return json({ error: String(e instanceof Error ? e.message : e) }, 500);
   }
