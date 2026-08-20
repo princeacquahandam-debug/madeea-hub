@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
-  perceptualHash, renderFrame, toJpegBlob, nextCaptureDelayMs,
+  perceptualHash, renderFrame, toJpegBlob, nextCaptureDelayMs, hammingDistance,
 } from "@/lib/imaging";
 
 /**
@@ -23,8 +23,21 @@ import {
  * 2. CAPTURE IS DISCLOSED, NOT SILENT. getDisplayMedia needs a gesture and a
  *    permission prompt, shows a persistent indicator, captures ONE surface the
  *    user chooses, and can be stopped at any moment from browser chrome this
- *    code cannot reach. Multiple monitors are not available. Automatic start is
- *    not available.
+ *    code cannot reach. Automatic start is not available, and a second monitor
+ *    is not available in the same share.
+ *
+ *    BUT the surface is now ENFORCED. The picker offers Entire Screen, a window
+ *    or a tab, and nothing used to check which was chosen: pick a tab and the
+ *    whole system quietly monitored one tab while looking like it monitored a
+ *    computer. A share that is not a monitor is now refused, with the reason,
+ *    and the user is asked again.
+ *
+ * 3. SCREEN CHANGE IS THE SIGNAL THAT IS NOT TAB-SCOPED. Every capture is
+ *    perceptually hashed anyway, and the distance between consecutive hashes
+ *    measures how much the screen changed in between. With a monitor shared
+ *    that is the whole display, including every application the browser cannot
+ *    see. It does not replace the input counts, because a playing video changes
+ *    the screen with nobody present; it sits beside them, and both are shown.
  *
  * A desktop agent fixes both, and this file is written so that it can: the
  * agent posts the same activity_records and time_screenshots rows with
@@ -51,6 +64,10 @@ export interface MonitoringSettings {
 
 export interface MonitoringStatus {
   state: CaptureState;
+  /** Set when the user shared something narrower than a monitor. */
+  surfaceRefused: boolean;
+  /** Latest screen-change reading, 0-100. Null until a second capture exists. */
+  screenChange: number | null;
   /** What the user shared. A single tab is far weaker evidence than a monitor. */
   surface: string | null;
   shots: number;
@@ -79,6 +96,8 @@ export function useMonitoring(opts: {
   const [shots, setShots] = useState(0);
   const [lastCaptureAt, setLastCaptureAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [surfaceRefused, setSurfaceRefused] = useState(false);
+  const [screenChange, setScreenChange] = useState<number | null>(null);
   const [counts, setCounts] = useState({ keystrokes: 0, mouseEvents: 0, idleSeconds: 0 });
 
   const streamRef = useRef<MediaStream | null>(null);
@@ -95,6 +114,16 @@ export function useMonitoring(opts: {
      visible numbers are copied out on a slow interval instead. */
   const tally = useRef({ keystrokes: 0, mouseEvents: 0, lastInputAt: Date.now(), idleSeconds: 0 });
   const periodStart = useRef<Date>(new Date());
+  /* The previous capture's hash, so screen change can be measured. Kept in a
+     ref rather than read back from the database: a network round trip per
+     capture to fetch a 16-character string we just computed would be absurd. */
+  const lastHash = useRef<string | null>(null);
+  /* A ref as well as state. The first capture fires immediately after the share
+     is granted, in the same tick as setSurface, so the closure inside
+     captureOnce still held the OLD value and wrote capture_surface='unknown'
+     onto a share that was verified to be a monitor. The state drives the UI;
+     the ref is what the capture reads. */
+  const surfaceRef = useRef<string | null>(null);
 
   // ── input counting ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -154,7 +183,14 @@ export function useMonitoring(opts: {
    * context, and a reviewer looking at it has nothing to judge except how the
    * screen looked.
    */
-  const captureOnce = useCallback(async () => {
+  /* `closePeriod` is false for the very first capture of a session.
+     That capture happens the instant sharing starts, so the period it would
+     close is zero seconds long: activity_percent divides by its duration, and a
+     zero-second row is not a small measurement, it is a meaningless one that
+     would sit in the timeline looking like evidence. The screenshot is still
+     taken, because the point of capturing immediately is to close the
+     unmonitored window at the start of a shift. */
+  const captureOnce = useCallback(async (closePeriod = true) => {
     const video = videoRef.current;
     const stream = streamRef.current;
     const entryId = entryRef.current;
@@ -172,30 +208,51 @@ export function useMonitoring(opts: {
     const cfg = settingsRef.current;
     const now = new Date();
 
-    // Close the activity period this screenshot belongs to, then start a new one.
-    const period = {
-      period_start: periodStart.current.toISOString(),
-      period_end: now.toISOString(),
-      keystrokes: tally.current.keystrokes,
-      mouse_events: tally.current.mouseEvents,
-      idle_seconds: tally.current.idleSeconds,
-      source: "browser" as const,
-    };
-    periodStart.current = now;
-    tally.current = { keystrokes: 0, mouseEvents: 0, lastInputAt: Date.now(), idleSeconds: 0 };
+    let activityId: string | null = null;
 
-    const { data: activity, error: actErr } = await supabase
-      .from("activity_records")
-      .insert({ time_entry_id: entryId, ...period })
-      .select("id")
-      .single();
-    if (actErr) { setError(`Could not record activity: ${actErr.message}`); return; }
-
-    /* Blur is decided here and applied here. There is no second copy: the
-       canvas holds blurred pixels and the blurred pixels are what get encoded,
-       so no readable frame exists after this line. */
+    /* Blur is decided here and applied here. There is no second copy. */
     const canvas = renderFrame(video, vw, vh, { blur: cfg.blurScreenshots, maxWidth: 1280 });
     const hash = await perceptualHash(canvas);
+
+    /* THE SIGNAL THAT IS NOT TAB-SCOPED.
+       Distance between this hash and the last, as a percentage of the 64 bits.
+       With a monitor shared this covers the whole display, so it sees Outlook,
+       Excel and everything else the browser is blind to. Null on the first
+       capture, because there is nothing to compare against and 0 would read as
+       "the screen did not change" rather than "not measured yet". */
+    const change = lastHash.current === null
+      ? null
+      : Math.round((hammingDistance(lastHash.current, hash) / 64) * 100);
+    lastHash.current = hash;
+    setScreenChange(change);
+
+    if (closePeriod) {
+      // Close the period this screenshot belongs to, then start the next one.
+      const period = {
+        period_start: periodStart.current.toISOString(),
+        period_end: now.toISOString(),
+        keystrokes: tally.current.keystrokes,
+        mouse_events: tally.current.mouseEvents,
+        idle_seconds: tally.current.idleSeconds,
+        source: "browser" as const,
+      };
+      periodStart.current = now;
+      tally.current = { keystrokes: 0, mouseEvents: 0, lastInputAt: Date.now(), idleSeconds: 0 };
+
+      const { data: activity, error: actErr } = await supabase
+        .from("activity_records")
+        .insert({
+          time_entry_id: entryId,
+          ...period,
+          screen_change_percent: change,
+          capture_surface: surfaceRef.current ?? "unknown",
+        })
+        .select("id")
+        .single();
+      if (actErr) { setError(`Could not record activity: ${actErr.message}`); return; }
+      activityId = activity.id;
+    }
+
     const blob = await toJpegBlob(canvas, 0.6);
     if (!blob) { setError("Could not encode the screenshot."); return; }
 
@@ -211,9 +268,9 @@ export function useMonitoring(opts: {
 
     const { error: rowErr } = await supabase.from("time_screenshots").insert({
       time_entry_id: entryId,
-      activity_record_id: activity.id,
+      activity_record_id: activityId,
       storage_path: path,
-      surface: surface ?? "unknown",
+      surface: surfaceRef.current ?? "unknown",
       width: canvas.width,
       height: canvas.height,
       blurred: cfg.blurScreenshots,
@@ -227,7 +284,7 @@ export function useMonitoring(opts: {
     setShots((n) => n + 1);
     setLastCaptureAt(now);
     setError(null);
-  }, [surface, teardown]);
+  }, [teardown]);
 
   /* Re-armed after each capture rather than run on setInterval, because the
      delay is different every time. A fixed interval cannot be randomised. */
@@ -246,14 +303,42 @@ export function useMonitoring(opts: {
     setState("requesting");
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: 1 },
+        // A hint only: Chrome pre-selects the Entire Screen tab of the picker,
+        // but the user still chooses, which is why the result is checked below.
+        video: { frameRate: 1, displaySurface: "monitor" },
         audio: false,
-      });
+        ...({ monitorTypeSurfaces: "include", selfBrowserSurface: "exclude" } as Record<string, unknown>),
+      } as DisplayMediaStreamOptions);
       streamRef.current = stream;
 
       const track = stream.getVideoTracks()[0];
       const s = track?.getSettings() as { displaySurface?: string } | undefined;
-      setSurface(s?.displaySurface ?? "unknown");
+      const chosen = s?.displaySurface ?? "unknown";
+
+      /* REFUSE ANYTHING NARROWER THAN A MONITOR.
+         The picker offers Entire Screen, a window, or a tab, and nothing used to
+         check which was chosen. Sharing a tab produced screenshots of one tab
+         and a screen-change figure covering one tab, while the dashboard
+         presented both as if they described a computer. Silently accepting the
+         weakest option and labelling it the same as the strongest is how a
+         monitoring system ends up reporting something untrue.
+         The stream is stopped rather than kept, so no partial capture happens
+         while the user decides. */
+      if (chosen !== "monitor") {
+        stream.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        setSurfaceRefused(true);
+        setState("off");
+        setError(
+          chosen === "browser"
+            ? "You shared a browser tab. Screenshots would show only that tab, so this would monitor one page rather than your work. Choose Entire Screen instead."
+            : "You shared a single window. Screenshots would show only that app. Choose Entire Screen instead.",
+        );
+        return;
+      }
+      setSurfaceRefused(false);
+      surfaceRef.current = chosen;
+      setSurface(chosen);
       // Stopping from the browser's own banner fires this, and it is the only
       // notice this code gets.
       track?.addEventListener("ended", () => { teardown(); setState("stopped"); });
@@ -265,13 +350,14 @@ export function useMonitoring(opts: {
       videoRef.current = video;
 
       periodStart.current = new Date();
+      lastHash.current = null;
       tally.current = { keystrokes: 0, mouseEvents: 0, lastInputAt: Date.now(), idleSeconds: 0 };
       setState("capturing");
 
       /* One immediately, then randomised. Without the first, a shift always has
          an unmonitored window at the front equal to the whole interval, which is
          the easiest gap in the schedule to plan around. */
-      void captureOnce();
+      void captureOnce(false);
       arm();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -290,7 +376,7 @@ export function useMonitoring(opts: {
   useEffect(() => () => teardown(), [teardown]);
 
   return {
-    state, surface, shots, lastCaptureAt, error,
+    state, surface, shots, lastCaptureAt, error, surfaceRefused, screenChange,
     keystrokes: counts.keystrokes,
     mouseEvents: counts.mouseEvents,
     idleSeconds: counts.idleSeconds,
