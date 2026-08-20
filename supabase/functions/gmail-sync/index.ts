@@ -70,6 +70,21 @@ const senderEmail = (from: string): string | null => {
 
 const ini = (n: string) => n.split(" ").map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 
+/**
+ * Every address in a To/Cc header.
+ *
+ * Not a split on commas. `"Petran, Rowena" <r@x.com>, bob@y.com` is two
+ * recipients, and splitting naively makes it three, one of which is the string
+ * `Rowena" <r@x.com>`. Pulling the addresses out directly sidesteps the whole
+ * quoting problem: an address cannot contain a comma or a space, so matching
+ * the addresses is unambiguous where splitting the list is not.
+ */
+function addresses(header: string | undefined): string[] {
+  if (!header) return [];
+  const found = header.match(/[^\s<>,"]+@[^\s<>,"]+/g) ?? [];
+  return [...new Set(found.map((a) => a.trim().toLowerCase().replace(/[.,;]+$/, "")))];
+}
+
 /* Gmail wants one request per message for the headers, so a large inbox is a
    lot of round trips. Done in small concurrent batches: serial is slow enough
    to hit the function's wall clock on a few hundred messages, and unbounded
@@ -139,7 +154,11 @@ Deno.serve(async (req) => {
         const full = await g(
           token,
           `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}` +
-            `?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
+            `?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date` +
+            /* The rest of what a reply needs. Message-Id is what makes a reply
+               thread; To and Cc are what make reply-all possible. Without them
+               a reply lands as a new conversation addressed to one person. */
+            `&metadataHeaders=Message-Id&metadataHeaders=To&metadataHeaders=Cc`,
         );
         if (full.error) { failures.push(`${id}: ${full.error?.message ?? "fetch failed"}`); return; }
 
@@ -161,6 +180,13 @@ Deno.serve(async (req) => {
             body: full.snippet ?? "",
             category: "reply",
             received_at: new Date(parseInt(full.internalDate ?? `${Date.now()}`)).toISOString(),
+            /* Gmail's own thread id, which groups the conversation in OUR ui.
+               Distinct from rfc_message_id, which is what other mail servers
+               thread on. Both are needed and neither substitutes. */
+            thread_id: full.threadId ?? null,
+            rfc_message_id: headers["Message-Id"] ?? headers["Message-ID"] ?? null,
+            to_emails: addresses(headers.To),
+            cc_emails: addresses(headers.Cc),
           },
           { onConflict: "workspace_id,gmail_id" },
         );

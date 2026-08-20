@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Mail, Send, Sparkles, CheckCircle2, AlertTriangle, X } from "lucide-react";
 import { Modal } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
@@ -26,22 +26,72 @@ type SendState =
   | { kind: "not_connected" }
   | { kind: "error"; detail: string };
 
+export interface ComposeSeed {
+  to?: string;
+  cc?: string;
+  subject?: string;
+  /** Pre-filled body, usually the quoted original under a blank line. */
+  body?: string;
+  /** What the AI should draft about. Usually the message being replied to. */
+  context?: string;
+  /** Gmail's thread id, so the sent copy joins the conversation in our list. */
+  threadId?: string | null;
+  /** RFC Message-ID of what is being answered. Without it nothing threads. */
+  inReplyTo?: string | null;
+  /** Window title: "Reply", "Reply all", "Forward", "Write an email". */
+  title?: string;
+}
+
 export function EmailComposer({
-  open, onClose, to: initialTo = "", subject: initialSubject = "", context = "",
+  open, onClose, seed,
+  to: initialTo = "", subject: initialSubject = "", context = "",
 }: {
   open: boolean;
   onClose: () => void;
+  /** Everything a reply needs, in one object. */
+  seed?: ComposeSeed;
   to?: string;
   subject?: string;
-  /** What the AI should draft about. Usually the message being replied to. */
   context?: string;
 }) {
   const [to, setTo] = useState(initialTo);
+  const [cc, setCc] = useState("");
+  const [bcc, setBcc] = useState("");
+  const [showCc, setShowCc] = useState(false);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [subject, setSubject] = useState(initialSubject);
   const [body, setBody] = useState("");
   const [tone, setTone] = useState("Warm");
   const [drafting, setDrafting] = useState(false);
   const [state, setState] = useState<SendState>({ kind: "idle" });
+
+  /* Re-seeded on every open. The composer is mounted once and reused, so
+     without this, hitting Reply on a second message would open the window still
+     addressed to the first: a wrong-recipient bug that looks like a UI glitch
+     right up until it is a client seeing someone else's mail. */
+  useEffect(() => {
+    if (!open) return;
+    setTo(seed?.to ?? initialTo);
+    setCc(seed?.cc ?? "");
+    setBcc("");
+    setShowCc(Boolean(seed?.cc));
+    setSubject(seed?.subject ?? initialSubject);
+    setBody(seed?.body ?? "");
+    setState({ kind: "idle" });
+
+    /* Cursor at the very top, above the quoted original, which is where every
+       mail client puts it and therefore where people expect to start typing.
+       Focusing a textarea normally lands the caret at the END, which on a reply
+       means below the quote: you type your message underneath what you are
+       answering and it reads backwards. */
+    requestAnimationFrame(() => {
+      const el = bodyRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(0, 0);
+      el.scrollTop = 0;
+    });
+  }, [open, seed, initialTo, initialSubject]);
 
   async function draft() {
     setDrafting(true);
@@ -70,7 +120,15 @@ export function EmailComposer({
     setState({ kind: "sending" });
     try {
       const { data, error } = await supabase.functions.invoke("gmail-send", {
-        body: { to: to.trim(), subject: subject.trim(), body: body.trim() },
+        body: {
+          to: to.trim(),
+          cc: cc.trim() || undefined,
+          bcc: bcc.trim() || undefined,
+          subject: subject.trim(),
+          body: body.trim(),
+          thread_id: seed?.threadId ?? undefined,
+          in_reply_to: seed?.inReplyTo ?? undefined,
+        },
       });
       let payload: Record<string, unknown> | null = data ?? null;
       if (error) {
@@ -103,14 +161,24 @@ export function EmailComposer({
     <Modal open={open} onClose={onClose}>
       <div className="mb-4 flex items-center gap-2">
         <Mail size={17} className="text-accent" />
-        <h2 className="text-lg font-semibold">Write an email</h2>
+        <h2 className="text-lg font-semibold">{seed?.title ?? "Write an email"}</h2>
       </div>
 
       <div className="space-y-3">
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2">
-            <label className="field-label" htmlFor="c-to">To</label>
-            <input id="c-to" className="input" type="email" placeholder="name@company.com"
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="field-label mb-0" htmlFor="c-to">To</label>
+              {/* Hidden until wanted, the way Gmail does it. Most messages go to
+                  one person and two extra empty fields on every compose is
+                  clutter you read past. */}
+              {!showCc && (
+                <button className="text-[11px] font-medium text-accent hover:underline" onClick={() => setShowCc(true)}>
+                  Cc / Bcc
+                </button>
+              )}
+            </div>
+            <input id="c-to" className="input" placeholder="name@company.com, second@company.com"
               value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
           <div>
@@ -120,6 +188,19 @@ export function EmailComposer({
             </select>
           </div>
         </div>
+
+        {showCc && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="field-label" htmlFor="c-cc">Cc</label>
+              <input id="c-cc" className="input" value={cc} onChange={(e) => setCc(e.target.value)} />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="c-bcc">Bcc</label>
+              <input id="c-bcc" className="input" value={bcc} onChange={(e) => setBcc(e.target.value)} />
+            </div>
+          </div>
+        )}
 
         <div>
           <label className="field-label" htmlFor="c-subject">Subject</label>
@@ -133,7 +214,7 @@ export function EmailComposer({
               <Sparkles size={12} /> {drafting ? "Writing…" : "Write it for me"}
             </button>
           </div>
-          <textarea id="c-body" className="input min-h-[190px]" placeholder="Type it, or let the AI draft it and edit from there."
+          <textarea ref={bodyRef} id="c-body" className="input min-h-[190px]" placeholder="Type it, or let the AI draft it and edit from there."
             value={body} onChange={(e) => setBody(e.target.value)} />
         </div>
 

@@ -2281,3 +2281,19 @@ export function useTimeScreenshots(fromISO: string, toISO: string) {
     retry: false,
   });
 }
+
+/**
+ * The signed-in user's own email address.
+ *
+ * Needed wherever "everyone except me" is the right answer, which is mostly
+ * reply-all: leaving your own address on a reply mails you a copy of everything
+ * you send, and that reads as a product bug rather than a header mistake.
+ */
+export function useMyEmail(): string | null {
+  const [email, setEmail] = useState<string | null>(null);
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+  }, []);
+  return email;
+}

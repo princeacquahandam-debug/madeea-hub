@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Sparkles, Mail, Wand2, Lock, Search, X } from "lucide-react";
+import { Sparkles, Mail, Wand2, Lock, Search, X, Reply, ReplyAll, Forward } from "lucide-react";
 import { SlackMark } from "@/components/BrandIcons";
 import type { Message } from "@/types/db";
 import { Badge, PageHeader } from "@/components/ui";
 import { initials, cn } from "@/lib/utils";
 import { generate } from "@/lib/ai";
-import { useClients, useMessages } from "@/data/hooks";
+import { useClients, useMessages, useMyEmail } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { dayLength, formatDuration, isBreaching, responseHours, waitingHours } from "@/lib/sla";
 import { useFollowUps } from "@/hooks/useFollowUps";
@@ -14,7 +14,7 @@ import { SlackComposer } from "@/components/SlackComposer";
 import { ChannelRail, ChannelNotice } from "@/components/ChannelRail";
 import { MessageRow } from "@/components/MessageRow";
 import { REAL_CHANNELS, channelById, type ChannelId } from "@/lib/channels";
-import { EmailComposer } from "@/components/EmailComposer";
+import { EmailComposer, type ComposeSeed } from "@/components/EmailComposer";
 import { useClientContext } from "@/store/clientContext";
 import { clientForMessage, messageInClient } from "@/lib/clientMatch";
 import { ClientScopeBanner } from "@/components/ClientSwitcher";
@@ -33,6 +33,7 @@ const TAB_FILTER: Record<(typeof TABS)[number], (m: Message) => boolean> = {
 
 export default function Communication() {
   const [composing, setComposing] = useState(false);
+  const [seed, setSeed] = useState<ComposeSeed | undefined>(undefined);
   const { data: messages = [], isLoading, refetch: refetchMessages } = useMessages();
   const { data: clients = [] } = useClients();
   const cfg = useSlaSettings((s) => s.config);
@@ -43,6 +44,7 @@ export default function Communication() {
      SLA had no client to measure against. */
   const clientFor = (m: Message) => clientForMessage(m, clients);
   const { clientId: scopeId } = useClientContext();
+  const myEmail = useMyEmail();
   const { flags } = useFollowUps();
   const deadThreads = flags.filter((f) => f.kind === "dead_thread");
   const [tab, setTab] = useState<(typeof TABS)[number]>("All");
@@ -107,6 +109,59 @@ export default function Communication() {
 
   useEffect(() => { setDraft(""); }, [selectedId]);
 
+  /* Quoting, the way every mail client does it. Kept plain text: the body we
+     hold is a Gmail snippet, and dressing a snippet up as the full original
+     would imply we are quoting more than we actually have. */
+  function quoted(m: Message): string {
+    const when = m.received_at ? new Date(m.received_at).toLocaleString() : "earlier";
+    const who = m.sender_email ? `${m.sender_name} <${m.sender_email}>` : m.sender_name;
+    const original = (m.body ?? m.preview ?? "").split("\n").map((l) => `> ${l}`).join("\n");
+    return ["", "", `On ${when}, ${who} wrote:`, original].join("\n");
+  }
+
+  const reSubject = (s: string) => (/^re:/i.test(s) ? s : `Re: ${s}`);
+  const fwdSubject = (s: string) => (/^fwd?:/i.test(s) ? s : `Fwd: ${s}`);
+
+  function openReply(m: Message, all: boolean) {
+    /* Reply-all means everyone who was on it, minus yourself. Leaving your own
+       address in mails you a copy of everything you send, which reads as a
+       product bug rather than a header mistake.
+       Only YOUR address is removed. An earlier version also stripped every
+       client address, which would have quietly dropped the actual recipient
+       from a reply to a client: exactly backwards. */
+    const me = (myEmail ?? "").toLowerCase();
+    const others = all
+      ? [...((m as { to_emails?: string[] }).to_emails ?? []), ...((m as { cc_emails?: string[] }).cc_emails ?? [])]
+          .map((e) => e.toLowerCase())
+          .filter((e) => e && e !== (m.sender_email ?? "").toLowerCase() && e !== me)
+      : [];
+    setSeed({
+      title: all ? "Reply all" : "Reply",
+      to: m.sender_email ?? "",
+      cc: [...new Set(others)].join(", "),
+      subject: reSubject(m.subject ?? ""),
+      body: quoted(m),
+      context: `From ${m.sender_name}: ${m.body}`,
+      threadId: (m as { thread_id?: string | null }).thread_id ?? null,
+      inReplyTo: (m as { rfc_message_id?: string | null }).rfc_message_id ?? null,
+    });
+    setComposing(true);
+  }
+
+  function openForward(m: Message) {
+    setSeed({
+      title: "Forward",
+      to: "",
+      subject: fwdSubject(m.subject ?? ""),
+      body: quoted(m),
+      context: `Forwarding a message from ${m.sender_name}: ${m.body}`,
+      // A forward starts a new conversation, so deliberately no threading here.
+      threadId: null,
+      inReplyTo: null,
+    });
+    setComposing(true);
+  }
+
   async function generateDraft() {
     if (!selected) return;
     setBusy(true);
@@ -152,7 +207,10 @@ export default function Communication() {
           )}
         </div>
 
-        <button className="btn-primary h-10 shrink-0" onClick={() => setComposing(true)}>
+        <button
+          className="btn-primary h-10 shrink-0"
+          onClick={() => { setSeed({ title: "Write an email" }); setComposing(true); }}
+        >
           <Wand2 size={15} /> Compose
         </button>
         {(active.id === "slack" || active.id === "all") && (
@@ -200,9 +258,7 @@ export default function Communication() {
       <EmailComposer
         open={composing}
         onClose={() => setComposing(false)}
-        to={selected?.sender_email ?? ""}
-        subject={selected ? `Re: ${selected.subject}` : ""}
-        context={selected ? `From ${selected.sender_name}: ${selected.body}` : ""}
+        seed={seed}
       />
 
       {slackOpen && <SlackComposer onSent={() => void refetchMessages()} />}
@@ -285,6 +341,35 @@ export default function Communication() {
                     {selected.client_title && <p className="text-xs text-faint">{selected.client_title}</p>}
                   </div>
                   <Badge tone={selected.category}>{categoryLabel[selected.category]}</Badge>
+                </div>
+
+                {/* What the pane never had. The "Reply" chip above is the triage
+                    CATEGORY, not an action, and there was no way to answer a
+                    message from the screen you read it on. */}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button className="btn-primary py-1.5" onClick={() => openReply(selected, false)}>
+                    <Reply size={14} /> Reply
+                  </button>
+                  <button
+                    className="btn-ghost border border-border py-1.5"
+                    onClick={() => openReply(selected, true)}
+                    // Only meaningful when somebody else was actually on it.
+                    disabled={
+                      ([...((selected as { to_emails?: string[] }).to_emails ?? []),
+                        ...((selected as { cc_emails?: string[] }).cc_emails ?? [])].length < 2)
+                    }
+                    title={
+                      ([...((selected as { to_emails?: string[] }).to_emails ?? []),
+                        ...((selected as { cc_emails?: string[] }).cc_emails ?? [])].length < 2)
+                        ? "Only one recipient, so this is the same as Reply"
+                        : "Reply to everyone on this message"
+                    }
+                  >
+                    <ReplyAll size={14} /> Reply all
+                  </button>
+                  <button className="btn-ghost border border-border py-1.5" onClick={() => openForward(selected)}>
+                    <Forward size={14} /> Forward
+                  </button>
                 </div>
 
                 {selected.triage_reason && (

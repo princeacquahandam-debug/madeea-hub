@@ -52,11 +52,25 @@ async function accessToken(refresh: string): Promise<string> {
 }
 
 /** RFC 2822, base64url. Gmail wants the whole message, not fields. */
-function rawMessage(to: string, subject: string, body: string, from?: string, cc?: string): string {
+function rawMessage(
+  to: string, subject: string, body: string,
+  from?: string, cc?: string, bcc?: string,
+  inReplyTo?: string, references?: string,
+): string {
   const headers = [
     from ? `From: ${from}` : null,
     `To: ${to}`,
     cc ? `Cc: ${cc}` : null,
+    bcc ? `Bcc: ${bcc}` : null,
+    /* What actually makes a reply a reply.
+       Gmail's threadId groups the message in OUR sent mailbox, but every other
+       mail client threads on these two headers. Without them the recipient sees
+       a brand new conversation whose subject happens to start with "Re:", which
+       is how one conversation quietly becomes two.
+       References carries the whole ancestry where we have it, In-Reply-To just
+       the immediate parent, which is what the standard asks for. */
+    inReplyTo ? `In-Reply-To: ${inReplyTo}` : null,
+    references ? `References: ${references}` : null,
     // Encoded, so a subject with an accent or a non-ASCII character survives.
     `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
     "MIME-Version: 1.0",
@@ -127,7 +141,22 @@ Deno.serve(async (req) => {
        attempting it, and interpret the refusal below. The record is still read,
        but only to explain the failure afterwards. */
     const token = await accessToken(cred.refresh_token);
-    const raw = rawMessage(to, subject || "(no subject)", text, body.from ? String(body.from) : undefined, body.cc);
+
+    /* Threading is passed in rather than looked up: the caller is holding the
+       message being replied to, and re-fetching it here to read one header
+       would be a second round trip for something already on screen. */
+    const inReplyTo = body.in_reply_to ? String(body.in_reply_to) : undefined;
+    const references = body.references
+      ? String(body.references)
+      : inReplyTo; // A first reply's ancestry is just its parent.
+
+    const raw = rawMessage(
+      to, subject || "(no subject)", text,
+      body.from ? String(body.from) : undefined,
+      body.cc ? String(body.cc) : undefined,
+      body.bcc ? String(body.bcc) : undefined,
+      inReplyTo, references,
+    );
 
     const send = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
       method: "POST",
@@ -165,6 +194,9 @@ Deno.serve(async (req) => {
       body: text,
       category: "reply",
       received_at: new Date().toISOString(),
+      // So the sent copy sits in the same conversation in our own list, not
+      // just in Gmail's.
+      thread_id: sent.threadId ?? (body.thread_id ? String(body.thread_id) : null),
     });
 
     return json({ ok: true, id: sent.id, thread_id: sent.threadId, recorded: !writeErr });
