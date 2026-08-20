@@ -491,9 +491,6 @@ export default function Communication() {
           WHAT you are looking at, this row narrows it. Neither is a place. */}
       <div className="mb-2.5 flex flex-wrap items-center gap-2">
         <SourceChips active={sources} counts={counts} onToggle={toggleSource} />
-        {soleSource?.note && (
-          <span className="text-[11px] text-faint">{soleSource.note}</span>
-        )}
       </div>
 
       <div className="mb-2.5 flex flex-wrap items-center gap-1">
