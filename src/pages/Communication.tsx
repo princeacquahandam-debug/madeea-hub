@@ -12,7 +12,8 @@ import { useSlaSettings } from "@/store/slaSettings";
 import { dayLength, formatDuration, isBreaching, responseHours, waitingHours } from "@/lib/sla";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { SlackComposer } from "@/components/SlackComposer";
-import { ChannelRail, ChannelNotice } from "@/components/ChannelRail";
+import { ChannelNotice } from "@/components/ChannelRail";
+import { SourceChips } from "@/components/SourceChips";
 import { MessageRow } from "@/components/MessageRow";
 import { REAL_CHANNELS, channelById, type ChannelId } from "@/lib/channels";
 import { ComposeWindow, type ComposeSeed } from "@/components/ComposeWindow";
@@ -20,16 +21,23 @@ import { useClientContext } from "@/store/clientContext";
 import { clientForMessage, messageInClient } from "@/lib/clientMatch";
 import { ClientScopeBanner } from "@/components/ClientSwitcher";
 
-const TABS = ["All", "Needs Follow-up", "Urgent", "Awaiting Reply", "Delegated"] as const;
+/* The only navigation inside the inbox. A view is a saved question about what
+   needs you; it is not a place messages live. Source used to be a second
+   navigation beside this one and is now a filter, which is what it always was.
+   "Done" surfaces the archive category, which existed in the schema and in
+   categoryLabel but had no tab and no action, so archived messages were
+   unreachable from any filter. */
+const TABS = ["All", "Needs Follow-up", "Urgent", "Awaiting Reply", "Delegated", "Done"] as const;
 const categoryLabel: Record<string, string> = { urgent: "Urgent", reply: "Reply", delegate: "Delegate", archive: "Archive" };
 // "Needs Follow-up" is resolved against the flag list, not a field on the message,
 // so it stays in lockstep with the badge count everywhere else.
 const TAB_FILTER: Record<(typeof TABS)[number], (m: Message) => boolean> = {
-  All: () => true,
+  All: (m) => m.category !== "archive",
   "Needs Follow-up": () => true,
   Urgent: (m) => m.category === "urgent",
   "Awaiting Reply": (m) => m.category === "reply",
   Delegated: (m) => m.category === "delegate",
+  Done: (m) => m.category === "archive",
 };
 
 export default function Communication() {
@@ -49,7 +57,9 @@ export default function Communication() {
   const { flags } = useFollowUps();
   const deadThreads = flags.filter((f) => f.kind === "dead_thread");
   const [tab, setTab] = useState<(typeof TABS)[number]>("All");
-  const [channel, setChannel] = useState<ChannelId>("all");
+  /* A SET, because sources are now a filter and filters combine. Empty means
+     all of them, which is the resting state. */
+  const [sources, setSources] = useState<Set<ChannelId>>(new Set());
   const [slackOpen, setSlackOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   /* Distinct from `selected`, which falls back to list[0] so the desktop pane
@@ -74,8 +84,6 @@ export default function Communication() {
 
   /* Picking Slack in the rail should BE picking Slack, not picking Slack and
      then finding the button that turns Slack on. */
-  useEffect(() => { setSlackOpen(channel === "slack"); }, [channel]);
-
   const deadIds = new Map(deadThreads.map((f) => [f.itemId, f]));
 
   /* One clock for the whole render, and it ticks.
@@ -86,9 +94,20 @@ export default function Communication() {
      move. Still one clock, so two rows can never disagree about the time. */
   const now = useNow(60_000);
 
-  const active = channelById(channel);
-  const inChannel = (m: Message) =>
-    !active.source || (m as { source?: string }).source === active.source;
+  const inChannel = (m: Message) => {
+    if (sources.size === 0) return true;
+    const src = (m as { source?: string }).source;
+    return [...sources].some((id) => channelById(id).source === src);
+  };
+  /* Named only so the empty state and the notice can say something specific
+     when exactly one source is selected. With several, there is nothing
+     truthful to say about "the" channel. */
+  const soleSource = sources.size === 1 ? channelById([...sources][0]) : null;
+
+  /* Picking Slack, and only Slack, opens its composer. Declared after
+     soleSource because it reads it: the effect used to sit above and hit the
+     temporal dead zone. */
+  useEffect(() => { setSlackOpen(soleSource?.id === "slack"); }, [soleSource]);
 
   const q = query.trim().toLowerCase();
   const matches = (m: Message) =>
@@ -299,6 +318,16 @@ export default function Communication() {
     </>
   );
 
+  function toggleSource(id: ChannelId) {
+    setSources((prev) => {
+      if (id === "all") return new Set();
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   return (
     <div>
       {/* ONE row where there were three.
@@ -338,7 +367,7 @@ export default function Communication() {
         >
           <Wand2 size={15} /> Compose
         </button>
-        {(active.id === "slack" || active.id === "all") && (
+        {(sources.size === 0 || sources.has("slack")) && (
           <button
             className="btn-ghost h-10 shrink-0 border border-border"
             aria-pressed={slackOpen}
@@ -352,6 +381,15 @@ export default function Communication() {
       {/* View filters. Quieter than before: these narrow a list you are already
           looking at, so they are secondary to it and should not compete with
           the primary action beside them (§9 nav-hierarchy). */}
+      {/* Source, as a filter under the views. One hierarchy: the row above says
+          WHAT you are looking at, this row narrows it. Neither is a place. */}
+      <div className="mb-2.5 flex flex-wrap items-center gap-2">
+        <SourceChips active={sources} counts={counts} onToggle={toggleSource} />
+        {soleSource?.note && (
+          <span className="text-[11px] text-faint">{soleSource.note}</span>
+        )}
+      </div>
+
       <div className="mb-2.5 flex flex-wrap items-center gap-1">
         {TABS.map((t) => (
           <button
@@ -417,16 +455,11 @@ export default function Communication() {
       ) : messages.length === 0 ? (
         <div className="card p-10 text-center text-sm text-faint">No messages yet. Connect Gmail from Integrations to populate your inbox.</div>
       ) : (
-        <div className="grid gap-2.5 lg:grid-cols-[56px_minmax(0,1fr)_minmax(0,290px)] xl:grid-cols-[56px_minmax(0,1.5fr)_minmax(0,1fr)]">
-          {/* The rail. Its own column so it reads as an edge, not a panel. */}
-          <aside className="card h-fit p-2">
-            <ChannelRail active={channel} counts={counts} onSelect={setChannel} />
-          </aside>
-
+        <div className="grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)] xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <div className="min-w-0">
-            {active.note && (
+            {soleSource?.note && (
               <div className="mb-2">
-                <ChannelNotice channel={active} />
+                <ChannelNotice channel={soleSource} />
               </div>
             )}
             <div className="card p-1.5">
@@ -457,7 +490,7 @@ export default function Communication() {
                         ? `Nothing matches "${query}".`
                         : tab === "Needs Follow-up"
                           ? "Nothing is waiting on a reply."
-                          : `No ${active.label === "All" ? "" : active.label + " "}messages in this view.`}
+                          : `No ${soleSource ? soleSource.label + " " : ""}messages in this view.`}
                     </p>
                     <p className="mx-auto mt-1 max-w-sm text-xs text-faint">
                       {/* Names the actual reason a Slack inbox is empty. Nine
@@ -468,7 +501,7 @@ export default function Communication() {
                         ? "You are filtered to one client, and a message only counts as theirs once their email domain is set on the client record."
                         : q
                         ? "Try a different word, or clear the search."
-                        : active.id === "slack"
+                        : soleSource?.id === "slack"
                           ? "Slack only shows channels the bot was invited to. Run /invite @MadeEA OS in the channel, then Pull messages."
                           : "Try another channel or view, or pull the latest from Integrations."}
                     </p>

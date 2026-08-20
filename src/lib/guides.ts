@@ -30,15 +30,6 @@ export const GUIDES: Record<string, Guide> = {
       "Filter by member, date, or “With blockers”, and expand any report to read the original text as submitted.",
     ],
   },
-  "/communication": {
-    title: "How the Communication Center works",
-    points: [
-      "Pick a channel on the left (Gmail, Slack) to choose where messages come FROM. The tabs across the top choose which of them you are looking at. Two separate questions.",
-      "Click a message to open it, then “AI Draft Response” to generate a reply.",
-      "Slack posts to the channel named in the picker, and it is always shown before you send. Slack can post to a public channel it has not joined, but it can only READ a channel it has been invited to.",
-      "Channels marked “Soon” are not built yet. Integrations lists what each one needs.",
-    ],
-  },
   "/notes": {
     title: "How Notes work",
     points: [
