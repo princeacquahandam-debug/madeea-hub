@@ -19,6 +19,7 @@ import { REAL_CHANNELS, channelById, type ChannelId } from "@/lib/channels";
 import { ComposeWindow, type ComposeSeed } from "@/components/ComposeWindow";
 import { useClientContext } from "@/store/clientContext";
 import { clientForMessage, messageInClient } from "@/lib/clientMatch";
+import { groupThreads, decodeEntities } from "@/lib/threads";
 import { ClientScopeBanner } from "@/components/ClientSwitcher";
 
 /* The only navigation inside the inbox. A view is a saved question about what
@@ -123,6 +124,21 @@ export default function Communication() {
     .filter(inChannel)
     .filter((m) => messageInClient(m, scopeId, clients))
     .filter(matches);
+
+  /* Grouped AFTER filtering, never before. Grouping first would let a thread
+     survive a filter because one old message in it matched, so "Urgent" would
+     show conversations that are not urgent. */
+  const threads = useMemo(() => groupThreads(list), [list]);
+
+  /* Keyed off what is actually on screen, not off the filter.
+     The first version asked whether exactly one source was SELECTED, which is
+     the wrong question: with no filter at all, every message was still Gmail,
+     so the badge repeated itself 89 times to say something no row disagreed
+     with. Count the sources actually present in the visible list instead. */
+  const showChannel = useMemo(
+    () => new Set(list.map((m) => (m as { source?: string }).source ?? "")).size > 1,
+    [list],
+  );
 
   /* Per-channel counts for the rail. Counted off the unfiltered set so the
      number does not change as you move between views, which would make it
@@ -289,8 +305,8 @@ export default function Communication() {
                 <div className="mt-4">
                   <p className="field-label">Original Message</p>
                   <div className="rounded-lg bg-surface-2 p-3">
-                    <p className="text-sm font-medium">{selected.subject}</p>
-                    <p className="mt-1 text-sm text-muted">{selected.body}</p>
+                    <p className="text-sm font-medium">{decodeEntities(selected.subject ?? "")}</p>
+                    <p className="mt-1 text-sm text-muted">{decodeEntities(selected.body ?? "")}</p>
                   </div>
                 </div>
 
@@ -415,7 +431,7 @@ export default function Communication() {
           </button>
         ))}
         <span className="ml-auto text-xs tabular-nums text-faint">
-          {list.length} {q ? "found" : "in view"}
+          {threads.length} {q ? "found" : threads.length === list.length ? "in view" : `of ${list.length}`}
         </span>
       </div>
 
@@ -464,7 +480,8 @@ export default function Communication() {
             )}
             <div className="card p-1.5">
               <div className="space-y-0.5">
-                {list.map((m) => {
+                {threads.map((t) => {
+                  const m = t.head;
                   const late = isBreaching(m, clientFor(m), cfg);
                   const waiting = waitingHours(m, cfg);
                   // Only an UNANSWERED breach is actionable. An answered-but-late
@@ -478,12 +495,15 @@ export default function Communication() {
                       now={now}
                       selected={selected?.id === m.id}
                       breached={breached}
+                      threadCount={t.count}
+                      unread={t.unread}
+                      showChannel={showChannel}
                       waitingLabel={waiting !== null ? formatDuration(waiting, dl) : undefined}
                       onSelect={() => { setSelectedId(m.id); setReaderOpen(true); }}
                     />
                   );
                 })}
-                {list.length === 0 && (
+                {threads.length === 0 && (
                   <div className="px-4 py-10 text-center">
                     <p className="text-sm font-medium">
                       {q

@@ -3,6 +3,7 @@ import type { Message } from "@/types/db";
 import { REAL_CHANNELS } from "@/lib/channels";
 import { initials, cn } from "@/lib/utils";
 import { relativeTime, fullTime, avatarHue, avatarColors } from "@/lib/relativeTime";
+import { decodeEntities } from "@/lib/threads";
 
 /**
  * One row in the unified inbox.
@@ -26,7 +27,7 @@ import { relativeTime, fullTime, avatarHue, avatarColors } from "@/lib/relativeT
  * icon as well as a tint, so it survives greyscale and a colourblind reader.
  */
 export function MessageRow({
-  m, selected, breached, waitingLabel, onSelect, now,
+  m, selected, breached, waitingLabel, onSelect, now, threadCount = 1, showChannel = true, unread: unreadProp,
 }: {
   m: Message;
   selected: boolean;
@@ -35,8 +36,14 @@ export function MessageRow({
   onSelect: () => void;
   /** Passed in so every row in a render agrees on "now" and the list is stable. */
   now?: number;
+  /** Messages in this conversation. Anything above 1 shows a count chip. */
+  threadCount?: number;
+  /** Only meaningful when more than one source is in play. */
+  showChannel?: boolean;
+  /** Unread for the whole thread, not just its newest message. */
+  unread?: boolean;
 }) {
-  const unread = m.direction !== "outbound" && !m.first_reply_at;
+  const unread = unreadProp ?? (m.direction !== "outbound" && !m.first_reply_at);
   const channel = REAL_CHANNELS.find((c) => c.source === (m as { source?: string }).source);
   const avatar = avatarColors(avatarHue(m.sender_email ?? m.sender_name ?? "?"));
 
@@ -46,7 +53,7 @@ export function MessageRow({
      those, we do not store one, and inventing "Wants you to..." from a snippet
      would put words in a sender's mouth. When a real summary column exists this
      is the single place that changes. */
-  const summary = [m.subject, m.preview].filter(Boolean).join(" — ");
+  const summary = decodeEntities([m.subject, m.preview].filter(Boolean).join(" — "));
 
   return (
     <button
@@ -62,6 +69,14 @@ export function MessageRow({
         breached && !selected && "bg-red-500/[0.045]",
       )}
     >
+      {/* Weight alone is a weak signal at a glance down 96 rows, and it is the
+          only one a bold-heavy list gives you. A dot is unmissable and it is not
+          colour alone: the row's weight still carries it in greyscale. */}
+      <span
+        aria-hidden="true"
+        className={cn("mt-[15px] h-2 w-2 shrink-0 rounded-full", unread ? "bg-accent" : "bg-transparent")}
+      />
+
       {/* Stand-in for a profile photo: a stable colour per sender, so the same
           person is the same circle every time. */}
       <span
@@ -75,8 +90,16 @@ export function MessageRow({
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline gap-2">
           <span className={cn("min-w-0 truncate text-sm", unread ? "font-semibold text-text" : "text-muted")}>
-            {m.sender_name}
+            {decodeEntities(m.sender_name ?? "")}
           </span>
+          {threadCount > 1 && (
+            <span
+              className="shrink-0 rounded-full bg-[var(--chip-bg)] px-1.5 text-[10px] font-semibold tabular-nums text-muted"
+              title={`${threadCount} messages in this conversation`}
+            >
+              {threadCount}
+            </span>
+          )}
           <span
             className="shrink-0 text-xs tabular-nums text-faint"
             title={fullTime(m.received_at)}
@@ -103,9 +126,10 @@ export function MessageRow({
         </span>
       </span>
 
-      {/* Where it came from. Only meaningful in a merged view, but keeping it in
-          every view means the row does not change shape when you filter. */}
-      {channel && (
+      {/* Where it came from, only when that is a real question. It used to show
+          on all 96 rows while all 96 were Gmail, which is 96 repetitions of
+          something the source chips already said. */}
+      {channel && showChannel && (
         <span className="mt-1 shrink-0" title={channel.label} aria-label={`via ${channel.label}`}>
           <channel.icon size={16} />
         </span>
