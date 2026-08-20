@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNow } from "@/hooks/useNow";
 import { useSearchParams } from "react-router-dom";
 import { Sparkles, Mail, Wand2, Lock, Search, X, Reply, ReplyAll, Forward } from "lucide-react";
 import { SlackMark } from "@/components/BrandIcons";
@@ -71,10 +72,13 @@ export default function Communication() {
 
   const deadIds = new Map(deadThreads.map((f) => [f.itemId, f]));
 
-  /* One clock for the whole render. Every row shows a relative age, and letting
-     each compute its own Date.now() means two rows a millisecond apart can
-     disagree about which minute it is. */
-  const now = useMemo(() => Date.now(), [messages]);
+  /* One clock for the whole render, and it ticks.
+     Every row shows a relative age. This was `useMemo(() => Date.now(),
+     [messages])`, which recomputes only when the query refetches, so a screen
+     left open all morning kept insisting a message was "5h" old. A minute is
+     the smallest unit any row displays, so a minute is how often it needs to
+     move. Still one clock, so two rows can never disagree about the time. */
+  const now = useNow(60_000);
 
   const active = channelById(channel);
   const inChannel = (m: Message) =>
@@ -105,7 +109,14 @@ export default function Communication() {
     }
     return out;
   }, [messages]);
-  const selected = messages.find((m) => m.id === selectedId) ?? list[0] ?? null;
+  /* Resolved against the FILTERED list, never the whole mailbox.
+     This searched `messages`, so the reader kept displaying a message the
+     active filters excluded: search for nonsense and the header said "0 found"
+     and the list said "Nothing matches" while a full email sat beside them with
+     working Reply buttons. Under a client scope that meant replying to another
+     client's mail from a screen headed "Showing Acme only", which is the kind
+     of mistake you cannot take back. */
+  const selected = list.find((m) => m.id === selectedId) ?? list[0] ?? null;
 
   useEffect(() => { setDraft(""); }, [selectedId]);
 
@@ -284,7 +295,7 @@ export default function Communication() {
       ) : messages.length === 0 ? (
         <div className="card p-10 text-center text-sm text-faint">No messages yet. Connect Gmail from Integrations to populate your inbox.</div>
       ) : (
-        <div className="grid gap-2.5 lg:grid-cols-[56px_minmax(0,1fr)] xl:grid-cols-[56px_minmax(0,1.5fr)_minmax(0,1fr)]">
+        <div className="grid gap-2.5 lg:grid-cols-[56px_minmax(0,1fr)_minmax(0,290px)] xl:grid-cols-[56px_minmax(0,1.5fr)_minmax(0,1fr)]">
           {/* The rail. Its own column so it reads as an edge, not a panel. */}
           <aside className="card h-fit p-2">
             <ChannelRail active={channel} counts={counts} onSelect={setChannel} />

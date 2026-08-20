@@ -444,7 +444,11 @@ export function useMessages() {
       const { data, error } = await supabase
         .from("messages")
         .select("*,clients(name,title,company)")
-        .order("received_at", { ascending: true });
+        /* Newest first. It was ascending, so a product whose whole premise is
+           response time opened on the OLDEST message in the account: today's
+           mail sat ~6000px down behind three-week-old onboarding spam, with no
+           sort control anywhere to escape it. */
+        .order("received_at", { ascending: false });
       if (error) throw error;
       return (data as any[]).map((m) => ({
         id: m.id, sender_name: m.sender_name, subject: m.subject, preview: m.preview, body: m.body,
