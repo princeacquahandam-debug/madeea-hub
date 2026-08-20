@@ -80,7 +80,7 @@ export default function Communication() {
     setTab("All"); // the linked email may not be in the current tab
     setParams({}, { replace: true });
   }, [params, setParams]);
-  const [draft, setDraft] = useState("");
+  const [draftError, setDraftError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   /* Picking Slack in the rail should BE picking Slack, not picking Slack and
@@ -159,7 +159,7 @@ export default function Communication() {
      of mistake you cannot take back. */
   const selected = list.find((m) => m.id === selectedId) ?? list[0] ?? null;
 
-  useEffect(() => { setDraft(""); }, [selectedId]);
+  useEffect(() => { setDraftError(null); }, [selectedId]);
 
   /* Quoting, the way every mail client does it. Kept plain text: the body we
      hold is a Gmail snippet, and dressing a snippet up as the full original
@@ -167,11 +167,7 @@ export default function Communication() {
   function quoted(m: Message): string {
     const when = m.received_at ? new Date(m.received_at).toLocaleString() : "earlier";
     const who = m.sender_email ? `${m.sender_name} <${m.sender_email}>` : m.sender_name;
-    /* Escaped before it is embedded. The original is somebody else's text, and
-       a subject or body containing markup would otherwise become live markup in
-       the editor and then in what we send. */
-    const esc = (v: string) =>
-      v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const esc = escapeHtml;
     const original = esc(m.body ?? m.preview ?? "")
       .split("\n")
       .map((l) => `<div>${l || "<br>"}</div>`)
@@ -179,6 +175,12 @@ export default function Communication() {
     // Two blank lines first, so there is somewhere to type above the quote.
     return `<div><br></div><div><br></div><div>On ${esc(when)}, ${esc(who)} wrote:</div><blockquote>${original}</blockquote>`;
   }
+
+  /* Somebody else's text becomes markup in an editable body, so it is escaped
+     once, here, and both the quote and the AI draft use it. Two copies of an
+     escaper is how one of them ends up missing a case. */
+  const escapeHtml = (v: string) =>
+    v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
   const reSubject = (s: string) => (/^re:/i.test(s) ? s : `Re: ${s}`);
   const fwdSubject = (s: string) => (/^fwd?:/i.test(s) ? s : `Fwd: ${s}`);
@@ -223,17 +225,40 @@ export default function Communication() {
     setComposing(true);
   }
 
+  /* Generates a reply and OPENS IT, already written, in the editable composer.
+     It used to render into a read-only <pre> in a monospace font: an email
+     styled as a code block, with no edit, no copy button and no route into a
+     reply. The product's headline feature dead-ended in text you had to select
+     with a mouse. Nothing about "AI Draft Response" implies "and then retype
+     it".
+     The catch matters too. There was none, so a failed generate left the empty
+     state showing and read to the user as "nothing happened". */
   async function generateDraft() {
     if (!selected) return;
     setBusy(true);
-    setDraft("");
+    setDraftError(null);
     try {
       const out = await generate({
         tool: "quick_action",
         format: "AI Draft Response",
         inputs: { from: selected.sender_name, subject: selected.subject, message: selected.body },
       });
-      setDraft(out);
+      const written = out
+        .split("\n")
+        .map((l) => `<div>${l ? escapeHtml(l) : "<br>"}</div>`)
+        .join("");
+      setSeed({
+        title: "Reply",
+        to: selected.sender_email ?? "",
+        subject: reSubject(selected.subject ?? ""),
+        html: written + quoted(selected),
+        context: `From ${selected.sender_name}: ${selected.body}`,
+        threadId: (selected as { thread_id?: string | null }).thread_id ?? null,
+        inReplyTo: (selected as { rfc_message_id?: string | null }).rfc_message_id ?? null,
+      });
+      setComposing(true);
+    } catch (e) {
+      setDraftError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -289,6 +314,16 @@ export default function Communication() {
                   <button className="btn-ghost border border-border px-2.5 py-1.5 text-xs" onClick={() => openForward(selected)}>
                     <Forward size={13} /> Forward
                   </button>
+                  {/* One control, not a label and a button saying the same six
+                      words 40px apart, and it opens the reply rather than
+                      printing text beside it. */}
+                  <button
+                    className="btn-ghost border border-border px-2.5 py-1.5 text-xs"
+                    onClick={generateDraft}
+                    disabled={busy}
+                  >
+                    <Sparkles size={13} /> {busy ? "Writing…" : "Draft a reply"}
+                  </button>
                 </div>
 
                 {selected.triage_reason && (
@@ -310,25 +345,11 @@ export default function Communication() {
                   </div>
                 </div>
 
-                <div className="mt-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="field-label mb-0">AI Draft Response</p>
-                    <button className="btn-primary py-1.5" onClick={generateDraft} disabled={busy}>
-                      <Sparkles size={14} /> {busy ? "Drafting…" : "AI Draft Response"}
-                    </button>
-                  </div>
-                  {draft ? (
-                    /* text-zinc-200 was hardcoded here, so in light theme this rendered
-                         near-white text on a near-white card: 1.13:1, invisible. The
-                         token themes; the Tailwind palette shade does not. */
-                      <pre className="whitespace-pre-wrap rounded-lg bg-surface-2 p-3 text-sm text-text">{draft}</pre>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border py-8 text-center text-faint">
-                      <Mail size={24} />
-                      <p className="text-xs">Click "AI Draft Response" to generate a professional reply</p>
-                    </div>
-                  )}
-                </div>
+                {draftError && (
+                  <p className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-[12.5px] text-amber-200">
+                    Could not write a draft. {draftError.slice(0, 160)}
+                  </p>
+                )}
               </>
             ) : <p className="py-10 text-center text-sm text-faint">Select a message.</p>}
     </>

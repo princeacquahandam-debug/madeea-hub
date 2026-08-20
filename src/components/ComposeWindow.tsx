@@ -5,6 +5,7 @@ import {
   Bold, Italic, Underline, List, ListOrdered, Link2, Loader2, CheckCircle2, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useMyEmail } from "@/data/hooks";
 import { generate } from "@/lib/ai";
 import { cn } from "@/lib/utils";
 
@@ -85,6 +86,18 @@ export function ComposeWindow({
   const [drafting, setDrafting] = useState(false);
   const [state, setState] = useState<SendState>({ kind: "idle" });
 
+  /* WHOSE NAME GOES ON THIS EMAIL.
+     There was no From anywhere in this window. On a product where one EA writes
+     on behalf of several executives, the field that must never be wrong was the
+     one field absent, and the app already knew the answer: useMyEmail was
+     imported on the page and used only to strip your own address out of
+     reply-all.
+     Read-only, deliberately. Sending as somebody else needs Gmail send-as
+     delegation, which is not set up, and a picker offering identities that do
+     not work would be worse than no picker. It states the truth and leaves the
+     choice for when there is one. */
+  const myEmail = useMyEmail();
+
   const bodyRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -120,7 +133,32 @@ export function ComposeWindow({
     });
   }, [open, seed]);
 
+  /* Escape closes it, which it did not, so the reflexive key did nothing and
+     the window just sat there. Guarded by the same discard check as the X, or
+     Escape would become the fastest way to lose a half-written email. */
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") attemptClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  });
+
   if (!open) return null;
+
+  /* Closing threw the email away silently: no confirm, no autosave, no drafts.
+     A confirm is the smallest honest guard. It only fires when there is
+     something to lose, because asking about an empty window trains people to
+     click through the dialog they should be reading. */
+  function attemptClose() {
+    const typed = (bodyRef.current?.innerText ?? "").trim();
+    const seeded = (seed?.html ?? "").replace(/<[^>]*>/g, "").trim();
+    const hasOwnWords = typed.length > seeded.length;
+    const hasRecipient = to.trim().length > 0 && !seed?.to;
+    if ((hasOwnWords || hasRecipient || files.length > 0) && state.kind !== "sent") {
+      if (!window.confirm("Discard this email? What you have written will be lost.")) return;
+    }
+    onClose();
+  }
 
   const exec = (cmd: string, value?: string) => {
     bodyRef.current?.focus();
@@ -291,7 +329,7 @@ export function ComposeWindow({
           {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
         </button>
         <button
-          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          onClick={(e) => { e.stopPropagation(); attemptClose(); }}
           aria-label="Close"
           className="grid h-8 w-8 place-items-center rounded text-faint hover:bg-[var(--chip-bg)] hover:text-text"
         >
@@ -304,6 +342,12 @@ export function ComposeWindow({
           {/* Recipients. Underlined rows rather than boxed inputs, so the head
               of the window stays quiet and the body is where the eye lands. */}
           <div className="shrink-0 px-3">
+            <Row>
+              <span className="w-10 shrink-0 text-[12.5px] text-faint">From</span>
+              <span className="min-w-0 flex-1 truncate py-2 text-[13px] text-muted" title={myEmail ?? undefined}>
+                {myEmail ?? "Not signed in"}
+              </span>
+            </Row>
             <Row>
               <label htmlFor="cw-to" className="w-10 shrink-0 text-[12.5px] text-faint">To</label>
               <input
