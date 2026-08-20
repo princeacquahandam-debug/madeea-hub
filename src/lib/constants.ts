@@ -1,4 +1,5 @@
 import {
+  Camera,
   LayoutDashboard,
   CheckSquare,
   Mail,
@@ -71,6 +72,9 @@ export const NAV: NavItem[] = [
   // The day closes here: what you did, and that you were there to do it.
   { to: "/eod", label: "EOD Reports", icon: ClipboardList, group: "My Day" },
   { to: "/time", label: "Time Tracker", icon: Clock, group: "My Day" },
+  // Beside the tracker, because a screenshot only means anything next to the
+  // session that produced it.
+  { to: "/screenshots", label: "Screenshots", icon: Camera, group: "My Day" },
 
   /* ---- Clients & Files ----------------------------------------------------
      Everything you go looking FOR rather than work you do. The client record

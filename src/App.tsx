@@ -16,6 +16,7 @@ import Dashboard from "@/pages/Dashboard";
 const Tasks = lazy(() => import("@/pages/Tasks"));
 const EodReports = lazy(() => import("@/pages/EodReports"));
 const Inbox = lazy(() => import("@/pages/Inbox"));
+const Screenshots = lazy(() => import("@/pages/Screenshots"));
 const QuickActions = lazy(() => import("@/pages/QuickActions"));
 const ClientVault = lazy(() => import("@/pages/ClientVault"));
 const Sops = lazy(() => import("@/pages/Sops"));
@@ -59,6 +60,7 @@ function Gate() {
         <Route path="/tasks" element={<Tasks />} />
         <Route path="/eod" element={<EodReports />} />
         <Route path="/time" element={<Time />} />
+        <Route path="/screenshots" element={<Screenshots />} />
         <Route path="/inbox" element={<Inbox />} />
         {/* Kept, and redirecting rather than removed. Notifications, saved
             links, the command palette and anything a person bookmarked all

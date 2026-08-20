@@ -188,19 +188,31 @@ export function toJpegBlob(canvas: HTMLCanvasElement, quality = 0.6): Promise<Bl
 }
 
 /**
- * A capture time inside the window rather than on its edge.
+ * When to take the next capture: unpredictable, but averaging the configured
+ * interval.
  *
  * §1 asks for randomisation, and the reason is behavioural: a capture that
- * always lands on the minute is a capture anyone can work around, and a
- * predictable monitor measures compliance with the schedule instead of work.
+ * always lands on the minute is one anyone can work around, and a predictable
+ * monitor measures compliance with the schedule instead of work.
  *
- * The window is not the full interval. Both ends are trimmed by a tenth so two
- * consecutive captures cannot land 30 seconds apart at one boundary and 20
- * minutes apart at the next, which would make the gaps look like tampering.
+ * THE FIRST VERSION GOT THE ARITHMETIC WRONG, and the error was invisible
+ * because the output looked random. It picked a delay between roughly 0 and the
+ * interval, which is uniformly distributed around HALF of it: a setting of ten
+ * minutes captured every five on average, doubling both the screenshot count
+ * and the storage bill. It was caught by reading real capture timestamps out of
+ * the database, 3:50 and 1:57 and 6:03 apart, not by the test, which had checked
+ * that the delays varied and never that they were right.
+ *
+ * Randomising AROUND the interval keeps the unpredictability and fixes the rate.
+ * Ten minutes gives a delay somewhere between eight and twelve, so no capture
+ * time can be anticipated and the long-run average is exactly what was asked
+ * for.
  */
 export function nextCaptureDelayMs(intervalMinutes: number, randomize: boolean): number {
   const interval = Math.max(1, intervalMinutes) * 60_000;
   if (!randomize) return interval;
-  const edge = interval * 0.1;
-  return Math.round(edge + Math.random() * (interval - 2 * edge));
+  // ±20%: wide enough that the next capture cannot be timed, narrow enough that
+  // two consecutive gaps never look like a fault in the recording.
+  const jitter = 0.4;
+  return Math.round(interval * (1 - jitter / 2 + Math.random() * jitter));
 }

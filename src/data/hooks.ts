@@ -2455,3 +2455,90 @@ export function useRoleCapabilities() {
     retry: false,
   });
 }
+
+// ---------------- screenshot review ----------------
+
+export interface ScreenshotRow {
+  id: string;
+  owner_id: string;
+  time_entry_id: string | null;
+  captured_at: string;
+  storage_path: string;
+  surface: string | null;
+  blurred: boolean;
+  width: number | null;
+  height: number | null;
+  /** Joined activity for the period this screenshot closes. */
+  keystrokes: number | null;
+  mouse_events: number | null;
+  idle_seconds: number | null;
+  screen_change_percent: number | null;
+  activity_source: string | null;
+  period_start: string | null;
+  period_end: string | null;
+}
+
+/**
+ * Screenshots for review, newest first, with the activity beside each one.
+ *
+ * RLS decides whose. An employee sees their own; a manager and above sees the
+ * team's. The query is identical either way, so the client never has to choose
+ * which rows it is allowed to ask for, and cannot get that choice wrong.
+ */
+export function useScreenshots(opts: { day?: string; ownerId?: string } = {}) {
+  const { day, ownerId } = opts;
+  return useQuery<ScreenshotRow[]>({
+    queryKey: ["screenshots", day ?? "all", ownerId ?? "all"],
+    queryFn: async () => {
+      if (!supabase) return [];
+      let q = supabase
+        .from("time_screenshots")
+        .select(
+          "id,owner_id,time_entry_id,captured_at,storage_path,surface,blurred,width,height," +
+          "activity_records(keystrokes,mouse_events,idle_seconds,screen_change_percent,source,period_start,period_end)",
+        )
+        .is("deleted_at", null)
+        .order("captured_at", { ascending: false })
+        .limit(500);
+      if (ownerId) q = q.eq("owner_id", ownerId);
+      if (day) {
+        q = q.gte("captured_at", `${day}T00:00:00`).lte("captured_at", `${day}T23:59:59.999`);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data as unknown as (ScreenshotRow & {
+        activity_records: {
+          keystrokes: number; mouse_events: number; idle_seconds: number;
+          screen_change_percent: number | null; source: string;
+          period_start: string; period_end: string;
+        } | null;
+      })[]).map((r) => ({
+        ...r,
+        keystrokes: r.activity_records?.keystrokes ?? null,
+        mouse_events: r.activity_records?.mouse_events ?? null,
+        idle_seconds: r.activity_records?.idle_seconds ?? null,
+        screen_change_percent: r.activity_records?.screen_change_percent ?? null,
+        activity_source: r.activity_records?.source ?? null,
+        period_start: r.activity_records?.period_start ?? null,
+        period_end: r.activity_records?.period_end ?? null,
+      }));
+    },
+    retry: 1,
+  });
+}
+
+/**
+ * A short-lived signed URL for one screenshot.
+ *
+ * The bucket is private and stays private. Nothing is ever made public and no
+ * storage credential reaches the browser: Supabase signs a URL server-side that
+ * expires, which is what §12 means by authenticated media. Sixty seconds is
+ * enough to render an image and short enough that a copied link is useless by
+ * the time it is pasted anywhere.
+ */
+export async function signedScreenshotUrl(path: string): Promise<string | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase.storage.from("time-screenshots").createSignedUrl(path, 60);
+  if (error) return null;
+  return data.signedUrl;
+}

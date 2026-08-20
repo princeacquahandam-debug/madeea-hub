@@ -74,7 +74,7 @@ const result = await page.evaluate(async () => {
   const hbc = await perceptualHash(blur(c));
 
   const delays = [];
-  for (let i = 0; i < 400; i++) delays.push(nextCaptureDelayMs(10, true));
+  for (let i = 0; i < 5000; i++) delays.push(nextCaptureDelayMs(10, true));
   const fixed = nextCaptureDelayMs(10, false);
 
   return {
@@ -94,6 +94,10 @@ const result = await page.evaluate(async () => {
       fixedMs: fixed,
       min: Math.min(...delays),
       max: Math.max(...delays),
+      // The mean is the assertion that matters. The first version of this test
+      // checked only that the values varied, so a generator averaging half the
+      // configured interval passed it.
+      meanMinutes: +(delays.reduce((a, b) => a + b, 0) / delays.length / 60000).toFixed(2),
       distinctValues: new Set(delays).size,
     },
   };
@@ -109,9 +113,11 @@ for (const [label, r] of [["SHARP  ", result.sharp], ["BLURRED", result.blurred]
   console.log("");
 }
 console.log("");
-console.log("randomised interval, 10 min window :",
-  Math.round(result.randomisation.min / 1000) + "s .. " + Math.round(result.randomisation.max / 1000) + "s",
-  "over 400 draws,", result.randomisation.distinctValues, "distinct");
+console.log("randomised interval, 10 min set    :",
+  (result.randomisation.min / 60000).toFixed(1) + " .. " + (result.randomisation.max / 60000).toFixed(1) + " min,",
+  result.randomisation.distinctValues, "distinct over 5000 draws");
+console.log("  mean must equal the setting      :", result.randomisation.meanMinutes, "min ->",
+  ok(Math.abs(result.randomisation.meanMinutes - 10) < 0.15));
 console.log("randomisation off                  :", result.randomisation.fixedMs / 60000 + " min exactly",
   ok(result.randomisation.fixedMs === 600000));
 
