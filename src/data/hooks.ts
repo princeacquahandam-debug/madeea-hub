@@ -436,6 +436,9 @@ export function useClientDocs(clientId: string | null | undefined) {
 }
 
 // ---------------- messages ----------------
+/** The newest N messages. Beyond this, the inbox needs paging, not a bigger N. */
+export const MESSAGE_FETCH_LIMIT = 1000;
+
 export function useMessages() {
   return useQuery<Message[]>({
     queryKey: ["messages"],
@@ -448,7 +451,16 @@ export function useMessages() {
            response time opened on the OLDEST message in the account: today's
            mail sat ~6000px down behind three-week-old onboarding spam, with no
            sort control anywhere to escape it. */
-        .order("received_at", { ascending: false });
+        .order("received_at", { ascending: false })
+        /* Explicit, because there was already a cap and nothing said so.
+           PostgREST applies a default maximum of 1000 rows, so a mailbox larger
+           than that was being silently truncated: the screen showed the newest
+           1000 and gave no sign the rest existed. Stating it here makes the
+           limit a decision rather than a surprise, and the page can say when it
+           has been reached. Going beyond this needs pagination, not a bigger
+           number: the list is virtualized, but the fetch and the JSON parse are
+           not. */
+        .limit(MESSAGE_FETCH_LIMIT);
       if (error) throw error;
       return (data as any[]).map((m) => ({
         id: m.id, sender_name: m.sender_name, subject: m.subject, preview: m.preview, body: m.body,

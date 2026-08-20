@@ -7,14 +7,14 @@ import type { Message } from "@/types/db";
 import { Badge } from "@/components/ui";
 import { initials, cn } from "@/lib/utils";
 import { generate } from "@/lib/ai";
-import { useClients, useMessages, useMyEmail } from "@/data/hooks";
+import { useClients, useMessages, useMyEmail, MESSAGE_FETCH_LIMIT } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { dayLength, formatDuration, isBreaching, responseHours, waitingHours } from "@/lib/sla";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { SlackComposer } from "@/components/SlackComposer";
 import { ChannelNotice } from "@/components/ChannelRail";
 import { SourceChips } from "@/components/SourceChips";
-import { MessageRow } from "@/components/MessageRow";
+import { ThreadList } from "@/components/ThreadList";
 import { REAL_CHANNELS, channelById, type ChannelId } from "@/lib/channels";
 import { ComposeWindow, type ComposeSeed } from "@/components/ComposeWindow";
 import { useClientContext } from "@/store/clientContext";
@@ -453,6 +453,14 @@ export default function Communication() {
         ))}
         <span className="ml-auto text-xs tabular-nums text-faint">
           {threads.length} {q ? "found" : threads.length === list.length ? "in view" : `of ${list.length}`}
+          {messages.length >= MESSAGE_FETCH_LIMIT && (
+            /* The cap was invisible before. A mailbox bigger than the fetch
+               limit looked complete, which is the kind of quiet lie that makes
+               someone conclude a message was never received. */
+            <span className="ml-2" title={`Only the newest ${MESSAGE_FETCH_LIMIT} messages are loaded`}>
+              · newest {MESSAGE_FETCH_LIMIT}
+            </span>
+          )}
         </span>
       </div>
 
@@ -499,57 +507,40 @@ export default function Communication() {
                 <ChannelNotice channel={soleSource} />
               </div>
             )}
-            <div className="card p-1.5">
-              <div className="space-y-0.5">
-                {threads.map((t) => {
-                  const m = t.head;
-                  const late = isBreaching(m, clientFor(m), cfg);
-                  const waiting = waitingHours(m, cfg);
-                  // Only an UNANSWERED breach is actionable. An answered-but-late
-                  // thread is history: worth recording, but flagging it red
-                  // implies work that no longer exists.
-                  const breached = late && waiting !== null;
-                  return (
-                    <MessageRow
-                      key={m.id}
-                      m={m}
-                      now={now}
-                      selected={selected?.id === m.id}
-                      breached={breached}
-                      threadCount={t.count}
-                      unread={t.unread}
-                      showChannel={showChannel}
-                      waitingLabel={waiting !== null ? formatDuration(waiting, dl) : undefined}
-                      onSelect={() => { setSelectedId(m.id); setReaderOpen(true); }}
-                    />
-                  );
-                })}
-                {threads.length === 0 && (
-                  <div className="px-4 py-10 text-center">
-                    <p className="text-sm font-medium">
-                      {q
-                        ? `Nothing matches "${query}".`
-                        : tab === "Needs Follow-up"
-                          ? "Nothing is waiting on a reply."
-                          : `No ${soleSource ? soleSource.label + " " : ""}messages in this view.`}
-                    </p>
-                    <p className="mx-auto mt-1 max-w-sm text-xs text-faint">
-                      {/* Names the actual reason a Slack inbox is empty. Nine
-                          times out of ten it is not that nobody has spoken, it
-                          is that the bot was never invited, and those look
-                          identical from here. */}
-                      {scopeId
-                        ? "You are filtered to one client, and a message only counts as theirs once their email domain is set on the client record."
-                        : q
-                        ? "Try a different word, or clear the search."
-                        : soleSource?.id === "slack"
-                          ? "Slack only shows channels the bot was invited to. Run /invite @MadeEA OS in the channel, then Pull messages."
-                          : "Try another channel or view, or pull the latest from Integrations."}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
+            <ThreadList
+              threads={threads}
+              selectedId={selected?.id ?? null}
+              clients={clients}
+              cfg={cfg}
+              now={now}
+              showChannel={showChannel}
+              clientFor={clientFor}
+              onSelect={(m) => { setSelectedId(m.id); setReaderOpen(true); }}
+              emptyState={
+  <div className="px-4 py-10 text-center">
+                      <p className="text-sm font-medium">
+                        {q
+                          ? `Nothing matches "${query}".`
+                          : tab === "Needs Follow-up"
+                            ? "Nothing is waiting on a reply."
+                            : `No ${soleSource ? soleSource.label + " " : ""}messages in this view.`}
+                      </p>
+                      <p className="mx-auto mt-1 max-w-sm text-xs text-faint">
+                        {/* Names the actual reason a Slack inbox is empty. Nine
+                            times out of ten it is not that nobody has spoken, it
+                            is that the bot was never invited, and those look
+                            identical from here. */}
+                        {scopeId
+                          ? "You are filtered to one client, and a message only counts as theirs once their email domain is set on the client record."
+                          : q
+                          ? "Try a different word, or clear the search."
+                          : soleSource?.id === "slack"
+                            ? "Slack only shows channels the bot was invited to. Run /invite @MadeEA OS in the channel, then Pull messages."
+                            : "Try another channel or view, or pull the latest from Integrations."}
+                      </p>
+                    </div>
+              }
+            />
           </div>
 
           {/* Sticky, with its own scroll.
