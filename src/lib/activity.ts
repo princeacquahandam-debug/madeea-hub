@@ -156,7 +156,7 @@ export function buildActivity(
       action: outbound ? "Email sent" : "Email received",
       at: m.received_at,
       status: m.category,
-      href: `/communication?message=${m.id}`,
+      href: `/inbox?message=${m.id}`,
     });
   }
 

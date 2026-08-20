@@ -162,7 +162,7 @@ export default function Integrations() {
             <Calendar size={18} className="text-faint" />
           </div>
           <p className="mt-3 text-sm text-muted">
-            Sync your inbox into the Communication Center and your upcoming events into the Dashboard.
+            Sync your mail into the Inbox and your upcoming events into the Dashboard.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {!googleConnected ? (
@@ -192,7 +192,7 @@ export default function Integrations() {
             </div>
           </div>
           <p className="mt-3 flex-1 text-sm text-muted">
-            Pull messages from the channels your MadeEA bot is in into the Communication Center.
+            Pull messages from the channels your MadeEA bot has joined into the Inbox.
           </p>
           <button className="btn-primary mt-4" onClick={syncSlack} disabled={!isSupabaseConfigured || busy === "slack"}>
             {busy === "slack" ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Sync Slack

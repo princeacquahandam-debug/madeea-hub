@@ -5,7 +5,7 @@ import { SlackMark, GmailMark, WhatsAppMark, DiscordMark } from "@/components/Br
 /**
  * Every place a client can reach us, declared once.
  *
- * WHY THIS FILE EXISTS. The Communication Center started as an email inbox with
+ * WHY THIS FILE EXISTS. The Inbox started as an email inbox with
  * Slack bolted on the side. WhatsApp and Discord are coming, and a second bolt
  * would have made a third inevitable. So the channel is data, not layout: the
  * rail, the filters, the compose surface and the empty states all read from

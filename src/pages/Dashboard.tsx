@@ -158,7 +158,7 @@ export default function Dashboard() {
               <button
                 key={m.id}
                 className="flex w-full items-center gap-3 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-left transition-colors hover:bg-red-500/15"
-                onClick={() => nav("/communication")}
+                onClick={() => nav("/inbox")}
               >
                 <AlertTriangle size={16} className="shrink-0 text-red-400" />
                 <div className="min-w-0 flex-1">

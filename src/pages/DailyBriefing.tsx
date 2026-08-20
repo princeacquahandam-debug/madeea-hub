@@ -134,7 +134,7 @@ export default function DailyBriefing() {
           ))}
         </Section>
 
-        <Section icon={Mail} title="Waiting on you" count={b.waiting.length} onAll={() => nav("/communication")}>
+        <Section icon={Mail} title="Waiting on you" count={b.waiting.length} onAll={() => nav("/inbox")}>
           {b.waiting.map((w) => (
             <div
               key={w.id}

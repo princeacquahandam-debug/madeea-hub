@@ -78,7 +78,7 @@ export function Notifications() {
       });
     }
     for (const m of messages.filter((x) => x.category === "urgent")) {
-      out.push({ id: `msg-${m.id}`, icon: AlertCircle, title: "Urgent message", desc: `${m.sender_name} · ${m.subject}`, path: "/communication" });
+      out.push({ id: `msg-${m.id}`, icon: AlertCircle, title: "Urgent message", desc: `${m.sender_name} · ${m.subject}`, path: "/inbox" });
     }
     for (const t of tasks.filter((x) => x.status !== "done")) {
       if (t.priority === "urgent") {

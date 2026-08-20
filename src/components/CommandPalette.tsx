@@ -57,7 +57,7 @@ export function CommandPalette() {
     const records: Item[] = [
       ...clients.filter((c) => `${c.name} ${c.company}`.toLowerCase().includes(term)).slice(0, 4).map((c) => ({ id: `c:${c.id}`, label: c.name, sub: c.company, path: "/clients" })),
       ...tasks.filter((t) => t.title.toLowerCase().includes(term)).slice(0, 4).map((t) => ({ id: `t:${t.id}`, label: t.title, sub: "Task", path: "/tasks" })),
-      ...messages.filter((m) => `${m.subject} ${m.sender_name}`.toLowerCase().includes(term)).slice(0, 4).map((m) => ({ id: `m:${m.id}`, label: m.subject, sub: m.sender_name, path: "/communication" })),
+      ...messages.filter((m) => `${m.subject} ${m.sender_name}`.toLowerCase().includes(term)).slice(0, 4).map((m) => ({ id: `m:${m.id}`, label: m.subject, sub: m.sender_name, path: "/inbox" })),
       ...sops.filter((s) => s.title.toLowerCase().includes(term)).slice(0, 4).map((s) => ({ id: `s:${s.id}`, label: s.title, sub: "SOP", path: "/sops" })),
     ];
     return [

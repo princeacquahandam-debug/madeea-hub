@@ -60,7 +60,7 @@ export function GlobalSearch() {
             <>
               <Group title="Clients" icon={Users} items={r!.clients.map((c) => ({ key: c.id, label: c.name, sub: c.company }))} onPick={() => go("/clients")} />
               <Group title="Tasks" icon={CheckSquare} items={r!.tasks.map((t) => ({ key: t.id, label: t.title, sub: t.client_name }))} onPick={() => go("/tasks")} />
-              <Group title="Messages" icon={Mail} items={r!.messages.map((m) => ({ key: m.id, label: m.subject, sub: m.sender_name }))} onPick={() => go("/communication")} />
+              <Group title="Messages" icon={Mail} items={r!.messages.map((m) => ({ key: m.id, label: m.subject, sub: m.sender_name }))} onPick={() => go("/inbox")} />
               <Group title="SOPs" icon={ClipboardCheck} items={r!.sops.map((s) => ({ key: s.id, label: s.title, sub: s.category }))} onPick={() => go("/sops")} />
               <Group title="Notes" icon={StickyNote} items={r!.notes.map((n) => ({ key: n.id, label: noteHeading(n), sub: "Note" }))} onPick={() => go("/notes")} />
             </>

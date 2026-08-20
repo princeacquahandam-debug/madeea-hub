@@ -93,7 +93,7 @@ export function findFollowUps(
       subtitle: client ? client.name : m.sender_name,
       reason: `No reply in ${days} ${plural(days)}`,
       days,
-      path: "/communication",
+      path: "/inbox",
     });
   }
 

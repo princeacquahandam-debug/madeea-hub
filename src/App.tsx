@@ -15,7 +15,7 @@ import Dashboard from "@/pages/Dashboard";
 // chunk streams in, AppShell's Suspense boundary shows the shimmer skeleton.
 const Tasks = lazy(() => import("@/pages/Tasks"));
 const EodReports = lazy(() => import("@/pages/EodReports"));
-const Communication = lazy(() => import("@/pages/Communication"));
+const Inbox = lazy(() => import("@/pages/Inbox"));
 const QuickActions = lazy(() => import("@/pages/QuickActions"));
 const ClientVault = lazy(() => import("@/pages/ClientVault"));
 const Sops = lazy(() => import("@/pages/Sops"));
@@ -59,7 +59,12 @@ function Gate() {
         <Route path="/tasks" element={<Tasks />} />
         <Route path="/eod" element={<EodReports />} />
         <Route path="/time" element={<Time />} />
-        <Route path="/communication" element={<Communication />} />
+        <Route path="/inbox" element={<Inbox />} />
+        {/* Kept, and redirecting rather than removed. Notifications, saved
+            links, the command palette and anything a person bookmarked all
+            point at the old path, and a rename that 404s them is not a rename,
+            it is a break. */}
+        <Route path="/communication" element={<Navigate to="/inbox" replace />} />
         <Route path="/meeting-intelligence" element={<MeetingIntelligence />} />
         <Route path="/quick-actions" element={<QuickActions />} />
         <Route path="/clients" element={<ClientVault />} />

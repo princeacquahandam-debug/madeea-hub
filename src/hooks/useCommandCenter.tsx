@@ -134,7 +134,7 @@ export function CommandCenterProvider({ children }: { children: ReactNode }) {
       ...ws.tasks.map((t) => ({ id: t.id, type: "task" as const, label: t.title, sub: t.done ? "Task · done" : "Task", path: "/tasks" })),
       ...tasks.map((t) => ({ id: `t:${t.id}`, type: "task" as const, label: t.title, sub: t.client_name, path: "/tasks" })),
       ...clients.map((c) => ({ id: `c:${c.id}`, type: "client" as const, label: c.name, sub: c.company, path: "/clients" })),
-      ...messages.map((m) => ({ id: `m:${m.id}`, type: "message" as const, label: m.subject, sub: m.sender_name, path: "/communication" })),
+      ...messages.map((m) => ({ id: `m:${m.id}`, type: "message" as const, label: m.subject, sub: m.sender_name, path: "/inbox" })),
       ...sops.map((s) => ({ id: `s:${s.id}`, type: "sop" as const, label: s.title, sub: s.category, path: "/sops" })),
       ...meetings.map((m) => ({ id: `mt:${m.id}`, type: "meeting" as const, label: m.title, sub: m.with, path: "/" })),
       ...automations.map((a) => ({ id: `a:${a.id}`, type: "automation" as const, label: a.name, sub: "Automation", path: "/automation" })),

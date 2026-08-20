@@ -71,7 +71,7 @@ export default function Communication() {
   const [readerOpen, setReaderOpen] = useState(false);
   const [query, setQuery] = useState("");
 
-  // Deep link from the client activity timeline: /communication?message=<id>
+  // Deep link from the client activity timeline: /inbox?message=<id>
   const [params, setParams] = useSearchParams();
   useEffect(() => {
     const id = params.get("message");

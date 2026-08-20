@@ -171,7 +171,7 @@ export function rankFocus({ tasks, messages, clients, cfg }: FocusSources, now =
       subtitle: client?.name ?? m.sender_name,
       score: reasons.reduce((s, r) => s + r.points, 0),
       reasons,
-      path: "/communication",
+      path: "/inbox",
       blockedBy: null,
     });
   }

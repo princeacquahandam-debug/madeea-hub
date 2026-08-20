@@ -198,7 +198,7 @@ export function findHomework(
               ? `You're meeting them with 1 of their emails still unanswered: "${waiting[0].subject || "(no subject)"}"`
               : `You're meeting them with ${waiting.length} of their emails still unanswered`,
           action: "Reply before the meeting, or lead with it as the first agenda item",
-          path: "/communication",
+          path: "/inbox",
         });
       }
 

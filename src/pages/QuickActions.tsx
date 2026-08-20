@@ -45,7 +45,7 @@ export default function QuickActions() {
     if (params.has("action")) setParams({}, { replace: true });
   }
 
-  // Deep link from the Communication Center (R-5.1.3). Only opens an action
+  // Deep link from the Inbox (R-5.1.3). Only opens an action
   // that is actually in the menu, so a stale or hand-typed link lands on the
   // list rather than an empty form.
   useEffect(() => {

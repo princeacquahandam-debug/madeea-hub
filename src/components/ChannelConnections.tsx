@@ -8,8 +8,7 @@ import { cn } from "@/lib/utils";
  * Every message channel and its real state, in one place.
  *
  * WHY THIS EXISTS. "Which channels are connected" was answerable only by
- * clicking into the Communication Center, choosing each one, and reading a note
- * in the sidebar. That is three steps to learn something that should be a
+ * opening the Inbox, choosing each channel, and reading a note beside it. That is three steps to learn something that should be a
  * glance, and it is the first question anyone asks when a client says they
  * messaged us somewhere.
  *

@@ -64,7 +64,7 @@ export const CURATED_QUICK_ACTIONS: Record<string, QuickActionSchema> = {
   "AI Draft Response": {
     /* The reply-to-this-message action. Distinct from Write Email: that one
        starts from a blank page, this one starts from a message somebody sent
-       you and answers it. The Communication Center already invokes this format
+       you and answers it. The Inbox already invokes this format
        when you hit Generate on a selected email. */
     howTo: "Paste the message you need to answer and get a reply written for you.",
     example: "Client asks to move Thursday, reply confirming Friday 3pm",

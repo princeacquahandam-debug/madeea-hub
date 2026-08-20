@@ -1,7 +1,7 @@
 /**
  * Email Helper. Context assembly for a grounded reply.
  *
- * The Communication Center already drafts replies, but it sends the model three
+ * The Inbox already drafts replies, but it sends the model three
  * fields: sender, subject, body. That produces a competent generic email, which is
  * exactly the problem, it reads like it was written by someone who has never met
  * the client.

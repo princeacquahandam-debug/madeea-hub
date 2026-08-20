@@ -116,7 +116,7 @@ export const GUIDES: Record<string, Guide> = {
       "Pick a message and the panel shows what the draft will know, the client's tone, the thread so far, and what you owe them.",
       "It also knows whether you're late, and adjusts the opening: no mention when you're on time, a real apology when you've breached.",
       "“What should this do?” changes the whole email. Declining reads nothing like chasing.",
-      "This is the Communication Center's draft with the client context added. Use that page for triage, this one to write.",
+      "This is the Inbox's draft with the client context added. Use that page for triage, this one to write.",
     ],
   },
   "/meeting-helper": {
