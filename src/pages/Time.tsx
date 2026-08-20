@@ -8,6 +8,7 @@ import {
 import type { TimeEntry } from "@/types/db";
 import { useNow } from "@/hooks/useNow";
 import { useScreenCapture } from "@/hooks/useScreenCapture";
+import { useClientContext } from "@/store/clientContext";
 
 /**
  * 30720 -> "8:32". Hours and minutes, which is how a timesheet is read and how
@@ -50,7 +51,16 @@ export default function Time() {
   const running = entries.find((e) => !e.ended_at);
   const now = useNow(running ? 1000 : null);
 
-  const [clientId, setClientId] = useState("");
+  /* Seeded from the client you are working on, so clocking in while scoped to
+     CandyPay books the time to CandyPay without asking again. Still a plain
+     select afterwards: the context is a default, not a lock, because an EA can
+     legitimately log a few minutes for someone else without switching. */
+  const { clientId: scopeId } = useClientContext();
+  const [clientId, setClientId] = useState(scopeId ?? "");
+  const [touchedClient, setTouchedClient] = useState(false);
+  useEffect(() => {
+    if (!touchedClient) setClientId(scopeId ?? "");
+  }, [scopeId, touchedClient]);
   const [note, setNote] = useState("");
   const [earlyReason, setEarlyReason] = useState("");
   const [askEarly, setAskEarly] = useState(false);
@@ -175,7 +185,12 @@ export default function Time() {
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[200px] flex-1">
               <label className="field-label" htmlFor="time-client">Client</label>
-              <select id="time-client" className="input" value={clientId} onChange={(e) => setClientId(e.target.value)}>
+              <select
+                id="time-client"
+                className="input"
+                value={clientId}
+                onChange={(e) => { setClientId(e.target.value); setTouchedClient(true); }}
+              >
                 <option value="">{clients.length ? "Select a client" : "No clients assigned to you"}</option>
                 {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>

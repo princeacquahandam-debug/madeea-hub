@@ -11,6 +11,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { Plus, Trash2, GripVertical, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2, Columns3, List as ListIcon, Search, MessageSquare, Send, ShieldCheck, Bookmark } from "lucide-react";
 import type { Task, TaskStatus, Priority, Subtask, Recurrence, TaskProgress, TaskAttachment, TaskActivity } from "@/types/db";
 import { Badge, PageHeader, Modal } from "@/components/ui";
+import { useClientContext } from "@/store/clientContext";
+import { ClientScopeBanner } from "@/components/ClientSwitcher";
 import { SkeletonCard } from "@/components/Skeleton";
 import { useTasks, useTaskMutations, useClients, useTaskComments, useTaskActivity, useCommentMutations, useCommentCounts, useMyRole, useSaved, useSavedMutations } from "@/data/hooks";
 import { useFollowUps } from "@/hooks/useFollowUps";
@@ -530,6 +532,7 @@ export default function Tasks() {
   const tasks = data ?? EMPTY_TASKS;
   const { setStatus, create, update, remove, approve } = useTaskMutations();
   const { data: clients = [] } = useClients();
+  const { clientId: scopeId } = useClientContext();
   const { flags } = useFollowUps();
   const { data: members = [] } = useWorkspaceMembers();
   // "mine" | "all" | a specific member id
@@ -570,6 +573,11 @@ export default function Tasks() {
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return tasks.filter((t) => {
+      /* The client context, applied before anything else. A task with no
+         client is deliberately excluded while scoped: internal work
+         (recruiting, training) is not this client's work, and showing it under
+         their name would misrepresent what they are being billed for. */
+      if (scopeId && t.client_id !== scopeId) return false;
       if (who === "unassigned" && t.assignee_id) return false;
       if (who === "mine" && t.assignee_id !== me?.user_id) return false;
       if (who !== "all" && who !== "mine" && who !== "unassigned" && t.assignee_id !== who) return false;
@@ -582,7 +590,7 @@ export default function Tasks() {
         .toLowerCase()
         .includes(needle);
     });
-  }, [tasks, who, q, me?.user_id]);
+  }, [tasks, who, q, me?.user_id, scopeId]);
 
   useEffect(() => { if (!activeId) setBoard(group(visible)); }, [visible, activeId]);
 
@@ -700,6 +708,7 @@ export default function Tasks() {
 
   return (
     <div>
+      <ClientScopeBanner note="Tasks with no client attached are hidden." />
       <PageHeader
         title="Task Manager"
         // The instruction has to match the view you are actually looking at,

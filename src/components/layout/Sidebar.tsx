@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
+import { ClientSwitcher } from "@/components/ClientSwitcher";
 import {
   Settings as SettingsIcon,
   ShieldCheck,
@@ -162,6 +163,12 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
           <ChevronLeft size={18} className="rotate-180" />
         </button>
 
+        {/* Collapsing must not hide which client is selected: that is the one
+            piece of state that changes what every other screen shows. */}
+        <div className="mb-3">
+          <ClientSwitcher collapsed />
+        </div>
+
         <NavScroller className="flex flex-col items-center gap-1">
           {/* Each group is a toggle icon; its item-icons only show while open.
               A rule between groups, because with several open this is otherwise
@@ -292,6 +299,11 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
           </button>
         )}
       </div>
+
+      {/* First thing under the wordmark, as in GHL. "Whose work am I looking
+          at" has to be answerable before anything else on the screen is read,
+          because a filtered view that looks unfiltered reads as an empty one. */}
+      <ClientSwitcher />
 
       <NavScroller className="px-3 space-y-5 pb-2">
         {/* Distinct tour anchors per group. Two groups sharing one data-tour value

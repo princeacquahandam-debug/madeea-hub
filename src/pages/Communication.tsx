@@ -15,6 +15,9 @@ import { ChannelRail, ChannelNotice } from "@/components/ChannelRail";
 import { MessageRow } from "@/components/MessageRow";
 import { REAL_CHANNELS, channelById, type ChannelId } from "@/lib/channels";
 import { EmailComposer } from "@/components/EmailComposer";
+import { useClientContext } from "@/store/clientContext";
+import { clientForMessage, messageInClient } from "@/lib/clientMatch";
+import { ClientScopeBanner } from "@/components/ClientSwitcher";
 
 const TABS = ["All", "Needs Follow-up", "Urgent", "Awaiting Reply", "Delegated"] as const;
 const categoryLabel: Record<string, string> = { urgent: "Urgent", reply: "Reply", delegate: "Delegate", archive: "Archive" };
@@ -34,8 +37,12 @@ export default function Communication() {
   const { data: clients = [] } = useClients();
   const cfg = useSlaSettings((s) => s.config);
   const dl = dayLength(cfg);
-  const clientFor = (m: Message) =>
-    clients.find((c) => c.id === m.client_id || c.name === m.client_name) ?? null;
+  /* Resolves a stored link first, then the sender's address, then their
+     domain. The old lookup only checked a stored client_id or a legacy name,
+     and nothing writes either, so it returned null for every message and the
+     SLA had no client to measure against. */
+  const clientFor = (m: Message) => clientForMessage(m, clients);
+  const { clientId: scopeId } = useClientContext();
   const { flags } = useFollowUps();
   const deadThreads = flags.filter((f) => f.kind === "dead_thread");
   const [tab, setTab] = useState<(typeof TABS)[number]>("All");
@@ -81,7 +88,10 @@ export default function Communication() {
     tab === "Needs Follow-up"
       ? messages.filter((m) => deadIds.has(m.id))
       : messages.filter(TAB_FILTER[tab])
-  ).filter(inChannel).filter(matches);
+  )
+    .filter(inChannel)
+    .filter((m) => messageInClient(m, scopeId, clients))
+    .filter(matches);
 
   /* Per-channel counts for the rail. Counted off the unfiltered set so the
      number does not change as you move between views, which would make it
@@ -185,6 +195,8 @@ export default function Communication() {
         </span>
       </div>
 
+      <ClientScopeBanner note="Messages are matched to a client by their sender's email domain." />
+
       <EmailComposer
         open={composing}
         onClose={() => setComposing(false)}
@@ -247,7 +259,9 @@ export default function Communication() {
                           times out of ten it is not that nobody has spoken, it
                           is that the bot was never invited, and those look
                           identical from here. */}
-                      {q
+                      {scopeId
+                        ? "You are filtered to one client, and a message only counts as theirs once their email domain is set on the client record."
+                        : q
                         ? "Try a different word, or clear the search."
                         : active.id === "slack"
                           ? "Slack only shows channels the bot was invited to. Run /invite @MadeEA OS in the channel, then Pull messages."

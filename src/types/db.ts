@@ -26,6 +26,15 @@ export interface Client {
    * RLS is unchanged, so every EA still sees every client.
    */
   lead_ea_id?: string | null;
+  /** The address this client is known by. */
+  email?: string | null;
+  /**
+   * Domains that identify this client's people, used to match an incoming
+   * message to them when nothing stored the link. Free-mail hosts are ignored
+   * at match time: half a dozen clients on gmail.com would otherwise collapse
+   * onto whichever one was checked first.
+   */
+  domains?: string[] | null;
 }
 
 export interface AutomationRun {
