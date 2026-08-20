@@ -51,12 +51,48 @@ async function accessToken(refresh: string): Promise<string> {
   return d.access_token as string;
 }
 
-/** RFC 2822, base64url. Gmail wants the whole message, not fields. */
-function rawMessage(
-  to: string, subject: string, body: string,
-  from?: string, cc?: string, bcc?: string,
-  inReplyTo?: string, references?: string,
-): string {
+export interface Attachment {
+  filename: string;
+  /** MIME type. Falls back to a safe generic rather than guessing. */
+  mime_type?: string;
+  /** Base64, already encoded by the browser. */
+  data: string;
+}
+
+const b64 = (s: string) => btoa(unescape(encodeURIComponent(s)));
+
+/** Base64 wrapped at 76 chars, which is what RFC 2045 requires of a body. */
+function wrap(data: string): string {
+  return (data.match(/.{1,76}/g) ?? []).join("\r\n");
+}
+
+/**
+ * Build the whole RFC 2822 message. Gmail wants the message, not fields.
+ *
+ * THE SHAPE DEPENDS ON WHAT IS ACTUALLY IN IT, and picking the smallest
+ * structure that fits matters: a plain note wrapped in multipart/mixed shows up
+ * in some older clients as an empty message with a mysterious attachment.
+ *
+ *   text only                 text/plain
+ *   text + html               multipart/alternative
+ *   anything + attachments    multipart/mixed wrapping the above
+ *
+ * The plain-text part is never dropped when HTML is present. It is what a
+ * screen reader, a watch, a plain-text client and most auto-responders actually
+ * read, and an HTML-only mail is a blank message to all of them.
+ */
+function rawMessage(opts: {
+  to: string; subject: string; text: string; html?: string;
+  from?: string; cc?: string; bcc?: string;
+  inReplyTo?: string; references?: string;
+  attachments?: Attachment[];
+}): string {
+  const { to, subject, text, html, from, cc, bcc, inReplyTo, references } = opts;
+  const files = (opts.attachments ?? []).filter((a) => a?.filename && a?.data);
+
+  const mixed = `mixed_${crypto.randomUUID()}`;
+  const alt = `alt_${crypto.randomUUID()}`;
+
   const headers = [
     from ? `From: ${from}` : null,
     `To: ${to}`,
@@ -66,34 +102,88 @@ function rawMessage(
        Gmail's threadId groups the message in OUR sent mailbox, but every other
        mail client threads on these two headers. Without them the recipient sees
        a brand new conversation whose subject happens to start with "Re:", which
-       is how one conversation quietly becomes two.
-       References carries the whole ancestry where we have it, In-Reply-To just
-       the immediate parent, which is what the standard asks for. */
+       is how one conversation quietly becomes two. */
     inReplyTo ? `In-Reply-To: ${inReplyTo}` : null,
     references ? `References: ${references}` : null,
     // Encoded, so a subject with an accent or a non-ASCII character survives.
-    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
+    `Subject: =?UTF-8?B?${b64(subject)}?=`,
     "MIME-Version: 1.0",
-    'Content-Type: text/plain; charset="UTF-8"',
-    "Content-Transfer-Encoding: base64",
   ].filter((h): h is string => h !== null);
 
-  /* The blank line between headers and body IS the message format.
-     This used to be one array ending in `.filter(Boolean)`, and "" is falsy, so
-     the separator was silently deleted. Everything then parsed as headers, the
-     body was dropped, and Gmail accepted it and returned a message id. The send
-     reported success and delivered an empty email, which is the worst kind of
-     failure: it looks like it worked at both ends.
+  const plainPart = [
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    wrap(b64(text)),
+  ].join("\r\n");
 
-     Two pieces joined by an explicit blank line, so no filter can eat the thing
-     holding them apart. */
-  const encodedBody = btoa(unescape(encodeURIComponent(body)));
-  const message = headers.join("\r\n") + "\r\n\r\n" + encodedBody;
+  const htmlPart = html
+    ? [
+        'Content-Type: text/html; charset="UTF-8"',
+        "Content-Transfer-Encoding: base64",
+        "",
+        wrap(b64(html)),
+      ].join("\r\n")
+    : null;
 
+  // The body, before any attachments are considered.
+  let contentType: string;
+  let content: string;
+
+  if (htmlPart) {
+    contentType = `multipart/alternative; boundary="${alt}"`;
+    content = [
+      `--${alt}`, plainPart,
+      `--${alt}`, htmlPart,
+      `--${alt}--`,
+    ].join("\r\n");
+  } else {
+    contentType = 'text/plain; charset="UTF-8"\r\nContent-Transfer-Encoding: base64';
+    content = wrap(b64(text));
+  }
+
+  if (files.length === 0) {
+    /* The blank line between headers and body IS the message format. This was
+       once built with `.filter(Boolean)`, and "" is falsy, so the separator was
+       deleted, everything parsed as headers, and Gmail accepted a message with
+       no body and returned a real id. It reported success and delivered an
+       empty email, which is the worst kind of failure: it looks like it worked
+       at both ends. Joined explicitly ever since. */
+    const message = [...headers, `Content-Type: ${contentType}`].join("\r\n") + "\r\n\r\n" + content;
+    return urlSafe(message);
+  }
+
+  const parts = [
+    `--${mixed}`,
+    `Content-Type: ${contentType}`,
+    "",
+    content,
+    ...files.flatMap((f) => [
+      `--${mixed}`,
+      // Quoted, or a filename containing a space truncates at the space and
+      // arrives as a file with no extension that nothing will open.
+      `Content-Type: ${f.mime_type || "application/octet-stream"}; name="${f.filename}"`,
+      `Content-Disposition: attachment; filename="${f.filename}"`,
+      "Content-Transfer-Encoding: base64",
+      "",
+      wrap(f.data.replace(/\s+/g, "")),
+    ]),
+    `--${mixed}--`,
+  ];
+
+  const message =
+    [...headers, `Content-Type: multipart/mixed; boundary="${mixed}"`].join("\r\n") +
+    "\r\n\r\n" +
+    parts.join("\r\n");
+
+  return urlSafe(message);
+}
+
+/** Gmail wants base64url of the whole message. */
+function urlSafe(message: string): string {
   return btoa(unescape(encodeURIComponent(message)))
     .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
-
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -111,7 +201,10 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const to = String(body.to ?? "").trim();
     const subject = String(body.subject ?? "").trim();
-    const text = String(body.body ?? "").trim();
+    /* `body` is the original field name and stays supported; `text` reads
+       better next to `html` and is what the composer sends. Accepting both
+       means the rich composer and every existing caller work unchanged. */
+    const text = String(body.text ?? body.body ?? "").trim();
     if (!to || !text) return json({ error: "to and body are required" }, 400);
 
     /* The account is a parameter. Defaults to the caller, and a future
@@ -150,13 +243,18 @@ Deno.serve(async (req) => {
       ? String(body.references)
       : inReplyTo; // A first reply's ancestry is just its parent.
 
-    const raw = rawMessage(
-      to, subject || "(no subject)", text,
-      body.from ? String(body.from) : undefined,
-      body.cc ? String(body.cc) : undefined,
-      body.bcc ? String(body.bcc) : undefined,
-      inReplyTo, references,
-    );
+    const raw = rawMessage({
+      to,
+      subject: subject || "(no subject)",
+      text,
+      html: body.html ? String(body.html) : undefined,
+      from: body.from ? String(body.from) : undefined,
+      cc: body.cc ? String(body.cc) : undefined,
+      bcc: body.bcc ? String(body.bcc) : undefined,
+      inReplyTo,
+      references,
+      attachments: Array.isArray(body.attachments) ? body.attachments : [],
+    });
 
     const send = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
       method: "POST",

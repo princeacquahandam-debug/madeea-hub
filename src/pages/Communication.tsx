@@ -14,7 +14,7 @@ import { SlackComposer } from "@/components/SlackComposer";
 import { ChannelRail, ChannelNotice } from "@/components/ChannelRail";
 import { MessageRow } from "@/components/MessageRow";
 import { REAL_CHANNELS, channelById, type ChannelId } from "@/lib/channels";
-import { EmailComposer, type ComposeSeed } from "@/components/EmailComposer";
+import { ComposeWindow, type ComposeSeed } from "@/components/ComposeWindow";
 import { useClientContext } from "@/store/clientContext";
 import { clientForMessage, messageInClient } from "@/lib/clientMatch";
 import { ClientScopeBanner } from "@/components/ClientSwitcher";
@@ -115,8 +115,17 @@ export default function Communication() {
   function quoted(m: Message): string {
     const when = m.received_at ? new Date(m.received_at).toLocaleString() : "earlier";
     const who = m.sender_email ? `${m.sender_name} <${m.sender_email}>` : m.sender_name;
-    const original = (m.body ?? m.preview ?? "").split("\n").map((l) => `> ${l}`).join("\n");
-    return ["", "", `On ${when}, ${who} wrote:`, original].join("\n");
+    /* Escaped before it is embedded. The original is somebody else's text, and
+       a subject or body containing markup would otherwise become live markup in
+       the editor and then in what we send. */
+    const esc = (v: string) =>
+      v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const original = esc(m.body ?? m.preview ?? "")
+      .split("\n")
+      .map((l) => `<div>${l || "<br>"}</div>`)
+      .join("");
+    // Two blank lines first, so there is somewhere to type above the quote.
+    return `<div><br></div><div><br></div><div>On ${esc(when)}, ${esc(who)} wrote:</div><blockquote>${original}</blockquote>`;
   }
 
   const reSubject = (s: string) => (/^re:/i.test(s) ? s : `Re: ${s}`);
@@ -140,7 +149,7 @@ export default function Communication() {
       to: m.sender_email ?? "",
       cc: [...new Set(others)].join(", "),
       subject: reSubject(m.subject ?? ""),
-      body: quoted(m),
+      html: quoted(m),
       context: `From ${m.sender_name}: ${m.body}`,
       threadId: (m as { thread_id?: string | null }).thread_id ?? null,
       inReplyTo: (m as { rfc_message_id?: string | null }).rfc_message_id ?? null,
@@ -153,7 +162,7 @@ export default function Communication() {
       title: "Forward",
       to: "",
       subject: fwdSubject(m.subject ?? ""),
-      body: quoted(m),
+      html: quoted(m),
       context: `Forwarding a message from ${m.sender_name}: ${m.body}`,
       // A forward starts a new conversation, so deliberately no threading here.
       threadId: null,
@@ -255,7 +264,7 @@ export default function Communication() {
 
       <ClientScopeBanner note="Messages are matched to a client by their sender's email domain." />
 
-      <EmailComposer
+      <ComposeWindow
         open={composing}
         onClose={() => setComposing(false)}
         seed={seed}
