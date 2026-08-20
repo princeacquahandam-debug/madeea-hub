@@ -303,6 +303,15 @@ export function ComposeWindow({
             : "bottom-0 right-0 h-[min(88vh,620px)] w-[min(100vw,540px)] sm:right-6",
       )}
       role="dialog"
+      /* Deliberately NOT aria-modal, and deliberately no focus trap.
+         This window is non-modal by design: the whole reason it docks instead
+         of covering the screen is that you can read the message you are
+         answering while you write. A review flagged that focus can tab out of
+         it into the list, which is true and is correct behaviour for a
+         non-modal dialog; Gmail's compose behaves the same way. Declaring
+         aria-modal here would tell a screen reader the rest of the page is
+         inert when it is not, which is worse than the thing it appears to fix.
+         Escape closes it, so there is always a way out. */
       aria-label={seed?.title ?? "New message"}
     >
       {/* Title bar. Doubles as the minimise toggle, which is the Gmail habit. */}

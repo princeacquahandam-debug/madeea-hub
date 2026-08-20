@@ -544,7 +544,15 @@
     border-color: var(--c-border);
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed;
+    /* Named properties, not `all`. `transition-all` makes the browser watch
+       every animatable property on every button, including layout ones like
+       width and padding, so an unrelated reflow animates instead of settling.
+       These four are the only ones a button actually changes. */
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed;
+    transition-property: background-color, color, box-shadow, opacity;
+    transition-duration: 150ms;
+    /* Touch: removes the 300ms double-tap delay without disabling zoom. */
+    touch-action: manipulation;
   }
   .btn-primary {
     @apply btn text-white;

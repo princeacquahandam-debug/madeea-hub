@@ -460,6 +460,19 @@ export default function Communication() {
         >
           <Wand2 size={15} /> Compose
         </button>
+        {/* A visible way into the shortcuts, because a keyboard feature nobody
+            can find is not a feature. Hidden below sm on purpose rather than by
+            accident: a phone has no physical keyboard, so the sheet would list
+            eleven things you cannot press. `?` still opens it anywhere a
+            keyboard exists. */}
+        <button
+          onClick={() => setShowHelp(true)}
+          aria-label="Keyboard shortcuts"
+          title="Keyboard shortcuts (?)"
+          className="hidden h-10 w-10 shrink-0 place-items-center rounded-xl border border-border text-faint transition-colors hover:bg-[var(--chip-bg)] hover:text-text sm:grid"
+        >
+          <Keyboard size={16} />
+        </button>
         {(sources.size === 0 || sources.has("slack")) && (
           <button
             className="btn-ghost h-10 shrink-0 border border-border"
