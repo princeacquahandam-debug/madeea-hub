@@ -232,6 +232,16 @@ export function clientSla(
 
 /** Any message currently past the breach threshold. Drives inbox/queue badges. */
 export function isBreaching(m: Message, client: Client | null, cfg: SlaConfig, now = new Date()): boolean {
+  /* No client, no breach.
+     An SLA is a promise made to a client about how fast we reply to them. A
+     message not linked to one is not a promise we made: a GitHub notification,
+     a Gmail onboarding tip and a newsletter are not people waiting on us.
+     Without this the flag fired on all 87 messages in the inbox, which is the
+     same as it firing on none, except it also buried the rows in red.
+     Linking happens by client domain, so the moment real clients exist with
+     their domains set, the messages that matter start being flagged again. */
+  if (!client) return false;
+
   const t = thresholdsFor(client, cfg);
   const answeredIn = responseHours(m, cfg);
   if (answeredIn !== null) return answeredIn > t.risk;

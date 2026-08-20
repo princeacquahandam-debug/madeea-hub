@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { Sparkles, Mail, Wand2, Lock } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { Sparkles, Mail, Wand2, Lock, Search, X } from "lucide-react";
 import { SlackMark } from "@/components/BrandIcons";
 import type { Message } from "@/types/db";
 import { Badge, PageHeader } from "@/components/ui";
@@ -29,7 +29,6 @@ const TAB_FILTER: Record<(typeof TABS)[number], (m: Message) => boolean> = {
 };
 
 export default function Communication() {
-  const navigate = useNavigate();
   const [composing, setComposing] = useState(false);
   const { data: messages = [], isLoading, refetch: refetchMessages } = useMessages();
   const { data: clients = [] } = useClients();
@@ -43,6 +42,8 @@ export default function Communication() {
   const [channel, setChannel] = useState<ChannelId>("all");
   const [slackOpen, setSlackOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+
   // Deep link from the client activity timeline: /communication?message=<id>
   const [params, setParams] = useSearchParams();
   useEffect(() => {
@@ -56,29 +57,31 @@ export default function Communication() {
   const [busy, setBusy] = useState(false);
 
   /* Picking Slack in the rail should BE picking Slack, not picking Slack and
-     then finding the button that turns Slack on. Selecting the channel opens
-     its composer; leaving the channel closes it. Still a toggle, so it can be
-     dismissed while staying on the channel, but the default matches the intent
-     of the click that got you here. */
-  useEffect(() => {
-    setSlackOpen(channel === "slack");
-  }, [channel]);
+     then finding the button that turns Slack on. */
+  useEffect(() => { setSlackOpen(channel === "slack"); }, [channel]);
 
   const deadIds = new Map(deadThreads.map((f) => [f.itemId, f]));
 
-  /* Two independent questions, applied in order.
-     The channel says WHERE a message came from; the view says WHICH of them you
-     want to see. Keeping them separate is what lets Slack, WhatsApp and Discord
-     drop in without touching the filters. */
+  /* One clock for the whole render. Every row shows a relative age, and letting
+     each compute its own Date.now() means two rows a millisecond apart can
+     disagree about which minute it is. */
+  const now = useMemo(() => Date.now(), [messages]);
+
   const active = channelById(channel);
   const inChannel = (m: Message) =>
     !active.source || (m as { source?: string }).source === active.source;
+
+  const q = query.trim().toLowerCase();
+  const matches = (m: Message) =>
+    !q ||
+    [m.sender_name, m.sender_email, m.subject, m.preview, m.body]
+      .some((v) => typeof v === "string" && v.toLowerCase().includes(q));
 
   const list = (
     tab === "Needs Follow-up"
       ? messages.filter((m) => deadIds.has(m.id))
       : messages.filter(TAB_FILTER[tab])
-  ).filter(inChannel);
+  ).filter(inChannel).filter(matches);
 
   /* Per-channel counts for the rail. Counted off the unfiltered set so the
      number does not change as you move between views, which would make it
@@ -112,32 +115,57 @@ export default function Communication() {
 
   return (
     <div>
-      <PageHeader title="Communication Center" subtitle="Triage, draft, and manage executive communications" />
+      <PageHeader title="Communication Center" subtitle="Every channel your clients reach you on, in one inbox" />
 
-      {/* One toolbar. The old page stacked a how-it-works strip, an AI action
-          row, a compose row and a Slack panel before you reached a single
-          message: four bands of chrome above the content. */}
+      {/* Search across the inbox. Distinct from the global search in the top
+          bar, which spans clients and tasks: this one narrows the list you are
+          looking at, which is why it sits with the list. */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <button className="btn-primary" onClick={() => setComposing(true)}>
+        <div className="relative min-w-[220px] flex-1">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+          <label htmlFor="inbox-search" className="sr-only">Search this inbox</label>
+          <input
+            id="inbox-search"
+            className="input h-10 pl-9 pr-9"
+            placeholder="Search sender, subject or message…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-faint hover:bg-[var(--chip-bg)] hover:text-text"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        <button className="btn-primary h-10 shrink-0" onClick={() => setComposing(true)}>
           <Wand2 size={15} /> Compose
         </button>
-        {active.id === "slack" || active.id === "all" ? (
+        {(active.id === "slack" || active.id === "all") && (
           <button
-            className="btn-ghost border border-border"
+            className="btn-ghost h-10 shrink-0 border border-border"
             aria-pressed={slackOpen}
             onClick={() => setSlackOpen((v) => !v)}
           >
             <SlackMark size={14} /> {slackOpen ? "Hide Slack" : "Slack"}
           </button>
-        ) : null}
-        <span className="mx-1 h-5 w-px bg-[var(--border-strong)]" />
+        )}
+      </div>
+
+      {/* View filters, kept apart from the channel rail: the rail picks WHERE
+          messages came from, these pick WHICH of them you are looking at. */}
+      <div className="mb-3 flex flex-wrap items-center gap-1.5">
         {TABS.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             aria-pressed={tab === t}
             className={cn(
-              "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+              "min-h-[34px] rounded-full px-3 text-xs font-medium transition-colors",
               tab === t ? "bg-accent text-white" : "text-muted hover:bg-[var(--chip-bg)] hover:text-text",
             )}
           >
@@ -152,7 +180,9 @@ export default function Communication() {
             )}
           </button>
         ))}
-        <span className="ml-auto text-xs tabular-nums text-faint">{list.length} in view</span>
+        <span className="ml-auto text-xs tabular-nums text-faint">
+          {list.length} {q ? "found" : "in view"}
+        </span>
       </div>
 
       <EmailComposer
@@ -170,53 +200,62 @@ export default function Communication() {
       ) : messages.length === 0 ? (
         <div className="card p-10 text-center text-sm text-faint">No messages yet. Connect Gmail from Integrations to populate your inbox.</div>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-[186px_minmax(0,1fr)] xl:grid-cols-[186px_minmax(0,1.6fr)_minmax(0,1fr)]">
-          {/* Channels. Primary navigation, kept apart from the view filters. */}
+        <div className="grid gap-3 lg:grid-cols-[60px_minmax(0,1fr)] xl:grid-cols-[60px_minmax(0,1.5fr)_minmax(0,1fr)]">
+          {/* The rail. Its own column so it reads as an edge, not a panel. */}
           <aside className="card h-fit p-2">
             <ChannelRail active={channel} counts={counts} onSelect={setChannel} />
+          </aside>
+
+          <div className="min-w-0">
             {active.note && (
-              <div className="mt-2 px-1">
+              <div className="mb-2">
                 <ChannelNotice channel={active} />
               </div>
             )}
-          </aside>
-
-          <div className="card overflow-hidden p-0">
-            <div className="divide-y divide-border">
-              {list.map((m) => {
-                const late = isBreaching(m, clientFor(m), cfg);
-                const waiting = waitingHours(m, cfg);
-                // Only an UNANSWERED breach is actionable. An answered-but-late
-                // thread is history: worth recording, but flagging it red
-                // implies work that no longer exists.
-                const breached = late && waiting !== null;
-                return (
-                  <MessageRow
-                    key={m.id}
-                    m={m}
-                    selected={selected?.id === m.id}
-                    breached={breached}
-                    waitingLabel={waiting !== null ? formatDuration(waiting, dl) : undefined}
-                    onSelect={() => setSelectedId(m.id)}
-                  />
-                );
-              })}
-              {list.length === 0 && (
-                <div className="px-4 py-10 text-center">
-                  <p className="text-sm font-medium">
-                    {tab === "Needs Follow-up" ? "Nothing is waiting on a reply." : `No ${active.label === "All" ? "" : active.label + " "}messages in this view.`}
-                  </p>
-                  <p className="mx-auto mt-1 max-w-sm text-xs text-faint">
-                    {/* Names the actual reason a Slack inbox is empty. Nine
-                        times out of ten it is not that nobody has spoken, it is
-                        that the bot was never invited, and those look identical
-                        from here. */}
-                    {active.id === "slack"
-                      ? "Slack only shows channels the bot was invited to. Run /invite @MadeEA OS in the channel, then Pull messages."
-                      : "Try another channel or view, or pull the latest from Integrations."}
-                  </p>
-                </div>
-              )}
+            <div className="card p-1.5">
+              <div className="space-y-0.5">
+                {list.map((m) => {
+                  const late = isBreaching(m, clientFor(m), cfg);
+                  const waiting = waitingHours(m, cfg);
+                  // Only an UNANSWERED breach is actionable. An answered-but-late
+                  // thread is history: worth recording, but flagging it red
+                  // implies work that no longer exists.
+                  const breached = late && waiting !== null;
+                  return (
+                    <MessageRow
+                      key={m.id}
+                      m={m}
+                      now={now}
+                      selected={selected?.id === m.id}
+                      breached={breached}
+                      waitingLabel={waiting !== null ? formatDuration(waiting, dl) : undefined}
+                      onSelect={() => setSelectedId(m.id)}
+                    />
+                  );
+                })}
+                {list.length === 0 && (
+                  <div className="px-4 py-10 text-center">
+                    <p className="text-sm font-medium">
+                      {q
+                        ? `Nothing matches "${query}".`
+                        : tab === "Needs Follow-up"
+                          ? "Nothing is waiting on a reply."
+                          : `No ${active.label === "All" ? "" : active.label + " "}messages in this view.`}
+                    </p>
+                    <p className="mx-auto mt-1 max-w-sm text-xs text-faint">
+                      {/* Names the actual reason a Slack inbox is empty. Nine
+                          times out of ten it is not that nobody has spoken, it
+                          is that the bot was never invited, and those look
+                          identical from here. */}
+                      {q
+                        ? "Try a different word, or clear the search."
+                        : active.id === "slack"
+                          ? "Slack only shows channels the bot was invited to. Run /invite @MadeEA OS in the channel, then Pull messages."
+                          : "Try another channel or view, or pull the latest from Integrations."}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

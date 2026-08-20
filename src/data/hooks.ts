@@ -465,6 +465,12 @@ export function useMessages() {
         triaged_at: m.triaged_at ?? null,
         category_locked: m.category_locked ?? false,
         is_bulk: m.is_bulk ?? false,
+        /* Which channel it arrived on. The mapper builds an explicit object, so
+           anything not named here is dropped, and `source` being missing meant
+           the channel rail counted zero for every channel and no row could show
+           where it came from. Nothing errored: the filter just quietly matched
+           nothing, which is the failure mode explicit mappers always have. */
+        source: m.source ?? null,
       }));
     },
   });
