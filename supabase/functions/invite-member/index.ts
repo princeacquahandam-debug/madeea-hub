@@ -47,16 +47,40 @@ Deno.serve(async (req) => {
     const { data: me } = await userClient
       .from("memberships").select("workspace_id, role").eq("user_id", authed.user.id).limit(1).maybeSingle();
     if (!me) return json({ error: "no workspace" }, 403);
-    if (me.role !== "admin") return json({ error: "forbidden. Admins only" }, 403);
 
-    const { email } = await req.json().catch(() => ({ email: "" }));
-    const addr = String(email ?? "").trim().toLowerCase();
+    /* Rank, not equality. This read `me.role !== "admin"`, which was correct
+       when admin was the highest role and became wrong the moment owner was
+       added above it: an owner would have been refused permission to invite
+       anyone. The same mistake was in is_admin() and is worth only making
+       once. */
+    const RANK: Record<string, number> = { owner: 40, admin: 30, manager: 20, employee: 10, ea: 10 };
+    const myRank = RANK[String(me.role)] ?? 0;
+    if (myRank < RANK.admin) return json({ error: "forbidden. Admins and owners only" }, 403);
+
+    const body = await req.json().catch(() => ({}));
+    const addr = String(body.email ?? "").trim().toLowerCase();
     if (!EMAIL_RE.test(addr)) return json({ error: "a valid email is required" }, 400);
 
+    /* The role now comes from the request, where it previously did not.
+       It used to be hardcoded to 'ea' so that an invite could never mint an
+       admin, which was the right call when nothing else stopped it: the effect
+       was that the role picker on screen decided nothing and everyone invited
+       arrived as an employee whatever was chosen.
+       What makes it safe to accept now is that it is checked twice. Here,
+       against the inviter's rank; and again by a trigger on `invites`, so a
+       request that bypasses this function entirely is still refused. */
+    const requested = String(body.role ?? "employee").toLowerCase();
+    const wantedRank = RANK[requested];
+    if (!wantedRank) return json({ error: `Unknown role: ${requested}` }, 400);
+    if (wantedRank > myRank) {
+      return json({ error: `You cannot invite someone as ${requested}, which is above your own role.` }, 403);
+    }
+    // 'employee' is the name people use; 'ea' is what seven existing rows carry
+    // and what the enum was created with. Same rank, one stored spelling.
+    const roleToStore = requested === "employee" ? "ea" : requested;
+
     // Service role: record the invite server-side, then send it. handle_new_user
-    // reads this row (never the signup metadata) to decide membership. Role is
-    // hardcoded to 'ea', it is deliberately not accepted from the body, so an
-    // invite can never mint an admin.
+    // reads this row, never the signup metadata, to decide membership.
     const admin = createClient(URL, SERVICE);
 
     // An already-accepted invite is what keeps an existing member in the
@@ -70,7 +94,7 @@ Deno.serve(async (req) => {
       {
         email: addr,
         workspace_id: me.workspace_id,
-        role: "ea",
+        role: roleToStore,
         invited_by: authed.user.id,
         created_at: new Date().toISOString(),
         expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),

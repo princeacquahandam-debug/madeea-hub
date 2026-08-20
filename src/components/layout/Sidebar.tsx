@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { ClientSwitcher } from "@/components/ClientSwitcher";
+import { ROLE_LABEL } from "@/data/hooks";
 import {
   Settings as SettingsIcon,
   ShieldCheck,
@@ -392,7 +393,9 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
             <p className="truncate text-sm font-medium">{user?.name ?? "-"}</p>
             {/* Was hardcoded "Elite EA", which is wrong for an admin and wrong
                 for anybody whose title is not that. Read the real role. */}
-            <p className="truncate text-xs capitalize text-faint">{role === "admin" ? "Admin" : "Elite EA"}</p>
+            {/* One label source. This tested role === "admin" and said "Elite EA" for
+                everything else, so an owner and a manager both read as an EA. */}
+            <p className="truncate text-xs text-faint">{ROLE_LABEL[role ?? "employee"] ?? "Employee"}</p>
           </div>
           <SettingsIcon size={15} className="text-faint transition-colors group-hover:text-text" />
         </NavLink>

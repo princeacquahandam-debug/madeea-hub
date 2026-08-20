@@ -858,7 +858,27 @@ export function useReminderMutations() {
 }
 
 // ---------------- workspace / admin ----------------
-export type MemberRole = "admin" | "ea";
+/* "ea" is the original spelling and what seven live rows carry; "employee" is
+   the same rank under the name people actually use. Both are accepted so the
+   existing data does not have to be rewritten to rename a concept. */
+export type MemberRole = "owner" | "admin" | "manager" | "employee" | "ea";
+
+export const ROLE_RANK: Record<string, number> = {
+  owner: 40, admin: 30, manager: 20, employee: 10, ea: 10,
+};
+
+/** What to call a role on screen. */
+export const ROLE_LABEL: Record<string, string> = {
+  owner: "Owner", admin: "Admin", manager: "Manager", employee: "Employee", ea: "Employee",
+};
+
+/** One line on what the role is for, shown beside the picker. */
+export const ROLE_BLURB: Record<string, string> = {
+  owner: "Everything, including appointing other owners. There must always be one.",
+  admin: "Everything except appointing owners. Configures capture, privacy and billing-level settings.",
+  manager: "Reviews team activity, screenshots and flags. Cannot download, delete or change settings.",
+  employee: "Tracks their own time and sees only their own activity.",
+};
 
 export interface Member {
   user_id: string;
@@ -909,7 +929,7 @@ export function useMyRole() {
       if (!uid) return "ea";
       const { data, error } = await supabase.from("memberships").select("role").eq("user_id", uid).limit(1).maybeSingle();
       if (error) return "ea";
-      return ((data?.role as MemberRole) ?? "ea");
+      return ((data?.role as MemberRole) ?? "employee");
     },
   });
 }
@@ -2352,6 +2372,50 @@ export function useEffectiveTimeSettings() {
         retentionDays: Number(row.retention_days) || 90,
       };
     },
+    retry: false,
+  });
+}
+
+/** Roles the signed-in person may grant, resolved in the database. */
+export function useGrantableRoles() {
+  return useQuery<string[]>({
+    queryKey: ["grantable-roles"],
+    queryFn: async () => {
+      if (!supabase) return [];
+      const { data, error } = await supabase.rpc("grantable_roles");
+      if (error || !data) return [];
+      return data as string[];
+    },
+    retry: false,
+  });
+}
+
+export interface RoleCapability {
+  capability: string;
+  owner: boolean;
+  admin: boolean;
+  manager: boolean;
+  employee: boolean;
+}
+
+/**
+ * The permission matrix, read from the database rather than written in the UI.
+ *
+ * A table of "what each role can do" maintained by hand in a component is a
+ * document, and documents drift: the policies change and the table keeps
+ * reassuring people about access that no longer exists. This renders from the
+ * same ranks the policies test.
+ */
+export function useRoleCapabilities() {
+  return useQuery<RoleCapability[]>({
+    queryKey: ["role-capabilities"],
+    queryFn: async () => {
+      if (!supabase) return [];
+      const { data, error } = await supabase.rpc("role_capabilities");
+      if (error || !data) return [];
+      return data as RoleCapability[];
+    },
+    staleTime: 10 * 60 * 1000,
     retry: false,
   });
 }
