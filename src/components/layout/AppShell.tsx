@@ -8,6 +8,7 @@ import { MadelineRail } from "./MadelineRail";
 import { AssistantWidget } from "@/components/AssistantWidget";
 import { FloatingSop } from "@/components/FloatingSop";
 import { GuideCard } from "@/components/GuideCard";
+import { MonitoringProvider } from "@/store/monitoringContext";
 import { CommandCenter } from "@/components/command-center";
 import { GuidedTour } from "@/components/GuidedTour";
 import { useUI } from "@/store/ui";
@@ -28,6 +29,7 @@ export function AppShell() {
   useRoutineRunner();
 
   return (
+    <MonitoringProvider>
     <div className="relative z-10 flex h-screen overflow-hidden bg-transparent">
       <AmbientBackground />
       {/* Desktop sidebar */}
@@ -71,5 +73,6 @@ export function AppShell() {
       <CommandCenter />
       <GuidedTour />
     </div>
+    </MonitoringProvider>
   );
 }

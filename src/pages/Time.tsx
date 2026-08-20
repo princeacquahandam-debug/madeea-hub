@@ -7,7 +7,8 @@ import { atLeast,
 } from "@/data/hooks";
 import type { TimeEntry } from "@/types/db";
 import { useNow } from "@/hooks/useNow";
-import { useMonitoring } from "@/hooks/useMonitoring";
+import { useMonitoringContext } from "@/store/monitoringContext";
+import type { MonitoringStatus } from "@/hooks/useMonitoring";
 import { useClientContext } from "@/store/clientContext";
 
 /**
@@ -80,18 +81,12 @@ export default function Time() {
 
   /* Screen capture is tied to the running session, so it cannot outlive the
      clock and cannot start without one. */
-  /* Capture settings come from the database rather than from this component,
-     because the same answer has to be given to the agent and to the screen. */
+  /* Read, not owned. This page used to call useMonitoring itself, which meant
+     the capture belonged to the page: navigating to Tasks unmounted it and the
+     stream was stopped mid-session with nothing said. It now lives in the app
+     shell, above the router, and this page is one consumer of it. */
   const { data: effective } = useEffectiveTimeSettings();
-  const capture = useMonitoring({
-    timeEntryId: running?.id ?? null,
-    settings: {
-      screenshotMinutes: effective?.screenshotMinutes ?? 10,
-      screenshotsEnabled: effective?.screenshotsEnabled ?? true,
-      blurScreenshots: effective?.blurScreenshots ?? false,
-      randomizeCapture: effective?.randomizeCapture ?? true,
-    },
-  });
+  const capture = useMonitoringContext();
   const screenshotsOn = effective?.screenshotsEnabled !== false;
 
   // Auto-prompt is impossible: getDisplayMedia needs a user gesture. So the
@@ -373,7 +368,7 @@ export default function Time() {
 }
 
 /** Compact status next to the clock-out button. */
-function CaptureBadge({ capture, minutes }: { capture: ReturnType<typeof useMonitoring>; minutes: number }) {
+function CaptureBadge({ capture, minutes }: { capture: MonitoringStatus; minutes: number }) {
   const map: Record<string, { text: string; cls: string }> = {
     capturing: { text: `Capturing every ${minutes}m`, cls: "bg-emerald-500/15 text-emerald-400" },
     off: { text: "Not capturing", cls: "bg-amber-500/15 text-amber-400" },
@@ -397,7 +392,7 @@ function CaptureBadge({ capture, minutes }: { capture: ReturnType<typeof useMoni
  * requires a user gesture. No amount of design removes that, so the screen says
  * what is needed instead of appearing to work and quietly capturing nothing.
  */
-function CapturePanel({ capture, minutes }: { capture: ReturnType<typeof useMonitoring>; minutes: number }) {
+function CapturePanel({ capture, minutes }: { capture: MonitoringStatus; minutes: number }) {
   const weak = capture.state === "capturing" && capture.surface === "browser";
   return (
     <section className="card mb-4 p-4">
