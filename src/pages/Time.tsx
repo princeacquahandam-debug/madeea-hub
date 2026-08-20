@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Clock, Play, Square, Trash2, CalendarDays, Camera, ShieldAlert, Info, MonitorPlay } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui";
-import {
+import { atLeast,
   entrySeconds, useMyClients, useMyRole, useTimeEntries, useTimeMutations,
   useTimeSettings, useEffectiveTimeSettings, workDate,
 } from "@/data/hooks";
@@ -46,7 +46,7 @@ export default function Time() {
   const { data: role } = useMyRole();
   const { data: settings } = useTimeSettings();
   const { start, stop, remove } = useTimeMutations();
-  const isAdmin = role === "admin";
+  const isAdmin = atLeast(role, "admin");
 
   const running = entries.find((e) => !e.ended_at);
   const now = useNow(running ? 1000 : null);

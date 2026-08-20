@@ -4,7 +4,7 @@ import { PlayCircle, LogOut, ShieldCheck, Sparkles, RotateCcw, KeyRound, Graduat
 import { PageHeader } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 import { useTour } from "@/store/tour";
-import { useMyRole } from "@/data/hooks";
+import { atLeast, useMyRole } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { useAlertRoutes, useAlertRouteMutations } from "@/data/hooks";
 import { useFollowUpSettings } from "@/store/followupSettings";
@@ -54,7 +54,7 @@ export default function Settings() {
 
         <ChangePassword />
 
-        {role === "admin" && (
+        {atLeast(role, "admin") && (
           <section className="card p-5">
             <p className="field-label">Administration</p>
             <p className="mb-3 text-sm text-muted">Manage team accounts, roles and invites. You can use the app normally and switch to the Admin panel any time.</p>
@@ -429,7 +429,7 @@ function AlertRouting() {
   const { data: routes = [], isLoading } = useAlertRoutes();
   const { setRoute } = useAlertRouteMutations();
   const { data: role } = useMyRole();
-  const isAdmin = role === "admin";
+  const isAdmin = atLeast(role, "admin");
   const sla = routes.find((r) => r.event === "sla_breach");
 
   return (

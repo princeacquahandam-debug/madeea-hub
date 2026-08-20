@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { KeyRound, Lock, Unlock, Plus, Trash2, Copy, Eye, EyeOff, ShieldAlert, ExternalLink } from "lucide-react";
 import { PageHeader, Modal, Badge } from "@/components/ui";
-import { useClients, useCredentialMutations, useCredentials, useMyRole, useVaultMeta } from "@/data/hooks";
+import { atLeast, useClients, useCredentialMutations, useCredentials, useMyRole, useVaultMeta } from "@/data/hooks";
 import { checkVerifier, deriveKey, KEY_VERSION, makeVerifier, newSalt, open as unseal, seal } from "@/lib/vault";
 import type { Credential } from "@/types/db";
 import { cn } from "@/lib/utils";
@@ -22,7 +22,7 @@ export default function Credentials() {
   const { data: clients = [] } = useClients();
   const { data: role } = useMyRole();
   const { initVault, save, remove, logAccess } = useCredentialMutations();
-  const isAdmin = role === "admin";
+  const isAdmin = atLeast(role, "admin");
 
   const [key, setKey] = useState<CryptoKey | null>(null);
   const [pass, setPass] = useState("");

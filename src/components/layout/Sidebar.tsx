@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { ClientSwitcher } from "@/components/ClientSwitcher";
-import { ROLE_LABEL } from "@/data/hooks";
+import { atLeast, ROLE_LABEL } from "@/data/hooks";
 import {
   Settings as SettingsIcon,
   ShieldCheck,
@@ -226,7 +226,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
               </div>
             );
           })}
-          {role === "admin" && (
+          {atLeast(role, "admin") && (
             <NavLink
               to="/admin"
               onClick={onNavigate}
@@ -349,7 +349,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
           );
         })}
 
-        {role === "admin" && (
+        {atLeast(role, "admin") && (
           <div data-tour="admin">
             <p className="eyebrow px-3 mb-2">Administration</p>
             <div className="space-y-0.5">

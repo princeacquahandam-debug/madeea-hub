@@ -4,7 +4,7 @@ import {
   Play, RotateCcw, ShieldCheck, Users, Video, type LucideIcon,
 } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui";
-import {
+import { atLeast,
   useAcademyAttempts, useAcademyCourse, useAcademyMutations, useAcademyProgress,
   useAcademyRoster, useMyRole, useWorkspaceMembers,
 } from "@/data/hooks";
@@ -40,7 +40,7 @@ export default function Academy() {
   const { data: attempts = [] } = useAcademyAttempts();
   const { data: role } = useMyRole();
   const { setLessonDone, grade } = useAcademyMutations();
-  const isAdmin = role === "admin";
+  const isAdmin = atLeast(role, "admin");
 
   const [openLesson, setOpenLesson] = useState<AcademyLesson | null>(null);
   const [quizModule, setQuizModule] = useState<AcademyModule | null>(null);

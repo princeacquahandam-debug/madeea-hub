@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ClipboardCheck, CheckCircle2, Circle, Sparkles, Play, Target, ArrowLeft, MessageSquare, Pin, Video, Trash2, Plus, Pencil, GripVertical, X } from "lucide-react";
 import type { Sop, SopStep, SopRun } from "@/types/db";
 import { PageHeader, Modal } from "@/components/ui";
-import { useSops, useSopRuns, useSopMutations, useClients, useRecordings, useRecordingMutations, recordingUrl, useTasks, useTaskMutations, useMyRole, DEMO_ME } from "@/data/hooks";
+import { atLeast, useSops, useSopRuns, useSopMutations, useClients, useRecordings, useRecordingMutations, recordingUrl, useTasks, useTaskMutations, useMyRole, DEMO_ME } from "@/data/hooks";
 import { ScreenRecorder } from "@/components/ScreenRecorder";
 import { generate } from "@/lib/ai";
 import { OutputViewer } from "@/components/OutputViewer";
@@ -41,7 +41,7 @@ export default function Sops() {
   const { data: runs = [] } = useSopRuns();
   const { data: tasks = [] } = useTasks();
   const { data: role } = useMyRole();
-  const isAdmin = role === "admin";
+  const isAdmin = atLeast(role, "admin");
   const { data: clients = [] } = useClients();
   const { start, setChecked, complete, saveSop, removeSop } = useSopMutations();
   const { create: createTask, setStatus: setTaskStatus } = useTaskMutations();

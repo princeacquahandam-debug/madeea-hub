@@ -19,6 +19,7 @@ export default function Admin() {
   const { data: members = [], isLoading } = useWorkspaceMembers();
   const { setRole, remove } = useMemberMutations();
   const invite = useInviteMember();
+  const [inviteRole, setInviteRole] = useState<MemberRole>("employee");
   const { data: tasks = [] } = useTasks();
   const workload = teamWorkload(members, tasks);
   const unclaimed = unassignedCount(tasks);
@@ -53,7 +54,7 @@ export default function Admin() {
     if (!addr) return;
     setNotice(null);
     try {
-      await invite.mutateAsync(addr);
+      await invite.mutateAsync({ email: addr, role: inviteRole });
       setNotice({ kind: "ok", text: `Invitation sent to ${addr}. They'll join as an EA once they accept.` });
       setEmail("");
     } catch {
@@ -156,7 +157,9 @@ export default function Admin() {
 
       <section className="card mb-5 p-5">
         <p className="field-label">Invite a team member</p>
-        <p className="mb-3 text-sm text-muted">Send an email invite. They join the shared team workspace as an EA and can see the whole team's work.</p>
+        <p className="mb-3 text-sm text-muted">
+          They join this workspace at the role you choose. The role decides what they can see and do, and it can be changed later.
+        </p>
         <form onSubmit={sendInvite} className="flex flex-col gap-2 sm:flex-row">
           <input
             type="email"
@@ -166,10 +169,24 @@ export default function Admin() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
+          {/* The list comes from the database, so it can only ever offer roles
+              this account may actually grant. The server checks again. */}
+          <label className="sr-only" htmlFor="invite-role">Role</label>
+          <select
+            id="invite-role"
+            className="input w-full sm:w-40"
+            value={inviteRole}
+            onChange={(e) => setInviteRole(e.target.value as MemberRole)}
+          >
+            {grantable.map((r) => (
+              <option key={r} value={r}>{ROLE_LABEL[r] ?? r}</option>
+            ))}
+          </select>
           <button className="btn-primary" disabled={invite.isPending}>
             <UserPlus size={15} /> {invite.isPending ? "Sending…" : "Send invite"}
           </button>
         </form>
+        <p className="mt-2 text-xs text-faint">{ROLE_BLURB[inviteRole]}</p>
       </section>
 
       {notice && (

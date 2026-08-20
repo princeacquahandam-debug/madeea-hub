@@ -19,7 +19,7 @@ import { Badge, PageHeader } from "@/components/ui";
 import { PageTour, usePageTour, type TourStep } from "@/components/PageTour";
 import { EOD_DATA, type CellStatus } from "@/data/eod";
 import { EOD_DATES, EOD_PEOPLE, IMPORTED_EOD } from "@/data/eodImport";
-import { useDeleteEod, useEodReports, useMyRole, useSubmitEod, useTaskMutations, useTasks, useWorkspaceMembers } from "@/data/hooks";
+import { atLeast, useDeleteEod, useEodReports, useMyRole, useSubmitEod, useTaskMutations, useTasks, useWorkspaceMembers } from "@/data/hooks";
 import { draftFromTasks, todayIso, type EodDraft as EodDraftState } from "@/lib/eodDraft";
 import type { EodReport } from "@/types/db";
 import { cn } from "@/lib/utils";
@@ -119,7 +119,7 @@ export default function EodReports() {
   const remove = useDeleteEod();
   const { create: createTask } = useTaskMutations();
   const { data: role } = useMyRole();
-  const isAdmin = role === "admin";
+  const isAdmin = atLeast(role, "admin");
 
   const [person, setPerson] = useState<string>("all");
   const [date, setDate] = useState<string>("all");

@@ -867,6 +867,21 @@ export const ROLE_RANK: Record<string, number> = {
   owner: 40, admin: 30, manager: 20, employee: 10, ea: 10,
 };
 
+/**
+ * Does this role rank at or above `min`?
+ *
+ * Eleven places across the app tested `role === "admin"`, written when admin
+ * was the highest role. Adding owner above it turned every one of them into a
+ * silent exclusion: an owner is not equal to "admin", so the Admin Panel link
+ * vanished from the sidebar of the person who owns the workspace, and ten other
+ * screens quietly dropped their admin sections for the same reason.
+ *
+ * A rank test cannot rot the same way. Adding a role above owner leaves every
+ * caller correct without being touched.
+ */
+export const atLeast = (role: string | null | undefined, min: MemberRole): boolean =>
+  (ROLE_RANK[role ?? ""] ?? 0) >= (ROLE_RANK[min] ?? 0);
+
 /** What to call a role on screen. */
 export const ROLE_LABEL: Record<string, string> = {
   owner: "Owner", admin: "Admin", manager: "Manager", employee: "Employee", ea: "Employee",
@@ -1000,9 +1015,15 @@ export function useMemberMutations() {
 // fallback message (the page still works for monitoring + role management).
 export function useInviteMember() {
   return useMutation({
-    mutationFn: async (email: string): Promise<{ ok: boolean; email?: string }> => {
+    /* Takes a role as well as an address. It used to take only the address,
+       which matched a function that hardcoded the role anyway, so the two were
+       consistently wrong together. */
+    mutationFn: async (
+      input: { email: string; role: MemberRole },
+    ): Promise<{ ok: boolean; email?: string }> => {
+      const { email, role } = input;
       if (!supabase) return { ok: true, email };
-      const { data, error } = await supabase.functions.invoke("invite-member", { body: { email } });
+      const { data, error } = await supabase.functions.invoke("invite-member", { body: { email, role } });
       if (error) throw new Error(error.message || "Invite service unavailable");
       return data as { ok: boolean; email?: string };
     },
@@ -2255,7 +2276,7 @@ export function useMyClients() {
   }, []);
 
   return useMemo(() => {
-    if (role === "admin") return clients;
+    if (atLeast(role, "admin")) return clients;
     if (!uid) return [];
     return clients.filter((c) => (c as { lead_ea_id?: string | null }).lead_ea_id === uid);
   }, [clients, role, uid]);
