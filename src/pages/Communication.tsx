@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNow } from "@/hooks/useNow";
 import { useSearchParams } from "react-router-dom";
-import { Sparkles, Mail, Wand2, Lock, Search, X, Reply, ReplyAll, Forward, ArrowLeft } from "lucide-react";
+import { Sparkles, Mail, Wand2, Lock, Search, X, Reply, ReplyAll, Forward, ArrowLeft, Keyboard } from "lucide-react";
 import { SlackMark } from "@/components/BrandIcons";
 import type { Message } from "@/types/db";
 import { Badge } from "@/components/ui";
 import { initials, cn } from "@/lib/utils";
 import { generate } from "@/lib/ai";
-import { useClients, useMessages, useMyEmail, MESSAGE_FETCH_LIMIT } from "@/data/hooks";
+import { useClients, useMessages, useMyEmail, useMessageMutations, MESSAGE_FETCH_LIMIT } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { dayLength, formatDuration, isBreaching, responseHours, waitingHours } from "@/lib/sla";
 import { useFollowUps } from "@/hooks/useFollowUps";
@@ -20,6 +20,7 @@ import { ComposeWindow, type ComposeSeed } from "@/components/ComposeWindow";
 import { useClientContext } from "@/store/clientContext";
 import { clientForMessage, messageInClient } from "@/lib/clientMatch";
 import { groupThreads, decodeEntities } from "@/lib/threads";
+import { useInboxKeys, INBOX_SHORTCUTS } from "@/hooks/useInboxKeys";
 import { ClientScopeBanner } from "@/components/ClientSwitcher";
 
 /* The only navigation inside the inbox. A view is a saved question about what
@@ -81,6 +82,12 @@ export default function Communication() {
     setParams({}, { replace: true });
   }, [params, setParams]);
   const [draftError, setDraftError] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
+  /* Announced to a screen reader. Nothing on this surface had aria-live, so
+     "89 of 96", "Loading", "Drafting" and "Sent" were all silent, and the
+     result of every action had to be discovered by hunting for it. */
+  const [announcement, setAnnouncement] = useState("");
+  const { setCategory } = useMessageMutations();
   const [busy, setBusy] = useState(false);
 
   /* Picking Slack in the rail should BE picking Slack, not picking Slack and
@@ -160,6 +167,16 @@ export default function Communication() {
   const selected = list.find((m) => m.id === selectedId) ?? list[0] ?? null;
 
   useEffect(() => { setDraftError(null); }, [selectedId]);
+
+  /* Result counts, spoken. A search that narrows 89 conversations to 2 is a
+     large change that was previously visible only as a number on screen. */
+  useEffect(() => {
+    if (isLoading) { setAnnouncement("Loading messages"); return; }
+    setAnnouncement(`${threads.length} conversation${threads.length === 1 ? "" : "s"}${q ? ` matching ${query}` : ""}`);
+    // Deliberately not depending on `query`: the announcement should follow the
+    // RESULT, not every keystroke, or a screen reader reads the whole alphabet.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threads.length, isLoading]);
 
   /* Quoting, the way every mail client does it. Kept plain text: the body we
      hold is a Gmail snippet, and dressing a snippet up as the full original
@@ -355,6 +372,45 @@ export default function Communication() {
     </>
   );
 
+  /* Moving selection is state, not focus. The list is virtualized, so the row
+     you want may not be in the DOM at all, and focus-based movement would stall
+     at the edge of the rendered window. */
+  function move(delta: number) {
+    if (threads.length === 0) return;
+    const i = threads.findIndex((t) => t.head.id === selected?.id);
+    const next = threads[Math.min(Math.max((i < 0 ? 0 : i) + delta, 0), threads.length - 1)];
+    if (!next) return;
+    setSelectedId(next.head.id);
+    setAnnouncement(`${decodeEntities(next.head.sender_name ?? "")}. ${decodeEntities(next.head.subject ?? "")}`);
+  }
+
+  /* Triage from the keyboard, and the first callers setCategory has ever had.
+     The mutation existed with none, so a wrong AI triage could not be corrected
+     and archived mail was unreachable. */
+  function triage(category: Message["category"], said: string) {
+    if (!selected) return;
+    setCategory.mutate({ id: selected.id, category });
+    setAnnouncement(`${said}: ${decodeEntities(selected.subject ?? "")}`);
+  }
+
+  useInboxKeys({
+    next: () => move(1),
+    prev: () => move(-1),
+    open: () => { if (selected) { setSelectedId(selected.id); setReaderOpen(true); } },
+    reply: () => { if (selected) openReply(selected, false); },
+    compose: () => { setSeed({ title: "Write an email" }); setComposing(true); },
+    archive: () => triage("archive", "Archived"),
+    done: () => triage("archive", "Marked done"),
+    delegate: () => triage("delegate", "Delegated"),
+    search: () => (document.getElementById("inbox-search") as HTMLInputElement | null)?.focus(),
+    help: () => setShowHelp((v) => !v),
+    escape: () => {
+      if (showHelp) { setShowHelp(false); return; }
+      if (readerOpen) { setReaderOpen(false); return; }
+      if (query) setQuery("");
+    },
+  }, !composing);
+
   function toggleSource(id: ChannelId) {
     setSources((prev) => {
       if (id === "all") return new Set();
@@ -465,6 +521,52 @@ export default function Communication() {
       </div>
 
       <ClientScopeBanner note="Messages are matched to a client by their sender's email domain." />
+
+      {/* Announced, never shown. Selection changes, triage results and load
+          states were all silent to a screen reader, so the only way to learn
+          what an action did was to go looking for it. `polite` so it waits for
+          a pause rather than interrupting. */}
+      <div aria-live="polite" role="status" className="sr-only">{announcement}</div>
+
+      {showHelp && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowHelp(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Keyboard shortcuts"
+        >
+          <div
+            className="w-full max-w-sm rounded-xl border border-[var(--border-strong)] bg-surface p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center gap-2">
+              <Keyboard size={16} className="text-accent" />
+              <h2 className="text-sm font-semibold">Keyboard shortcuts</h2>
+              <button
+                onClick={() => setShowHelp(false)}
+                aria-label="Close"
+                className="ml-auto grid h-7 w-7 place-items-center rounded text-faint hover:bg-[var(--chip-bg)] hover:text-text"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <dl className="space-y-1.5">
+              {INBOX_SHORTCUTS.map((s) => (
+                <div key={s.keys} className="flex items-baseline gap-3 text-[12.5px]">
+                  <dt className="w-24 shrink-0">
+                    <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">{s.keys}</kbd>
+                  </dt>
+                  <dd className="text-muted">{s.does}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-3 border-t border-border pt-2.5 text-[11.5px] text-faint">
+              Shortcuts do not fire while you are typing in a field or writing an email.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Below lg the reader is an overlay, not a third column.
           Squashing three panes into a phone gives a 56px reader; stacking them
