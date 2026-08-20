@@ -17,10 +17,15 @@
   --c-surface: 20 32 48;     /* #142030 */
   --c-surface-2: 30 46 66;   /* #1e2e42 */
   --c-muted: 142 161 181;    /* #8ea1b5 */
-  --c-faint: 95 113 134;     /* #5f7186 */
+  --c-faint: 117 133 151;    /* #758597 — was #5f7186 at 3.41:1, below AA */
   --c-text: 233 240 247;     /* #e9f0f7 */
   --c-accent: 253 88 17;     /* #fd5811 */
   --c-accent-soft: 255 133 82;
+  /* Filled buttons only. White on #fd5811 is 3.19:1, so the most-clicked
+     control in the app failed AA. Darkening the accent itself would restyle
+     every border, dot and focus ring; this keeps the brand orange for those and
+     deepens it only where white text sits ON it. */
+  --c-accent-strong: 209 73 14;   /* #d1490e — white on it, 4.50:1 */
 
   --c-border: rgba(255, 255, 255, 0.09);
   --border-strong: rgba(255, 255, 255, 0.14);
@@ -52,14 +57,17 @@
   --c-bg: 246 241 233;       /* #F6F1E9 warm cream */
   --c-surface: 255 255 255;  /* white cards */
   --c-surface-2: 244 239 231; /* #F4EFE7 warm cream container/hover */
-  --c-muted: 122 112 100;    /* #7A7064 warm grey */
-  --c-faint: 165 155 143;    /* #A59B8F warm faint */
+  --c-muted: 97 89 79;       /* #61594f — was #7A7064 at 4.39:1, below AA */
+  --c-faint: 110 103 95;     /* #6e675f — was #A59B8F at 2.21:1, the worst pair on the screen */
   --c-text: 42 37 32;        /* #2A2520 warm near-black */
   --c-accent: 253 88 17;
   --c-accent-soft: 216 72 14; /* #d8480e */
+  --c-accent-strong: 193 66 12;  /* #c1420c — white on it, 5.1:1 on cream */
 
   --c-border: rgba(66, 52, 36, 0.10);
-  --border-strong: rgba(66, 52, 36, 0.17);
+  /* 0.17 measured 1.36:1 against a white card, so the selected row's ring was
+     invisible in light while the same declaration gave 17:1 in dark. */
+  --border-strong: rgba(66, 52, 36, 0.55);
 
   /* Animated background retained (unchanged). */
   --ambient-base: linear-gradient(150deg, #eef0f4 0%, #e9e6ee 42%, #f3e9e2 72%, #f6ede4 100%);
@@ -530,7 +538,7 @@
     @apply block text-xs font-medium text-muted mb-1.5;
   }
   .input {
-    @apply w-full rounded-xl border px-3 py-2 text-sm placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent/40;
+    @apply w-full rounded-xl border px-3 py-2 text-sm placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent/70;
     background: var(--glass-2);
     color: rgb(var(--c-text));
     border-color: var(--c-border);
@@ -539,8 +547,14 @@
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply btn text-white bg-accent;
+    @apply btn text-white;
+    background: rgb(var(--c-accent-strong));
     box-shadow: 0 4px 14px rgba(253, 88, 17, 0.3);
+  }
+  /* The glow is the resting state's accent cue and read as a live CTA even at
+     50% opacity, so a disabled primary still looked clickable. */
+  .btn-primary:disabled {
+    box-shadow: none;
   }
   .btn-primary:hover {
     filter: brightness(1.07);
@@ -742,4 +756,17 @@
 
 @media (prefers-reduced-motion: reduce) {
   .cc-overlay, .cc-enter, .cc-pop, .cc-typing span { animation: none !important; }
+}
+
+/* ---------------------------------------------------------------------------
+   Keyboard focus.
+   Nothing on the Communication surface defined a focus style, so every control
+   fell back to the UA default outline, and the search input suppressed even
+   that. A keyboard user could not see where they were. One ring, applied to
+   anything focusable, only for keyboard focus so a mouse click stays quiet.
+--------------------------------------------------------------------------- */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid rgb(var(--c-accent));
+  outline-offset: 2px;
+  border-radius: 0.5rem;
 }

@@ -30,8 +30,20 @@ export function TopBar({ onMenu }: { onMenu?: () => void }) {
         <img src="/icon.png" alt="MadeEA" className="h-7 w-7 shrink-0 object-contain" />
       </div>
       <span className="hidden sm:block text-sm font-medium text-muted">{todayLabel()}</span>
-      <div className="ml-auto flex items-center gap-2">
-        <div className="hidden items-center gap-2 sm:flex" data-tour="search">
+      {/* min-w-0 + shrink lets this row give ground instead of overflowing.
+          It was `ml-auto flex` with no wrap and no scroll inside an
+          `overflow-hidden` ancestor, so at 1024px it ran 101px past the edge
+          and at 375px 62px past, with no scrollbar to reach it. Notifications
+          was entirely off-screen at both, which is the one control you cannot
+          afford to lose: it is how the app tells you something needs you. */}
+      <div className="ml-auto flex min-w-0 items-center gap-1 overflow-x-auto sm:gap-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]{display:none}">
+        {/* Global search appears only when there is room for it.
+            At 1024px it pushed the action row 123px past its own edge, so
+            Notifications scrolled out of sight: a badge you cannot see is not a
+            notification. It is also half of the "two search bars" problem, since
+            the inbox has its own scoped field. Below xl it collapses into the
+            command palette, which is the same search with a keyboard door. */}
+        <div className="hidden items-center gap-2 xl:flex" data-tour="search">
           <GlobalSearch />
         </div>
         {/* Clock in / out, deliberately on every page. See ClockControl. */}

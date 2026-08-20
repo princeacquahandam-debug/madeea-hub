@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNow } from "@/hooks/useNow";
 import { useSearchParams } from "react-router-dom";
-import { Sparkles, Mail, Wand2, Lock, Search, X, Reply, ReplyAll, Forward } from "lucide-react";
+import { Sparkles, Mail, Wand2, Lock, Search, X, Reply, ReplyAll, Forward, ArrowLeft } from "lucide-react";
 import { SlackMark } from "@/components/BrandIcons";
 import type { Message } from "@/types/db";
 import { Badge } from "@/components/ui";
@@ -52,6 +52,11 @@ export default function Communication() {
   const [channel, setChannel] = useState<ChannelId>("all");
   const [slackOpen, setSlackOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /* Distinct from `selected`, which falls back to list[0] so the desktop pane
+     is never blank. On mobile the reader is an overlay, and an overlay that
+     opens by itself because a fallback fired would cover the inbox the moment
+     the page loaded. Only a real click opens it. */
+  const [readerOpen, setReaderOpen] = useState(false);
   const [query, setQuery] = useState("");
 
   // Deep link from the client activity timeline: /communication?message=<id>
@@ -60,6 +65,7 @@ export default function Communication() {
     const id = params.get("message");
     if (!id) return;
     setSelectedId(id);
+    setReaderOpen(true);
     setTab("All"); // the linked email may not be in the current tab
     setParams({}, { replace: true });
   }, [params, setParams]);
@@ -198,6 +204,101 @@ export default function Communication() {
     }
   }
 
+  /* The reader's contents, rendered in two places: the sticky desktop column
+     and the mobile overlay below. Extracted rather than duplicated, so a
+     change to how a message reads cannot silently apply to only one of the
+     two screens people actually use. */
+  const readerBody = (
+    <>
+            {selected ? (
+              <>
+                <div className="flex items-center gap-3 border-b border-border pb-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/20 text-xs font-semibold text-accent-soft">
+                    {initials(selected.sender_name)}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{selected.sender_name}</p>
+                    {selected.client_title && <p className="text-xs text-faint">{selected.client_title}</p>}
+                  </div>
+                  <Badge tone={selected.category}>{categoryLabel[selected.category]}</Badge>
+                </div>
+
+                {/* What the pane never had. The "Reply" chip above is the triage
+                    CATEGORY, not an action, and there was no way to answer a
+                    message from the screen you read it on. */}
+                {/* Compact enough to stay on one line in a narrow reading
+                    pane. At full button size these wrapped onto two rows and
+                    pushed the message itself further down the very column that
+                    exists to show it. */}
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <button className="btn-primary px-2.5 py-1.5 text-xs" onClick={() => openReply(selected, false)}>
+                    <Reply size={13} /> Reply
+                  </button>
+                  <button
+                    className="btn-ghost border border-border px-2.5 py-1.5 text-xs"
+                    onClick={() => openReply(selected, true)}
+                    // Only meaningful when somebody else was actually on it.
+                    disabled={
+                      ([...((selected as { to_emails?: string[] }).to_emails ?? []),
+                        ...((selected as { cc_emails?: string[] }).cc_emails ?? [])].length < 2)
+                    }
+                    title={
+                      ([...((selected as { to_emails?: string[] }).to_emails ?? []),
+                        ...((selected as { cc_emails?: string[] }).cc_emails ?? [])].length < 2)
+                        ? "Only one recipient, so this is the same as Reply"
+                        : "Reply to everyone on this message"
+                    }
+                  >
+                    <ReplyAll size={13} /> Reply all
+                  </button>
+                  <button className="btn-ghost border border-border px-2.5 py-1.5 text-xs" onClick={() => openForward(selected)}>
+                    <Forward size={13} /> Forward
+                  </button>
+                </div>
+
+                {selected.triage_reason && (
+                  <p className="mt-3 flex items-start gap-1.5 text-xs text-faint">
+                    {selected.category_locked ? <Lock size={12} className="mt-px shrink-0" /> : <Wand2 size={12} className="mt-px shrink-0" />}
+                    <span>
+                      {selected.triage_reason}
+                      {selected.triage_source === "ai" && " · sorted by AI"}
+                      {selected.triage_source === "rules" && " · matched a team rule"}
+                    </span>
+                  </p>
+                )}
+
+                <div className="mt-4">
+                  <p className="field-label">Original Message</p>
+                  <div className="rounded-lg bg-surface-2 p-3">
+                    <p className="text-sm font-medium">{selected.subject}</p>
+                    <p className="mt-1 text-sm text-muted">{selected.body}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="field-label mb-0">AI Draft Response</p>
+                    <button className="btn-primary py-1.5" onClick={generateDraft} disabled={busy}>
+                      <Sparkles size={14} /> {busy ? "Drafting…" : "AI Draft Response"}
+                    </button>
+                  </div>
+                  {draft ? (
+                    /* text-zinc-200 was hardcoded here, so in light theme this rendered
+                         near-white text on a near-white card: 1.13:1, invisible. The
+                         token themes; the Tailwind palette shade does not. */
+                      <pre className="whitespace-pre-wrap rounded-lg bg-surface-2 p-3 text-sm text-text">{draft}</pre>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border py-8 text-center text-faint">
+                      <Mail size={24} />
+                      <p className="text-xs">Click "AI Draft Response" to generate a professional reply</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : <p className="py-10 text-center text-sm text-faint">Select a message.</p>}
+    </>
+  );
+
   return (
     <div>
       {/* ONE row where there were three.
@@ -282,6 +383,27 @@ export default function Communication() {
 
       <ClientScopeBanner note="Messages are matched to a client by their sender's email domain." />
 
+      {/* Below lg the reader is an overlay, not a third column.
+          Squashing three panes into a phone gives a 56px reader; stacking them
+          puts the message 6000px below the list, which is what used to happen
+          and made tapping a row look like a no-op. An overlay is the only
+          arrangement where tapping a message on a phone shows the message. */}
+      {readerOpen && selected && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-bg lg:hidden" role="dialog" aria-label="Message">
+          <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3">
+            <button
+              onClick={() => setReaderOpen(false)}
+              className="btn-ghost border border-border px-2.5 py-1.5 text-xs"
+              autoFocus
+            >
+              <ArrowLeft size={14} /> Inbox
+            </button>
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold">{selected.sender_name}</span>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">{readerBody}</div>
+        </div>
+      )}
+
       <ComposeWindow
         open={composing}
         onClose={() => setComposing(false)}
@@ -324,7 +446,7 @@ export default function Communication() {
                       selected={selected?.id === m.id}
                       breached={breached}
                       waitingLabel={waiting !== null ? formatDuration(waiting, dl) : undefined}
-                      onSelect={() => setSelectedId(m.id)}
+                      onSelect={() => { setSelectedId(m.id); setReaderOpen(true); }}
                     />
                   );
                 })}
@@ -356,90 +478,15 @@ export default function Communication() {
             </div>
           </div>
 
-          <div className="card p-5">
-            {selected ? (
-              <>
-                <div className="flex items-center gap-3 border-b border-border pb-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/20 text-xs font-semibold text-accent-soft">
-                    {initials(selected.sender_name)}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{selected.sender_name}</p>
-                    {selected.client_title && <p className="text-xs text-faint">{selected.client_title}</p>}
-                  </div>
-                  <Badge tone={selected.category}>{categoryLabel[selected.category]}</Badge>
-                </div>
-
-                {/* What the pane never had. The "Reply" chip above is the triage
-                    CATEGORY, not an action, and there was no way to answer a
-                    message from the screen you read it on. */}
-                {/* Compact enough to stay on one line in a narrow reading
-                    pane. At full button size these wrapped onto two rows and
-                    pushed the message itself further down the very column that
-                    exists to show it. */}
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  <button className="btn-primary px-2.5 py-1.5 text-xs" onClick={() => openReply(selected, false)}>
-                    <Reply size={13} /> Reply
-                  </button>
-                  <button
-                    className="btn-ghost border border-border px-2.5 py-1.5 text-xs"
-                    onClick={() => openReply(selected, true)}
-                    // Only meaningful when somebody else was actually on it.
-                    disabled={
-                      ([...((selected as { to_emails?: string[] }).to_emails ?? []),
-                        ...((selected as { cc_emails?: string[] }).cc_emails ?? [])].length < 2)
-                    }
-                    title={
-                      ([...((selected as { to_emails?: string[] }).to_emails ?? []),
-                        ...((selected as { cc_emails?: string[] }).cc_emails ?? [])].length < 2)
-                        ? "Only one recipient, so this is the same as Reply"
-                        : "Reply to everyone on this message"
-                    }
-                  >
-                    <ReplyAll size={13} /> Reply all
-                  </button>
-                  <button className="btn-ghost border border-border px-2.5 py-1.5 text-xs" onClick={() => openForward(selected)}>
-                    <Forward size={13} /> Forward
-                  </button>
-                </div>
-
-                {selected.triage_reason && (
-                  <p className="mt-3 flex items-start gap-1.5 text-xs text-faint">
-                    {selected.category_locked ? <Lock size={12} className="mt-px shrink-0" /> : <Wand2 size={12} className="mt-px shrink-0" />}
-                    <span>
-                      {selected.triage_reason}
-                      {selected.triage_source === "ai" && " · sorted by AI"}
-                      {selected.triage_source === "rules" && " · matched a team rule"}
-                    </span>
-                  </p>
-                )}
-
-                <div className="mt-4">
-                  <p className="field-label">Original Message</p>
-                  <div className="rounded-lg bg-surface-2 p-3">
-                    <p className="text-sm font-medium">{selected.subject}</p>
-                    <p className="mt-1 text-sm text-muted">{selected.body}</p>
-                  </div>
-                </div>
-
-                <div className="mt-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="field-label mb-0">AI Draft Response</p>
-                    <button className="btn-primary py-1.5" onClick={generateDraft} disabled={busy}>
-                      <Sparkles size={14} /> {busy ? "Drafting…" : "AI Draft Response"}
-                    </button>
-                  </div>
-                  {draft ? (
-                    <pre className="whitespace-pre-wrap rounded-lg bg-surface-2 p-3 text-sm text-zinc-200">{draft}</pre>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border py-8 text-center text-faint">
-                      <Mail size={24} />
-                      <p className="text-xs">Click "AI Draft Response" to generate a professional reply</p>
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : <p className="py-10 text-center text-sm text-faint">Select a message.</p>}
+          {/* Sticky, with its own scroll.
+              The list runs to 6108px and both grid children stretch to match,
+              so a reader pinned to the top of that column sat thousands of
+              pixels above the viewport the moment you scrolled. Measured after
+              a 4000px scroll: the message you had just clicked was 3594px off
+              screen. Clicking a row appeared to do nothing, which is the single
+              most common action here. */}
+          <div className="card hidden max-h-[calc(100dvh-7rem)] self-start overflow-y-auto p-5 lg:sticky lg:top-4 lg:block">
+            {readerBody}
           </div>
         </div>
       )}

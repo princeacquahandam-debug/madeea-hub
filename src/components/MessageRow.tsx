@@ -2,7 +2,7 @@ import { AlertTriangle, Paperclip } from "lucide-react";
 import type { Message } from "@/types/db";
 import { REAL_CHANNELS } from "@/lib/channels";
 import { initials, cn } from "@/lib/utils";
-import { relativeTime, fullTime, avatarHue } from "@/lib/relativeTime";
+import { relativeTime, fullTime, avatarHue, avatarColors } from "@/lib/relativeTime";
 
 /**
  * One row in the unified inbox.
@@ -38,7 +38,7 @@ export function MessageRow({
 }) {
   const unread = m.direction !== "outbound" && !m.first_reply_at;
   const channel = REAL_CHANNELS.find((c) => c.source === (m as { source?: string }).source);
-  const hue = avatarHue(m.sender_email ?? m.sender_name ?? "?");
+  const avatar = avatarColors(avatarHue(m.sender_email ?? m.sender_name ?? "?"));
 
   /* One line describing what the message is about. Subject first because it is
      the writer's own summary; the preview continues it only if there is room.
@@ -67,10 +67,7 @@ export function MessageRow({
       <span
         aria-hidden="true"
         className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full text-[11px] font-semibold"
-        style={{
-          background: `hsl(${hue} 55% 50% / 0.18)`,
-          color: `hsl(${hue} 65% 45%)`,
-        }}
+        style={{ background: avatar.bg, color: avatar.fg }}
       >
         {initials(m.sender_name)}
       </span>
