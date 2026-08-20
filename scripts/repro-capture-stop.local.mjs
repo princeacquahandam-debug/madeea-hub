@@ -69,6 +69,20 @@ await p.bringToFront();
 await p.waitForTimeout(1200);
 console.log("B) switched browser tab: live tracks =", await liveCount(), "| UI says capturing =", await uiSays());
 
+/* D) THE ACTUAL REPORTED CASE.
+   refetchOnWindowFocus is on, so returning to the tab refetches the session
+   list. Previously one failed refetch returned an empty array, the provider
+   concluded the shift was over, and the recording was torn down mid-session.
+   Simulated here by failing that request outright while capture is running. */
+await p.route("**/rest/v1/time_entries*", (route) =>
+  route.fulfill({ status: 500, body: '{"message":"simulated transient failure"}' }));
+await p.evaluate(() => window.dispatchEvent(new Event("focus")));
+await p.waitForTimeout(4000);
+console.log("D) session refetch FAILS: live tracks =", await liveCount(), "| UI says capturing =", await uiSays());
+await p.unroute("**/rest/v1/time_entries*");
+await p.waitForTimeout(2500);
+console.log("   after it recovers   : live tracks =", await liveCount());
+
 // C) clocking out must END it. Capture that outlives the session would be
 // worse than capture that dies too early.
 await p.locator('a[href="/time"]').first().click().catch(() => {});

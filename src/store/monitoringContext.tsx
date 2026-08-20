@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useRef, type ReactNode } from "react";
 import { useMonitoring, type MonitoringStatus } from "@/hooks/useMonitoring";
 import { useTimeEntries, useEffectiveTimeSettings } from "@/data/hooks";
 
@@ -33,16 +33,33 @@ import { useTimeEntries, useEffectiveTimeSettings } from "@/data/hooks";
 const Ctx = createContext<MonitoringStatus | null>(null);
 
 export function MonitoringProvider({ children }: { children: ReactNode }) {
-  const { data: entries = [] } = useTimeEntries();
+  const { data: entries, isSuccess } = useTimeEntries();
   const { data: effective } = useEffectiveTimeSettings();
 
-  /* The running session is the one thing that decides whether monitoring should
-     exist. Read here rather than passed in, so no page can start a capture that
-     outlives the clock. */
-  const running = entries.find((e) => !e.ended_at) ?? null;
+  /* THE SESSION IS LATCHED, and this is the second half of the same bug.
+     Capture used to stop the instant the session list looked empty. The list
+     can look empty for reasons that have nothing to do with the shift ending:
+     a refetch in flight, a dropped request, an expired token being refreshed.
+     refetchOnWindowFocus is on by default, so simply returning to the tab was
+     enough to trigger one, and a recording would end mid-shift.
+     So capture stops only when the session is POSITIVELY known to be over:
+     a successful load that either shows the entry closed or no longer lists it.
+     An unknown state holds the previous answer instead of guessing the
+     destructive one. */
+  const latched = useRef<string | null>(null);
+  const running = entries?.find((e) => !e.ended_at) ?? null;
+
+  if (running) {
+    latched.current = running.id;
+  } else if (isSuccess && entries) {
+    // A load that succeeded and shows nothing open is real evidence the shift
+    // ended. Only this clears the latch.
+    latched.current = null;
+  }
+  const sessionId = latched.current;
 
   const monitoring = useMonitoring({
-    timeEntryId: running?.id ?? null,
+    timeEntryId: sessionId,
     settings: {
       screenshotMinutes: effective?.screenshotMinutes ?? 10,
       screenshotsEnabled: effective?.screenshotsEnabled ?? true,

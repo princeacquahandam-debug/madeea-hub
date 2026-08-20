@@ -68,6 +68,14 @@ export interface MonitoringStatus {
   surfaceRefused: boolean;
   /** Latest screen-change reading, 0-100. Null until a second capture exists. */
   screenChange: number | null;
+  /**
+   * Why capture is not running, in words. Empty while it is.
+   *
+   * Capture stopping silently is how a shift ends up with two screenshots and
+   * nobody noticing until someone reviews it a week later. Every path that
+   * stops it now records a reason, and the screen shows it.
+   */
+  stoppedReason: string | null;
   /** What the user shared. A single tab is far weaker evidence than a monitor. */
   surface: string | null;
   shots: number;
@@ -98,6 +106,7 @@ export function useMonitoring(opts: {
   const [error, setError] = useState<string | null>(null);
   const [surfaceRefused, setSurfaceRefused] = useState(false);
   const [screenChange, setScreenChange] = useState<number | null>(null);
+  const [stoppedReason, setStoppedReason] = useState<string | null>(null);
   const [counts, setCounts] = useState({ keystrokes: 0, mouseEvents: 0, idleSeconds: 0 });
 
   const streamRef = useRef<MediaStream | null>(null);
@@ -199,6 +208,7 @@ export function useMonitoring(opts: {
     if (!stream.getVideoTracks().some((t) => t.readyState === "live")) {
       teardown();
       setState("stopped");
+      setStoppedReason("You stopped sharing from your browser's sharing bar.");
       return;
     }
     const vw = video.videoWidth;
@@ -337,11 +347,16 @@ export function useMonitoring(opts: {
         return;
       }
       setSurfaceRefused(false);
+      setStoppedReason(null);
       surfaceRef.current = chosen;
       setSurface(chosen);
       // Stopping from the browser's own banner fires this, and it is the only
       // notice this code gets.
-      track?.addEventListener("ended", () => { teardown(); setState("stopped"); });
+      track?.addEventListener("ended", () => {
+        teardown();
+        setState("stopped");
+        setStoppedReason("You stopped sharing from your browser's sharing bar.");
+      });
 
       const video = document.createElement("video");
       video.srcObject = stream;
@@ -366,17 +381,25 @@ export function useMonitoring(opts: {
     }
   }, [arm, captureOnce, teardown]);
 
-  const stop = useCallback(() => { teardown(); setState("off"); }, [teardown]);
+  const stop = useCallback(() => {
+    teardown();
+    setState("off");
+    setStoppedReason("You turned capture off.");
+  }, [teardown]);
 
   // Capture belongs to a running session and cannot outlive it.
   useEffect(() => {
-    if (!running && streamRef.current) { teardown(); setState("off"); }
+    if (!running && streamRef.current) {
+      teardown();
+      setState("off");
+      setStoppedReason("The tracked session ended, so capture stopped with it.");
+    }
   }, [running, teardown]);
 
   useEffect(() => () => teardown(), [teardown]);
 
   return {
-    state, surface, shots, lastCaptureAt, error, surfaceRefused, screenChange,
+    state, surface, shots, lastCaptureAt, error, surfaceRefused, screenChange, stoppedReason,
     keystrokes: counts.keystrokes,
     mouseEvents: counts.mouseEvents,
     idleSeconds: counts.idleSeconds,

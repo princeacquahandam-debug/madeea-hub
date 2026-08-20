@@ -1897,9 +1897,17 @@ export function useTimeEntries() {
         .select("id,owner_id,task_id,client_id,started_at,ended_at,note,early_reason,work_date,tasks(title),clients(name)")
         .order("started_at", { ascending: false })
         .limit(500);
-      // Migration not applied yet: an empty timesheet is the honest answer, and
-      // the page says so rather than showing an error where hours should be.
-      if (error) return [];
+      /* THROW, do not return an empty list.
+         This swallowed the error and returned [], which reports "there is no
+         session" when the truth is "we could not find out". TanStack Query
+         retains the last good data when a query throws, so a transient failure
+         now leaves the timesheet as it was instead of blanking it.
+         That distinction stopped screen capture. refetchOnWindowFocus is on by
+         default, so returning to the tab refetched this query; one failed
+         refetch produced an empty array, the monitoring provider saw no running
+         session, and it tore down the recording mid-shift. "I do not know"
+         must never be rendered as "nothing is running". */
+      if (error) throw error;
       return (data as unknown as (TimeEntry & {
         tasks: { title: string } | null;
         clients: { name: string } | null;
@@ -1909,7 +1917,14 @@ export function useTimeEntries() {
         client_name: r.clients?.name ?? null,
       }));
     },
-    retry: false,
+    /* Retried, because the previous `false` meant a single dropped request was
+       immediately final. The session query is the one thing screen capture
+       hangs off, so it should try again before anything concludes the shift is
+       over. */
+    retry: 2,
+    /* Keeps the last good list on screen while a refetch is in flight, so the
+       running session never momentarily disappears between renders. */
+    placeholderData: (prev: TimeEntry[] | undefined) => prev,
   });
 }
 

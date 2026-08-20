@@ -426,6 +426,15 @@ function CapturePanel({ capture, minutes }: { capture: MonitoringStatus; minutes
         </p>
       )}
 
+      {/* Why it is not running, whenever it is not. A recording that ended
+          without saying so is the failure this whole area keeps producing. */}
+      {capture.state !== "capturing" && capture.stoppedReason && (
+        <p className="mt-2 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-[12px] text-amber-200">
+          <Info size={13} className="mt-0.5 shrink-0" />
+          <span>{capture.stoppedReason}</span>
+        </p>
+      )}
+
       {capture.error && (
         <p className="mt-2 text-[12px] text-amber-300/80">{capture.error}</p>
       )}
