@@ -2313,3 +2313,45 @@ export function useMyEmail(): string | null {
   }, []);
   return email;
 }
+
+/**
+ * The capture settings that actually apply to the signed-in person.
+ *
+ * Resolved in the database by effective_time_settings, not here, so the screen
+ * and the capture agent cannot disagree about whether blur is on. The rule it
+ * encodes is worth restating: every setting follows the personal override, but
+ * blur is ORed rather than overridden, because a privacy control an admin can
+ * switch off for one employee is not a privacy control.
+ */
+export function useEffectiveTimeSettings() {
+  const [uid, setUid] = useState<string | null>(null);
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
+  }, []);
+
+  return useQuery({
+    queryKey: ["effective-time-settings", uid],
+    enabled: !!uid,
+    queryFn: async () => {
+      const fallback = {
+        screenshotMinutes: 10, screenshotsEnabled: true,
+        blurScreenshots: false, screencastsEnabled: false,
+        randomizeCapture: true, retentionDays: 90,
+      };
+      if (!supabase || !uid) return fallback;
+      const { data, error } = await supabase.rpc("effective_time_settings", { p_user: uid });
+      const row = Array.isArray(data) ? data[0] : data;
+      if (error || !row) return fallback;
+      return {
+        screenshotMinutes: Number(row.screenshot_minutes) || 10,
+        screenshotsEnabled: row.screenshots_enabled !== false,
+        blurScreenshots: row.blur_screenshots === true,
+        screencastsEnabled: row.screencasts_enabled === true,
+        randomizeCapture: row.randomize_capture !== false,
+        retentionDays: Number(row.retention_days) || 90,
+      };
+    },
+    retry: false,
+  });
+}
