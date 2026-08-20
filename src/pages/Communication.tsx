@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Sparkles, Mail, Wand2, Lock, Search, X, Reply, ReplyAll, Forward } from "lucide-react";
 import { SlackMark } from "@/components/BrandIcons";
 import type { Message } from "@/types/db";
-import { Badge, PageHeader } from "@/components/ui";
+import { Badge } from "@/components/ui";
 import { initials, cn } from "@/lib/utils";
 import { generate } from "@/lib/ai";
 import { useClients, useMessages, useMyEmail } from "@/data/hooks";
@@ -189,13 +189,17 @@ export default function Communication() {
 
   return (
     <div>
-      <PageHeader title="Communication Center" subtitle="Every channel your clients reach you on, in one inbox" />
+      {/* ONE row where there were three.
+          The page opened with a 3xl heading, a subtitle, a search row and a tab
+          row: roughly 380px of chrome before the first message, on a screen
+          where the messages ARE the page. Title, search and actions share a
+          line now, the way a mail client does it, because "Communication
+          Center" is already the highlighted item in the sidebar and repeating
+          it at 30px tells nobody anything they learned two seconds ago. */}
+      <div className="mb-2.5 flex flex-wrap items-center gap-2">
+        <h1 className="shrink-0 text-lg font-semibold">Inbox</h1>
 
-      {/* Search across the inbox. Distinct from the global search in the top
-          bar, which spans clients and tasks: this one narrows the list you are
-          looking at, which is why it sits with the list. */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[220px] flex-1">
+        <div className="relative min-w-[200px] flex-1">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
           <label htmlFor="inbox-search" className="sr-only">Search this inbox</label>
           <input
@@ -233,24 +237,27 @@ export default function Communication() {
         )}
       </div>
 
-      {/* View filters, kept apart from the channel rail: the rail picks WHERE
-          messages came from, these pick WHICH of them you are looking at. */}
-      <div className="mb-3 flex flex-wrap items-center gap-1.5">
+      {/* View filters. Quieter than before: these narrow a list you are already
+          looking at, so they are secondary to it and should not compete with
+          the primary action beside them (§9 nav-hierarchy). */}
+      <div className="mb-2.5 flex flex-wrap items-center gap-1">
         {TABS.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             aria-pressed={tab === t}
             className={cn(
-              "min-h-[34px] rounded-full px-3 text-xs font-medium transition-colors",
-              tab === t ? "bg-accent text-white" : "text-muted hover:bg-[var(--chip-bg)] hover:text-text",
+              "min-h-[30px] rounded-full px-2.5 text-xs font-medium transition-colors",
+              tab === t
+                ? "bg-[var(--nav-active-bg)] text-[color:var(--nav-active-text)]"
+                : "text-faint hover:bg-[var(--chip-bg)] hover:text-text",
             )}
           >
             {t}
             {t === "Needs Follow-up" && deadThreads.length > 0 && (
               <span className={cn(
                 "ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
-                tab === t ? "bg-white/20" : "bg-amber-500/20 text-amber-400",
+                tab === t ? "bg-amber-500/25 text-amber-300" : "bg-amber-500/20 text-amber-400",
               )}>
                 {deadThreads.length}
               </span>
@@ -277,7 +284,7 @@ export default function Communication() {
       ) : messages.length === 0 ? (
         <div className="card p-10 text-center text-sm text-faint">No messages yet. Connect Gmail from Integrations to populate your inbox.</div>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-[60px_minmax(0,1fr)] xl:grid-cols-[60px_minmax(0,1.5fr)_minmax(0,1fr)]">
+        <div className="grid gap-2.5 lg:grid-cols-[56px_minmax(0,1fr)] xl:grid-cols-[56px_minmax(0,1.5fr)_minmax(0,1fr)]">
           {/* The rail. Its own column so it reads as an edge, not a panel. */}
           <aside className="card h-fit p-2">
             <ChannelRail active={channel} counts={counts} onSelect={setChannel} />
@@ -355,12 +362,16 @@ export default function Communication() {
                 {/* What the pane never had. The "Reply" chip above is the triage
                     CATEGORY, not an action, and there was no way to answer a
                     message from the screen you read it on. */}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button className="btn-primary py-1.5" onClick={() => openReply(selected, false)}>
-                    <Reply size={14} /> Reply
+                {/* Compact enough to stay on one line in a narrow reading
+                    pane. At full button size these wrapped onto two rows and
+                    pushed the message itself further down the very column that
+                    exists to show it. */}
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <button className="btn-primary px-2.5 py-1.5 text-xs" onClick={() => openReply(selected, false)}>
+                    <Reply size={13} /> Reply
                   </button>
                   <button
-                    className="btn-ghost border border-border py-1.5"
+                    className="btn-ghost border border-border px-2.5 py-1.5 text-xs"
                     onClick={() => openReply(selected, true)}
                     // Only meaningful when somebody else was actually on it.
                     disabled={
@@ -374,10 +385,10 @@ export default function Communication() {
                         : "Reply to everyone on this message"
                     }
                   >
-                    <ReplyAll size={14} /> Reply all
+                    <ReplyAll size={13} /> Reply all
                   </button>
-                  <button className="btn-ghost border border-border py-1.5" onClick={() => openForward(selected)}>
-                    <Forward size={14} /> Forward
+                  <button className="btn-ghost border border-border px-2.5 py-1.5 text-xs" onClick={() => openForward(selected)}>
+                    <Forward size={13} /> Forward
                   </button>
                 </div>
 
