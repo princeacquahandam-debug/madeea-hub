@@ -1,6 +1,10 @@
 // Supabase Edge Function: invite-member  (self-contained. Paste as-is)
-// POST { email } -> { ok, email }
-// Invites a teammate into the CALLER'S workspace as an EA.
+// POST { email, role } -> { ok, email, reinstated? }
+// Adds a teammate to the CALLER'S workspace at the role they choose.
+//
+// Someone who already has an account but no seat is reinstated directly rather
+// than emailed: inviteUserByEmail refuses an address that is already
+// registered, so emailing them could only ever fail.
 //
 // Security:
 //  - Auth is enforced in-code (deploy with Verify JWT OFF so browser CORS
@@ -83,13 +87,62 @@ Deno.serve(async (req) => {
     // reads this row, never the signup metadata, to decide membership.
     const admin = createClient(URL, SERVICE);
 
-    // An already-accepted invite is what keeps an existing member in the
-    // workspace. Re-inviting must not overwrite it: resetting accepted_at and
-    // then rolling back on "email already exists" would delete their seat.
-    const { data: existing } = await admin
-      .from("invites").select("accepted_at").eq("email", addr).maybeSingle();
-    if (existing?.accepted_at) return json({ error: "That person is already a member." }, 409);
+    /* WHO THIS ADDRESS ACTUALLY IS, asked of auth rather than of the invite
+       history. This used to test `invites.accepted_at`, which records that
+       somebody once joined and says nothing about whether they are here now.
+       Deleting a membership never cleared it, so removing a member and trying
+       to add them back was answered with "That person is already a member"
+       about somebody holding no membership at all, with no way out from inside
+       the product. */
+    const { data: targetId, error: lookupErr } = await admin
+      .rpc("auth_user_id_by_email", { addr });
+    if (lookupErr) return json({ error: lookupErr.message }, 500);
 
+    if (targetId) {
+      // The account exists. The only question left is whether the seat does.
+      const { data: seat } = await admin
+        .from("memberships")
+        .select("user_id")
+        .eq("workspace_id", me.workspace_id)
+        .eq("user_id", targetId)
+        .maybeSingle();
+
+      if (seat) return json({ error: "That person is already a member." }, 409);
+
+      /* An account with no seat is reinstated directly, and deliberately not
+         emailed. inviteUserByEmail refuses an address that is already
+         registered, which is the second half of why a removed member could not
+         be brought back: even past the invite check, the send would fail. They
+         already have a password. What they lost was the membership row, so
+         that is what gets restored.
+
+         The guard triggers allow this: both return early when auth.uid() is
+         null, which is the case for a service-role caller. The rank check
+         above still applies, because it ran against the CALLER. */
+      const { error: seatErr } = await admin.from("memberships").insert({
+        workspace_id: me.workspace_id,
+        user_id: targetId,
+        role: roleToStore,
+      });
+      if (seatErr) return json({ error: seatErr.message }, 400);
+
+      await admin.from("invites").upsert(
+        {
+          email: addr,
+          workspace_id: me.workspace_id,
+          role: roleToStore,
+          invited_by: authed.user.id,
+          created_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          accepted_at: new Date().toISOString(),
+        },
+        { onConflict: "email" },
+      );
+
+      return json({ ok: true, email: addr, reinstated: true });
+    }
+
+    // No account: the ordinary path. Record the invite, then send it.
     const { error: invErr } = await admin.from("invites").upsert(
       {
         email: addr,
@@ -106,9 +159,7 @@ Deno.serve(async (req) => {
 
     const { error } = await admin.auth.admin.inviteUserByEmail(addr);
     if (error) {
-      // Only clean up an invite this call created. A pending invite that already
-      // existed is someone else's in-flight invite. Leave it alone.
-      if (!existing) await admin.from("invites").delete().eq("email", addr).is("accepted_at", null);
+      await admin.from("invites").delete().eq("email", addr).is("accepted_at", null);
       return json({ error: error.message }, 400);
     }
 

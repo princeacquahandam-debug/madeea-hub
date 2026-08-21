@@ -1021,7 +1021,10 @@ export function useInviteMember() {
        consistently wrong together. */
     mutationFn: async (
       input: { email: string; role: MemberRole },
-    ): Promise<{ ok: boolean; email?: string }> => {
+      /* `reinstated` means they already had an account and got their seat back
+         without an email. Saying "invitation sent" there would have somebody
+         waiting on a message that was deliberately never sent. */
+    ): Promise<{ ok: boolean; email?: string; reinstated?: boolean }> => {
       const { email, role } = input;
       if (!supabase) return { ok: true, email };
       const { data, error } = await supabase.functions.invoke("invite-member", { body: { email, role } });
@@ -1036,7 +1039,7 @@ export function useInviteMember() {
         err.missing = f.missing;
         throw err;
       }
-      return data as { ok: boolean; email?: string };
+      return data as { ok: boolean; email?: string; reinstated?: boolean };
     },
   });
 }

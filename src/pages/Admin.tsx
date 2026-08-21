@@ -54,13 +54,16 @@ export default function Admin() {
     if (!addr) return;
     setNotice(null);
     try {
-      await invite.mutateAsync({ email: addr, role: inviteRole });
+      const res = await invite.mutateAsync({ email: addr, role: inviteRole });
       /* Names the role that was actually chosen. This said "They'll join as an
          EA" regardless, left over from when the function hardcoded that role,
          so choosing Owner and being told EA was the expected outcome. */
+      const asRole = ROLE_LABEL[inviteRole] ?? inviteRole;
       setNotice({
         kind: "ok",
-        text: `Invitation sent to ${addr}. They join as ${ROLE_LABEL[inviteRole] ?? inviteRole} once they accept.`,
+        text: res?.reinstated
+          ? `${addr} already had an account, so they were added straight back as ${asRole}. No email was sent and their existing password still works.`
+          : `Invitation sent to ${addr}. They join as ${asRole} once they accept.`,
       });
       setEmail("");
     } catch (err) {
