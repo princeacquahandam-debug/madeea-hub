@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { edgeFailure } from "@/lib/edgeError";
 import * as seed from "@/data/seed";
 import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
@@ -1024,7 +1025,17 @@ export function useInviteMember() {
       const { email, role } = input;
       if (!supabase) return { ok: true, email };
       const { data, error } = await supabase.functions.invoke("invite-member", { body: { email, role } });
-      if (error) throw new Error(error.message || "Invite service unavailable");
+      if (error) {
+        /* The function's own words. It answers "That person is already a
+           member." with a 409, and reporting that as a generic failure sent
+           somebody looking for a broken deployment instead of reading the
+           member list directly below the form. */
+        const f = await edgeFailure(error, "Could not send the invitation.");
+        const err = new Error(f.message) as Error & { status?: number; missing?: boolean };
+        err.status = f.status;
+        err.missing = f.missing;
+        throw err;
+      }
       return data as { ok: boolean; email?: string };
     },
   });

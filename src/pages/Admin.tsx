@@ -55,12 +55,25 @@ export default function Admin() {
     setNotice(null);
     try {
       await invite.mutateAsync({ email: addr, role: inviteRole });
-      setNotice({ kind: "ok", text: `Invitation sent to ${addr}. They'll join as an EA once they accept.` });
+      /* Names the role that was actually chosen. This said "They'll join as an
+         EA" regardless, left over from when the function hardcoded that role,
+         so choosing Owner and being told EA was the expected outcome. */
+      setNotice({
+        kind: "ok",
+        text: `Invitation sent to ${addr}. They join as ${ROLE_LABEL[inviteRole] ?? inviteRole} once they accept.`,
+      });
       setEmail("");
-    } catch {
+    } catch (err) {
+      /* Say what went wrong. The previous message was a fixed sentence claiming
+         the invite function was not deployed, printed for every failure
+         including "That person is already a member", which is a 409 from a
+         function that had been live for days. */
+      const e = err as Error & { missing?: boolean };
       setNotice({
         kind: "err",
-        text: "Invite service isn't enabled yet. Deploy the invite-member function (or add the user from Supabase → Authentication). Role management below works now.",
+        text: e.missing
+          ? "The invite function is not deployed. Deploy invite-member, or add the person from Supabase, Authentication."
+          : e.message || "Could not send the invitation.",
       });
     }
   }
