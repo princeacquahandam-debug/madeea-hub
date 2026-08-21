@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNow } from "@/hooks/useNow";
 import { useSearchParams } from "react-router-dom";
-import { Sparkles, Mail, Wand2, Lock, Search, X, Reply, ReplyAll, Forward, ArrowLeft, Keyboard } from "lucide-react";
+import { Wand2, Lock, Search, X, ArrowLeft, Keyboard } from "lucide-react";
 import { SlackMark } from "@/components/BrandIcons";
 import type { Message } from "@/types/db";
 import { Badge } from "@/components/ui";
 import { initials, cn } from "@/lib/utils";
-import { generate } from "@/lib/ai";
 import { useClients, useMessages, useMyEmail, useMessageMutations, MESSAGE_FETCH_LIMIT } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { dayLength, formatDuration, isBreaching, responseHours, waitingHours } from "@/lib/sla";
@@ -17,6 +16,8 @@ import { SourceChips } from "@/components/SourceChips";
 import { ThreadList } from "@/components/ThreadList";
 import { REAL_CHANNELS, channelById, type ChannelId } from "@/lib/channels";
 import { ComposeWindow, type ComposeSeed } from "@/components/ComposeWindow";
+import { InlineReply } from "@/components/InlineReply";
+import { textToHtml } from "@/hooks/useSendEmail";
 import { useClientContext } from "@/store/clientContext";
 import { clientForMessage, messageInClient } from "@/lib/clientMatch";
 import { groupThreads, decodeEntities } from "@/lib/threads";
@@ -81,14 +82,12 @@ export default function Communication() {
     setTab("All"); // the linked email may not be in the current tab
     setParams({}, { replace: true });
   }, [params, setParams]);
-  const [draftError, setDraftError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   /* Announced to a screen reader. Nothing on this surface had aria-live, so
      "89 of 96", "Loading", "Drafting" and "Sent" were all silent, and the
      result of every action had to be discovered by hunting for it. */
   const [announcement, setAnnouncement] = useState("");
   const { setCategory } = useMessageMutations();
-  const [busy, setBusy] = useState(false);
 
   /* Picking Slack in the rail should BE picking Slack, not picking Slack and
      then finding the button that turns Slack on. */
@@ -166,7 +165,6 @@ export default function Communication() {
      of mistake you cannot take back. */
   const selected = list.find((m) => m.id === selectedId) ?? list[0] ?? null;
 
-  useEffect(() => { setDraftError(null); }, [selectedId]);
 
   /* Result counts, spoken. A search that narrows 89 conversations to 2 is a
      large change that was previously visible only as a number on screen. */
@@ -199,10 +197,31 @@ export default function Communication() {
   const escapeHtml = (v: string) =>
     v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+  /* Everyone the message went to. Reply-all only means something when that is
+     more than one person. */
+  const recipientCount = (m: Message) =>
+    [...((m as { to_emails?: string[] }).to_emails ?? []),
+     ...((m as { cc_emails?: string[] }).cc_emails ?? [])].length;
+
+  /* "rio.castillo@madeeas.com" -> "RC". The avatar beside the reply box should
+     be yours, the way it is in every mail client. */
+  const myInitials = initials((myEmail ?? "").split("@")[0].replace(/[._-]+/g, " ")) || "ME";
+
+  /* Whether this arrived somewhere an email can answer. Asked of the channel
+     rather than of the row, because a missing sender_email means "we did not
+     capture the address", not "this was not email", and the two need different
+     answers on screen. An unknown source defaults to email: this is a mailbox. */
+  const isEmailThread = (m: Message) => {
+    const ch = REAL_CHANNELS.find((c) => c.source === (m as { source?: string }).source);
+    return (ch?.compose ?? "email") === "email";
+  };
+
   const reSubject = (s: string) => (/^re:/i.test(s) ? s : `Re: ${s}`);
   const fwdSubject = (s: string) => (/^fwd?:/i.test(s) ? s : `Fwd: ${s}`);
 
-  function openReply(m: Message, all: boolean) {
+  /* `typed` is the half-written inline reply. Opening the full composer for
+     an attachment must never cost the sentence already written. */
+  function openReply(m: Message, all: boolean, typed?: string) {
     /* Reply-all means everyone who was on it, minus yourself. Leaving your own
        address in mails you a copy of everything you send, which reads as a
        product bug rather than a header mistake.
@@ -220,7 +239,7 @@ export default function Communication() {
       to: m.sender_email ?? "",
       cc: [...new Set(others)].join(", "),
       subject: reSubject(m.subject ?? ""),
-      html: quoted(m),
+      html: (typed?.trim() ? textToHtml(typed) : "") + quoted(m),
       context: `From ${m.sender_name}: ${m.body}`,
       threadId: (m as { thread_id?: string | null }).thread_id ?? null,
       inReplyTo: (m as { rfc_message_id?: string | null }).rfc_message_id ?? null,
@@ -242,45 +261,6 @@ export default function Communication() {
     setComposing(true);
   }
 
-  /* Generates a reply and OPENS IT, already written, in the editable composer.
-     It used to render into a read-only <pre> in a monospace font: an email
-     styled as a code block, with no edit, no copy button and no route into a
-     reply. The product's headline feature dead-ended in text you had to select
-     with a mouse. Nothing about "AI Draft Response" implies "and then retype
-     it".
-     The catch matters too. There was none, so a failed generate left the empty
-     state showing and read to the user as "nothing happened". */
-  async function generateDraft() {
-    if (!selected) return;
-    setBusy(true);
-    setDraftError(null);
-    try {
-      const out = await generate({
-        tool: "quick_action",
-        format: "AI Draft Response",
-        inputs: { from: selected.sender_name, subject: selected.subject, message: selected.body },
-      });
-      const written = out
-        .split("\n")
-        .map((l) => `<div>${l ? escapeHtml(l) : "<br>"}</div>`)
-        .join("");
-      setSeed({
-        title: "Reply",
-        to: selected.sender_email ?? "",
-        subject: reSubject(selected.subject ?? ""),
-        html: written + quoted(selected),
-        context: `From ${selected.sender_name}: ${selected.body}`,
-        threadId: (selected as { thread_id?: string | null }).thread_id ?? null,
-        inReplyTo: (selected as { rfc_message_id?: string | null }).rfc_message_id ?? null,
-      });
-      setComposing(true);
-    } catch (e) {
-      setDraftError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   /* The reader's contents, rendered in two places: the sticky desktop column
      and the mobile overlay below. Extracted rather than duplicated, so a
      change to how a message reads cannot silently apply to only one of the
@@ -300,47 +280,23 @@ export default function Communication() {
                   <Badge tone={selected.category}>{categoryLabel[selected.category]}</Badge>
                 </div>
 
-                {/* What the pane never had. The "Reply" chip above is the triage
-                    CATEGORY, not an action, and there was no way to answer a
-                    message from the screen you read it on. */}
-                {/* Compact enough to stay on one line in a narrow reading
-                    pane. At full button size these wrapped onto two rows and
-                    pushed the message itself further down the very column that
-                    exists to show it. */}
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  <button className="btn-primary px-2.5 py-1.5 text-xs" onClick={() => openReply(selected, false)}>
-                    <Reply size={13} /> Reply
-                  </button>
-                  <button
-                    className="btn-ghost border border-border px-2.5 py-1.5 text-xs"
-                    onClick={() => openReply(selected, true)}
-                    // Only meaningful when somebody else was actually on it.
-                    disabled={
-                      ([...((selected as { to_emails?: string[] }).to_emails ?? []),
-                        ...((selected as { cc_emails?: string[] }).cc_emails ?? [])].length < 2)
-                    }
-                    title={
-                      ([...((selected as { to_emails?: string[] }).to_emails ?? []),
-                        ...((selected as { cc_emails?: string[] }).cc_emails ?? [])].length < 2)
-                        ? "Only one recipient, so this is the same as Reply"
-                        : "Reply to everyone on this message"
-                    }
-                  >
-                    <ReplyAll size={13} /> Reply all
-                  </button>
-                  <button className="btn-ghost border border-border px-2.5 py-1.5 text-xs" onClick={() => openForward(selected)}>
-                    <Forward size={13} /> Forward
-                  </button>
-                  {/* One control, not a label and a button saying the same six
-                      words 40px apart, and it opens the reply rather than
-                      printing text beside it. */}
-                  <button
-                    className="btn-ghost border border-border px-2.5 py-1.5 text-xs"
-                    onClick={generateDraft}
-                    disabled={busy}
-                  >
-                    <Sparkles size={13} /> {busy ? "Writing…" : "Draft a reply"}
-                  </button>
+                {/* The subject is the message's name, and it had been buried
+                    inside a box labelled "Original Message", below three rows
+                    of buttons. It is the first thing needed to know what this
+                    even is. */}
+                <h2 className="mt-3 text-base font-semibold leading-snug">
+                  {decodeEntities(selected.subject ?? "")}
+                </h2>
+                {selected.received_at && (
+                  <p className="mt-0.5 text-xs text-faint">
+                    {new Date(selected.received_at).toLocaleString()}
+                  </p>
+                )}
+
+                {/* The message as text, not as a quoted block inside the pane
+                    whose entire job is to show it. */}
+                <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-muted">
+                  {decodeEntities(selected.body ?? "")}
                 </div>
 
                 {selected.triage_reason && (
@@ -354,17 +310,23 @@ export default function Communication() {
                   </p>
                 )}
 
-                <div className="mt-4">
-                  <p className="field-label">Original Message</p>
-                  <div className="rounded-lg bg-surface-2 p-3">
-                    <p className="text-sm font-medium">{decodeEntities(selected.subject ?? "")}</p>
-                    <p className="mt-1 text-sm text-muted">{decodeEntities(selected.body ?? "")}</p>
-                  </div>
-                </div>
-
-                {draftError && (
-                  <p className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-[12.5px] text-amber-200">
-                    Could not write a draft. {draftError.slice(0, 160)}
+                {isEmailThread(selected) ? (
+                  <InlineReply
+                    message={selected}
+                    quotedHtml={quoted(selected)}
+                    myInitials={myInitials}
+                    canReplyAll={recipientCount(selected) > 1}
+                    onReplyAll={() => openReply(selected, true)}
+                    onForward={() => openForward(selected)}
+                    onPopOut={(typed) => openReply(selected, false, typed)}
+                    onSent={() => setAnnouncement("Reply sent.")}
+                  />
+                ) : (
+                  /* Slack, and the channels that are not connected, have no
+                     address to answer. Saying so beats a disabled email box
+                     that looks like it ought to work. */
+                  <p className="mt-4 border-t border-border pt-3 text-xs text-faint">
+                    This did not arrive by email, so there is no address to reply to from here.
                   </p>
                 )}
               </>

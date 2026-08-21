@@ -5,6 +5,7 @@ import {
   Bold, Italic, Underline, List, ListOrdered, Link2, Loader2, CheckCircle2, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useSendEmail, reconnectGoogle } from "@/hooks/useSendEmail";
 import { useMyEmail } from "@/data/hooks";
 import { generate } from "@/lib/ai";
 import { cn } from "@/lib/utils";
@@ -44,14 +45,6 @@ export interface ComposeSeed {
   title?: string;
 }
 
-type SendState =
-  | { kind: "idle" }
-  | { kind: "sending" }
-  | { kind: "sent"; id: string }
-  | { kind: "needs_scope" }
-  | { kind: "not_connected" }
-  | { kind: "error"; detail: string };
-
 interface Attached {
   filename: string;
   mime_type: string;
@@ -84,7 +77,9 @@ export function ComposeWindow({
   const [minimised, setMinimised] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [drafting, setDrafting] = useState(false);
-  const [state, setState] = useState<SendState>({ kind: "idle" });
+  /* Shared with the reading pane's inline reply, so both report the same
+     failures from the same code. */
+  const { state, setState, send: sendEmail } = useSendEmail();
 
   /* WHOSE NAME GOES ON THIS EMAIL.
      There was no From anywhere in this window. On a product where one EA writes
@@ -233,51 +228,14 @@ export function ComposeWindow({
   async function send() {
     const html = bodyRef.current?.innerHTML ?? "";
     const text = bodyRef.current?.innerText ?? "";
-    if (!to.trim() || !text.trim() || !supabase) return;
-
-    setState({ kind: "sending" });
-    try {
-      const { data, error } = await supabase.functions.invoke("gmail-send", {
-        body: {
-          to: to.trim(),
-          cc: cc.trim() || undefined,
-          bcc: bcc.trim() || undefined,
-          subject: subject.trim(),
-          text,
-          html,
-          attachments: files.map(({ filename, mime_type, data }) => ({ filename, mime_type, data })),
-          thread_id: seed?.threadId ?? undefined,
-          in_reply_to: seed?.inReplyTo ?? undefined,
-        },
-      });
-
-      let payload: Record<string, unknown> | null = data ?? null;
-      if (error) {
-        // The function's JSON body carries the reason; the SDK message is the status.
-        const ctx = (error as { context?: Response }).context;
-        if (ctx && typeof ctx.text === "function") {
-          try { payload = JSON.parse(await ctx.text()); } catch { payload = null; }
-        }
-      }
-      const failure = String(payload?.failure ?? "");
-      if (failure === "needs_scope") { setState({ kind: "needs_scope" }); return; }
-      if (failure === "not_connected") { setState({ kind: "not_connected" }); return; }
-      if (error || payload?.error) {
-        setState({ kind: "error", detail: String(payload?.error ?? error?.message ?? "send failed") });
-        return;
-      }
-      setState({ kind: "sent", id: String(payload?.id ?? "") });
-      // Long enough to read the confirmation, short enough not to sit there.
-      setTimeout(onClose, 1600);
-    } catch (e) {
-      setState({ kind: "error", detail: e instanceof Error ? e.message : String(e) });
-    }
-  }
-
-  async function reconnectGoogle() {
-    if (!supabase) return;
-    const { data } = await supabase.functions.invoke("google-oauth-url", { body: {} });
-    if (data?.url) window.location.href = data.url as string;
+    const ok = await sendEmail({
+      to, cc, bcc, subject, text, html,
+      attachments: files.map(({ filename, mime_type, data }) => ({ filename, mime_type, data })),
+      threadId: seed?.threadId,
+      inReplyTo: seed?.inReplyTo,
+    });
+    // Long enough to read the confirmation, short enough to sit there.
+    if (ok) setTimeout(onClose, 1600);
   }
 
   const totalBytes = files.reduce((a, f) => a + f.size, 0);
