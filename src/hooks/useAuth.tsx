@@ -17,6 +17,18 @@ interface AuthState {
   signInWithPassword: (email: string, password: string) => Promise<void>;
   /** Change the signed-in user's password. Verifies the current one first. */
   updatePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  /** Email a reset link to someone who cannot get in. */
+  requestPasswordReset: (email: string) => Promise<void>;
+  /**
+   * True while the session came from a reset link rather than a sign-in.
+   * The app must show "set a new password" instead of the dashboard: a recovery
+   * link DOES create a real session, so without this the person clicks the link,
+   * lands on the dashboard, and the password they could not remember is still
+   * the password on the account.
+   */
+  recovering: boolean;
+  /** Set the password during recovery, then leave recovery mode. */
+  completePasswordReset: (newPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -27,6 +39,7 @@ const DEMO_USER: SessionUser = { email: "rio@madeea.com", name: USER.name, initi
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recovering, setRecovering] = useState(false);
   // AuthProvider sits inside QueryClientProvider (see App.tsx), so the cache is
   // reachable here, it has to be dropped when the identity changes.
   const queryClient = useQueryClient();
@@ -48,6 +61,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // is served to the next user in the same tab: sign out as an admin, sign
       // in as an EA, and the Admin panel briefly renders for them.
       if (event === "SIGNED_IN" || event === "SIGNED_OUT") queryClient.clear();
+      /* Supabase fires this once, when the recovery link is exchanged. It is the
+         only signal that separates "signed in" from "signed in solely to change
+         the password", and the two must not look the same. */
+      if (event === "PASSWORD_RECOVERY") setRecovering(true);
+      if (event === "SIGNED_OUT") setRecovering(false);
       setUser(toUser(session?.user));
     });
     return () => sub.subscription.unsubscribe();
@@ -77,6 +95,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw new Error(error.message || "Could not update your password.");
+    },
+    recovering,
+    async requestPasswordReset(email) {
+      if (!supabase) throw new Error("Password reset isn't available in demo mode.");
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        /* Must be inside the project's redirect allow list or Supabase refuses
+           the link. The list was empty, so any redirect would have been
+           rejected and the reset would have failed after the email arrived. */
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+    },
+    async completePasswordReset(newPassword) {
+      if (!supabase) throw new Error("Password reset isn't available in demo mode.");
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw new Error(error.message || "Could not set your password.");
+      setRecovering(false);
     },
     async signOut() {
       if (supabase) await supabase.auth.signOut();

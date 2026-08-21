@@ -8,6 +8,7 @@ import { AppShell } from "@/components/layout/AppShell";
 // Dashboard is the "/" landing route. Keeping it eager means the first paint
 // never suspends (instant, no shimmer flash on cold load).
 import Login from "@/pages/Login";
+import ResetPassword from "@/pages/ResetPassword";
 import Dashboard from "@/pages/Dashboard";
 
 // Every other routed page is code-split into its own chunk, so the first load
@@ -46,10 +47,15 @@ const MeetingIntelligence = lazy(() => import("@/pages/MeetingIntelligence"));
 const queryClient = new QueryClient();
 
 function Gate() {
-  const { user, loading } = useAuth();
+  const { user, loading, recovering } = useAuth();
   if (loading) {
     return <div className="flex h-screen items-center justify-center text-faint">Loading…</div>;
   }
+  /* BEFORE the user check, not after. A recovery link creates a real session,
+     so `user` is set by the time this runs: ordering it the other way would
+     drop the person straight onto the dashboard with the forgotten password
+     still on the account. */
+  if (recovering) return <ResetPassword />;
   if (!user) return <Login />;
 
   return (
