@@ -2,7 +2,10 @@ import { useMemo, useState } from "react";
 import { Camera, Monitor, Keyboard, MousePointer, Clock, Info, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { ScreenshotThumb } from "@/components/ScreenshotThumb";
-import { signedScreenshotUrl, useScreenshots, useMyRole, atLeast, workDate, type ScreenshotRow } from "@/data/hooks";
+import {
+  signedScreenshotUrl, useScreenshots, useMyRole, useWorkspaceMembers,
+  atLeast, ROLE_LABEL, workDate, type ScreenshotRow,
+} from "@/data/hooks";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,8 +27,27 @@ export default function Screenshots() {
   const { data: role } = useMyRole();
   const canReview = atLeast(role, "manager");
   const [day, setDay] = useState(workDate());
-  const { data: shots = [], isLoading, isError } = useScreenshots({ day });
+  /* "Everyone" is the reviewer's default, because the first question of a
+     morning is usually who captured anything at all, not how one named person
+     did. Narrowing to a person is a deliberate act. */
+  const [who, setWho] = useState<string>("all");
+  const { data: members = [] } = useWorkspaceMembers();
+  const { data: shots = [], isLoading, isError } = useScreenshots({
+    /* Only a reviewer may narrow to someone else. Below manager this stays
+       undefined and RLS returns their own rows regardless: the client never
+       gets to decide whose screenshots it is allowed to ask for. */
+    day, ownerId: canReview && who !== "all" ? who : undefined,
+  });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  /* Whose screen each image is. A grid of anonymous desktops is not reviewable:
+     a manager cannot act on it, or worse, acts on the wrong person. */
+  const byId = useMemo(() => new Map(members.map((m) => [m.user_id, m])), [members]);
+  /* Who the screen is currently about, if anyone. An empty state that says
+     "nothing captured" while a reviewer has someone else selected reads as
+     advice about their own machine, and the absence gets attributed to the
+     wrong person. */
+  const focused = who === "all" ? null : byId.get(who)?.name ?? null;
 
   const selected = shots.find((s) => s.id === selectedId) ?? shots[0] ?? null;
 
@@ -35,7 +57,11 @@ export default function Screenshots() {
   const sessions = useMemo(() => {
     const map = new Map<string, ScreenshotRow[]>();
     for (const s of shots) {
-      const key = s.time_entry_id ?? "unassigned";
+      /* Keyed by owner AND session. time_entry_id is unique per person, but
+         every screenshot without one shares the "unassigned" bucket, so keying
+         on it alone merged different people's stray captures into a single
+         block that presented itself as one person's sitting. */
+      const key = `${s.owner_id}::${s.time_entry_id ?? "unassigned"}`;
       const list = map.get(key) ?? [];
       list.push(s);
       map.set(key, list);
@@ -47,7 +73,7 @@ export default function Screenshots() {
     <div>
       <PageHeader
         title="Screenshots"
-        subtitle={canReview ? "Captured activity, with the numbers behind each image" : "Your own captured activity"}
+        subtitle={canReview ? "The team's captured activity, with the numbers behind each image" : "Your own captured activity"}
       />
 
       <div className="mb-3 flex flex-wrap items-end gap-2">
@@ -55,6 +81,22 @@ export default function Screenshots() {
           <label className="field-label" htmlFor="shot-day">Day</label>
           <input id="shot-day" type="date" className="input" value={day} onChange={(e) => setDay(e.target.value)} />
         </div>
+        {canReview && (
+          <div>
+            <label className="field-label" htmlFor="shot-who">Person</label>
+            <select
+              id="shot-who" className="input" value={who}
+              onChange={(e) => { setWho(e.target.value); setSelectedId(null); }}
+            >
+              <option value="all">Everyone</option>
+              {members.map((m) => (
+                <option key={m.user_id} value={m.user_id}>
+                  {m.name}{m.is_me ? " (you)" : ""} · {ROLE_LABEL[m.role] ?? m.role}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <span className="ml-auto text-xs tabular-nums text-faint">
           {shots.length} screenshot{shots.length === 1 ? "" : "s"}
         </span>
@@ -72,20 +114,28 @@ export default function Screenshots() {
       ) : shots.length === 0 ? (
         <div className="card p-10 text-center">
           <Camera size={24} className="mx-auto mb-2 text-faint" />
-          <p className="text-sm font-medium">Nothing captured on this day.</p>
+          <p className="text-sm font-medium">
+            {focused ? `${focused} captured nothing on this day.` : "Nothing captured on this day."}
+          </p>
           <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-faint">
-            Screenshots are taken while the timer is running and screen sharing is on. If a shift ran without
-            capture, it is because sharing was never started or was stopped, not because the images were lost.
+            Screenshots are taken while the timer is running and screen sharing is on. A shift with no images
+            means sharing was never started or was stopped. It is not evidence that no work happened, and the
+            images were not lost.
           </p>
         </div>
       ) : (
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <div className="space-y-4">
-            {sessions.map(([entryId, list]) => (
-              <section key={entryId} className="card p-3">
-                <div className="mb-2 flex items-baseline gap-2">
+            {sessions.map(([key, list]) => (
+              <section key={key} className="card p-3">
+                <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  {canReview && (
+                    <span className="text-xs font-semibold">
+                      {byId.get(list[0].owner_id)?.name ?? "Unknown person"}
+                    </span>
+                  )}
                   <h2 className="text-xs font-semibold uppercase tracking-wide text-faint">
-                    {entryId === "unassigned" ? "No session" : "Session"}
+                    {list[0].time_entry_id ? "Session" : "No session"}
                   </h2>
                   <span className="text-xs text-faint">
                     {new Date(list[list.length - 1].captured_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -109,7 +159,12 @@ export default function Screenshots() {
           </div>
 
           <div className="xl:sticky xl:top-4 xl:self-start">
-            {selected ? <ScreenshotDetail shot={selected} /> : null}
+            {selected ? (
+              <ScreenshotDetail
+                shot={selected}
+                person={canReview ? byId.get(selected.owner_id)?.name ?? "Unknown person" : null}
+              />
+            ) : null}
           </div>
         </div>
       )}
@@ -118,7 +173,7 @@ export default function Screenshots() {
 }
 
 /** One screenshot, full size, with the activity it belongs to. */
-function ScreenshotDetail({ shot }: { shot: ScreenshotRow }) {
+function ScreenshotDetail({ shot, person }: { shot: ScreenshotRow; person: string | null }) {
   const [full, setFull] = useState<string | null>(null);
   useState(() => { void signedScreenshotUrl(shot.storage_path).then(setFull); });
 
@@ -139,9 +194,12 @@ function ScreenshotDetail({ shot }: { shot: ScreenshotRow }) {
     <div className="card p-4">
       <div className="mb-3 flex items-center gap-2">
         <Camera size={15} className="text-accent" />
-        <p className="text-sm font-semibold tabular-nums">
-          {new Date(shot.captured_at).toLocaleString()}
-        </p>
+        <div className="min-w-0">
+          {person && <p className="truncate text-sm font-semibold">{person}</p>}
+          <p className={cn("tabular-nums", person ? "text-[11.5px] text-faint" : "text-sm font-semibold")}>
+            {new Date(shot.captured_at).toLocaleString()}
+          </p>
+        </div>
       </div>
 
       {full ? (
