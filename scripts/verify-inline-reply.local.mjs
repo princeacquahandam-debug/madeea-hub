@@ -7,13 +7,24 @@
  */
 import { chromium } from "playwright";
 
+
+/* Credentials come from the environment. They were hardcoded here, which put a
+   real password into a repository other people can read, and into its history.
+   See .env.example. */
+const EMAIL = process.env.E2E_EMAIL;
+const PASSWORD = process.env.E2E_PASSWORD;
+if (!EMAIL || !PASSWORD) {
+  console.error("Set E2E_EMAIL and E2E_PASSWORD before running this. See .env.example.");
+  process.exit(1);
+}
+
 const BASE = "http://localhost:5174";
 const b = await chromium.launch();
 const p = await (await b.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
 
 await p.goto(BASE, { waitUntil: "domcontentloaded" });
-await p.fill('input[type="email"]', "rio.castillo@madeeas.com");
-await p.fill('input[type="password"]', "DemoPass!2026-madeea");
+await p.fill('input[type="email"]', EMAIL);
+await p.fill('input[type="password"]', PASSWORD);
 await p.getByRole("button", { name: /sign in/i }).first().click();
 await p.waitForTimeout(5000);
 const skip = p.getByText(/skip tour/i).first();

@@ -9,6 +9,17 @@
 import { chromium } from "playwright";
 import { readFileSync } from "node:fs";
 
+
+/* Credentials come from the environment. They were hardcoded here, which put a
+   real password into a repository other people can read, and into its history.
+   See .env.example. */
+const EMAIL = process.env.E2E_EMAIL;
+const PASSWORD = process.env.E2E_PASSWORD;
+if (!EMAIL || !PASSWORD) {
+  console.error("Set E2E_EMAIL and E2E_PASSWORD before running this. See .env.example.");
+  process.exit(1);
+}
+
 const BASE = process.argv[2] ?? "http://localhost:5174";
 
 const env = Object.fromEntries(
@@ -34,8 +45,8 @@ await page.goto(BASE, { waitUntil: "networkidle" });
 
 // Sign in through the real form if the login gate is up.
 if (await page.locator('input[type="password"]').count()) {
-  await page.fill('input[type="email"]', "rio.castillo@madeeas.com");
-  await page.fill('input[type="password"]', "DemoPass!2026-madeea");
+  await page.fill('input[type="email"]', EMAIL);
+  await page.fill('input[type="password"]', PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).first().click();
   await page.waitForTimeout(4000);
 }

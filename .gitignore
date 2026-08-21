@@ -34,3 +34,6 @@ __pycache__/
 # Third-party source, reproducible from skills-lock.json, and 75k lines of it.
 # Same rule as .claude/skills/ above: tooling, not this project.
 .agents/
+
+# Report screenshots: they contain real inbox contents.
+scripts/report-*.jpg
