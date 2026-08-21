@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Lock, Plus } from "lucide-react";
 import { REAL_CHANNELS, isUsable, type ChannelId } from "@/lib/channels";
 import { cn } from "@/lib/utils";
 
@@ -22,10 +22,17 @@ import { cn } from "@/lib/utils";
  * the question people actually have ("what needs me") rather than making them
  * assemble it from two coordinates.
  *
- * Channels that do not exist yet are NOT here. They used to hold permanent
- * space in the rail while doing nothing. They live behind Connect, which is
- * where you would go to change that, and Integrations still lists what each one
- * needs.
+ * CHANNELS THAT DO NOT WORK YET ARE SHOWN, AND THIS IS THE DELICATE PART. They
+ * are here so the answer to "does this handle Instagram?" is on the screen
+ * rather than in someone's head. But a chip that looks like the Gmail chip and
+ * silently matches nothing is worse than hiding it: you would filter to
+ * LinkedIn, see an empty list, and reasonably conclude there were no LinkedIn
+ * messages, rather than that we cannot read LinkedIn at all.
+ *
+ * So they are not filters. They are locked, sit behind a divider, carry a lock
+ * glyph rather than only a lighter colour, and lead to the page that says what
+ * each one actually needs. Three separate signals, because tone alone fails for
+ * anyone who cannot see it.
  */
 export function SourceChips({
   active, counts, onToggle,
@@ -36,6 +43,7 @@ export function SourceChips({
   onToggle: (id: ChannelId) => void;
 }) {
   const live = REAL_CHANNELS.filter(isUsable);
+  const locked = REAL_CHANNELS.filter((c) => !isUsable(c));
   const all = active.size === 0;
 
   return (
@@ -71,10 +79,33 @@ export function SourceChips({
         );
       })}
 
+      {locked.length > 0 && (
+        /* Structural, not decorative. It is what stops the eye reading the
+           locked chips as more of the same row. */
+        <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-border" />
+      )}
+
+      {locked.map((c) => (
+        <Link
+          key={c.id}
+          to="/integrations"
+          /* The logo keeps its real colours: it is the fastest way to find the
+             channel you are looking for, and greying it out would cost that for
+             no gain. The lock and the muted label carry the state instead. */
+          title={c.note ?? `${c.label} is not connected yet.`}
+          aria-label={`${c.label}: not connected. See what it needs.`}
+          className="flex min-h-[30px] items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 text-xs font-medium text-faint transition-colors hover:border-[var(--border-strong)] hover:text-text"
+        >
+          <c.icon size={13} className="opacity-70" />
+          {c.label}
+          <Lock size={10} className="opacity-80" />
+        </Link>
+      ))}
+
       <Link
         to="/integrations"
         className="flex min-h-[30px] items-center gap-1 rounded-full border border-dashed border-border px-2.5 text-xs font-medium text-faint transition-colors hover:border-[var(--border-strong)] hover:text-text"
-        title="Connect WhatsApp, Discord and other channels"
+        title="Manage connections and see what each channel needs"
       >
         <Plus size={12} /> Connect
       </Link>

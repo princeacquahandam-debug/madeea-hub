@@ -137,7 +137,7 @@ export function ChannelConnections() {
                   {c.requires.map((r) => (
                     <li key={r} className="flex items-start gap-1.5 text-[12px] leading-relaxed text-muted">
                       <Check size={11} className="mt-1 shrink-0 text-faint" />
-                      <span>{r}</span>
+                      <span className="min-w-0 break-words">{r}</span>
                     </li>
                   ))}
                 </ul>

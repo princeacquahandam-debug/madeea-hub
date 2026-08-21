@@ -431,7 +431,7 @@ export default function Communication() {
           Center" is already the highlighted item in the sidebar and repeating
           it at 30px tells nobody anything they learned two seconds ago. */}
       <div className="mb-2.5 flex flex-wrap items-center gap-2">
-        <h1 className="shrink-0 text-lg font-semibold">Inbox</h1>
+        <h1 className="shrink-0 text-lg font-semibold">Communication Center</h1>
 
         <div className="relative min-w-[200px] flex-1">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />

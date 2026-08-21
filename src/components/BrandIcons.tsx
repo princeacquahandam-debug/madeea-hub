@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useId, type CSSProperties } from "react";
 
 /**
  * Real product marks for the channels we integrate with.
@@ -87,6 +87,85 @@ export function DiscordMark({ size = 16, className, style }: BrandIconProps) {
         fill="#5865F2"
         d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"
       />
+    </svg>
+  );
+}
+
+/**
+ * Instagram's camera outline on its gradient.
+ *
+ * The gradient needs an id, and this mark renders in several places at once
+ * (the filter chips and the connections list). Two identical ids in one
+ * document is the kind of thing that works until a build reorders them, so the
+ * id comes from useId() and is unique per instance.
+ */
+export function InstagramMark({ size = 16, className, style }: BrandIconProps) {
+  const gid = useId();
+  return (
+    <svg
+      width={size} height={size} viewBox="0 0 24 24"
+      className={className} style={style} aria-hidden="true" focusable="false"
+    >
+      <defs>
+        <radialGradient id={gid} cx="0.3" cy="1.05" r="1.3">
+          <stop offset="0" stopColor="#FFDD55" />
+          <stop offset="0.35" stopColor="#FF543E" />
+          <stop offset="0.7" stopColor="#C837AB" />
+          <stop offset="1" stopColor="#7638FA" />
+        </radialGradient>
+      </defs>
+      <rect x="1" y="1" width="22" height="22" rx="6.4" fill={`url(#${gid})`} />
+      <rect x="5.6" y="5.6" width="12.8" height="12.8" rx="4.1" fill="none" stroke="#fff" strokeWidth="1.75" />
+      <circle cx="12" cy="12" r="3.15" fill="none" stroke="#fff" strokeWidth="1.75" />
+      <circle cx="17.1" cy="6.9" r="1.15" fill="#fff" />
+    </svg>
+  );
+}
+
+/** LinkedIn's "in" tile. */
+export function LinkedInMark({ size = 16, className, style }: BrandIconProps) {
+  return (
+    <svg
+      width={size} height={size} viewBox="0 0 24 24"
+      className={className} style={style} aria-hidden="true" focusable="false"
+    >
+      <rect width="24" height="24" rx="3.2" fill="#0A66C2" />
+      <path
+        fill="#fff"
+        d="M7.12 9.32H4.4V19.2h2.72V9.32zM5.76 8.06a1.58 1.58 0 1 1 0-3.16 1.58 1.58 0 0 1 0 3.16zM19.6 19.2h-2.72v-4.81c0-1.15-.02-2.62-1.6-2.62-1.6 0-1.84 1.25-1.84 2.54v4.89h-2.72V9.32h2.61v1.35h.04c.36-.69 1.25-1.42 2.58-1.42 2.76 0 3.27 1.82 3.27 4.18v5.77z"
+      />
+    </svg>
+  );
+}
+
+/** Microsoft Teams. The lighter figures sit behind the dark "T" tile. */
+export function TeamsMark({ size = 16, className, style }: BrandIconProps) {
+  return (
+    <svg
+      width={size} height={size} viewBox="0 0 24 24"
+      className={className} style={style} aria-hidden="true" focusable="false"
+    >
+      <circle cx="19.15" cy="6.05" r="2.15" fill="#5059C9" />
+      <path fill="#5059C9" d="M17.1 9.45h4.85c.58 0 1.05.47 1.05 1.05v4.16a3.2 3.2 0 0 1-6.4 0V9.45z" />
+      <circle cx="12.35" cy="5.5" r="2.85" fill="#7B83EB" />
+      <path fill="#7B83EB" d="M16.6 10.4v5.75a4.85 4.85 0 0 1-9.7 0V10.4c0-.53.43-.95.95-.95h7.8c.52 0 .95.42.95.95z" />
+      <rect x="1" y="5.35" width="12.1" height="13.3" rx="1.35" fill="#4B53BC" />
+      <path fill="#fff" d="M10.35 8.55H3.75v1.62h2.44v6.28h1.72v-6.28h2.44V8.55z" />
+    </svg>
+  );
+}
+
+/** Outlook: the white "O" tile beside its envelope. */
+export function OutlookMark({ size = 16, className, style }: BrandIconProps) {
+  return (
+    <svg
+      width={size} height={size} viewBox="0 0 24 24"
+      className={className} style={style} aria-hidden="true" focusable="false"
+    >
+      <path fill="#0364B8" d="M23 7.6v9c0 .5-.4.9-.9.9h-10.4V6.7h10.4c.5 0 .9.4.9.9z" />
+      <path fill="#28A8EA" d="M23 8.35l-5.85 3.95-5.45-3.68V6.7h10.4c.5 0 .9.4.9.9v.75z" />
+      <rect x="1" y="4.1" width="11.6" height="15.8" rx="1.45" fill="#0078D4" />
+      <ellipse cx="6.8" cy="12" rx="2.95" ry="3.6" fill="none" stroke="#fff" strokeWidth="1.85" />
     </svg>
   );
 }

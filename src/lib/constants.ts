@@ -66,7 +66,10 @@ export const NAV: NavItem[] = [
 
      Calendar would be the first item here. It is §5.7, parked pending OQ-3. */
   { to: "/", label: "Dashboard", icon: LayoutDashboard, group: "My Day" },
-  { to: "/inbox", label: "Inbox", icon: Mail, group: "My Day" },
+  /* The route stays /inbox. Seventeen places link to it, the name is the
+     only thing anyone sees, and renaming the path would buy nothing but a
+     round of dead links. /communication already redirects here. */
+  { to: "/inbox", label: "Communication Center", icon: Mail, group: "My Day" },
   { to: "/tasks", label: "Task Manager", icon: CheckSquare, group: "My Day" },
   { to: "/quick-actions", label: "AI Quick Actions", icon: Zap, group: "My Day" },
   // The day closes here: what you did, and that you were there to do it.
