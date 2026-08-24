@@ -1,6 +1,6 @@
 // Product version history. Surfaced in the in-app "What's new" page.
 // Bump APP_VERSION and prepend a release whenever something ships.
-export const APP_VERSION = "1.11.0";
+export const APP_VERSION = "1.12.0";
 
 export interface Release {
   version: string;
@@ -10,6 +10,17 @@ export interface Release {
 }
 
 export const CHANGELOG: Release[] = [
+  {
+    version: "1.12.0",
+    date: "2026-08-24",
+    title: "Team connections",
+    changes: [
+      "Integrations now lists every teammate and which mailbox each one has connected, so setting somebody up no longer means asking them whether it worked.",
+      "It shows who has connected nothing, which is the half that actually needs chasing.",
+      "Your colleagues mail stays private. This says whether the plumbing is attached, never what is in anyone inbox.",
+      "Instagram DMs are now shared with the team, like Slack, Discord and WhatsApp. They arrive at the business account rather than a person, so whoever pressed Sync should not have been the only one able to see them.",
+    ],
+  },
   {
     version: "1.11.0",
     date: "2026-08-24",

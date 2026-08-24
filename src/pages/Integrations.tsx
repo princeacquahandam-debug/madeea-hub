@@ -5,6 +5,7 @@ import { Calendar, CheckCircle2, RefreshCw, Plug, Loader2, Wand2, AlertTriangle 
 import { SlackMark } from "@/components/BrandIcons";
 import { PageHeader } from "@/components/ui";
 import { ChannelConnections } from "@/components/ChannelConnections";
+import { TeamConnections } from "@/components/TeamConnections";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useMailboxSync, useMailConnections } from "@/data/hooks";
 import { reconnectMail } from "@/hooks/useSendEmail";
@@ -263,6 +264,12 @@ export default function Integrations() {
           </button>
         </div>
       </div>
+
+      {/* Who on the team has connected what. Above the organiser card
+          deliberately: that one reports what the n8n schedule has DONE, and
+          this reports whether there is anything for it to do. Asked in that
+          order, the empty organiser stops looking like a fault. */}
+      <TeamConnections />
 
       {/* Team email organiser. Read-only status. The n8n schedule drives it; there
           is deliberately no "run now" button, because gmail_sync_state is
