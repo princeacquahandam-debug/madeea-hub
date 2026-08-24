@@ -428,6 +428,9 @@ export interface CalendarEvent {
   attendee_emails: string[];
   client_name: string | null;
   source: string | null;
+  /** This account's own answer to the invitation, for the declined filter. */
+  response_status: string | null;
+  event_timezone: string | null;
 }
 
 /**
@@ -444,7 +447,7 @@ export function useCalendarEvents(from: string, to: string) {
       if (!supabase) return [];
       const { data, error } = await supabase
         .from("meetings")
-        .select("id,title,starts_at,ends_at,all_day,location,html_link,organizer_email,description,attendee_emails,source,clients(name)")
+        .select("id,title,starts_at,ends_at,all_day,location,html_link,organizer_email,description,attendee_emails,source,response_status,event_timezone,clients(name)")
         .gte("starts_at", from)
         .lte("starts_at", to)
         .order("starts_at", { ascending: true });
@@ -462,6 +465,8 @@ export function useCalendarEvents(from: string, to: string) {
         attendee_emails: (m.attendee_emails as string[] | null) ?? [],
         client_name: m.clients?.name ?? null,
         source: (m.source as string | null) ?? null,
+        response_status: (m.response_status as string | null) ?? null,
+        event_timezone: (m.event_timezone as string | null) ?? null,
       }));
     },
   });

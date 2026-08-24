@@ -73,6 +73,7 @@ Deno.serve(async (req) => {
        identical to having no meetings. Bounded at 10 pages so a pathological
        calendar cannot run the function until it times out. */
     const items: Record<string, any>[] = [];
+    let calendarTz = "";
     let pageToken: string | undefined;
     for (let page = 0; page < 10; page++) {
       const qs = new URLSearchParams({
@@ -102,6 +103,10 @@ Deno.serve(async (req) => {
         return json({ error: `Google Calendar refused the request: ${detail.slice(0, 200)}` }, res.status);
       }
       const listPage = await res.json();
+      /* The zone the calendar is kept in. Google renders in this and we were
+         rendering in the browser's, so an 8pm Manila meeting read as 5am on a
+         laptop set to Mountain time. */
+      if (!calendarTz && typeof listPage.timeZone === "string") calendarTz = listPage.timeZone;
       items.push(...(listPage.items ?? []));
       pageToken = listPage.nextPageToken;
       if (!pageToken) break;
@@ -131,6 +136,14 @@ Deno.serve(async (req) => {
           organizer_email: ev.organizer?.email ?? null,
           description: typeof ev.description === "string" ? ev.description.slice(0, 4000) : null,
           calendar_id: "primary",
+          event_timezone: ev.start?.timeZone ?? calendarTz ?? null,
+          /* This account's own answer, not the meeting's. `self` is the flag
+             Google sets on the attendee that is you; the organiser often has
+             no attendee entry at all, which is why this can be null. */
+          response_status:
+            (Array.isArray(ev.attendees)
+              ? ev.attendees.find((a: { self?: boolean }) => a?.self)?.responseStatus
+              : null) ?? null,
           attendee_emails: Array.isArray(ev.attendees)
             ? ev.attendees.map((a: { email?: string }) => a.email).filter(Boolean)
             : [],
