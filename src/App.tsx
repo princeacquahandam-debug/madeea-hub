@@ -42,8 +42,6 @@ const Routines = lazy(() => import("@/pages/Routines"));
 const Credentials = lazy(() => import("@/pages/Credentials"));
 const Notes = lazy(() => import("@/pages/Notes"));
 const Academy = lazy(() => import("@/pages/Academy"));
-const AdsSetter = lazy(() => import("@/pages/AdsSetter"));
-const DmSetter = lazy(() => import("@/pages/DmSetter"));
 const MeetingIntelligence = lazy(() => import("@/pages/MeetingIntelligence"));
 
 const queryClient = new QueryClient();
@@ -75,8 +73,6 @@ function Gate() {
             point at the old path, and a rename that 404s them is not a rename,
             it is a break. */}
         <Route path="/communication" element={<Navigate to="/inbox" replace />} />
-        <Route path="/ads-setter" element={<AdsSetter />} />
-        <Route path="/dm-setter" element={<DmSetter />} />
         <Route path="/meeting-intelligence" element={<MeetingIntelligence />} />
         <Route path="/quick-actions" element={<QuickActions />} />
         <Route path="/clients" element={<ClientVault />} />

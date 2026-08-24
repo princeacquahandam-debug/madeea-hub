@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { edgeFailure } from "@/lib/edgeError";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MailConnection, MailProvider, AdCampaign, AdLead, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MailConnection, MailProvider, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
@@ -565,98 +565,6 @@ export function useFathomSync() {
     },
     retry: false,
   });
-}
-
-// ---------------- Ads Setter ----------------
-// Campaigns and their leads are workspace-shared like everything else, so any EA
-// can pick up a conversation someone else started. A lead only one person can see
-// is a lead that goes cold the day they're off.
-
-export function useAdCampaigns() {
-  return useQuery<AdCampaign[]>({
-    queryKey: ["ad-campaigns"],
-    queryFn: async () => {
-      if (!supabase) return [];
-      const { data, error } = await supabase
-        .from("ad_campaigns")
-        .select("id,kind,channel,openers,follow_ups,name,platform,objective,daily_budget,targeting,creatives,offer,utm,qualifying_questions,created_at")
-        .order("created_at", { ascending: false });
-      if (error) return [];   // not migrated yet — empty, never invented
-      return (data as any[]).map((c) => ({
-        ...c,
-        kind: c.kind ?? "ads",
-        openers: Array.isArray(c.openers) ? c.openers : [],
-        follow_ups: Array.isArray(c.follow_ups) ? c.follow_ups : [],
-      })) as AdCampaign[];
-    },
-    retry: false,
-  });
-}
-
-export function useAdLeads() {
-  return useQuery<AdLead[]>({
-    queryKey: ["ad-leads"],
-    queryFn: async () => {
-      if (!supabase) return [];
-      const { data, error } = await supabase
-        .from("ad_leads")
-        .select("id,campaign_id,name,email,phone,handle,channel,source,stage,score,reason,note,thread,booked_at,disqualified_reason,created_at,updated_at")
-        .order("created_at", { ascending: false });
-      if (error) return [];
-      return (data as any[]).map((l) => ({
-        ...l,
-        email: l.email ?? "",
-        phone: l.phone ?? "",
-        handle: l.handle ?? "",
-        note: l.note ?? "",
-        thread: Array.isArray(l.thread) ? l.thread : [],
-      })) as AdLead[];
-    },
-    retry: false,
-  });
-}
-
-export function useAdsSetterMutations() {
-  const qc = useQueryClient();
-  const invalidateLeads = () => qc.invalidateQueries({ queryKey: ["ad-leads"] });
-
-  const createCampaign = useMutation({
-    mutationFn: async (row: Record<string, unknown>) => {
-      if (!supabase) throw new Error("Connect Supabase to save campaigns.");
-      const { data, error } = await supabase.from("ad_campaigns").insert(row).select().single();
-      if (error) throw error;
-      return data as AdCampaign;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["ad-campaigns"] }),
-  });
-
-  const addLeads = useMutation({
-    mutationFn: async (rows: Record<string, unknown>[]) => {
-      if (!supabase) throw new Error("Connect Supabase to save leads.");
-      // ad_leads_dedupe_uniq turns a re-pasted CSV into a no-op instead of a
-      // duplicate with half a conversation. ignoreDuplicates keeps the existing
-      // row — the one that may already hold a live thread.
-      const { data, error } = await supabase
-        .from("ad_leads")
-        .upsert(rows, { onConflict: "workspace_id,dedupe_key", ignoreDuplicates: true })
-        .select();
-      if (error) throw error;
-      return (data ?? []) as AdLead[];
-    },
-    onSuccess: invalidateLeads,
-  });
-
-  const updateLead = useMutation({
-    mutationFn: async ({ id, patch }: { id: string; patch: Record<string, unknown> }) => {
-      if (!supabase) throw new Error("Connect Supabase to update leads.");
-      const { data, error } = await supabase.from("ad_leads").update(patch).eq("id", id).select().single();
-      if (error) throw error;
-      return data as AdLead;
-    },
-    onSuccess: invalidateLeads,
-  });
-
-  return { createCampaign, addLeads, updateLead };
 }
 
 /**
