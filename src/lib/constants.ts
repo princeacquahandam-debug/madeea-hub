@@ -19,6 +19,8 @@ import {
   KeyRound,
   GraduationCap,
   StickyNote,
+  Megaphone,
+  Send,
   type LucideIcon,
 } from "lucide-react";
 
@@ -72,6 +74,14 @@ export const NAV: NavItem[] = [
   { to: "/inbox", label: "Communication Center", icon: Mail, group: "My Day" },
   { to: "/tasks", label: "Task Manager", icon: CheckSquare, group: "My Day" },
   { to: "/quick-actions", label: "AI Quick Actions", icon: Zap, group: "My Day" },
+  /* The two setter boards, in My Day rather than a group of their own: they
+     are worked every day like the task board, and the leads on them are not
+     clients yet, so Clients & Files would be the wrong shelf. Ads Setter is
+     the inbound half (leads an ad produced), DM Setter the outbound one — kept
+     apart because a cold prospect and an ad lead are worked differently, and
+     one combined board would hide both. */
+  { to: "/ads-setter", label: "Ads Setter", icon: Megaphone, group: "My Day" },
+  { to: "/dm-setter", label: "DM Setter", icon: Send, group: "My Day" },
   // The day closes here: what you did, and that you were there to do it.
   { to: "/eod", label: "EOD Reports", icon: ClipboardList, group: "My Day" },
   { to: "/time", label: "Time Tracker", icon: Clock, group: "My Day" },
