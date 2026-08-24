@@ -125,10 +125,6 @@ export default function EodReports() {
   const [date, setDate] = useState<string>("all");
   const [blockersOnly, setBlockersOnly] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
-  /* The blocker feed opens short. It is the section people scroll PAST to reach
-     the reports, and at 23 verbatim paragraphs it was several screens of text
-     before anything else on the page could be reached. */
-  const [allBlockers, setAllBlockers] = useState(false);
   // Tour no longer auto-opens on EOD. Only via the "Replay" button below.
   const tour = usePageTour(TOUR_KEY, false);
 
@@ -310,20 +306,39 @@ export default function EodReports() {
     { label: "Planned Items", value: stats.totalPlans, foot: `${avg(stats.totalPlans)} avg per report` },
   ];
 
-  const blockerFeed = useMemo(
-    () =>
-      [...entries]
-        .sort((a, b) => a.report_date.localeCompare(b.report_date))
-        .flatMap((e) =>
-          e.blockers.map((b, i) => ({
-            key: `${e.person}-${e.report_date}-${i}`,
-            person: e.person ?? "",
-            date: e.report_date,
-            text: b,
-          })),
-        ),
+  /**
+   * The dates this filter can offer, which depend on WHO is selected.
+   *
+   * It used to list every date the sheet ever defined, for everybody, with an
+   * "All dates" chip in front. That produced two dead ends at once: most of
+   * those dates were blank for the person being looked at, so choosing one
+   * showed "No reports match these filters" and told you nothing about why,
+   * and the row was long enough that finding the two days somebody actually
+   * reported meant reading twenty chips.
+   *
+   * Now the row is exactly the days that person filed something, newest first,
+   * so every chip leads somewhere.
+   */
+  const allReportedDates = useMemo(
+    () => [...new Set(entries.map((e) => e.report_date))].sort().reverse(),
     [entries],
   );
+  const personDates = useMemo(
+    () =>
+      person === "all"
+        ? allReportedDates
+        : [...new Set(entries.filter((e) => e.person === person).map((e) => e.report_date))].sort().reverse(),
+    [entries, person, allReportedDates],
+  );
+
+  /* One day is always selected, because "All dates" is gone. When the choice
+     stops making sense (a different member was picked, and they did not report
+     that day) it falls back to their most recent day rather than showing an
+     empty list under a date they never filed. */
+  useEffect(() => {
+    if (personDates.length === 0) return;
+    if (!personDates.includes(date)) setDate(personDates[0]);
+  }, [personDates, date]);
 
   const visible = useMemo(
     () =>
@@ -598,40 +613,13 @@ export default function EodReports() {
         </section>
       </div>
 
-      {/* ---------------- Blockers ---------------- */}
-      <section className="card mt-5 p-5">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="font-semibold">Blockers Raised</h2>
-          <span className="text-xs text-faint">Verbatim · “None” answers excluded</span>
-        </div>
-        <div className="space-y-2">
-          {(allBlockers ? blockerFeed : blockerFeed.slice(0, BLOCKER_PREVIEW)).map((b) => (
-            <BlockerCard key={b.key} text={b.text} person={b.person} date={b.date} />
-          ))}
-          {blockerFeed.length === 0 && <p className="py-4 text-center text-xs text-faint">No blockers recorded</p>}
-        </div>
-
-        {/* Counted, not just "See more". A blocker feed is a queue of things
-            somebody is stuck on, and how many are hidden is the part worth
-            knowing before deciding whether to open it. */}
-        {blockerFeed.length > BLOCKER_PREVIEW && (
-          <button
-            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs text-accent-soft transition-colors hover:bg-surface-2"
-            onClick={() => setAllBlockers((v) => !v)}
-            aria-expanded={allBlockers}
-          >
-            {allBlockers ? (
-              <>
-                <ChevronDown size={13} /> Show fewer
-              </>
-            ) : (
-              <>
-                <ChevronRight size={13} /> See all {blockerFeed.length} blockers
-              </>
-            )}
-          </button>
-        )}
-      </section>
+      {/* The standalone "Blockers Raised" feed lived here and is gone. It was
+          the same blockers a second time, stripped of the report they came
+          from: the same paragraph appeared once in the feed and again inside
+          its report card lower down, and the copy in the feed was the less
+          useful one, because a blocker without the day's other work beside it
+          cannot be judged. Blockers now appear once, in the report that raised
+          them, with "With blockers" as the way to find them. */}
 
       {/* ---------------- Report browser ---------------- */}
       <section data-tour="eod-reports" className="card mt-5 p-5">
@@ -654,14 +642,19 @@ export default function EodReports() {
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <FilterChip active={date === "all"} onClick={() => setDate("all")}>
-              All dates
-            </FilterChip>
-            {activeDates.map((d) => (
+            {/* Newest first. A report browser is nearly always opened to read
+                the latest one, and having to walk to the end of the row to
+                reach it was backwards. */}
+            {personDates.map((d) => (
               <FilterChip key={d} active={date === d} onClick={() => setDate(d)}>
                 {fmtDate(d)}
               </FilterChip>
             ))}
+            {personDates.length === 0 && (
+              <span className="text-xs text-faint">
+                {person === "all" ? "No reports yet" : `${person.split(" ")[0]} has not filed a report yet`}
+              </span>
+            )}
             <span className="mx-1 h-4 w-px bg-border" />
             <FilterChip active={blockersOnly} onClick={() => setBlockersOnly(!blockersOnly)}>
               With blockers
@@ -670,7 +663,10 @@ export default function EodReports() {
               className="ml-auto text-xs text-accent-soft hover:underline"
               onClick={() => {
                 setPerson("all");
-                setDate("all");
+                /* The newest day ANYBODY reported, not the newest day the
+                   member being reset away from reported. Reset that lands you
+                   on one person's last Tuesday is not a reset. */
+                setDate(allReportedDates[0] ?? "all");
                 setBlockersOnly(false);
               }}
             >
@@ -1011,53 +1007,6 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
   );
 }
 
-/**
- * One blocker, small until it needs to be large.
- *
- * TWO LEVELS OF COLLAPSE, AND WHY BOTH EARN THEIR PLACE. The feed hides
- * everything past the fourth card, which fixes the length of the SECTION. This
- * fixes the length of a CARD: several blockers are a paragraph each, so four
- * cards could still be a screen and a half, and the fix for that is not fewer
- * cards but shorter ones.
- *
- * Clamped to three lines, expanded by pressing it. Whole-card rather than a
- * "more" link, because the card is already the click target people reach for
- * and a 40px link inside a paragraph is not.
- */
-function BlockerCard({ text, person, date }: { text: string; person: string; date: string }) {
-  const [open, setOpen] = useState(false);
-  /* Only interactive when there is something hidden. A short blocker that
-     already fits must not grow a pointer cursor and an expand affordance that
-     do nothing when pressed. */
-  const long = text.length > CLAMP_CHARS;
-
-  const body = (
-    <>
-      <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-400" />
-      <div className="min-w-0 flex-1">
-        <p className={cn("text-sm", long && !open && "line-clamp-3")}>{text}</p>
-        <p className="mt-0.5 text-xs text-faint">
-          {person} · {fmtDate(date)}
-          {long && <span className="ml-1.5 text-accent-soft">{open ? "Show less" : "Show more"}</span>}
-        </p>
-      </div>
-    </>
-  );
-
-  if (!long) return <div className="flex gap-3 rounded-lg bg-surface-2 p-3">{body}</div>;
-
-  return (
-    <button
-      type="button"
-      onClick={() => setOpen((v) => !v)}
-      aria-expanded={open}
-      className="flex w-full gap-3 rounded-lg bg-surface-2 p-3 text-left transition-colors hover:bg-surface-2/70"
-    >
-      {body}
-    </button>
-  );
-}
-
 /** How much of a report is worth showing before it earns a click. Two items is
  *  enough to recognise which report this is, which is all the collapsed state
  *  has to do. */
@@ -1065,8 +1014,6 @@ const PREVIEW_ITEMS = 2;
 /** Roughly three lines of prose. Only used to decide whether the See more
  *  button appears at all; the visual cut is done with line-clamp. */
 const CLAMP_CHARS = 220;
-/** Blockers shown before the feed asks. */
-const BLOCKER_PREVIEW = 4;
 
 function ReportCard({
   entry,
@@ -1127,7 +1074,16 @@ function ReportCard({
   }
 
   return (
-    <article className="group rounded-lg border border-border bg-surface-2/50">
+    <article
+      className={cn(
+        "group rounded-lg border bg-surface-2/50",
+        /* Edged in amber when somebody is stuck. The standalone blocker feed
+           used to be how a blocker got noticed from across the page; without
+           it, the card itself has to carry that, or a blocker becomes something
+           you only find by opening every report in turn. */
+        entry.blockers.length > 0 ? "border-amber-500/40" : "border-border",
+      )}
+    >
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
         <span className="pill bg-accent/15 text-accent-soft">{fmtDate(entry.report_date)}</span>
         <h3 className="flex-1 text-sm font-medium">{entry.person}</h3>
