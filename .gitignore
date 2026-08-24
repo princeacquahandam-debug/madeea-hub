@@ -37,3 +37,4 @@ __pycache__/
 
 # Report screenshots: they contain real inbox contents.
 scripts/report-*.jpg
+scripts/out-*.png

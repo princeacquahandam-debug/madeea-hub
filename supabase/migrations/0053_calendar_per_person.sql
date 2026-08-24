@@ -1,0 +1,11 @@
+-- The same meeting, for two people, is two rows.
+--
+-- meetings_gcal_uniq was unique on (workspace_id, gcal_event_id), so a Google
+-- event could exist once per WORKSPACE. Everyone in this workspace shares one,
+-- and "Team Meeting" is on all nine calendars: whoever synced first took the
+-- row, and every later sync upserted over it, moving the event between people
+-- rather than giving each of them their own. A calendar per person cannot be
+-- built on a constraint that allows one row per company.
+--
+-- 0052 added the owner-scoped index this replaces it with.
+drop index if exists public.meetings_gcal_uniq;

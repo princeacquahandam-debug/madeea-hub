@@ -51,7 +51,20 @@ export default function QuickActions() {
   useEffect(() => {
     const wanted = params.get("action");
     if (!wanted) return;
-    if (QUICK_ACTION_GROUPS.some((g) => g.actions.includes(wanted))) open(wanted);
+    if (!QUICK_ACTION_GROUPS.some((g) => g.actions.includes(wanted))) return;
+    open(wanted);
+
+    /* Fields can arrive prefilled, which is how the Calendar hands over a real
+       meeting instead of making somebody retype what the app already knows.
+       Only keys the chosen action actually declares are accepted: a hand-typed
+       or stale URL cannot inject arbitrary values into the model's inputs. */
+    const found = CURATED_QUICK_ACTIONS[wanted] ?? QUICK_ACTION_SCHEMAS[wanted] ?? DEFAULT_QUICK_ACTION;
+    const seeded: Record<string, string> = {};
+    for (const f of found.fields) {
+      const v = params.get(f.name);
+      if (v) seeded[f.name] = v;
+    }
+    if (Object.keys(seeded).length) setValues(seeded);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
 

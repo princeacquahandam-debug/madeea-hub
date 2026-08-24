@@ -413,6 +413,108 @@ export function useMeetings() {
   });
 }
 
+// ---------------- calendar ----------------
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string | null;
+  all_day: boolean;
+  location: string | null;
+  html_link: string | null;
+  organizer_email: string | null;
+  description: string | null;
+  attendee_emails: string[];
+  client_name: string | null;
+  source: string | null;
+}
+
+/**
+ * Events in a window, for the month or day being drawn.
+ *
+ * Scoped to the range on screen rather than fetching everything: a calendar
+ * that loads the whole history to render one month gets slower every week it
+ * is used.
+ */
+export function useCalendarEvents(from: string, to: string) {
+  return useQuery<CalendarEvent[]>({
+    queryKey: ["calendar", from, to],
+    queryFn: async () => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from("meetings")
+        .select("id,title,starts_at,ends_at,all_day,location,html_link,organizer_email,description,attendee_emails,source,clients(name)")
+        .gte("starts_at", from)
+        .lte("starts_at", to)
+        .order("starts_at", { ascending: true });
+      if (error) throw error;
+      return (data as unknown as (Record<string, unknown> & { clients?: { name?: string } })[]).map((m) => ({
+        id: String(m.id),
+        title: String(m.title ?? "(busy)"),
+        starts_at: String(m.starts_at),
+        ends_at: (m.ends_at as string | null) ?? null,
+        all_day: Boolean(m.all_day),
+        location: (m.location as string | null) ?? null,
+        html_link: (m.html_link as string | null) ?? null,
+        organizer_email: (m.organizer_email as string | null) ?? null,
+        description: (m.description as string | null) ?? null,
+        attendee_emails: (m.attendee_emails as string[] | null) ?? [],
+        client_name: m.clients?.name ?? null,
+        source: (m.source as string | null) ?? null,
+      }));
+    },
+  });
+}
+
+/** Whether this account has a Google connection, and whether it covers calendar. */
+export function useGoogleConnection() {
+  return useQuery({
+    queryKey: ["google-connection"],
+    queryFn: async () => {
+      if (!supabase) return { connected: false, calendar: false };
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) return { connected: false, calendar: false };
+      /* refresh_token is revoked from `authenticated` (0016), so this reads the
+         columns a browser is allowed to see and never the secret itself. */
+      const { data, error } = await supabase
+        .from("google_credentials").select("scopes,connected_at").eq("owner_id", auth.user.id).maybeSingle();
+      if (error) throw error;
+      const scopes = String(data?.scopes ?? "");
+      return {
+        connected: Boolean(data),
+        /* Asked of the granted scopes, not assumed from the fact of a
+           connection. An account linked before calendar access was requested
+           has a perfectly valid token that cannot read a calendar, and the
+           difference has to be visible or the page just looks empty. */
+        calendar: scopes.includes("calendar"),
+        connected_at: data?.connected_at ?? null,
+      };
+    },
+  });
+}
+
+export function useCalendarSync() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (range: { timeMin: string; timeMax: string }) => {
+      if (!supabase) throw new Error("Calendar sync isn't available in demo mode.");
+      const { data, error } = await supabase.functions.invoke("calendar-sync", { body: range });
+      if (error) {
+        const f = await edgeFailure(error, "Could not sync your calendar.");
+        const err = new Error(f.message) as Error & { status?: number };
+        err.status = f.status;
+        throw err;
+      }
+      return data as { synced: number; scanned: number };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["calendar"] });
+      qc.invalidateQueries({ queryKey: ["meetings"] });
+    },
+  });
+}
+
 // ---------------- client docs ----------------
 // The Vault has no file store, so a client's "documents" are the AI Suite outputs
 // logged against them in ai_generations. Fetched lazily, per client, only when a

@@ -19,6 +19,7 @@ import {
   KeyRound,
   GraduationCap,
   StickyNote,
+  CalendarDays,
   type LucideIcon,
 } from "lucide-react";
 
@@ -70,6 +71,7 @@ export const NAV: NavItem[] = [
      only thing anyone sees, and renaming the path would buy nothing but a
      round of dead links. /communication already redirects here. */
   { to: "/inbox", label: "Communication Center", icon: Mail, group: "My Day" },
+  { to: "/calendar", label: "Calendar", icon: CalendarDays, group: "My Day" },
   { to: "/tasks", label: "Task Manager", icon: CheckSquare, group: "My Day" },
   { to: "/quick-actions", label: "AI Quick Actions", icon: Zap, group: "My Day" },
   // The day closes here: what you did, and that you were there to do it.

@@ -56,28 +56,105 @@ Deno.serve(async (req) => {
     if (!cred?.refresh_token) return json({ error: "Google not connected" }, 400);
     const token = await accessToken(cred.refresh_token);
 
-    const now = new Date().toISOString();
-    const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(now)}&maxResults=10&singleEvents=true&orderBy=startTime`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    const list = await res.json();
+    /* A WINDOW, not "the next ten things".
+       This asked for maxResults=10 from now, which is a dashboard widget, not a
+       calendar: opening last month showed nothing, and a busy fortnight was
+       truncated without saying so. The page asks for the range it is drawing. */
+    const body = await req.json().catch(() => ({}));
+    const timeMin = typeof body.timeMin === "string"
+      ? new Date(body.timeMin).toISOString()
+      : new Date(Date.now() - 30 * 864e5).toISOString();
+    const timeMax = typeof body.timeMax === "string"
+      ? new Date(body.timeMax).toISOString()
+      : new Date(Date.now() + 90 * 864e5).toISOString();
+
+    /* Paginated. Google caps a page at 250 and hands back a token; stopping at
+       the first page would silently drop the rest of a busy month, which looks
+       identical to having no meetings. Bounded at 10 pages so a pathological
+       calendar cannot run the function until it times out. */
+    const items: Record<string, any>[] = [];
+    let pageToken: string | undefined;
+    for (let page = 0; page < 10; page++) {
+      const qs = new URLSearchParams({
+        timeMin, timeMax,
+        maxResults: "250",
+        singleEvents: "true",   // expands recurring events into occurrences
+        orderBy: "startTime",
+        showDeleted: "false",
+      });
+      if (pageToken) qs.set("pageToken", pageToken);
+
+      const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events?${qs}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!res.ok) {
+        const detail = await res.text();
+        /* 403 here is almost always the calendar scope missing from a token
+           granted before it was asked for. Naming it beats "sync failed",
+           which cannot be acted on. */
+        if (res.status === 403) {
+          return json({
+            error: "This Google connection cannot read your calendar. Reconnect and allow calendar access.",
+            failure: "needs_scope",
+          }, 403);
+        }
+        return json({ error: `Google Calendar refused the request: ${detail.slice(0, 200)}` }, res.status);
+      }
+      const listPage = await res.json();
+      items.push(...(listPage.items ?? []));
+      pageToken = listPage.nextPageToken;
+      if (!pageToken) break;
+    }
+
+    const syncedAt = new Date().toISOString();
     let synced = 0;
-    for (const ev of list.items ?? []) {
+    let failed = 0;
+    let firstError = "";
+    for (const ev of items) {
+      // An all-day event carries `date`; a timed one carries `dateTime`.
+      const allDay = Boolean(ev.start?.date && !ev.start?.dateTime);
       const start = ev.start?.dateTime ?? ev.start?.date;
+      const end = ev.end?.dateTime ?? ev.end?.date;
+      if (!start) continue;
+
       const { error } = await supa.from("meetings").upsert(
         {
           gcal_event_id: ev.id,
           source: "gcal",
           title: ev.summary ?? "(busy)",
-          starts_at: start ? new Date(start).toISOString() : null,
+          starts_at: new Date(start).toISOString(),
+          ends_at: end ? new Date(end).toISOString() : null,
+          all_day: allDay,
+          location: ev.location ?? null,
+          html_link: ev.htmlLink ?? null,
+          organizer_email: ev.organizer?.email ?? null,
+          description: typeof ev.description === "string" ? ev.description.slice(0, 4000) : null,
+          calendar_id: "primary",
+          attendee_emails: Array.isArray(ev.attendees)
+            ? ev.attendees.map((a: { email?: string }) => a.email).filter(Boolean)
+            : [],
+          synced_at: syncedAt,
           status: "pending",
         },
-        { onConflict: "workspace_id,gcal_event_id" },
+        /* Per owner, not per workspace. Everyone here shares one workspace and
+           "Team Meeting" is on all nine calendars: a workspace-scoped conflict
+           target made the second person's sync overwrite the first person's
+           row instead of creating their own. See 0053. */
+        { onConflict: "owner_id,gcal_event_id" },
       );
-      if (!error) synced++;
+      /* A write that fails must say so. This counted successes and discarded
+         every error, so a broken conflict target reported "synced 0" from 16
+         events and read as an empty calendar rather than a failure. */
+      if (error) { if (!firstError) firstError = error.message; failed++; }
+      else synced++;
     }
-    return json({ synced });
+
+    if (synced === 0 && failed > 0) {
+      return json({ error: `No events could be saved. ${firstError}`, scanned: items.length, failed }, 500);
+    }
+
+    return json({ synced, failed, scanned: items.length, timeMin, timeMax });
   } catch (e) {
     return json({ error: String(e instanceof Error ? e.message : e) }, 500);
   }

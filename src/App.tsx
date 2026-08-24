@@ -43,6 +43,7 @@ const Credentials = lazy(() => import("@/pages/Credentials"));
 const Notes = lazy(() => import("@/pages/Notes"));
 const Academy = lazy(() => import("@/pages/Academy"));
 const MeetingIntelligence = lazy(() => import("@/pages/MeetingIntelligence"));
+const Calendar = lazy(() => import("@/pages/Calendar"));
 
 const queryClient = new QueryClient();
 
@@ -63,6 +64,7 @@ function Gate() {
       <Route element={<AppShell />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/academy" element={<Academy />} />
+        <Route path="/calendar" element={<Calendar />} />
         <Route path="/tasks" element={<Tasks />} />
         <Route path="/eod" element={<EodReports />} />
         <Route path="/time" element={<Time />} />
