@@ -80,9 +80,9 @@ const BLURB: Record<ChannelId, string> = {
   instagram:
     "Sync messages and set up automations to efficiently manage and engage with potential leads.",
   whatsapp:
-    "Connect to get leads from your LinkedIn lead generation ads into your CRM",
+    "Integrate WhatsApp to connect with over 2 billion customers on their favourite messaging app, and accelerate your business growth.",
   linkedin:
-    "LinkedIn publishes no public messaging API. Access needs Partner Program approval, which is invite-only, so this may never be connectable.",
+    "Connect to get leads from your LinkedIn lead generation ads into your CRM",
 };
 
 /** State of one channel, as far as the browser can see it. */
