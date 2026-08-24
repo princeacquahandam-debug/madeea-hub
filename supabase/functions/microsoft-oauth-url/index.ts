@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
     if (!u?.user) return json({ error: "unauthorized" }, 401);
 
     // Never trust a redirect target from the request body.
-    const { origin } = await req.json().catch(() => ({ origin: "" }));
+    const { origin, popup: wantsPopup } = await req.json().catch(() => ({ origin: "", popup: false }));
     const redirectTo = APP_ORIGINS.includes(String(origin ?? "")) ? String(origin) : APP_ORIGINS[0];
     if (!redirectTo) return json({ error: "APP_ORIGINS is not configured" }, 500);
 
@@ -93,6 +93,7 @@ Deno.serve(async (req) => {
         user_id: u.user.id,
         redirect_to: redirectTo,
         provider: "microsoft",
+        popup: wantsPopup === true,
         /* expected_email is left null ON PURPOSE. Writing the login address
            here would imply the callback enforces it, and it does not. The
            binding that matters happens in microsoft-oauth-claim. */

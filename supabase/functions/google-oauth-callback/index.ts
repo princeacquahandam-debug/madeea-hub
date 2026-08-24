@@ -57,6 +57,27 @@ function bounce(origin: string | undefined, status: "google_failed" | "google_mi
   return new Response(null, { status: 302, headers: { Location: `${base}/integrations?error=${status}` } });
 }
 
+
+/**
+ * The page a popup lands on: tell the opener, close.
+ *
+ * postMessage is targeted at the app's exact origin rather than "*", so the
+ * result cannot be read by anything else holding a handle on this window.
+ */
+function popupPage(origin: string, payload: Record<string, unknown>) {
+  const body = JSON.stringify({ source: "madeea-oauth", ...payload });
+  return new Response(
+    `<!doctype html><meta charset="utf-8"><title>Connecting…</title>
+<body style="font:14px system-ui;background:#0b0f17;color:#e5e7eb;display:grid;place-items:center;height:100vh;margin:0">
+<p>${payload.ok ? "Connected. You can close this window." : "That did not complete. You can close this window."}</p>
+<script>
+  try { window.opener && window.opener.postMessage(${body}, ${JSON.stringify(origin)}); } catch (e) {}
+  setTimeout(function () { try { window.close(); } catch (e) {} }, 300);
+</script>`,
+    { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } },
+  );
+}
+
 Deno.serve(async (req) => {
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const url = new URL(req.url);
@@ -70,7 +91,7 @@ Deno.serve(async (req) => {
 
   const { data: st } = await admin
     .from("oauth_states")
-    .select("user_id, redirect_to, expected_email, provider, expires_at")
+    .select("user_id, redirect_to, expected_email, provider, popup, expires_at")
     .eq("state", state)
     .maybeSingle();
   if (!st) return new Response("Invalid or expired state", { status: 400 });
@@ -124,6 +145,16 @@ Deno.serve(async (req) => {
   const googleEmail = emailFromIdToken(tok.id_token);
   if (!googleEmail || !st.expected_email || googleEmail !== st.expected_email) {
     console.error("google oauth identity mismatch for user", st.user_id);
+    /* The one refusal worth spelling out in the popup itself. Every other
+       failure is "try again"; this one is "you picked the wrong account", and
+       a person who does not know that will pick it again. */
+    if (st.popup) {
+      return popupPage(dest, {
+        ok: false,
+        provider: "google",
+        error: "That Google account does not match your MadeEA sign-in email. Connect the account you log in with.",
+      });
+    }
     return bounce(dest, "google_mismatch");
   }
 
@@ -148,5 +179,6 @@ Deno.serve(async (req) => {
   if (tok.refresh_token) row.refresh_token = tok.refresh_token; // keep prior one if Google omits it
   await admin.from("google_credentials").upsert(row, { onConflict: "owner_id" });
 
+  if (st.popup) return popupPage(dest, { ok: true, provider: "google" });
   return new Response(null, { status: 302, headers: { Location: `${dest}/integrations?connected=google` } });
 });

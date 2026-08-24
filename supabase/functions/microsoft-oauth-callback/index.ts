@@ -59,6 +59,27 @@ function bounce(origin: string | undefined, status: "outlook_failed") {
   return new Response(null, { status: 302, headers: { Location: `${base}/integrations?error=${status}` } });
 }
 
+
+/**
+ * The page a popup lands on: tell the opener, close.
+ *
+ * postMessage is targeted at the app's exact origin rather than "*", so the
+ * result cannot be read by anything else holding a handle on this window.
+ */
+function popupPage(origin: string, payload: Record<string, unknown>) {
+  const body = JSON.stringify({ source: "madeea-oauth", ...payload });
+  return new Response(
+    `<!doctype html><meta charset="utf-8"><title>Connecting…</title>
+<body style="font:14px system-ui;background:#0b0f17;color:#e5e7eb;display:grid;place-items:center;height:100vh;margin:0">
+<p>${payload.ok ? "Connected. You can close this window." : "That did not complete. You can close this window."}</p>
+<script>
+  try { window.opener && window.opener.postMessage(${body}, ${JSON.stringify(origin)}); } catch (e) {}
+  setTimeout(function () { try { window.close(); } catch (e) {} }, 300);
+</script>`,
+    { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } },
+  );
+}
+
 Deno.serve(async (req) => {
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const url = new URL(req.url);
@@ -77,7 +98,7 @@ Deno.serve(async (req) => {
 
   const { data: st } = await admin
     .from("oauth_states")
-    .select("user_id, redirect_to, provider, expires_at")
+    .select("user_id, redirect_to, provider, popup, expires_at")
     .eq("state", state)
     .maybeSingle();
   if (!st) return new Response("Invalid or expired state", { status: 400 });
@@ -167,6 +188,11 @@ Deno.serve(async (req) => {
     return bounce(dest, "outlook_failed");
   }
 
+  /* The claim code goes back to the OPENER, which is the only window with a
+     session to spend it (see microsoft-oauth-claim). In a popup that is a
+     message; in a full-page flow it is a query parameter the app strips on
+     arrival. Either way it is single-use and dies in ten minutes. */
+  if (st.popup) return popupPage(dest, { ok: true, provider: "microsoft", claim: pending.claim });
   return new Response(null, {
     status: 302,
     headers: { Location: `${dest}/integrations?connect=outlook&claim=${pending.claim}` },

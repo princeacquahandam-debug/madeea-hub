@@ -65,15 +65,39 @@ interface Conversation {
   messages?: { data?: IgMessage[] };
 }
 
+
+/**
+ * The workspace's meta connection, or null.
+ *
+ * Read with the service role because access_token is revoked from the
+ * `authenticated` role (0056): the browser can see THAT a channel is connected
+ * and never the token behind it, which also means the caller's own client
+ * cannot read it here. The workspace is resolved from the caller's membership,
+ * so this can only ever return the connection of a workspace they are in.
+ *
+ * Falls back to the environment when there is no row. That fallback is what
+ * lets a deployment that was configured the old way (a token pasted into
+ * Supabase secrets) keep working until somebody presses Connect, rather than
+ * every channel going dark the moment this ships.
+ */
+async function integration(admin: ReturnType<typeof createClient>, userId: string) {
+  const { data: m } = await admin
+    .from("memberships").select("workspace_id").eq("user_id", userId).limit(1).maybeSingle();
+  if (!m?.workspace_id) return null;
+  const { data } = await admin
+    .from("workspace_integrations")
+    .select("access_token, external_id, account_label, details")
+    .eq("workspace_id", m.workspace_id)
+    .eq("provider", "meta")
+    .maybeSingle();
+  return (data ?? null) as
+    | { access_token: string | null; external_id: string | null; account_label: string | null; details: Record<string, string | null> }
+    | null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
-    const pageId = Deno.env.get("META_PAGE_ID");
-    const token = Deno.env.get("META_PAGE_ACCESS_TOKEN");
-    if (!pageId || !token) {
-      return json({ error: "Instagram not configured (set META_PAGE_ID and META_PAGE_ACCESS_TOKEN)", configured: false }, 400);
-    }
-
     const auth = req.headers.get("Authorization");
     if (!auth) return json({ error: "unauthorized" }, 401);
     const supa = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
@@ -81,6 +105,14 @@ Deno.serve(async (req) => {
     });
     const { data: u } = await supa.auth.getUser();
     if (!u?.user) return json({ error: "unauthorized" }, 401);
+
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const conn = await integration(admin, u.user.id);
+    const pageId = conn?.details?.page_id ?? Deno.env.get("META_PAGE_ID");
+    const token = conn?.access_token ?? Deno.env.get("META_PAGE_ACCESS_TOKEN");
+    if (!pageId || !token) {
+      return json({ error: "Instagram is not connected. Press Connect on the Instagram card.", configured: false }, 400);
+    }
 
     const body = await req.json().catch(() => ({}));
     const threads = Math.min(Math.max(Number(body.threads ?? 20), 1), 50);

@@ -53,6 +53,36 @@ async function graph(path: string, token: string) {
   return body;
 }
 
+
+/**
+ * The workspace's meta connection, or null.
+ *
+ * Read with the service role because access_token is revoked from the
+ * `authenticated` role (0056): the browser can see THAT a channel is connected
+ * and never the token behind it, which also means the caller's own client
+ * cannot read it here. The workspace is resolved from the caller's membership,
+ * so this can only ever return the connection of a workspace they are in.
+ *
+ * Falls back to the environment when there is no row. That fallback is what
+ * lets a deployment that was configured the old way (a token pasted into
+ * Supabase secrets) keep working until somebody presses Connect, rather than
+ * every channel going dark the moment this ships.
+ */
+async function integration(admin: ReturnType<typeof createClient>, userId: string) {
+  const { data: m } = await admin
+    .from("memberships").select("workspace_id").eq("user_id", userId).limit(1).maybeSingle();
+  if (!m?.workspace_id) return null;
+  const { data } = await admin
+    .from("workspace_integrations")
+    .select("access_token, external_id, account_label, details")
+    .eq("workspace_id", m.workspace_id)
+    .eq("provider", "meta")
+    .maybeSingle();
+  return (data ?? null) as
+    | { access_token: string | null; external_id: string | null; account_label: string | null; details: Record<string, string | null> }
+    | null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
@@ -64,10 +94,16 @@ Deno.serve(async (req) => {
     const { data: u } = await supa.auth.getUser();
     if (!u?.user) return json({ error: "unauthorized" }, 401);
 
-    const pageId = Deno.env.get("META_PAGE_ID");
-    const pageToken = Deno.env.get("META_PAGE_ACCESS_TOKEN");
-    const waPhoneId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
-    const waToken = Deno.env.get("WHATSAPP_TOKEN") ?? pageToken;
+    /* The workspace's Facebook install first, the old environment secrets
+       second. Both shapes hold the same four facts; only one of them was
+       pasted through a chat window. */
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const conn = await integration(admin, u.user.id);
+
+    const pageId = conn?.details?.page_id ?? Deno.env.get("META_PAGE_ID");
+    const pageToken = conn?.access_token ?? Deno.env.get("META_PAGE_ACCESS_TOKEN");
+    const waPhoneId = conn?.details?.whatsapp_phone_number_id ?? Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+    const waToken = conn?.access_token ?? Deno.env.get("WHATSAPP_TOKEN") ?? pageToken;
 
     const instagram: Record<string, unknown> = { configured: Boolean(pageId && pageToken) };
     if (pageId && pageToken) {

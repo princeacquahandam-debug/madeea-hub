@@ -37,20 +37,41 @@ const MAX_CHARS = 4096;
 
 const ini = (n: string) => n.split(/[ ._]/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 
+
+/**
+ * The workspace's meta connection, or null.
+ *
+ * Read with the service role because access_token is revoked from the
+ * `authenticated` role (0056): the browser can see THAT a channel is connected
+ * and never the token behind it, which also means the caller's own client
+ * cannot read it here. The workspace is resolved from the caller's membership,
+ * so this can only ever return the connection of a workspace they are in.
+ *
+ * Falls back to the environment when there is no row. That fallback is what
+ * lets a deployment that was configured the old way (a token pasted into
+ * Supabase secrets) keep working until somebody presses Connect, rather than
+ * every channel going dark the moment this ships.
+ */
+async function integration(admin: ReturnType<typeof createClient>, userId: string) {
+  const { data: m } = await admin
+    .from("memberships").select("workspace_id").eq("user_id", userId).limit(1).maybeSingle();
+  if (!m?.workspace_id) return null;
+  const { data } = await admin
+    .from("workspace_integrations")
+    .select("access_token, external_id, account_label, details")
+    .eq("workspace_id", m.workspace_id)
+    .eq("provider", "meta")
+    .maybeSingle();
+  return (data ?? null) as
+    | { access_token: string | null; external_id: string | null; account_label: string | null; details: Record<string, string | null> }
+    | null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    const phoneId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
-    const token = Deno.env.get("WHATSAPP_TOKEN") ?? Deno.env.get("META_PAGE_ACCESS_TOKEN");
-    if (!phoneId || !token) {
-      return json({
-        error: "WhatsApp not configured (set WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_TOKEN)",
-        failure: "not_connected",
-      }, 400);
-    }
-
     const auth = req.headers.get("Authorization");
     if (!auth) return json({ error: "unauthorized" }, 401);
     const supa = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
@@ -58,6 +79,17 @@ Deno.serve(async (req) => {
     });
     const { data: u } = await supa.auth.getUser();
     if (!u?.user) return json({ error: "unauthorized" }, 401);
+
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const conn = await integration(admin, u.user.id);
+    const phoneId = conn?.details?.whatsapp_phone_number_id ?? Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+    const token = conn?.access_token ?? Deno.env.get("WHATSAPP_TOKEN") ?? Deno.env.get("META_PAGE_ACCESS_TOKEN");
+    if (!phoneId || !token) {
+      return json({
+        error: "WhatsApp is not connected. Press Connect on the WhatsApp card.",
+        failure: "not_connected",
+      }, 400);
+    }
 
     const body = await req.json().catch(() => ({}));
     const text = String(body.text ?? "").trim();

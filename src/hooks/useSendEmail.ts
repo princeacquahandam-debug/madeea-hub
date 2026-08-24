@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { MailProvider } from "@/types/db";
+import { connectAccount } from "@/lib/connect";
 
 /**
  * Sending an email, in one place.
@@ -122,38 +123,18 @@ export function useSendEmail() {
 }
 
 /**
- * Sends the user back through consent, for needs_scope and not_connected.
+ * Reconnect from inside a composer, when a send failed for want of a scope.
  *
- * Both providers hand back a URL to redirect to, so the only difference is
- * which function is asked. Google's consent returns straight to Integrations
- * connected; Microsoft's returns with a claim code the page then exchanges (see
- * microsoft-oauth-claim), which is why the caller lands on the same page either
- * way and does not need to know the difference.
+ * Thin over connectAccount so there is ONE consent path in the app. It used to
+ * be its own redirect, which meant a reply half-written in the box was thrown
+ * away by the navigation: you came back to an empty composer and had to type it
+ * again. A popup leaves the draft where it is.
  *
- * RETURNS A REASON RATHER THAN NOTHING. This used to ignore the error channel
- * entirely and redirect only `if (data?.url)`, which meant an unconfigured
- * provider produced a button that did nothing at all: no redirect, no message,
- * no console. That is the single likeliest state of a freshly deployed Outlook
- * app (a missing client id, an origin not in APP_ORIGINS), so it is exactly the
- * case that must say something.
- *
- * Null on success. In practice success does not return: the browser is already
- * navigating away.
+ * Null when it worked; a sentence worth showing when it did not.
  */
 export async function reconnectMail(provider: MailProvider = "gmail"): Promise<string | null> {
-  if (!supabase) return "Supabase is not configured, so this cannot connect.";
-  const fn = provider === "outlook" ? "microsoft-oauth-url" : "google-oauth-url";
-  const { data, error } = await supabase.functions.invoke(fn, { body: { origin: window.location.origin } });
-
-  let payload = (data ?? null) as { url?: string; error?: string } | null;
-  if (error) {
-    const ctx = (error as { context?: Response }).context;
-    if (ctx && typeof ctx.text === "function") {
-      try { payload = JSON.parse(await ctx.text()); } catch { payload = null; }
-    }
-  }
-  if (payload?.url) { window.location.href = payload.url; return null; }
-  return payload?.error ?? `Could not start the ${PROVIDER_LABEL[provider]} connection. Check the provider keys and APP_ORIGINS in Supabase.`;
+  const r = await connectAccount(provider === "outlook" ? "microsoft" : "google");
+  return r.ok ? null : (r.error ?? `Could not connect ${PROVIDER_LABEL[provider]}.`);
 }
 
 /** Plain text to the HTML the body expects, escaping as it goes. */

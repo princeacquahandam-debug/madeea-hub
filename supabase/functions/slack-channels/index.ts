@@ -49,15 +49,40 @@ interface SlackChannel {
   purpose?: { value?: string };
 }
 
+
+/**
+ * The workspace's slack connection, or null.
+ *
+ * Read with the service role because access_token is revoked from the
+ * `authenticated` role (0056): the browser can see THAT a channel is connected
+ * and never the token behind it, which also means the caller's own client
+ * cannot read it here. The workspace is resolved from the caller's membership,
+ * so this can only ever return the connection of a workspace they are in.
+ *
+ * Falls back to the environment when there is no row. That fallback is what
+ * lets a deployment that was configured the old way (a token pasted into
+ * Supabase secrets) keep working until somebody presses Connect, rather than
+ * every channel going dark the moment this ships.
+ */
+async function integration(admin: ReturnType<typeof createClient>, userId: string) {
+  const { data: m } = await admin
+    .from("memberships").select("workspace_id").eq("user_id", userId).limit(1).maybeSingle();
+  if (!m?.workspace_id) return null;
+  const { data } = await admin
+    .from("workspace_integrations")
+    .select("access_token, external_id, account_label, details")
+    .eq("workspace_id", m.workspace_id)
+    .eq("provider", "slack")
+    .maybeSingle();
+  return (data ?? null) as
+    | { access_token: string | null; external_id: string | null; account_label: string | null; details: Record<string, string | null> }
+    | null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   try {
-    const token = Deno.env.get("SLACK_BOT_TOKEN");
-    if (!token) {
-      return json({ error: "Slack not configured (set SLACK_BOT_TOKEN)", failure: "not_configured" }, 400);
-    }
-
     const auth = req.headers.get("Authorization");
     if (!auth) return json({ error: "unauthorized" }, 401);
     const supa = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
@@ -65,6 +90,16 @@ Deno.serve(async (req) => {
     });
     const { data: u } = await supa.auth.getUser();
     if (!u?.user) return json({ error: "unauthorized" }, 401);
+
+    /* The workspace's own Slack install, from pressing Connect. The env token
+       is the fallback for a deployment configured before install flows
+       existed. */
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const conn = await integration(admin, u.user.id);
+    const token = conn?.access_token ?? Deno.env.get("SLACK_BOT_TOKEN");
+    if (!token) {
+      return json({ ok: false, configured: false, error: "Slack is not connected. Press Connect on the Slack card.", channels: [] }, 200);
+    }
 
     const conv = await slack("conversations.list", token, {
       types: "public_channel,private_channel",

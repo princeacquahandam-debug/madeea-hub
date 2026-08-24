@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { edgeFailure } from "@/lib/edgeError";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MailConnection, MailProvider, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MailConnection, MailProvider, WorkspaceIntegration, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
@@ -741,6 +741,39 @@ export function useMailConnections() {
           : none("outlook"),
       };
     },
+  });
+}
+
+/**
+ * The shared channels this workspace has installed: Slack, Discord, Meta,
+ * LinkedIn.
+ *
+ * Keyed by provider rather than returned as a list, because every caller asks
+ * "is Slack connected" and none of them asks "what is connected". A list would
+ * make each card do its own find().
+ *
+ * WHAT THE BROWSER CAN SEE. Everything except the tokens: 0056 grants select
+ * on the label, the ids and the details blob, and withholds the three token
+ * columns, so a card can say "connected as @madeea" and can never read what
+ * makes that work. The details blob is safe to expose by construction,
+ * because nothing that functions as a credential is written into it.
+ */
+export function useWorkspaceIntegrations() {
+  return useQuery<Record<string, WorkspaceIntegration>>({
+    queryKey: ["workspace-integrations"],
+    queryFn: async () => {
+      if (!supabase) return {};
+      const { data, error } = await supabase
+        .from("workspace_integrations")
+        .select("id,provider,account_label,external_id,details,connected_at,scopes");
+      /* Not migrated yet is an empty grid rather than an error: every card
+         reads as not connected, which is exactly true until 0056 is applied. */
+      if (error) return {};
+      const out: Record<string, WorkspaceIntegration> = {};
+      for (const row of (data as WorkspaceIntegration[]) ?? []) out[row.provider] = row;
+      return out;
+    },
+    retry: false,
   });
 }
 

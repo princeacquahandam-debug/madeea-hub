@@ -45,9 +45,17 @@ placeholders. Fully browsable with zero credentials.
    supabase secrets set MICROSOFT_CLIENT_ID=... MICROSOFT_CLIENT_SECRET=...
    supabase secrets set MICROSOFT_TENANT=common
    # Discord. The BOT token from the Developer Portal's Bot tab, not the
-   # application's client secret. Workspace-level, like Slack: one bot serves
-   # everybody, and there is nothing per-person to authorise.
+   # application's client secret. This is how the bot authenticates; the
+   # client id/secret below are how somebody installs it into their server.
    supabase secrets set DISCORD_BOT_TOKEN=...
+   # App identities for the Connect buttons. These are MADEEA's registrations
+   # with each provider, set once by whoever owns this deployment. They are not
+   # anybody's account credential: a person connects by signing in, and their
+   # token arrives over TLS and is stored server-side.
+   supabase secrets set SLACK_CLIENT_ID=... SLACK_CLIENT_SECRET=...
+   supabase secrets set DISCORD_CLIENT_ID=... DISCORD_CLIENT_SECRET=...
+   supabase secrets set META_APP_ID=...
+   supabase secrets set LINKEDIN_CLIENT_ID=... LINKEDIN_CLIENT_SECRET=...
    # Meta: Instagram DMs and WhatsApp. One app, one business, two channels.
    # META_PAGE_ID is the Facebook Page the Instagram Professional account is
    # linked to; WHATSAPP_PHONE_NUMBER_ID is from WhatsApp Manager and is NOT
@@ -157,6 +165,24 @@ placeholders. Fully browsable with zero credentials.
    Meta posts to it with no session. It is not unprotected as a result. Every
    POST is authenticated by its `X-Hub-Signature-256` HMAC, and a request that
    fails that check is refused rather than written.
+
+   **Connecting is a login, not a pasted token.** Every card on Integrations
+   opens the provider's own consent screen in a popup, and what comes back is
+   stored server-side against the workspace (`workspace_integrations`, migration
+   0056) with the account's name beside it, so the card can say *which* Slack
+   workspace or Instagram account it is attached to. The `META_PAGE_*`,
+   `WHATSAPP_*` and `SLACK_BOT_TOKEN` secrets above are still read as a fallback
+   for a deployment configured before this existed; once somebody presses
+   Connect, the stored login wins and those can be removed.
+
+   Each provider needs one redirect URI registered, all pointing at the same
+   place:
+   `https://<project-ref>.supabase.co/functions/v1/integration-oauth-callback`
+
+   ```bash
+   supabase functions deploy integration-oauth-url
+   supabase functions deploy integration-oauth-callback   # Verify JWT OFF
+   ```
 
    **What is still Meta's to grant, not ours:** both channels work in
    development mode against accounts with a role on the app, and reaching real

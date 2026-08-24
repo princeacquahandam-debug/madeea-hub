@@ -55,7 +55,8 @@ Deno.serve(async (req) => {
     if (!u.user.email) return json({ error: "account has no email" }, 400);
 
     // Never trust a redirect target from the request body.
-    const { origin } = await req.json().catch(() => ({ origin: "" }));
+    const { origin, popup: wantsPopup } = await req.json().catch(() => ({ origin: "", popup: false }));
+    const popup = wantsPopup === true;
     const redirectTo = APP_ORIGINS.includes(String(origin ?? "")) ? String(origin) : APP_ORIGINS[0];
     if (!redirectTo) return json({ error: "APP_ORIGINS is not configured" }, 500);
 
@@ -68,6 +69,11 @@ Deno.serve(async (req) => {
         // Written explicitly even though the column defaults to it (0048).
         // A default is a fallback for old rows, not a statement of intent.
         provider: "google",
+        /* Whether the browser is in a popup, decided here rather than sniffed
+           at the callback: a popup needs a page that talks to its opener, a
+           full-page flow needs a 302, and sending the wrong one strands
+           somebody on a blank tab. */
+        popup,
         expected_email: u.user.email.toLowerCase(),
         expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
       })
