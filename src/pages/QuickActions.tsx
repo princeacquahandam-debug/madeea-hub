@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PlanProposals, parseProposals } from "@/components/calendar/PlanProposals";
 import { useCalendarTimezone } from "@/data/hooks";
+import { DurationSlider } from "@/components/DurationSlider";
+import { cn } from "@/lib/utils";
 import { Sparkles, Mail, Calendar, Search, BarChart3, Share2, Infinity as InfinityIcon, ArrowLeft } from "lucide-react";
 import { QUICK_ACTION_GROUPS } from "@/lib/constants";
 import { CURATED_QUICK_ACTIONS, QUICK_ACTION_SCHEMAS, DEFAULT_QUICK_ACTION } from "@/lib/quickActions";
@@ -169,9 +171,61 @@ export default function QuickActions() {
             <div className="space-y-3">
               {schema.fields.map((field) => (
                 <div key={field.name}>
-                  <label className="field-label">{field.label}</label>
-                  {field.type === "textarea" ? (
+                  <label className="field-label" htmlFor={`qa-${field.name}`}>{field.label}</label>
+                  {field.type === "duration" ? (
+                    <DurationSlider
+                      id={`qa-${field.name}`}
+                      value={values[field.name] ?? ""}
+                      onChange={(v) => setValues((x) => ({ ...x, [field.name]: v }))}
+                    />
+                  ) : field.type === "date" ? (
+                    <input
+                      id={`qa-${field.name}`}
+                      type="date"
+                      className="input"
+                      value={values[field.name] ?? ""}
+                      onChange={(e) => setValues((v) => ({ ...v, [field.name]: e.target.value }))}
+                    />
+                  ) : field.type === "combo" ? (
+                    <>
+                      {/* An input with a datalist: free text, with the presets
+                          offered rather than imposed. A select could not carry
+                          an agenda nobody anticipated. */}
+                      <input
+                        id={`qa-${field.name}`}
+                        className="input"
+                        list={`qa-${field.name}-options`}
+                        placeholder={field.placeholder}
+                        value={values[field.name] ?? ""}
+                        onChange={(e) => setValues((v) => ({ ...v, [field.name]: e.target.value }))}
+                      />
+                      <datalist id={`qa-${field.name}-options`}>
+                        {field.options?.map((o) => <option key={o} value={o} />)}
+                      </datalist>
+                      {/* Datalists are near-invisible on some browsers, so the
+                          presets are also real buttons. */}
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {field.options?.map((o) => (
+                          <button
+                            key={o}
+                            type="button"
+                            onClick={() => setValues((v) => ({ ...v, [field.name]: o }))}
+                            aria-pressed={values[field.name] === o}
+                            className={cn(
+                              "rounded-full px-2 py-0.5 text-[11px] transition-colors",
+                              values[field.name] === o
+                                ? "bg-[var(--nav-active-bg)] text-[color:var(--nav-active-text)]"
+                                : "text-faint hover:bg-[var(--chip-bg)] hover:text-text",
+                            )}
+                          >
+                            {o}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : field.type === "textarea" ? (
                     <textarea
+                      id={`qa-${field.name}`}
                       className="input min-h-[80px]"
                       placeholder={field.placeholder}
                       value={values[field.name] ?? ""}
@@ -179,6 +233,7 @@ export default function QuickActions() {
                     />
                   ) : field.type === "select" ? (
                     <select
+                      id={`qa-${field.name}`}
                       className="input"
                       value={values[field.name] ?? ""}
                       onChange={(e) => setValues((v) => ({ ...v, [field.name]: e.target.value }))}
@@ -192,6 +247,7 @@ export default function QuickActions() {
                     </select>
                   ) : (
                     <input
+                      id={`qa-${field.name}`}
                       className="input"
                       placeholder={field.placeholder}
                       value={values[field.name] ?? ""}

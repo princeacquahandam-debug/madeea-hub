@@ -197,7 +197,10 @@ export const QUICK_ACTION_GROUPS: { title: string; actions: string[] }[] = [
 export interface FormField {
   name: string;
   label: string;
-  type: "text" | "textarea" | "select";
+  /* date  : a real picker, not YYYY-MM-DD typed by hand.
+     combo : type anything, with the common answers offered as suggestions.
+     duration: a slider over the durations people actually book. */
+  type: "text" | "textarea" | "select" | "date" | "combo" | "duration";
   placeholder?: string;
   options?: string[];
   help?: string;

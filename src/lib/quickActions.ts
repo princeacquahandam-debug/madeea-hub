@@ -135,18 +135,24 @@ export const CURATED_QUICK_ACTIONS: Record<string, QuickActionSchema> = {
   },
   "Plan the Calendar": {
     howTo: "Find times, protect focus blocks, or reorder a day that has too much in it.",
-    example: "Suggest times, 45 minutes, 3 attendees across London and Manila",
+    example: "Prep the Q3 board offsite, 26 August, 90 minutes, mornings only",
     fields: [
       // Absorbs Suggest Meeting Slots, Draft Calendar Block, Optimize Daily
       // Schedule and Priority Alignment Automation.
-      KIND("output", "What you need", ["Suggest meeting times", "Block focus time", "Reorder today"]),
+      /* A combo, not a fixed list. The three presets cover most days and none
+         of them is "prep the Q3 board offsite", which is the sort of thing
+         somebody actually wants to plan. Type anything; the presets are still
+         one click away. */
+      { name: "output", label: "What you need", type: "combo",
+        options: ["Suggest meeting times", "Block focus time", "Reorder today"],
+        placeholder: "Type an agenda, or pick one below" },
       /* The day being planned, as a real field. The model returns wall-clock
          times and the app turns them into instants, so it needs to know which
          date they belong to. Prefilled when this is opened from the Calendar. */
-      { name: "date", label: "Which day", type: "text", placeholder: "YYYY-MM-DD" },
+      { name: "date", label: "Which day", type: "date" },
       { name: "constraints", label: "What has to be worked around", type: "textarea",
         placeholder: "Existing commitments, time zones, no-meeting rules, hard deadlines." },
-      { name: "duration", label: "How long", type: "text", placeholder: "e.g. 45 minutes" },
+      { name: "duration", label: "How long", type: "duration" },
     ],
   },
 
