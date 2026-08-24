@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useNow } from "@/hooks/useNow";
 import { useSearchParams } from "react-router-dom";
 import { Wand2, Lock, Search, X, ArrowLeft, Keyboard } from "lucide-react";
-import { SlackMark } from "@/components/BrandIcons";
 import type { Message } from "@/types/db";
 import { Badge } from "@/components/ui";
 import { initials, cn } from "@/lib/utils";
@@ -45,6 +44,10 @@ const TAB_FILTER: Record<(typeof TABS)[number], (m: Message) => boolean> = {
   Delegated: (m) => m.category === "delegate",
   Done: (m) => m.category === "archive",
 };
+
+/** How many conversations the list shows before it asks. Four is enough to see
+ *  what has arrived without the column becoming the whole page. */
+const THREAD_PREVIEW = 4;
 
 export default function Communication() {
   const [composing, setComposing] = useState(false);
@@ -138,6 +141,20 @@ export default function Communication() {
      survive a filter because one old message in it matched, so "Urgent" would
      show conversations that are not urgent. */
   const threads = useMemo(() => groupThreads(list), [list]);
+
+  /* The list opens at four conversations and asks before showing the rest.
+     Every other list on this page (the reader, the reply box) sits beside a
+     column that was 89 rows long, so the page opened as a wall of GitHub build
+     notifications with the thing you came for somewhere inside it.
+
+     Collapsed is per view rather than sticky, so switching channel or tab
+     starts short again: expanding "All" to 89 rows and then filtering to Slack
+     should not leave Slack expanded to nothing in particular. */
+  const [showAllThreads, setShowAllThreads] = useState(false);
+  useEffect(() => { setShowAllThreads(false); }, [tab, sources, q]);
+
+  const shownThreads = showAllThreads ? threads : threads.slice(0, THREAD_PREVIEW);
+  const hiddenThreads = threads.length - shownThreads.length;
 
   /* Keyed off what is actually on screen, not off the filter.
      The first version asked whether exactly one source was SELECTED, which is
@@ -362,7 +379,13 @@ export default function Communication() {
   function move(delta: number) {
     if (threads.length === 0) return;
     const i = threads.findIndex((t) => t.head.id === selected?.id);
-    const next = threads[Math.min(Math.max((i < 0 ? 0 : i) + delta, 0), threads.length - 1)];
+    const target = Math.min(Math.max((i < 0 ? 0 : i) + delta, 0), threads.length - 1);
+    /* j past the last visible row opens the rest rather than stopping dead.
+       Keyboard navigation that halts at an arbitrary fourth row would read as
+       the list being broken, and "press j, nothing happens" is not a state
+       anybody can diagnose from the outside. */
+    if (target >= shownThreads.length) setShowAllThreads(true);
+    const next = threads[target];
     if (!next) return;
     setSelectedId(next.head.id);
     setAnnouncement(`${decodeEntities(next.head.sender_name ?? "")}. ${decodeEntities(next.head.subject ?? "")}`);
@@ -457,15 +480,12 @@ export default function Communication() {
         >
           <Keyboard size={16} />
         </button>
-        {(sources.size === 0 || sources.has("slack")) && (
-          <button
-            className="btn-ghost h-10 shrink-0 border border-border"
-            aria-pressed={slackOpen}
-            onClick={() => setSlackOpen((v) => !v)}
-          >
-            <SlackMark size={14} /> {slackOpen ? "Hide Slack" : "Slack"}
-          </button>
-        )}
+        {/* The Slack button used to sit here. It was a third way to do
+            something there are already two better ways to do: picking Slack in
+            the channel row opens its composer by itself, and a Slack message in
+            the list is now answered in place like every other channel. A button
+            for one channel among nine also implied Slack was special, which
+            stopped being true the day Discord and Teams arrived. */}
       </div>
 
       {/* View filters. Quieter than before: these narrow a list you are already
@@ -604,7 +624,7 @@ export default function Communication() {
               </div>
             )}
             <ThreadList
-              threads={threads}
+              threads={shownThreads}
               selectedId={selected?.id ?? null}
               clients={clients}
               cfg={cfg}
@@ -637,6 +657,26 @@ export default function Communication() {
                     </div>
               }
             />
+
+            {/* Directly under the list, where the fifth row would have been.
+                Counted, because "See more" alone does not say whether that is
+                one more message or eighty-five. */}
+            {hiddenThreads > 0 && (
+              <button
+                className="mt-2 flex w-full items-center justify-center rounded-xl border border-border py-2 text-xs text-accent-soft transition-colors hover:bg-[var(--chip-bg)]"
+                onClick={() => setShowAllThreads(true)}
+              >
+                See more · {hiddenThreads} more conversation{hiddenThreads === 1 ? "" : "s"}
+              </button>
+            )}
+            {showAllThreads && threads.length > THREAD_PREVIEW && (
+              <button
+                className="mt-2 flex w-full items-center justify-center rounded-xl border border-border py-2 text-xs text-faint transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
+                onClick={() => setShowAllThreads(false)}
+              >
+                Show fewer
+              </button>
+            )}
           </div>
 
           {/* Sticky, with its own scroll.
