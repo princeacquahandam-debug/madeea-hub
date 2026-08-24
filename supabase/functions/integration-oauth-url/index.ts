@@ -151,10 +151,6 @@ Deno.serve(async (req) => {
         redirect_to: redirectTo,
         provider,
         popup: body.popup !== false,
-        /* Whose connection this will be, decided by the person pressing the
-           button because only they know which account they are attaching. The
-           callback cannot ask, so the answer travels with the state. */
-        private: body.private === true,
         expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
       })
       .select("state")

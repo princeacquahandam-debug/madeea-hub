@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { X, Plus, Loader2, Check, Unplug, AlertTriangle, Users, Lock } from "lucide-react";
+import { X, Plus, Loader2, Check, Unplug, AlertTriangle } from "lucide-react";
 import type { Channel } from "@/lib/channels";
 import type { WorkspaceIntegration } from "@/types/db";
 import { connectAccount, type ConnectProvider } from "@/lib/connect";
@@ -54,19 +54,10 @@ export function IntegrationDialog({
     qc.invalidateQueries({ queryKey: ["mail-connections"] });
   };
 
-  /**
-   * Add an account, having been told whose it is.
-   *
-   * The question is asked HERE rather than assumed, because the two answers are
-   * indistinguishable from the outside and only the person pressing the button
-   * knows which they mean. Defaulting to shared publishes somebody's own
-   * Instagram to the team; defaulting to private hides the agency's Slack from
-   * everyone who needs it.
-   */
-  async function add(isPrivate: boolean) {
+  async function add() {
     setBusy("add");
     setNote("");
-    const r = await connectAccount(provider, { private: isPrivate });
+    const r = await connectAccount(provider);
     setBusy(null);
     /* Only a refusal needs words. A success is visible: a row appears in the
        table naming the account, which says more than a sentence could. */
@@ -164,51 +155,28 @@ export function IntegrationDialog({
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
             <h3 className="text-sm font-semibold">Connected account{shared ? "s" : ""}</h3>
             {shared && (
-              <div className="flex items-center gap-1.5">
-                {/* Two buttons rather than a button and a checkbox. The choice
-                    is not a modifier on an action, it IS the action: what you
-                    get afterwards differs in who can read the messages. */}
-                <button
-                  className="flex items-center gap-1.5 rounded-lg border border-accent/50 px-2.5 py-1.5 text-[12px] font-medium text-accent-soft transition-colors hover:bg-accent/10 disabled:opacity-50"
-                  onClick={() => add(false)}
-                  disabled={busy !== null}
-                  title="Everyone in the workspace can read and reply from this account"
-                >
-                  {busy === "add" ? <Loader2 size={13} className="animate-spin" /> : <Users size={13} />}
-                  Add for the team
-                </button>
-                <button
-                  className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] font-medium text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text disabled:opacity-50"
-                  onClick={() => add(true)}
-                  disabled={busy !== null}
-                  title="Only you can read this account's messages, the way your mailbox works"
-                >
-                  <Lock size={13} /> Add just for me
-                </button>
-              </div>
+              <button
+                className="flex items-center gap-1.5 rounded-lg border border-accent/50 px-2.5 py-1.5 text-[12px] font-medium text-accent-soft transition-colors hover:bg-accent/10 disabled:opacity-50"
+                onClick={add}
+                disabled={busy !== null}
+              >
+                {busy === "add" ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+                Add account
+              </button>
             )}
           </div>
 
           {shared ? (
             accounts.length === 0 ? (
-              <div className="px-4 py-7 text-center">
-                <p className="text-[12.5px] text-faint">
-                  Nothing connected yet. Either button opens {channel.label}'s own sign-in.
-                </p>
-                <p className="mx-auto mt-2 max-w-md text-[11.5px] leading-relaxed text-faint">
-                  <span className="text-muted">For the team</span> is the agency's account: everyone sees its
-                  messages and anyone can cover it.{" "}
-                  <span className="text-muted">Just for me</span> is yours, readable only by you, exactly like
-                  your mailbox.
-                </p>
-              </div>
+              <p className="px-4 py-8 text-center text-[12.5px] text-faint">
+                Nothing connected yet. Add account opens {channel.label}'s own sign-in.
+              </p>
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-faint">
                     <th className="px-4 py-2 font-medium">Default</th>
                     <th className="px-2 py-2 font-medium">Account</th>
-                    <th className="px-2 py-2 font-medium">Visible to</th>
                     <th className="px-2 py-2 font-medium">Status</th>
                     <th className="px-4 py-2" />
                   </tr>
@@ -234,20 +202,6 @@ export function IntegrationDialog({
                         <span className="block text-[11px] text-faint">
                           Added {new Date(a.connected_at).toLocaleDateString()}
                         </span>
-                      </td>
-                      <td className="px-2 py-2.5">
-                        {/* Stated per row, because a grid holding both kinds is
-                            exactly where somebody would otherwise assume the
-                            wrong one. */}
-                        {a.owner_id ? (
-                          <span className="pill bg-zinc-500/15 text-faint" title="Only you can read this account">
-                            <Lock size={11} /> Just me
-                          </span>
-                        ) : (
-                          <span className="pill bg-zinc-500/15 text-faint" title="Everyone in the workspace can read this account">
-                            <Users size={11} /> The team
-                          </span>
-                        )}
                       </td>
                       <td className="px-2 py-2.5">
                         <span className="pill bg-emerald-500/15 text-emerald-400">
@@ -295,7 +249,7 @@ export function IntegrationDialog({
                   </p>
                   <button
                     className="flex items-center gap-1.5 rounded-lg border border-accent/50 px-3 py-1.5 text-[12px] font-medium text-accent-soft transition-colors hover:bg-accent/10 disabled:opacity-50"
-                    onClick={() => add(true)}
+                    onClick={add}
                     disabled={busy !== null}
                   >
                     {busy === "add" ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}

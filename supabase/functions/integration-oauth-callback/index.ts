@@ -238,7 +238,7 @@ Deno.serve(async (req) => {
 
   const { data: st } = await admin
     .from("oauth_states")
-    .select("user_id, workspace_id, redirect_to, provider, popup, private, expires_at")
+    .select("user_id, workspace_id, redirect_to, provider, popup, expires_at")
     .eq("state", state)
     .maybeSingle();
   if (!st) return new Response("Invalid or expired state", { status: 400 });
@@ -272,21 +272,15 @@ Deno.serve(async (req) => {
       : null;
     if (!result) return finish(st, { ok: false, provider });
 
-    /* Null for a shared account, the installer for a private one (0058). */
-    const ownerId = st.private ? st.user_id : null;
-
-    /* Whether an account for this provider already exists IN THE SAME SCOPE.
-       The first one becomes the default; a second is added beside it and
-       changes nothing about where sends go, because somebody adding an account
-       should not silently redirect a client's replies. Scoped, so connecting a
-       private account does not find the team's and decline to be its owner's
-       default. */
-    const existing = admin
+    /* Whether this workspace already has an account for this provider. The
+       first one connected becomes the default; a second one is added beside it
+       and changes nothing about where sends go, because somebody adding an
+       account should not silently redirect a client's replies. */
+    const { count } = await admin
       .from("workspace_integrations")
       .select("id", { count: "exact", head: true })
       .eq("workspace_id", st.workspace_id)
       .eq("provider", provider);
-    const { count } = await (ownerId ? existing.eq("owner_id", ownerId) : existing.is("owner_id", null));
 
     /* Never null by the time it reaches the database: it is the account's
        identity now (0057). LinkedIn issues no id with its token, so it falls
@@ -298,7 +292,6 @@ Deno.serve(async (req) => {
       {
         workspace_id: st.workspace_id,
         provider,
-        owner_id: ownerId,
         is_default: (count ?? 0) === 0,
         access_token: result.access_token,
         scopes: result.scopes,
@@ -309,10 +302,7 @@ Deno.serve(async (req) => {
         connected_by: st.user_id,
         connected_at: new Date().toISOString(),
       },
-      /* Matches the unique index from 0058, which includes owner_id and is
-         NULLS NOT DISTINCT: re-connecting the shared account updates the shared
-         row rather than adding a second one. */
-      { onConflict: "workspace_id,provider,external_id,owner_id" },
+      { onConflict: "workspace_id,provider,external_id" },
     );
     if (error) {
       console.error("could not store integration", provider, error.message);
