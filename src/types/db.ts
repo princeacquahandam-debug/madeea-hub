@@ -448,28 +448,6 @@ export interface MailConnection {
 }
 
 /**
- * A shared channel this workspace has signed in to (migration 0056).
- *
- * Workspace-level rather than per person, because a Slack workspace or an
- * Instagram business account belongs to the agency: a connection only its
- * installer could use would go cold the day they are off. A personal mailbox
- * is the opposite, and lives in MailConnection.
- */
-export interface WorkspaceIntegration {
-  id: string;
-  provider: "slack" | "discord" | "meta" | "linkedin";
-  /** What was authorised, in words: a workspace name, a handle, a number. */
-  account_label: string | null;
-  external_id: string | null;
-  /** Non-secret ids the provider needs at call time. Never a credential. */
-  details: Record<string, string | null>;
-  scopes: string | null;
-  /** Which account an unqualified send uses. Exactly one per provider (0057). */
-  is_default: boolean;
-  connected_at: string;
-}
-
-/**
  * One third-party account, connected by one person (migration 0058).
  *
  * The identity is (workspace, user, provider, provider_account_id). Never

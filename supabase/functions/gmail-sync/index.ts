@@ -34,24 +34,40 @@ const CORS = {
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
 
-async function accessToken(refresh: string): Promise<string> {
+/**
+ * A live Google access token for one person.
+ *
+ * Reuses the stored one while it is good, refreshes when it is not, and writes
+ * the new one back encrypted. A refusal from Google is terminal: invalid_grant
+ * means access was revoked or the password changed, so the row is marked
+ * reauth_required and the UI offers Reconnect rather than retrying for ever.
+ */
+async function accessToken(admin: Admin, cred: Credential): Promise<string> {
+  const expiry = cred.token_expires_at ? new Date(cred.token_expires_at).getTime() : 0;
+  // 60s of slack, so a token expiring mid-sync is refreshed now rather than
+  // failing one request in.
+  if (cred.access_token && expiry > Date.now() + 60_000) return cred.access_token;
+
   const r = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       client_id: Deno.env.get("GOOGLE_CLIENT_ID")!,
       client_secret: Deno.env.get("GOOGLE_CLIENT_SECRET")!,
-      refresh_token: refresh,
+      refresh_token: cred.refresh_token!,
       grant_type: "refresh_token",
     }),
   });
   const t = await r.json();
-  // Log the provider's detail; don't return it to the browser.
-  if (!r.ok) {
-    console.error("google token refresh failed", r.status, JSON.stringify(t));
+  if (!r.ok || !t.access_token) {
+    // The provider's words go to the log, never to the browser and never near
+    // the token itself.
+    console.error("google token refresh failed", r.status, t?.error);
+    await markReauth(admin, cred.id, String(t?.error ?? "refresh failed"));
     throw new Error("Google connection expired. Please reconnect in Integrations.");
   }
-  return t.access_token;
+  await storeRefreshed(admin, cred, t);
+  return t.access_token as string;
 }
 
 const g = (token: string, u: string) => fetch(u, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json());
@@ -91,6 +107,174 @@ function addresses(header: string | undefined): string[] {
    concurrency gets rate limited by Google. */
 const BATCH = 8;
 
+/**
+ * ── THE TOKEN MANAGER ────────────────────────────────────────────────────
+ *
+ * One question, asked the only way it may be asked: "what credential does THIS
+ * PERSON hold for THIS PROVIDER?"
+ *
+ * The lookup takes workspace, user and provider. Never workspace and provider
+ * alone — that is the shape that hands one colleague another's mailbox, and it
+ * is the reason 0058 exists. A caller who does not know who is asking cannot
+ * use this.
+ *
+ * WHAT IT DOES, in order:
+ *   1. finds the caller's own integration row
+ *   2. decrypts the access token
+ *   3. returns it if it is still good
+ *   4. refreshes it if it is not, re-encrypts, and writes it back
+ *   5. marks the row reauth_required if the refresh token is dead
+ *
+ * A dead refresh token is a terminal state, not a retry: invalid_grant means
+ * the person revoked access or changed their password, and hammering it just
+ * turns one broken connection into a rate limit.
+ *
+ * WHY THE LEGACY FALLBACK IS HERE. google_credentials and microsoft_credentials
+ * were already per-person and still hold live tokens for everybody who
+ * connected before 0058. Falling back to them means nobody's mail stops syncing
+ * on the day this deploys; the fallback disappears when those tables do.
+ *
+ * Duplicated across the functions that need it: Edge Functions here are
+ * deployed one file at a time, so there is no shared module. If this changes,
+ * it changes in all of them.
+ */
+type Admin = ReturnType<typeof createClient>;
+
+interface Credential {
+  /** Integration row id. Null when this came from a legacy table. */
+  id: string | null;
+  access_token: string | null;
+  refresh_token: string | null;
+  token_expires_at: string | null;
+  scopes: string | null;
+  metadata: Record<string, string | null>;
+}
+
+async function aesKey(usage: KeyUsage[]) {
+  const raw = Deno.env.get("INTEGRATION_ENCRYPTION_KEY");
+  if (!raw) throw new Error("INTEGRATION_ENCRYPTION_KEY is not configured");
+  return await crypto.subtle.importKey(
+    "raw", Uint8Array.from(atob(raw), (c) => c.charCodeAt(0)),
+    { name: "AES-GCM" }, false, usage,
+  );
+}
+
+async function encryptSecret(plain: string): Promise<string> {
+  const key = await aesKey(["encrypt"]);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cipher = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(plain)),
+  );
+  const out = new Uint8Array(iv.length + cipher.length);
+  out.set(iv);
+  out.set(cipher, iv.length);
+  return btoa(String.fromCharCode(...out));
+}
+
+async function decryptSecret(payload: string | null): Promise<string | null> {
+  if (!payload) return null;
+  try {
+    const key = await aesKey(["decrypt"]);
+    const bytes = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
+    const plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: bytes.slice(0, 12) }, key, bytes.slice(12),
+    );
+    return new TextDecoder().decode(plain);
+  } catch {
+    /* A row encrypted under a key that has since changed. Reported as "no
+       credential" rather than as a crash, because the fix is the same one the
+       UI already offers: reconnect. */
+    console.error("could not decrypt a stored token; the encryption key may have changed");
+    return null;
+  }
+}
+
+/** The caller's own connection, decrypted. Legacy tables are the fallback. */
+async function credentialFor(
+  admin: Admin,
+  userId: string,
+  provider: "google" | "microsoft" | "slack" | "meta" | "discord" | "linkedin",
+): Promise<Credential | null> {
+  const { data: m } = await admin
+    .from("memberships").select("workspace_id").eq("user_id", userId).limit(1).maybeSingle();
+
+  if (m?.workspace_id) {
+    /* workspace + user + provider. All three, always: this is the lookup the
+       whole per-user model rests on. */
+    const { data } = await admin
+      .from("integrations")
+      .select("id, access_token_encrypted, refresh_token_encrypted, token_expires_at, scopes, metadata, status")
+      .eq("workspace_id", m.workspace_id)
+      .eq("user_id", userId)
+      .eq("provider", provider)
+      .neq("status", "disconnected")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (data) {
+      return {
+        id: data.id as string,
+        access_token: await decryptSecret(data.access_token_encrypted as string | null),
+        refresh_token: await decryptSecret(data.refresh_token_encrypted as string | null),
+        token_expires_at: (data.token_expires_at as string | null) ?? null,
+        scopes: (data.scopes as string | null) ?? null,
+        metadata: (data.metadata ?? {}) as Record<string, string | null>,
+      };
+    }
+  }
+
+  // Legacy, per-person, plaintext. Present until those tables are dropped.
+  const table = provider === "google" ? "google_credentials"
+    : provider === "microsoft" ? "microsoft_credentials"
+    : null;
+  if (!table) return null;
+
+  const { data: old } = await admin
+    .from(table).select("refresh_token, access_token, token_expiry, scopes").eq("owner_id", userId).maybeSingle();
+  if (!old?.refresh_token) return null;
+  return {
+    id: null,
+    access_token: (old.access_token as string | null) ?? null,
+    refresh_token: old.refresh_token as string,
+    token_expires_at: (old.token_expiry as string | null) ?? null,
+    scopes: (old.scopes as string | null) ?? null,
+    metadata: {},
+  };
+}
+
+/** Record that a connection needs signing in again, and why. */
+async function markReauth(admin: Admin, id: string | null, reason: string) {
+  if (!id) return;
+  await admin.from("integrations")
+    .update({ status: "reauth_required", last_error: reason, updated_at: new Date().toISOString() })
+    .eq("id", id);
+}
+
+/** Store a freshly refreshed token, encrypted. No-op for a legacy row. */
+async function storeRefreshed(
+  admin: Admin,
+  cred: Credential,
+  next: { access_token: string; refresh_token?: string | null; expires_in?: number | null; scope?: string | null },
+) {
+  const patch: Record<string, unknown> = {
+    access_token_encrypted: await encryptSecret(next.access_token),
+    token_expires_at: next.expires_in ? new Date(Date.now() + next.expires_in * 1000).toISOString() : null,
+    status: "connected",
+    last_error: null,
+    updated_at: new Date().toISOString(),
+  };
+  /* Only when the provider sent a new one. Microsoft rotates refresh tokens and
+     Google does not; overwriting with null would end the connection on the
+     provider that does not. */
+  if (next.refresh_token) patch.refresh_token_encrypted = await encryptSecret(next.refresh_token);
+  if (next.scope) patch.scopes = next.scope;
+
+  if (cred.id) {
+    await admin.from("integrations").update(patch).eq("id", cred.id);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
@@ -116,14 +300,11 @@ Deno.serve(async (req) => {
     // above, so this reads exactly one row (the caller's) and never anyone
     // else's. Everything below still runs through the caller's RLS-scoped client.
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { data: cred, error: credErr } = await admin
-      .from("google_credentials").select("refresh_token").eq("owner_id", u.user.id).maybeSingle();
-    if (credErr) {
-      console.error("google_credentials read failed", credErr.message);
-      return json({ error: "Could not read the Google connection." }, 500);
+    const cred = await credentialFor(admin, u.user.id, "google");
+    if (!cred?.refresh_token) {
+      return json({ error: "Google is not connected. Press Connect on the Gmail card.", failure: "not_connected" }, 400);
     }
-    if (!cred?.refresh_token) return json({ error: "Google not connected" }, 400);
-    const token = await accessToken(cred.refresh_token);
+    const token = await accessToken(admin, cred);
 
     // Collect ids across as many pages as `limit` calls for.
     const ids: string[] = [];

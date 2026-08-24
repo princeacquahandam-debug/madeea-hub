@@ -51,34 +51,66 @@ interface SlackChannel {
 
 
 /**
- * The workspace's slack connection, or null.
+ * The caller's own slack connection, decrypted.
  *
- * Read with the service role because access_token is revoked from the
- * `authenticated` role (0056): the browser can see THAT a channel is connected
- * and never the token behind it, which also means the caller's own client
- * cannot read it here. The workspace is resolved from the caller's membership,
- * so this can only ever return the connection of a workspace they are in.
+ * PER PERSON, not per workspace. This used to read workspace_integrations,
+ * where one row served the whole team: the second colleague to connect
+ * overwrote the first, and everybody sent through whichever account was
+ * attached last. The lookup now takes the user as well, which is the rule 0058
+ * exists to enforce — a caller who does not know who is asking cannot use it.
  *
- * Falls back to the environment when there is no row. That fallback is what
- * lets a deployment that was configured the old way (a token pasted into
- * Supabase secrets) keep working until somebody presses Connect, rather than
- * every channel going dark the moment this ships.
+ * Tokens are AES-256-GCM at rest, so this decrypts on the way out. A row
+ * written under a key that has since changed reports as "no credential" rather
+ * than crashing: the fix is the one the card already offers, which is
+ * reconnect.
+ *
+ * The environment variables remain the fallback for a deployment configured
+ * before install flows existed, and disappear with them.
  */
 async function integration(admin: ReturnType<typeof createClient>, userId: string) {
   const { data: m } = await admin
     .from("memberships").select("workspace_id").eq("user_id", userId).limit(1).maybeSingle();
   if (!m?.workspace_id) return null;
-  const { data } = await admin
-    .from("workspace_integrations")
-    .select("access_token, external_id, account_label, details")
-    .eq("workspace_id", m.workspace_id)
-    .eq("provider", "slack")
-    .maybeSingle();
-  return (data ?? null) as
-    | { access_token: string | null; external_id: string | null; account_label: string | null; details: Record<string, string | null> }
-    | null;
-}
 
+  const { data } = await admin
+    .from("integrations")
+    .select("id, access_token_encrypted, metadata, provider_account_name, status")
+    .eq("workspace_id", m.workspace_id)
+    .eq("user_id", userId)
+    .eq("provider", "slack")
+    .neq("status", "disconnected")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+
+  let access_token: string | null = null;
+  const payload = data.access_token_encrypted as string | null;
+  if (payload) {
+    try {
+      const raw = Deno.env.get("INTEGRATION_ENCRYPTION_KEY");
+      if (!raw) throw new Error("INTEGRATION_ENCRYPTION_KEY is not configured");
+      const key = await crypto.subtle.importKey(
+        "raw", Uint8Array.from(atob(raw), (c) => c.charCodeAt(0)),
+        { name: "AES-GCM" }, false, ["decrypt"],
+      );
+      const bytes = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
+      const plain = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: bytes.slice(0, 12) }, key, bytes.slice(12),
+      );
+      access_token = new TextDecoder().decode(plain);
+    } catch {
+      // Never the ciphertext, never the key: just that it could not be read.
+      console.error("could not decrypt the stored slack token");
+    }
+  }
+
+  return {
+    access_token,
+    account_label: (data.provider_account_name as string | null) ?? null,
+    details: (data.metadata ?? {}) as Record<string, string | null>,
+  };
+}
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
