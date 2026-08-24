@@ -92,6 +92,15 @@ export interface MonitoringStatus {
 /** No input for this long and the seconds start counting as idle. */
 const IDLE_AFTER_SECONDS = 60;
 
+/**
+ * How often the heartbeat asks whether a screenshot is due.
+ *
+ * Not how often screenshots are taken: that is screenshotMinutes, ten by
+ * default. Fifteen seconds is far below any capture interval, so the schedule
+ * is accurate to a few seconds, and it is cheap: a comparison of two numbers.
+ */
+const HEARTBEAT_MS = 15_000;
+
 export function useMonitoring(opts: {
   timeEntryId: string | null;
   settings: MonitoringSettings;
@@ -111,7 +120,6 @@ export function useMonitoring(opts: {
 
   const streamRef = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const timerRef = useRef<number | null>(null);
   const entryRef = useRef<string | null>(timeEntryId);
   entryRef.current = timeEntryId;
   const settingsRef = useRef(settings);
@@ -178,7 +186,9 @@ export function useMonitoring(opts: {
   }, [running]);
 
   const teardown = useCallback(() => {
-    if (timerRef.current !== null) { window.clearTimeout(timerRef.current); timerRef.current = null; }
+    /* No timer to clear any more: the heartbeat is an effect, and it stops
+       when the state leaves "capturing". Its guard checks streamRef, which
+       this nulls, so a beat landing mid-teardown does nothing. */
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     if (videoRef.current) { videoRef.current.srcObject = null; videoRef.current = null; }
@@ -296,19 +306,55 @@ export function useMonitoring(opts: {
     setError(null);
   }, [teardown]);
 
-  /* Re-armed after each capture rather than run on setInterval, because the
-     delay is different every time. A fixed interval cannot be randomised. */
-  const arm = useCallback(() => {
+  /**
+   * WHEN THE NEXT SCREENSHOT IS DUE, and why this is a deadline rather than a
+   * timer that re-arms itself.
+   *
+   * The previous version chained setTimeout: capture, then schedule the next
+   * one. Three things broke a ten-minute schedule, and all three failed
+   * silently while the UI still said "capturing".
+   *
+   *   1. ONE FAILURE ENDED THE SHIFT. The callback was
+   *      `await captureOnce(); if (streamRef.current) arm();`, so anything that
+   *      threw inside a capture — an upload timing out, storage returning 500,
+   *      getUser() rejecting on a dropped connection — skipped the re-arm. No
+   *      screenshot was ever taken again, and nothing said so: the counter just
+   *      stopped moving. A monitoring tool that quietly stops monitoring is
+   *      worse than one that never started, because the gap looks like idleness
+   *      in the record.
+   *
+   *   2. A SLEEPING LAPTOP LOST ITS PLACE. A timer set for ten minutes on a
+   *      machine that suspends fires late by however long it slept, and the
+   *      chain drifted further with every cycle.
+   *
+   *   3. BACKGROUND TABS ARE THROTTLED. Chrome slows timers in hidden tabs,
+   *      which is exactly where this runs: nobody sits watching the tracker
+   *      while they work.
+   *
+   * A due time and a short heartbeat survive all three. Waking up late does not
+   * matter, because what is checked is the clock rather than the timer, and the
+   * capture fires as soon as anybody looks.
+   */
+  const nextDueRef = useRef<number>(0);
+  const capturingRef = useRef(false);
+
+  const scheduleNext = useCallback(() => {
     const cfg = settingsRef.current;
-    const delay = nextCaptureDelayMs(cfg.screenshotMinutes, cfg.randomizeCapture);
-    timerRef.current = window.setTimeout(async () => {
-      await captureOnce();
-      if (streamRef.current) arm();
-    }, delay);
-  }, [captureOnce]);
+    nextDueRef.current = Date.now() + nextCaptureDelayMs(cfg.screenshotMinutes, cfg.randomizeCapture);
+  }, []);
 
   const start = useCallback(async () => {
     setError(null);
+    /* screenshotsEnabled was declared in the settings type and read by nothing.
+       An admin turning screenshots off got a switch that moved and changed
+       nothing: capture kept running and kept uploading. A privacy control that
+       does not control anything is worse than not offering one, because
+       somebody relies on it. */
+    if (!settingsRef.current.screenshotsEnabled) {
+      setState("off");
+      setError("Screenshots are switched off for this account, so there is nothing to capture.");
+      return;
+    }
     if (!navigator.mediaDevices?.getDisplayMedia) { setState("unsupported"); return; }
     setState("requesting");
     try {
@@ -369,17 +415,74 @@ export function useMonitoring(opts: {
       tally.current = { keystrokes: 0, mouseEvents: 0, lastInputAt: Date.now(), idleSeconds: 0 };
       setState("capturing");
 
-      /* One immediately, then randomised. Without the first, a shift always has
-         an unmonitored window at the front equal to the whole interval, which is
-         the easiest gap in the schedule to plan around. */
-      void captureOnce(false);
-      arm();
+      /* One immediately, then on the schedule. Without the first, a shift
+         always has an unmonitored window at the front equal to the whole
+         interval, which is the easiest gap in the schedule to plan around.
+
+         The deadline is set before that first capture for the same reason the
+         heartbeat sets it first: if the opening screenshot fails, the ten
+         minute rhythm still starts. */
+      scheduleNext();
+      void captureOnce(false).catch((e) => {
+        console.error("first capture failed", e);
+        setError(e instanceof Error ? e.message : String(e));
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setState(/denied|not allowed|permission/i.test(msg) ? "denied" : "off");
       setError(msg);
     }
-  }, [arm, captureOnce, teardown]);
+  }, [captureOnce, scheduleNext, teardown]);
+
+  /**
+   * The heartbeat. Fires often, captures rarely.
+   *
+   * Every fifteen seconds it asks one question: is a screenshot due? That is
+   * cheap enough to run all shift and frequent enough that a throttled or
+   * suspended tab is at most a few seconds late rather than a whole interval.
+   *
+   * THE ORDER INSIDE IS LOAD-BEARING. The next deadline is set BEFORE the
+   * capture is attempted, so a capture that throws still leaves a schedule
+   * behind it. That single line is the difference between a shift that misses
+   * one screenshot and a shift that misses every remaining one.
+   */
+  useEffect(() => {
+    if (state !== "capturing") return;
+
+    const tick = () => {
+      if (!streamRef.current || capturingRef.current) return;
+      /* Checked every beat, not only at start: an admin switching screenshots
+         off mid-shift must stop the next capture, not the one after the person
+         next reloads. */
+      if (!settingsRef.current.screenshotsEnabled) return;
+      if (Date.now() < nextDueRef.current) return;
+
+      /* Before, not after. See above. */
+      scheduleNext();
+      capturingRef.current = true;
+      void captureOnce()
+        .catch((e) => {
+          /* A capture that throws is reported and forgotten. The schedule is
+             already set, so the next one goes ahead: an upload failing at
+             10:00 must not mean nothing is recorded at 10:10. */
+          console.error("capture failed", e);
+          setError(e instanceof Error ? e.message : String(e));
+        })
+        .finally(() => { capturingRef.current = false; });
+    };
+
+    const id = window.setInterval(tick, HEARTBEAT_MS);
+    /* Coming back to the tab is the moment a throttled timer would have been
+       furthest behind, so check then too rather than waiting for the next
+       beat. */
+    const onVisible = () => { if (document.visibilityState === "visible") tick(); };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [state, captureOnce, scheduleNext]);
 
   const stop = useCallback(() => {
     teardown();

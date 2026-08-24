@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
-import { Play, Square } from "lucide-react";
-import { entrySeconds, useTimeEntries, useTimeMutations } from "@/data/hooks";
+import { Play, Square, CameraOff } from "lucide-react";
+import { entrySeconds, useTimeEntries, useTimeMutations, useEffectiveTimeSettings } from "@/data/hooks";
+import { useMonitoringContext } from "@/store/monitoringContext";
 import { useNow } from "@/hooks/useNow";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,8 @@ export function ClockControl() {
   const nav = useNavigate();
   const { data: entries = [] } = useTimeEntries();
   const { start, stop } = useTimeMutations();
+  const capture = useMonitoringContext();
+  const { data: settings } = useEffectiveTimeSettings();
 
   const running = entries.find((e) => !e.ended_at);
   const now = useNow(running ? 1000 : null);
@@ -32,24 +35,60 @@ export function ClockControl() {
     return `${p(Math.floor(s / 3600))}:${p(Math.floor((s % 3600) / 60))}`;
   })();
 
+  /**
+   * A clocked-in shift that is recording no screenshots.
+   *
+   * WHY THIS BADGE EXISTS. Screen capture cannot resume by itself: browsers
+   * require a user gesture for getDisplayMedia, so a refresh, a crash, or
+   * closing the sharing bar ends it permanently for that shift. Nothing said
+   * so anywhere except the Time page, which is a page people visit to read
+   * their timesheet and not while working — so a shift could run seven hours
+   * with one screenshot at the start, and look like deliberate avoidance in
+   * the record.
+   *
+   * The timer is already the one control on every screen. This puts the gap
+   * beside it, and one click goes to where it is fixed.
+   *
+   * Hidden when screenshots are switched off for the account: there is no gap
+   * then, and a permanent warning about something working as configured is how
+   * people learn to ignore warnings.
+   */
+  const screenshotsExpected = settings?.screenshotsEnabled !== false;
+  const notCapturing = Boolean(running) && screenshotsExpected && capture.state !== "capturing";
+
   return (
-    <button
-      className={cn(
-        "flex h-10 items-center gap-1.5 rounded-xl border px-3 text-sm font-bold transition-colors",
-        running
-          ? "border-emerald-500/60 text-emerald-400 hover:bg-emerald-500/10"
-          : "border-border text-muted hover:bg-[var(--chip-bg)] hover:text-text",
+    <div className="flex items-center gap-1.5">
+      <button
+        className={cn(
+          "flex h-10 items-center gap-1.5 rounded-xl border px-3 text-sm font-bold transition-colors",
+          running
+            ? "border-emerald-500/60 text-emerald-400 hover:bg-emerald-500/10"
+            : "border-border text-muted hover:bg-[var(--chip-bg)] hover:text-text",
+        )}
+        onClick={() => (running ? stop.mutate(running.id) : start.mutate({}))}
+        // Right-click / long-press goes to the full timesheet rather than
+        // hijacking the primary click, which has to stay one-tap.
+        onContextMenu={(e) => { e.preventDefault(); nav("/time"); }}
+        disabled={start.isPending || stop.isPending}
+        title={running ? "Clock out. Right-click for the timesheet" : "Clock in. Attendance is recorded from this."}
+        aria-label={running ? "Clock out" : "Clock in"}
+      >
+        {running ? <Square size={15} /> : <Play size={15} />}
+        <span className="tabular-nums">{label}</span>
+      </button>
+
+      {notCapturing && (
+        <button
+          onClick={() => nav("/time")}
+          className="flex h-10 items-center gap-1.5 rounded-xl border border-amber-500/50 px-2.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/10"
+          title="You are clocked in but no screenshots are being taken. Screen sharing has to be started by hand after a reload."
+        >
+          <CameraOff size={14} />
+          {/* Named on wider screens, an icon on a phone. The colour alone is
+              not the message: this gets screenshotted into Slack. */}
+          <span className="hidden md:inline">No screenshots</span>
+        </button>
       )}
-      onClick={() => (running ? stop.mutate(running.id) : start.mutate({}))}
-      // Right-click / long-press goes to the full timesheet rather than
-      // hijacking the primary click, which has to stay one-tap.
-      onContextMenu={(e) => { e.preventDefault(); nav("/time"); }}
-      disabled={start.isPending || stop.isPending}
-      title={running ? "Clock out. Right-click for the timesheet" : "Clock in. Attendance is recorded from this."}
-      aria-label={running ? "Clock out" : "Clock in"}
-    >
-      {running ? <Square size={15} /> : <Play size={15} />}
-      <span className="tabular-nums">{label}</span>
-    </button>
+    </div>
   );
 }
