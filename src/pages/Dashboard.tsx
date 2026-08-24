@@ -20,6 +20,10 @@ const KPI_ICON_COLORS = ["text-accent", "text-sky-400", "text-amber-400", "text-
 const priorityLabel: Record<string, string> = { urgent: "Urgent", high: "In Progress", normal: "Pending", low: "Done" };
 const meetingLabel: Record<string, string> = { prepared: "Prepared", needs_prep: "Needs Prep", pending: "Pending" };
 
+/** How many rows a dashboard panel shows. It is a glance, and the header of
+ *  each panel already carries the way to the full list. */
+const PANEL_LIMIT = 4;
+
 export default function Dashboard() {
   const { user } = useAuth();
   const nav = useNavigate();
@@ -97,6 +101,23 @@ export default function Dashboard() {
   const order: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
   const queue = [...tasks].sort((a, b) => order[a.priority] - order[b.priority]).slice(0, 5);
 
+  /* Both panels are a preview with a way out of them: "View all" and "Open
+     Calendar" were already in their headers, and neither list was honouring
+     them. The queue ran to every breached message the mailbox had (eleven,
+     each one an identical SLA-breached Gmail onboarding notice) and the
+     meetings list to every event of the day, so the dashboard was two long
+     scrolling columns rather than the glance it is for.
+
+     The queue counts BOTH kinds together, because four items is four items:
+     breached mail first, since that is the most time-sensitive thing on the
+     page, then the task queue with whatever room is left. */
+  const shownBreached = breachedMail.slice(0, PANEL_LIMIT);
+  const shownQueue = queue.slice(0, Math.max(0, PANEL_LIMIT - shownBreached.length));
+  const queueHidden = breachedMail.length + queue.length - shownBreached.length - shownQueue.length;
+
+  const shownMeetings = meetings.slice(0, PANEL_LIMIT);
+  const meetingsHidden = meetings.length - shownMeetings.length;
+
   const firstName = user?.name?.split(" ")[0] ?? "there";
   const hour = new Date().getHours();
   const timeOfDay = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -154,7 +175,7 @@ export default function Dashboard() {
           </div>
           <div className="space-y-2">
             {/* Breached SLAs jump the queue, they're the most time-sensitive thing here. */}
-            {breachedMail.map(({ m, client, label }) => (
+            {shownBreached.map(({ m, client, label }) => (
               <button
                 key={m.id}
                 className="flex w-full items-center gap-3 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-left transition-colors hover:bg-red-500/15"
@@ -170,7 +191,7 @@ export default function Dashboard() {
                 <Badge tone="urgent">SLA Breached</Badge>
               </button>
             ))}
-            {queue.map((t) => (
+            {shownQueue.map((t) => (
               <div key={t.id} className="flex items-center gap-3 rounded-lg bg-surface-2 p-3">
                 <CheckSquare size={16} className="text-faint" />
                 <div className="min-w-0 flex-1">
@@ -184,6 +205,18 @@ export default function Dashboard() {
             ))}
             {queue.length === 0 && breachedMail.length === 0 && (
               <p className="py-4 text-center text-xs text-faint">No tasks yet</p>
+            )}
+            {/* Says the list is cut, and goes where the rest is. Without this
+                the panel silently claims to be the whole queue, which is worse
+                than a long list: four items that look like everything is a
+                wrong answer, not a short one. */}
+            {queueHidden > 0 && (
+              <button
+                className="w-full rounded-lg py-1.5 text-xs text-faint transition-colors hover:bg-surface-2 hover:text-accent-soft"
+                onClick={() => nav("/tasks")}
+              >
+                +{queueHidden} more · View all
+              </button>
             )}
           </div>
         </section>
@@ -201,7 +234,7 @@ export default function Dashboard() {
             </a>
           </div>
           <div className="space-y-2">
-            {meetings.map((m) => (
+            {shownMeetings.map((m) => (
               <div key={m.id} className="group flex items-center gap-3 rounded-lg bg-surface-2 p-3">
                 <span className="w-16 shrink-0 text-xs font-medium text-muted">{m.time}</span>
                 <div className="min-w-0 flex-1">
@@ -220,6 +253,11 @@ export default function Dashboard() {
               </div>
             ))}
             {meetings.length === 0 && <p className="py-4 text-center text-xs text-faint">No meetings</p>}
+            {meetingsHidden > 0 && (
+              <p className="py-1.5 text-center text-xs text-faint">
+                +{meetingsHidden} more today · open the calendar to see them all
+              </p>
+            )}
           </div>
         </section>
       </div>
