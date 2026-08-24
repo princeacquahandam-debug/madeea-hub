@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { useAnchoredPanel, ANCHORED_PANEL_CLASS } from "@/hooks/useAnchoredPanel";
 import { Bell, AlertCircle, CheckSquare, CalendarClock, Clock, Plus, X, BellOff, MailQuestion, Clock3 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useMessages, useTasks, useReminders, useReminderMutations, useSnoozeMutations } from "@/data/hooks";
@@ -24,10 +26,29 @@ const WHENS: { label: string; ms: number }[] = [
   { label: "Next week", ms: 7 * 864e5 },
 ];
 
+/**
+ * WHY THE PANEL IS PORTALLED, which is the whole of this fix.
+ *
+ * The bell was never unclickable. It opened, set state, and rendered its panel
+ * exactly as written. The panel was then clipped to nothing, because the header
+ * row it lives in is `overflow-x-auto` (added so the action row could scroll
+ * rather than run off the edge on a narrow screen), and an absolutely
+ * positioned child of a scroll container is cropped to that container. The
+ * container is 40px tall. So the dropdown was drawn, and then trimmed to a
+ * sliver of its top edge inside a bar the same height as the button.
+ *
+ * From the outside that is indistinguishable from a dead button, which is what
+ * it was reported as, and it is why nothing in the click path needed changing.
+ *
+ * A portal to <body> escapes the clip. It also escapes the second trap in this
+ * header, the one ComposeWindow documents: the bar has a backdrop-filter, which
+ * makes it the containing block for `position: fixed`, so a fixed panel left in
+ * place would resolve against the 66px bar instead of the viewport. Out here it
+ * resolves against the viewport, and the position is measured from the bell.
+ */
 export function Notifications() {
   const nav = useNavigate();
-  const ref = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
+  const { anchorRef, panelRef, open, setOpen, pos } = useAnchoredPanel<HTMLDivElement>();
   const [read, setRead] = useState<Set<string>>(loadRead);
   const { data: messages = [] } = useMessages();
   const { data: tasks = [] } = useTasks();
@@ -53,12 +74,6 @@ export function Notifications() {
       setSnoozeErrId(n.id);
     }
   }
-
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
 
   const now = Date.now();
   const todayUtc = new Date().toISOString().slice(0, 10);
@@ -108,16 +123,28 @@ export function Notifications() {
   }
 
   return (
-    <div className="relative" ref={ref}>
-      <button className="btn-ghost relative px-2" onClick={() => setOpen((o) => !o)} aria-label="Notifications">
+    <div className="relative" ref={anchorRef}>
+      <button
+        className="btn-ghost relative px-2"
+        onClick={() => setOpen((o) => !o)}
+        aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
         <Bell size={18} />
         {unread > 0 && (
           <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-white">{unread}</span>
         )}
       </button>
 
-      {open && (
-        <div className="modal-panel absolute right-0 z-50 mt-2 max-h-[28rem] w-80 overflow-y-auto rounded-2xl p-2">
+      {open && pos && createPortal(
+        <div
+          ref={panelRef}
+          role="menu"
+          aria-label="Notifications"
+          style={{ top: pos.top, right: pos.right }}
+          className={`modal-panel ${ANCHORED_PANEL_CLASS} p-2`}
+        >
           <div className="flex items-center justify-between px-2 py-1">
             <p className="text-sm font-semibold">Notifications</p>
             {items.some((i) => !read.has(i.id)) && (
@@ -204,7 +231,8 @@ export function Notifications() {
               </button>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

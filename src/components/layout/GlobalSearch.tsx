@@ -1,25 +1,22 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Search, Users, CheckSquare, Mail, ClipboardCheck, StickyNote } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useClients, useTasks, useMessages, useSops, useNotes } from "@/data/hooks";
 import { noteHeading } from "@/lib/notes";
+import { useAnchoredPanel, ANCHORED_PANEL_CLASS } from "@/hooks/useAnchoredPanel";
 
 export function GlobalSearch() {
   const nav = useNavigate();
-  const ref = useRef<HTMLDivElement>(null);
+  /* Open/close, outside-click and positioning all come from the hook now: the
+     results panel is portalled out of the header, which was clipping it. */
+  const { anchorRef, panelRef, open, setOpen, pos } = useAnchoredPanel<HTMLDivElement>();
   const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
   const { data: clients = [] } = useClients();
   const { data: tasks = [] } = useTasks();
   const { data: messages = [] } = useMessages();
   const { data: sops = [] } = useSops();
   const { data: notes = [] } = useNotes();
-
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
 
   const term = q.trim().toLowerCase();
   const r = term
@@ -40,7 +37,7 @@ export function GlobalSearch() {
   }
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative" ref={anchorRef}>
       <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
       <input
         className="input w-56 pl-9 lg:w-72"
@@ -52,8 +49,17 @@ export function GlobalSearch() {
         onChange={(e) => { setQ(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
       />
-      {open && term && (
-        <div className="card absolute right-0 z-50 mt-2 max-h-96 w-80 overflow-y-auto p-2 shadow-xl">
+      {/* Portalled for the same reason the bell is: this sits in the header's
+          `overflow-x-auto` row, which was cropping the results to a sliver
+          hidden inside the bar. Typing found matches and then showed none of
+          them, which reads as "search is broken" rather than "the panel is
+          clipped". See useAnchoredPanel. */}
+      {open && term && pos && createPortal(
+        <div
+          ref={panelRef}
+          style={{ top: pos.top, right: pos.right }}
+          className={`card ${ANCHORED_PANEL_CLASS} p-2 shadow-xl`}
+        >
           {total === 0 ? (
             <p className="px-2 py-6 text-center text-sm text-faint">No matches for "{q}"</p>
           ) : (
@@ -65,7 +71,8 @@ export function GlobalSearch() {
               <Group title="Notes" icon={StickyNote} items={r!.notes.map((n) => ({ key: n.id, label: noteHeading(n), sub: "Note" }))} onPick={() => go("/notes")} />
             </>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
