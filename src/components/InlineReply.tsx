@@ -4,7 +4,8 @@ import {
   Loader2, CheckCircle2, AlertTriangle, Link2,
 } from "lucide-react";
 import type { Message } from "@/types/db";
-import { useSendEmail, reconnectGoogle, textToHtml } from "@/hooks/useSendEmail";
+import { useSendEmail, reconnectMail, textToHtml, PROVIDER_LABEL } from "@/hooks/useSendEmail";
+import { providerOf } from "@/lib/mail";
 import { generate } from "@/lib/ai";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +91,11 @@ export function InlineReply({
       to,
       subject,
       text,
+      /* Answered from the mailbox it arrived in. Replying to an Outlook message
+         through Gmail would send from the wrong address and thread nowhere, and
+         the message itself is the only thing that knows which mailbox that is. */
+      provider: providerOf(message),
+      replyToOutlookId: message.outlook_id ?? null,
       /* The quote travels with it, as in every mail client. It is not in the
          field because nobody edits it, and forty lines of it would bury the
          cursor. */
@@ -202,7 +208,7 @@ export function InlineReply({
             </div>
           </div>
 
-          <SendNotice state={state} draftError={draftError} />
+          <SendNotice state={state} draftError={draftError} setState={setState} />
         </div>
       </div>
     </div>
@@ -238,11 +244,19 @@ function IconButton({
  * because the reply looks sent and nobody chases it.
  */
 function SendNotice({
-  state, draftError,
+  state, draftError, setState,
 }: {
   state: ReturnType<typeof useSendEmail>["state"];
   draftError: string | null;
+  /* Taken so a reconnect that cannot even start says so here, in the place
+     already reserved for "this did not work", rather than looking like a dead
+     button. */
+  setState: ReturnType<typeof useSendEmail>["setState"];
 }) {
+  const reconnect = async (provider: "gmail" | "outlook") => {
+    const err = await reconnectMail(provider);
+    if (err) setState({ kind: "error", detail: err });
+  };
   if (draftError) return <Notice>Could not write a draft. {draftError.slice(0, 160)}</Notice>;
 
   switch (state.kind) {
@@ -252,20 +266,23 @@ function SendNotice({
           <CheckCircle2 size={13} /> Sent.
         </p>
       );
+    /* Named per provider, because "reconnect your account" is useless to
+       somebody with both connected: the fix is to reconnect the ONE this
+       message needs, and only the failure knows which that is. */
     case "not_connected":
       return (
         <Notice>
-          No Google account is connected, so this cannot send.{" "}
-          <button className="underline underline-offset-2" onClick={() => void reconnectGoogle()}>
-            <Link2 size={11} className="inline" /> Connect Google
+          No {PROVIDER_LABEL[state.provider]} account is connected, so this cannot send.{" "}
+          <button className="underline underline-offset-2" onClick={() => void reconnect(state.provider)}>
+            <Link2 size={11} className="inline" /> Connect {PROVIDER_LABEL[state.provider]}
           </button>
         </Notice>
       );
     case "needs_scope":
       return (
         <Notice>
-          The Google connection can read mail but not send it.{" "}
-          <button className="underline underline-offset-2" onClick={() => void reconnectGoogle()}>
+          The {PROVIDER_LABEL[state.provider]} connection can read mail but not send it.{" "}
+          <button className="underline underline-offset-2" onClick={() => void reconnect(state.provider)}>
             Reconnect and allow sending
           </button>
         </Notice>

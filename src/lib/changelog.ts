@@ -1,6 +1,6 @@
 // Product version history. Surfaced in the in-app "What's new" page.
 // Bump APP_VERSION and prepend a release whenever something ships.
-export const APP_VERSION = "1.8.0";
+export const APP_VERSION = "1.11.0";
 
 export interface Release {
   version: string;
@@ -10,6 +10,41 @@ export interface Release {
 }
 
 export const CHANGELOG: Release[] = [
+  {
+    version: "1.11.0",
+    date: "2026-08-24",
+    title: "Instagram and WhatsApp",
+    changes: [
+      "Instagram DMs sync into the Inbox and can be answered from the reading pane, like every other channel.",
+      "WhatsApp arrives too, by webhook. There is no Sync button for it and there will not be one: Meta keeps no history to fetch, so messages appear as they are delivered.",
+      "Both cards show what Meta can actually see, which account and which number, instead of a tick computed from whether a setting is filled in.",
+      "Meta's reply windows are reported honestly. Instagram allows a reply for 24 hours (7 days for one you wrote yourself) and WhatsApp for 24 hours, after which only an approved template goes through. A send that Meta will refuse says so and why, rather than failing vaguely.",
+      "LinkedIn remains the one channel with no route: it publishes no messaging API, and its card says that rather than promising a queue.",
+    ],
+  },
+  {
+    version: "1.10.0",
+    date: "2026-08-24",
+    title: "Teams and Discord, and replying to chats",
+    changes: [
+      "Microsoft Teams chats now arrive in the Inbox. No second sign-in: it runs on the same Microsoft connection as Outlook, so if you connected Outlook before today, reconnect once from the Teams card and it switches on.",
+      "Discord is connected the way Slack is, with one bot for the whole team. The card lists every channel the bot can see and says separately whether it can read and post in each one.",
+      "Slack, Discord and Teams messages can be answered from the reading pane. The reply goes back into the channel or chat it came from, named above the box, instead of being retyped into a composer at the bottom of the page.",
+      "Instagram, WhatsApp and LinkedIn now say what is actually blocking them rather than \"coming later\": Meta app review, Meta business verification, and, for LinkedIn, the fact that no messaging API exists to build against.",
+    ],
+  },
+  {
+    version: "1.9.0",
+    date: "2026-08-24",
+    title: "Outlook mailboxes",
+    changes: [
+      "Connect Outlook as well as Gmail. Both now connect from their own card under Message channels in Integrations, which is also where you sync or disconnect them.",
+      "Outlook mail lands in the Inbox alongside Gmail and Slack, and replies go back through the account the message arrived in, in the original thread.",
+      "Your Outlook address does not have to match the email you sign into MadeEA with, so a work Microsoft mailbox works with a Gmail login. Google still has to match.",
+      "With both mailboxes connected, the composer gains a From picker so you choose which one a new email goes out from.",
+      "Replies now carry the original's message id, so they thread properly in the recipient's mail client instead of arriving as a new conversation, and Reply all reaches everyone who was actually on the message.",
+    ],
+  },
   {
     version: "1.8.0",
     date: "2026-07-25",

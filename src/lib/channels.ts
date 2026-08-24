@@ -104,14 +104,20 @@ export const CHANNELS: Channel[] = [
     label: "Instagram",
     icon: InstagramMark,
     source: "instagram",
-    status: "planned",
-    compose: null,
-    note: "Not built yet. Instagram DMs are reachable through the Meta Graph API, but only for a Professional account attached to a Facebook Page.",
+    /* Built, and the only Meta channel with a read API: /{page}/conversations
+       lists DM threads, so it syncs like the rest. What it still needs from
+       Meta rather than from us is the App Review that turns
+       instagram_manage_messages from development-only into live. The card
+       reads the real state from meta-status rather than claiming either. */
+    status: "connected",
+    compose: "message",
+    note: "DMs to your Instagram Professional account. Meta only allows a reply within 24 hours of the person's last message (7 days for a human-written one), so a cold outbound DM is not possible from here.",
     tint: "#C837AB",
+    settingsPath: "/integrations",
     requires: [
       "An Instagram Professional account linked to a Facebook Page",
-      "A Meta app with instagram_manage_messages",
-      "Meta App Review for Advanced Access (days, not minutes)",
+      "A Meta app with instagram_manage_messages, and App Review to go live",
+      "The Page token stored as META_PAGE_ACCESS_TOKEN",
     ],
   },
   {
@@ -138,17 +144,20 @@ export const CHANNELS: Channel[] = [
     label: "WhatsApp",
     icon: WhatsAppMark,
     source: "whatsapp",
-    status: "planned",
-    compose: null,
-    note: "Not built yet. clients.preferred_channel already records who wants WhatsApp, so the demand is visible before the integration exists.",
+    /* Built, and genuinely unlike every other channel on this list: the Cloud
+       API has NO endpoint for past messages, so there is nothing to sync and
+       no Sync button anywhere for it. Messages arrive by webhook or they do
+       not arrive. That is why the card reports whether the webhook secret is
+       set rather than when it last ran. */
+    status: "connected",
+    compose: "message",
+    note: "Arrives by webhook only: there is no history to pull, so nothing appears until someone messages the number. Replies are freeform for 24 hours after their last message; after that Meta accepts only a pre-approved template.",
     tint: "#25D366",
-    /* Not a button we can add. WhatsApp Business is a Meta review with a
-       verified business and a dedicated number, measured in days, and saying
-       otherwise on screen would promise something nobody can deliver today. */
+    settingsPath: "/integrations",
     requires: [
-      "A Meta Business account, verified",
-      "A phone number not already on WhatsApp",
-      "Meta approval of the WhatsApp Business API (days, not minutes)",
+      "A verified Meta Business with a number on the Cloud API",
+      "WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_TOKEN set",
+      "The webhook pointed at whatsapp-webhook, with META_VERIFY_TOKEN and META_APP_SECRET",
     ],
   },
   {
@@ -156,49 +165,63 @@ export const CHANNELS: Channel[] = [
     label: "Teams",
     icon: TeamsMark,
     source: "teams",
-    status: "planned",
-    compose: null,
-    note: "Not built yet. Microsoft Graph covers Teams chats and channels, but it is tenant-wide, so a Microsoft 365 admin has to consent before anything reads.",
+    /* Built, on the same Microsoft sign-in as Outlook. The old note here said
+       Graph is "tenant-wide, so an admin has to consent", and that turned out
+       to be true of CHANNELS and false of CHATS. Chat.Read is delegated: it
+       reads what the signed-in person can already read, with their own
+       consent and no admin involved. Channels still need
+       ChannelMessage.Read.All and still need an admin, so they are not
+       included and are not implied. */
+    status: "connected",
+    compose: "message",
+    note: "Your one-to-one and group chats, on the same Microsoft sign-in as Outlook. Replies post back into the chat. Team channels are not included: those need tenant admin consent, which is a different decision.",
     tint: "#4B53BC",
-    requires: [
-      "A Microsoft 365 tenant",
-      "An Azure AD app registration",
-      "Graph Chat.Read and ChannelMessage.Read.All, with tenant admin consent",
-    ],
+    settingsPath: "/integrations",
+    requires: ["Connect Microsoft on the Outlook card. Teams uses the same sign-in"],
   },
   {
     id: "outlook",
     label: "Outlook",
     icon: OutlookMark,
     source: "outlook",
-    status: "planned",
-    compose: null,
-    /* The closest of these to real. It is the same shape as Gmail, which is
-       already working: an OAuth app, mail scopes, read and send. If one of the
-       five gets built, it should be this one. */
-    note: "Not built yet, and the nearest to being possible. It is the same shape as Gmail, which already works: an OAuth app, mail scopes, read and send.",
+    /* Built. This entry said "planned, and the nearest to being possible" for
+       months, and it was right: it turned out to be the same shape as Gmail.
+       Reads the inbox, replies in thread, sends new mail.
+
+       status here means "the integration exists", exactly as it does for
+       Gmail above. Whether YOUR account is authorised is a different question
+       with a different answer per person, and it is answered live on the
+       Integrations page rather than guessed at in a static table. */
+    status: "connected",
+    compose: "email",
+    /* Worth stating on the card, because it is the difference people trip
+       over: Google refuses any account whose address is not your MadeEA login,
+       and Microsoft does not (see 0048). An EA logging in with Gmail can
+       connect a work Outlook mailbox. */
+    note: "Reads your inbox and replies in thread. The mailbox does not have to match your MadeEA login, so a work Outlook account connects to a Gmail login fine.",
     tint: "#0078D4",
-    requires: [
-      "An Azure AD app registration",
-      "Graph Mail.ReadWrite and Mail.Send",
-      "Admin consent if the tenant restricts it",
-    ],
+    settingsPath: "/integrations",
+    requires: ["Sign in with the Microsoft account you send from"],
   },
   {
     id: "discord",
     label: "Discord",
     icon: DiscordMark,
     source: "discord",
-    status: "planned",
-    compose: null,
-    note: "Not built yet. A bot token is all it takes, so this is the next one to switch on if a client lives in Discord.",
+    /* Built. "A bot token is all it takes" was right, and it is the same
+       shape as Slack down to the failure modes: the bot reads only the
+       channels it has been given, and posting and reading are separate
+       permissions that are routinely granted separately. */
+    status: "connected",
+    compose: "message",
+    note: "Workspace-level, like Slack. The bot reads the channels it has been given access to, and replies post back into the same channel.",
     tint: "#5865F2",
-    /* Genuinely close: Discord bots are a token and an invite, much like Slack
-       turned out to be. Listed so the difference from WhatsApp is visible. */
+    settingsPath: "/integrations",
     requires: [
       "A Discord application with a bot user",
-      "The bot invited to the server",
       "Its token stored as DISCORD_BOT_TOKEN",
+      "The bot invited, with Read Message History in each channel you want pulled",
+      "Message Content intent switched on in the Developer Portal",
     ],
   },
 ];

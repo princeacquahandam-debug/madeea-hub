@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { edgeFailure } from "@/lib/edgeError";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, AdCampaign, AdLead, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MailConnection, MailProvider, AdCampaign, AdLead, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
@@ -488,6 +488,26 @@ export function useMessages() {
            where it came from. Nothing errored: the filter just quietly matched
            nothing, which is the failure mode explicit mappers always have. */
         source: m.source ?? null,
+        /* The rest of what a reply is built from, and every one of them was
+           being dropped by this mapper for the same reason `source` was: the
+           column existed, 0042 added it, gmail-sync wrote it, and nothing
+           carried it past here.
+
+           The damage was silent and provider-independent. Without
+           rfc_message_id no reply could set In-Reply-To, so every reply this
+           app sent arrived as a NEW conversation with "Re:" in the subject,
+           which is precisely the bug 0042 was written to prevent. Without
+           to_emails/cc_emails, Reply all had nobody to reply to and quietly
+           degraded to a plain reply. outlook_id is the same shape of thing for
+           Microsoft: it is what a threaded Outlook reply is created from.
+
+           This is the failure mode explicit mappers always have, and it is why
+           adding a column now means adding a line here as well. */
+        rfc_message_id: m.rfc_message_id ?? null,
+        outlook_id: m.outlook_id ?? null,
+        to_emails: Array.isArray(m.to_emails) ? m.to_emails : [],
+        cc_emails: Array.isArray(m.cc_emails) ? m.cc_emails : [],
+        reply_target: m.reply_target ?? null,
       }));
     },
   });
@@ -637,6 +657,76 @@ export function useAdsSetterMutations() {
   });
 
   return { createCampaign, addLeads, updateLead };
+}
+
+/**
+ * Which mailboxes the signed-in person has connected.
+ *
+ * ONE HOOK FOR BOTH PROVIDERS, because every question the app asks is about the
+ * pair rather than about one: which button does Integrations show, can this
+ * message be replied to, and which account does the composer send from. Two
+ * hooks would mean two loading states for one answer, and a moment on every
+ * render where the app believes it has no mailbox at all.
+ *
+ * WHAT COMES BACK AND WHAT CANNOT. Both credential tables grant the browser
+ * select on the non-secret columns only (0016 for Google, 0048 for Microsoft),
+ * so this can see THAT a connection exists and never the token behind it. RLS
+ * scopes both to `owner_id = auth.uid()`, so "connected" here always means "you
+ * connected it", never "somebody in this workspace did".
+ */
+export function useMailConnections() {
+  return useQuery<Record<MailProvider, MailConnection>>({
+    queryKey: ["mail-connections"],
+    queryFn: async () => {
+      const none = (provider: MailProvider): MailConnection =>
+        ({ provider, connected: false, account_email: null, connected_at: null, scopes: null });
+      if (!supabase) return { gmail: none("gmail"), outlook: none("outlook") };
+
+      /* Both at once. Serially, the Outlook card would settle a beat after the
+         Gmail one and the row would visibly reflow on every visit. */
+      const [g, m] = await Promise.all([
+        // owner_id and connected_at only: "*" is rejected by the column grants.
+        supabase.from("google_credentials").select("owner_id,connected_at").maybeSingle(),
+        supabase.from("microsoft_credentials").select("owner_id,connected_at,account_email,scopes").maybeSingle(),
+      ]);
+
+      return {
+        gmail: g.data
+          ? {
+              provider: "gmail" as const,
+              connected: true,
+              /* Null, and not the login email dressed up as one. On Google the
+                 two are the same by construction (the callback enforces it), so
+                 an address here would be a copy of something the app already
+                 knows, and copies drift. */
+              account_email: null,
+              connected_at: (g.data as { connected_at?: string }).connected_at ?? null,
+              /* Not read for Google. The column exists, but nothing on screen
+                 asks a question about it: Gmail is either connected or not, and
+                 the one scope that can be missing (gmail.send) is reported by
+                 gmail-send at the moment it matters, from Google rather than
+                 from a record that can be stale. */
+              scopes: null,
+            }
+          : none("gmail"),
+        outlook: m.data
+          ? {
+              provider: "outlook" as const,
+              connected: true,
+              account_email: (m.data as { account_email?: string | null }).account_email ?? null,
+              connected_at: (m.data as { connected_at?: string }).connected_at ?? null,
+              /* What Microsoft actually granted, which the Teams card reads.
+                 One consent covers mail and Teams, so "is Teams on" is not a
+                 second connection but a question about this string: an account
+                 connected before Teams shipped has the mail scopes and not
+                 Chat.Read, and the honest answer is "reconnect once", not
+                 "not connected". */
+              scopes: (m.data as { scopes?: string | null }).scopes ?? null,
+            }
+          : none("outlook"),
+      };
+    },
+  });
 }
 
 /**

@@ -17,7 +17,10 @@ import { ThreadList } from "@/components/ThreadList";
 import { REAL_CHANNELS, channelById, type ChannelId } from "@/lib/channels";
 import { ComposeWindow, type ComposeSeed } from "@/components/ComposeWindow";
 import { InlineReply } from "@/components/InlineReply";
+import { InlineChatReply } from "@/components/InlineChatReply";
+import { isChatSource } from "@/lib/chat";
 import { textToHtml } from "@/hooks/useSendEmail";
+import { providerOf } from "@/lib/mail";
 import { useClientContext } from "@/store/clientContext";
 import { clientForMessage, messageInClient } from "@/lib/clientMatch";
 import { groupThreads, decodeEntities } from "@/lib/threads";
@@ -243,6 +246,11 @@ export default function Communication() {
       context: `From ${m.sender_name}: ${m.body}`,
       threadId: (m as { thread_id?: string | null }).thread_id ?? null,
       inReplyTo: (m as { rfc_message_id?: string | null }).rfc_message_id ?? null,
+      /* The full composer answers from the same mailbox the inline reply would
+         have. Popping out to add an attachment must not quietly change which
+         address the reply comes from. */
+      provider: providerOf(m),
+      replyToOutlookId: m.outlook_id ?? null,
     });
     setComposing(true);
   }
@@ -257,6 +265,11 @@ export default function Communication() {
       // A forward starts a new conversation, so deliberately no threading here.
       threadId: null,
       inReplyTo: null,
+      replyToOutlookId: null,
+      /* The mailbox still carries over even though the thread does not: a
+         forward of an Outlook message goes out from the Outlook account, which
+         is where the person you are forwarding to will reply to. */
+      provider: providerOf(m),
     });
     setComposing(true);
   }
@@ -321,12 +334,21 @@ export default function Communication() {
                     onPopOut={(typed) => openReply(selected, false, typed)}
                     onSent={() => setAnnouncement("Reply sent.")}
                   />
+                ) : isChatSource(selected.source) ? (
+                  /* A chat message has no address, which used to end the
+                     conversation here. It does have a room, and a room is a
+                     better reply target than an address: it cannot be typed
+                     wrong. Slack, Discord and Teams all answer in place now. */
+                  <InlineChatReply
+                    message={selected}
+                    onSent={() => { setAnnouncement("Reply sent."); void refetchMessages(); }}
+                  />
                 ) : (
-                  /* Slack, and the channels that are not connected, have no
-                     address to answer. Saying so beats a disabled email box
-                     that looks like it ought to work. */
+                  /* What is left is a channel with no integration behind it.
+                     Saying so beats a disabled box that looks like it ought to
+                     work. */
                   <p className="mt-4 border-t border-border pt-3 text-xs text-faint">
-                    This did not arrive by email, so there is no address to reply to from here.
+                    This did not arrive on a channel that can be answered from here yet.
                   </p>
                 )}
               </>

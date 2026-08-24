@@ -65,6 +65,9 @@ Deno.serve(async (req) => {
       .insert({
         user_id: u.user.id,
         redirect_to: redirectTo,
+        // Written explicitly even though the column defaults to it (0048).
+        // A default is a fallback for old rows, not a statement of intent.
+        provider: "google",
         expected_email: u.user.email.toLowerCase(),
         expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
       })

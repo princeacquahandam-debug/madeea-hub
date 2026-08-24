@@ -83,7 +83,8 @@ export const GUIDES: Record<string, Guide> = {
   "/integrations": {
     title: "How Integrations work",
     points: [
-      "Connect Google to sync Gmail + Calendar; sync Slack to pull channel messages.",
+      "Connect Gmail or Outlook on its card to sync mail; Google also brings your calendar.",
+      "Outlook does not have to match your MadeEA login email. Google does.",
       "OAuth runs server-side. Your tokens never touch the browser.",
     ],
   },

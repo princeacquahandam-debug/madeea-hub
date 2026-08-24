@@ -5,8 +5,9 @@ import {
   Bold, Italic, Underline, List, ListOrdered, Link2, Loader2, CheckCircle2, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { useSendEmail, reconnectGoogle } from "@/hooks/useSendEmail";
-import { useMyEmail } from "@/data/hooks";
+import { useSendEmail, reconnectMail, PROVIDER_LABEL } from "@/hooks/useSendEmail";
+import { useMyEmail, useMailConnections } from "@/data/hooks";
+import type { MailProvider } from "@/types/db";
 import { generate } from "@/lib/ai";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,10 @@ export interface ComposeSeed {
   context?: string;
   threadId?: string | null;
   inReplyTo?: string | null;
+  /** Outlook threading: Graph's id for the message being replied to. */
+  replyToOutlookId?: string | null;
+  /** Which mailbox to answer from. Set by whoever opened the window. */
+  provider?: MailProvider;
   title?: string;
 }
 
@@ -55,8 +60,17 @@ interface Attached {
 /* Gmail allows 25MB, but every attachment travels as base64 inside a JSON body
    through an edge function, and base64 inflates by about a third. Capped well
    under that so a large file fails HERE, with a sentence explaining why, rather
-   than as an opaque request-too-large after the upload appears to have worked. */
-const MAX_TOTAL = 6 * 1024 * 1024;
+   than as an opaque request-too-large after the upload appears to have worked.
+
+   Outlook's ceiling is lower and it is Microsoft's, not ours: Graph carries
+   attachments inline only up to 3MB per message and wants an upload session
+   beyond that. Enforcing the smaller number when Outlook is the sender is the
+   difference between a clear sentence at the file picker and a refusal after
+   the whole mail has been written. */
+const MAX_TOTAL: Record<MailProvider, number> = {
+  gmail: 6 * 1024 * 1024,
+  outlook: 3 * 1024 * 1024,
+};
 
 const prettyBytes = (n: number) =>
   n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
@@ -93,6 +107,29 @@ export function ComposeWindow({
      choice for when there is one. */
   const myEmail = useMyEmail();
 
+  /* WHICH MAILBOX SENDS THIS.
+     A reply inherits it from the message being answered (the seed carries it),
+     because answering an Outlook thread from Gmail sends from an address the
+     recipient has never seen. A new mail has nothing to inherit, so it starts
+     on whichever account is connected, preferring Gmail when both are: it is
+     the one that shipped first and the one most of these mailboxes are.
+     Read-only when only one is connected. A picker that offers a single option
+     is furniture. */
+  const { data: mail } = useMailConnections();
+  /* Null means "nobody has chosen", which is not the same as "Gmail" and has to
+     be storable: the connections arrive a moment after the window opens, so a
+     provider resolved once at open time would be stale for the person who only
+     has Outlook. Derived per render instead, and a picked value wins from the
+     moment it is picked. */
+  const [picked, setPicked] = useState<MailProvider | null>(null);
+  const provider: MailProvider =
+    picked ?? seed?.provider ?? (mail && !mail.gmail.connected && mail.outlook.connected ? "outlook" : "gmail");
+  const both = Boolean(mail?.gmail.connected && mail?.outlook.connected);
+  const fromLabel =
+    provider === "outlook"
+      ? (mail?.outlook.account_email ?? "Your Outlook account")
+      : (myEmail ?? "Not signed in");
+
   const bodyRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -110,6 +147,10 @@ export function ComposeWindow({
     setFiles([]);
     setMinimised(false);
     setState({ kind: "idle" });
+    /* Cleared on every open, like every other field here. Without it the window
+       keeps the account chosen for the last message it answered, which is the
+       same wrong-recipient class of bug as keeping the last To address. */
+    setPicked(null);
 
     requestAnimationFrame(() => {
       const el = bodyRef.current;
@@ -172,10 +213,10 @@ export function ComposeWindow({
     let total = files.reduce((a, f) => a + f.size, 0);
 
     for (const f of Array.from(list)) {
-      if (total + f.size > MAX_TOTAL) {
+      if (total + f.size > MAX_TOTAL[provider]) {
         setState({
           kind: "error",
-          detail: `${f.name} would take the attachments past ${prettyBytes(MAX_TOTAL)}, which is the limit for sending through this app. Share a link instead.`,
+          detail: `${f.name} would take the attachments past ${prettyBytes(MAX_TOTAL[provider])}, which is the limit for sending through ${PROVIDER_LABEL[provider]}. Share a link instead.`,
         });
         break;
       }
@@ -233,6 +274,8 @@ export function ComposeWindow({
       attachments: files.map(({ filename, mime_type, data }) => ({ filename, mime_type, data })),
       threadId: seed?.threadId,
       inReplyTo: seed?.inReplyTo,
+      replyToOutlookId: seed?.replyToOutlookId,
+      provider,
     });
     // Long enough to read the confirmation, short enough to sit there.
     if (ok) setTimeout(onClose, 1600);
@@ -311,9 +354,26 @@ export function ComposeWindow({
           <div className="shrink-0 px-3">
             <Row>
               <span className="w-10 shrink-0 text-[12.5px] text-faint">From</span>
-              <span className="min-w-0 flex-1 truncate py-2 text-[13px] text-muted" title={myEmail ?? undefined}>
-                {myEmail ?? "Not signed in"}
-              </span>
+              {/* A control only when there is a genuine choice. With one mailbox
+                  connected this is the same read-only line it has always been:
+                  a select with one option invites a decision that does not
+                  exist, and sending as somebody else still needs delegation
+                  that is not set up. */}
+              {both ? (
+                <select
+                  aria-label="Send from"
+                  value={provider}
+                  onChange={(e) => setPicked(e.target.value as MailProvider)}
+                  className="min-w-0 flex-1 bg-transparent py-2 text-[13px] text-muted outline-none"
+                >
+                  <option value="gmail">{myEmail ?? "Google account"}</option>
+                  <option value="outlook">{mail?.outlook.account_email ?? "Outlook account"}</option>
+                </select>
+              ) : (
+                <span className="min-w-0 flex-1 truncate py-2 text-[13px] text-muted" title={fromLabel}>
+                  {fromLabel}
+                </span>
+              )}
             </Row>
             <Row>
               <label htmlFor="cw-to" className="w-10 shrink-0 text-[12.5px] text-faint">To</label>
@@ -382,7 +442,7 @@ export function ComposeWindow({
                 </div>
               ))}
               <p className="text-right text-[11px] text-faint">
-                {prettyBytes(totalBytes)} of {prettyBytes(MAX_TOTAL)}
+                {prettyBytes(totalBytes)} of {prettyBytes(MAX_TOTAL[provider])}
               </p>
             </div>
           )}
@@ -400,12 +460,18 @@ export function ComposeWindow({
                     <AlertTriangle size={13} className="mt-0.5 shrink-0" />
                     <span>
                       {state.kind === "needs_scope"
-                        ? "This Google account is connected for reading only, so Gmail refused the send. Reconnect once to allow sending."
-                        : "No Google account is connected for you yet."}
+                        ? `This ${PROVIDER_LABEL[state.provider]} account is connected for reading only, so the send was refused. Reconnect once to allow sending.`
+                        : `No ${PROVIDER_LABEL[state.provider]} account is connected for you yet.`}
                     </span>
                   </p>
-                  <button className="btn-primary mt-2 py-1 text-[11px]" onClick={() => void reconnectGoogle()}>
-                    {state.kind === "needs_scope" ? "Reconnect Google" : "Connect Google"}
+                  <button
+                    className="btn-primary mt-2 py-1 text-[11px]"
+                    onClick={async () => {
+                      const err = await reconnectMail(state.provider);
+                      if (err) setState({ kind: "error", detail: err });
+                    }}
+                  >
+                    {state.kind === "needs_scope" ? "Reconnect" : "Connect"} {PROVIDER_LABEL[state.provider]}
                   </button>
                 </div>
               )}

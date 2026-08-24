@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
 
   const { data: st } = await admin
     .from("oauth_states")
-    .select("user_id, redirect_to, expected_email, expires_at")
+    .select("user_id, redirect_to, expected_email, provider, expires_at")
     .eq("state", state)
     .maybeSingle();
   if (!st) return new Response("Invalid or expired state", { status: 400 });
@@ -81,6 +81,14 @@ Deno.serve(async (req) => {
   await admin.from("oauth_states").delete().lt("expires_at", new Date().toISOString());
 
   if (!st.expires_at || new Date(st.expires_at).getTime() < Date.now()) {
+    return new Response("Invalid or expired state", { status: 400 });
+  }
+  /* A state minted for Microsoft must not be spendable here (0048 added the
+     column). Belt and braces: a Microsoft state carries no expected_email, so
+     the identity check below would refuse it anyway. This refuses it for the
+     right reason, and keeps that check from being the only thing standing
+     between two providers' flows. */
+  if ((st.provider ?? "google") !== "google") {
     return new Response("Invalid or expired state", { status: 400 });
   }
 

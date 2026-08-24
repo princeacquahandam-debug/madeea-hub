@@ -341,6 +341,21 @@ export interface Message {
   triaged_at?: string | null;
   category_locked?: boolean;
   is_bulk?: boolean;
+  /** Which channel it arrived on: 'gmail', 'outlook', 'slack', 'manual'. */
+  source?: string;
+  /* Graph's message id, on Outlook rows only. It is what a threaded reply is
+     built from (outlook-send opens a reply draft against it), which is why it
+     is on the type rather than cast at the one call site that needs it. */
+  outlook_id?: string | null;
+  /** RFC 2822 Message-ID of the original. See 0042. */
+  rfc_message_id?: string | null;
+  /** Everyone else who was on it. What Reply all is built from. */
+  to_emails?: string[];
+  cc_emails?: string[];
+  /* Where a reply goes on a channel that has no address and no room id: an
+     Instagram IGSID, a WhatsApp wa_id. Deliberately not sender_email, which
+     every other screen treats as something you can put in a mail client. */
+  reply_target?: string | null;
 }
 
 // ---------- Ads Setter ----------
@@ -500,6 +515,28 @@ export interface MailboxSync {
   last_error: string | null;
   messages_seen: number;
   messages_triaged: number;
+}
+
+/**
+ * Which mailbox a message came from, and which one can answer it.
+ *
+ * Two providers now, and the pair is deliberately a union rather than a boolean
+ * `isOutlook`: a third mailbox is a value here and a case in two switches, not
+ * a second boolean that can disagree with the first.
+ */
+export type MailProvider = "gmail" | "outlook";
+
+/** One provider's connection for the signed-in person. */
+export interface MailConnection {
+  provider: MailProvider;
+  connected: boolean;
+  /** The mailbox address. Null on Gmail, where the login email IS the account. */
+  account_email: string | null;
+  connected_at: string | null;
+  /* What the provider actually granted, as it said it at consent time. Read by
+     the Teams card, which rides on the Microsoft connection: whether Teams
+     works is a question about this string rather than a second connection. */
+  scopes: string | null;
 }
 
 export interface Snooze {

@@ -1,13 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Mail, Calendar, CheckCircle2, RefreshCw, Plug, Loader2, Wand2, AlertTriangle } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Calendar, CheckCircle2, RefreshCw, Plug, Loader2, Wand2, AlertTriangle } from "lucide-react";
 import { SlackMark } from "@/components/BrandIcons";
 import { PageHeader } from "@/components/ui";
 import { ChannelConnections } from "@/components/ChannelConnections";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { useMailboxSync } from "@/data/hooks";
+import { useMailboxSync, useMailConnections } from "@/data/hooks";
+import { reconnectMail } from "@/hooks/useSendEmail";
 
+/**
+ * WHERE MAIL WENT, AND WHY IT IS NOT ON THIS PAGE TWICE.
+ *
+ * Gmail and Outlook connect from their own cards in the channel grid above,
+ * not from an account card down here. This page used to have both halves of the
+ * same answer in two places: a grid that said whether Gmail was connected, and
+ * a card further down that was the only way to connect it. Adding Outlook would
+ * have made that four cards for two mailboxes.
+ *
+ * What is left below is what is genuinely NOT a message channel: the calendar
+ * (which rides on the same Google consent but feeds the Dashboard, not the
+ * Inbox), Slack's workspace-level sync, and the scheduled organiser.
+ */
 export default function Integrations() {
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
@@ -15,21 +29,19 @@ export default function Integrations() {
   const [note, setNote] = useState("");
 
   const { data: mailboxes = [] } = useMailboxSync();
+  const { data: mail } = useMailConnections();
+  const googleConnected = mail?.gmail.connected ?? false;
 
-  const { data: googleConnected = false, refetch } = useQuery({
-    queryKey: ["google-connected"],
-    queryFn: async () => {
-      if (!supabase) return false;
-      // owner_id only: the browser is granted just the non-secret columns of
-      // google_credentials (see 0016), so "*" would be rejected.
-      const { count } = await supabase.from("google_credentials").select("owner_id", { count: "exact", head: true });
-      return (count ?? 0) > 0;
-    },
-  });
+  /* StrictMode runs effects twice in development, and a Microsoft claim code is
+     single-use BY DESIGN: the second run would spend a code that has already
+     been redeemed and report "this link has expired" over a connection that in
+     fact just succeeded. A ref, not state, because it must be set before the
+     second invocation and a state write would not be visible in time. */
+  const handledReturn = useRef(false);
 
-  async function sync() {
+  async function syncGoogle() {
     if (!supabase) return;
-    setBusy("sync");
+    setBusy("google-sync");
     setNote("");
     try {
       const [gm, cal] = await Promise.all([
@@ -47,22 +59,88 @@ export default function Integrations() {
     }
   }
 
-  // On return from Google consent, confirm + auto-sync.
+  /**
+   * Finish a Microsoft connection.
+   *
+   * The tokens are already at Microsoft's word: what is left is proving they
+   * belong to whoever is sitting here. That is the whole point of the claim
+   * step (see microsoft-oauth-claim) and it is the reason this page, rather
+   * than the callback, is where an Outlook connection becomes real.
+   */
+  async function finishOutlook(claim: string) {
+    if (!supabase) return;
+    setBusy("outlook-claim");
+    try {
+      const { data, error } = await supabase.functions.invoke("microsoft-oauth-claim", { body: { claim } });
+      let payload = (data ?? null) as { ok?: boolean; account_email?: string; error?: string } | null;
+      if (error) {
+        const ctx = (error as { context?: Response }).context;
+        if (ctx && typeof ctx.text === "function") {
+          try { payload = JSON.parse(await ctx.text()); } catch { payload = null; }
+        }
+      }
+      if (error || !payload?.ok) {
+        setNote(payload?.error ?? "Could not finish the Outlook connection. Please connect again.");
+        return;
+      }
+      qc.invalidateQueries({ queryKey: ["mail-connections"] });
+      setNote(
+        payload.account_email
+          ? `Outlook connected as ${payload.account_email}. Pulling your inbox…`
+          : "Outlook connected. Pulling your inbox…",
+      );
+
+      // Straight into a first sync, so the Inbox has something in it when the
+      // person goes looking. A failure here is a sync problem, not a
+      // connection problem, and is reported as one.
+      const { data: sync, error: syncErr } = await supabase.functions.invoke("outlook-sync");
+      const pulled = (sync as { synced?: number })?.synced ?? 0;
+      setNote(
+        syncErr
+          ? "Outlook connected, but the first sync failed. Try Sync mail on the Outlook card."
+          : `Outlook connected. Pulled ${pulled} message${pulled === 1 ? "" : "s"}.`,
+      );
+      qc.invalidateQueries({ queryKey: ["messages"] });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // On return from a provider's consent screen: confirm, then sync.
   useEffect(() => {
+    if (handledReturn.current) return;
+    handledReturn.current = true;
+
+    const claim = params.get("claim");
+    if (params.get("connect") === "outlook" && claim) {
+      params.delete("connect");
+      params.delete("claim");
+      // Replaced immediately: a claim code in the address bar is a credential,
+      // and one left there ends up in history, in a screenshot, or pasted into
+      // a support chat.
+      setParams(params, { replace: true });
+      void finishOutlook(claim);
+      return;
+    }
+
     if (params.get("connected") === "google") {
       params.delete("connected");
       setParams(params, { replace: true });
-      refetch().then(() => sync());
+      qc.invalidateQueries({ queryKey: ["mail-connections"] });
+      void syncGoogle();
       return;
     }
+
     const oauthErr = params.get("error");
     if (oauthErr) {
       params.delete("error");
       setParams(params, { replace: true });
       setNote(
         oauthErr === "google_mismatch"
-          ? "That Google account doesn't match your MadeEA sign-in email. Connect the Google account you log in with."
-          : "Google connection failed. Please try again.",
+          ? "That Google account doesn't match your MadeEA sign-in email. Connect the Google account you log in with, or connect an Outlook mailbox instead, which has no such restriction."
+          : oauthErr === "outlook_failed"
+            ? "Microsoft did not complete the connection. If your organisation requires admin approval for new apps, that is the usual cause."
+            : "Google connection failed. Please try again.",
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,28 +187,6 @@ export default function Integrations() {
     }
   }
 
-  async function connectGoogle() {
-    if (!supabase) return;
-    setBusy("google");
-    try {
-      const { data, error } = await supabase.functions.invoke("google-oauth-url", {
-        body: { origin: window.location.origin },
-      });
-      if (error) throw error;
-      window.location.href = (data as { url: string }).url;
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Could not start Google connection");
-      setBusy(null);
-    }
-  }
-
-  async function disconnectGoogle() {
-    if (!supabase) return;
-    await supabase.from("google_credentials").delete().neq("owner_id", "00000000-0000-0000-0000-000000000000");
-    refetch();
-    setNote("Google disconnected.");
-  }
-
   return (
     <div>
       <PageHeader title="Integrations" subtitle="Connect the tools your inbox, calendar and team live in" />
@@ -141,41 +197,49 @@ export default function Integrations() {
 
       {/* Channel state first: it is the question people arrive at this page
           with, and it used to require three clicks inside the Communication
-          Center to answer. The account-level cards below are the plumbing. */}
+          Center to answer. Mail connects from here too, on the card that
+          already says whether it is connected. */}
       <ChannelConnections />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {/* Google (Gmail + Calendar) */}
+        {/* Google Calendar. The mail half of this consent lives on the Gmail
+            card above; what is left here is the part that has nothing to do
+            with messages, and it is the same Google connection either way. */}
         <div className="card flex flex-col p-5 md:col-span-2">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-surface-2">
-              <Mail size={20} className="text-accent-soft" />
+              <Calendar size={20} className="text-accent-soft" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold">Google. Gmail & Calendar</h3>
+              <h3 className="font-semibold">Google Calendar</h3>
               {googleConnected ? (
                 <span className="pill bg-emerald-500/15 text-emerald-400">Connected</span>
               ) : (
                 <span className="pill bg-zinc-500/15 text-faint">Not connected</span>
               )}
             </div>
-            <Calendar size={18} className="text-faint" />
           </div>
           <p className="mt-3 text-sm text-muted">
-            Sync your mail into the Inbox and your upcoming events into the Dashboard.
+            {googleConnected
+              ? "Your upcoming events feed the Dashboard and meeting prep. Syncing here also pulls new mail, because it is one Google connection."
+              : "Rides on the same Google consent as Gmail. Connecting here connects both; there is no separate calendar sign-in."}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {!googleConnected ? (
-              <button className="btn-primary" onClick={connectGoogle} disabled={!isSupabaseConfigured || busy === "google"}>
-                {busy === "google" ? <Loader2 size={15} className="animate-spin" /> : <Plug size={15} />} Connect Google
+              <button
+                className="btn-primary"
+                onClick={async () => {
+                  const err = await reconnectMail("gmail");
+                  if (err) setNote(err);
+                }}
+                disabled={!isSupabaseConfigured || busy !== null}
+              >
+                <Plug size={15} /> Connect Google
               </button>
             ) : (
-              <>
-                <button className="btn-primary" onClick={sync} disabled={busy === "sync"}>
-                  {busy === "sync" ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Sync now
-                </button>
-                <button className="btn-ghost border border-border" onClick={disconnectGoogle}>Disconnect</button>
-              </>
+              <button className="btn-primary" onClick={syncGoogle} disabled={busy !== null}>
+                {busy === "google-sync" ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Sync now
+              </button>
             )}
           </div>
         </div>
@@ -212,7 +276,7 @@ export default function Integrations() {
           <div className="flex-1">
             <h3 className="font-semibold">Team email organiser</h3>
             <p className="text-xs text-faint">
-              Sorts every connected mailbox into Urgent / Reply / Delegate / Archive on a schedule. Your real Gmail is never changed.
+              Sorts every connected Gmail mailbox into Urgent / Reply / Delegate / Archive on a schedule. Your real Gmail is never changed. Outlook mailboxes sync and reply, but the scheduled organiser does not cover them yet.
             </p>
           </div>
           {mailboxes.length > 0 && (
@@ -260,8 +324,14 @@ export default function Integrations() {
           <p className="font-medium text-zinc-200">How connections work</p>
           <p className="mt-1">
             OAuth runs server-side via Supabase Edge Functions. Tokens are stored encrypted and the
-            browser never sees a provider secret. Connecting Google redirects you to Google's consent
+            browser never sees a provider secret. Connecting redirects you to the provider's consent
             screen, then back here to sync.
+          </p>
+          {/* Said out loud, because it is the difference people run into and it
+              looks arbitrary until you know which way round it is. */}
+          <p className="mt-2">
+            Google must be the same account you sign into MadeEA with; Microsoft does not have to be,
+            so a work Outlook mailbox connects to a Gmail login.
           </p>
         </div>
       </div>
