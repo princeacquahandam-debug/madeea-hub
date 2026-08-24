@@ -466,6 +466,10 @@ export interface WorkspaceIntegration {
   scopes: string | null;
   /** Which account an unqualified send uses. Exactly one per provider (0057). */
   is_default: boolean;
+  /* Null means shared with the workspace; set means private to that person,
+     the way a mailbox is (0058). Decided by whoever connected it, because only
+     they know whether they are attaching the agency's account or their own. */
+  owner_id: string | null;
   connected_at: string;
 }
 

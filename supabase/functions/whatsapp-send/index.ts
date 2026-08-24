@@ -39,32 +39,56 @@ const ini = (n: string) => n.split(/[ ._]/).map((p) => p[0]).filter(Boolean).sli
 
 
 /**
- * The workspace's meta connection, or null.
+ * The connection this caller should use for meta, or null.
+ *
+ * WHICH ONE, when there is more than one. Their own private connection wins
+ * over the team's, because somebody who attached their own account did so to
+ * work through it; among equals, the one marked default wins. A person with no
+ * private meta falls through to the shared account, which is the ordinary
+ * case and the reason the shared one exists.
  *
  * Read with the service role because access_token is revoked from the
  * `authenticated` role (0056): the browser can see THAT a channel is connected
  * and never the token behind it, which also means the caller's own client
- * cannot read it here. The workspace is resolved from the caller's membership,
- * so this can only ever return the connection of a workspace they are in.
+ * cannot read it here. The query is still confined to connections this person
+ * is entitled to: their workspace, and within it their own or the shared ones.
  *
- * Falls back to the environment when there is no row. That fallback is what
- * lets a deployment that was configured the old way (a token pasted into
- * Supabase secrets) keep working until somebody presses Connect, rather than
- * every channel going dark the moment this ships.
+ * Falls back to the environment when there is no row, so a deployment
+ * configured the old way (a token pasted into Supabase secrets) keeps working
+ * until somebody presses Connect.
  */
 async function integration(admin: ReturnType<typeof createClient>, userId: string) {
   const { data: m } = await admin
     .from("memberships").select("workspace_id").eq("user_id", userId).limit(1).maybeSingle();
   if (!m?.workspace_id) return null;
+
   const { data } = await admin
     .from("workspace_integrations")
-    .select("access_token, external_id, account_label, details")
+    .select("access_token, external_id, account_label, details, owner_id, is_default")
     .eq("workspace_id", m.workspace_id)
     .eq("provider", "meta")
-    .maybeSingle();
-  return (data ?? null) as
-    | { access_token: string | null; external_id: string | null; account_label: string | null; details: Record<string, string | null> }
-    | null;
+    .or(`owner_id.eq.${userId},owner_id.is.null`);
+
+  const rows = (data ?? []) as {
+    access_token: string | null;
+    external_id: string | null;
+    account_label: string | null;
+    details: Record<string, string | null>;
+    owner_id: string | null;
+    is_default: boolean;
+  }[];
+  if (!rows.length) return null;
+
+  // Mine before the team's, default before the rest.
+  rows.sort((a, b) =>
+    Number(b.owner_id === userId) - Number(a.owner_id === userId) ||
+    Number(b.is_default) - Number(a.is_default));
+
+  const row = rows[0];
+  /* Whether messages pulled through this belong to one person. The sync writes
+     it onto every row it stores, because 0058 decides who may read a shared
+     channel's message by that flag rather than by the source alone. */
+  return { ...row, private: row.owner_id !== null };
 }
 
 Deno.serve(async (req) => {
@@ -155,6 +179,7 @@ Deno.serve(async (req) => {
         whatsapp_id: id,
         source: "whatsapp",
         direction: "outbound",
+        private: conn?.private ?? false,
         sender_name: me,
         sender_initials: ini(me.split("@")[0]),
         subject: String(body.subject ?? `+${to}`),

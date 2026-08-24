@@ -765,7 +765,7 @@ export function useWorkspaceIntegrations() {
       if (!supabase) return {};
       const { data, error } = await supabase
         .from("workspace_integrations")
-        .select("id,provider,account_label,external_id,details,connected_at,scopes,is_default")
+        .select("id,provider,account_label,external_id,details,connected_at,scopes,is_default,owner_id")
         /* Default first, then oldest. The card reads [0] for the account it
            names, and that must be the one a send would actually use. */
         .order("is_default", { ascending: false })
