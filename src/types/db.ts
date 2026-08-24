@@ -469,6 +469,34 @@ export interface WorkspaceIntegration {
   connected_at: string;
 }
 
+/**
+ * One third-party account, connected by one person (migration 0058).
+ *
+ * The identity is (workspace, user, provider, provider_account_id). Never
+ * workspace + provider: that shape means the second colleague to connect
+ * overwrites the first, and everybody sends through whichever account was
+ * attached last.
+ *
+ * No token field exists on this type, and that is not an omission. The three
+ * token columns are not granted to the browser at all, so there is nothing to
+ * model: a card renders from the account's name and status.
+ */
+export interface Integration {
+  id: string;
+  provider: "google" | "microsoft" | "slack" | "discord" | "meta" | "linkedin";
+  /** The third-party account's own id. Part of the identity. */
+  provider_account_id: string;
+  provider_account_name: string | null;
+  provider_email: string | null;
+  status: "connected" | "disconnected" | "error" | "reauth_required" | "pending";
+  scopes: string | null;
+  /** Non-secret ids a provider needs at call time. Never a credential. */
+  metadata: Record<string, string | null>;
+  last_sync_at: string | null;
+  last_error: string | null;
+  created_at: string;
+}
+
 export interface Snooze {
   id: string;
   item_type: "message" | "task";

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { edgeFailure } from "@/lib/edgeError";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MailConnection, MailProvider, WorkspaceIntegration, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MailConnection, MailProvider, WorkspaceIntegration, Integration, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
@@ -778,6 +778,39 @@ export function useMailConnections() {
           : none("outlook"),
       };
     },
+  });
+}
+
+/**
+ * The signed-in person's own connections, keyed by provider.
+ *
+ * ONLY THEIRS. RLS on `integrations` is `workspace_id = my_workspace() and
+ * user_id = auth.uid()`, so this cannot return a colleague's row even if the
+ * query asked for one. The filter is the database's, not this function's:
+ * frontend filtering would be a suggestion.
+ *
+ * Keyed by provider because every caller asks "is my Slack connected", and a
+ * list would make each card do its own find(). An array per provider, because
+ * one person may hold two accounts with the same provider.
+ */
+export function useMyIntegrations() {
+  return useQuery<Record<string, Integration[]>>({
+    queryKey: ["my-integrations"],
+    queryFn: async () => {
+      if (!supabase) return {};
+      const { data, error } = await supabase
+        .from("integrations")
+        .select("id,provider,provider_account_id,provider_account_name,provider_email,status,scopes,metadata,last_sync_at,last_error,created_at")
+        .order("created_at", { ascending: true });
+      /* Not migrated yet reads as nothing connected, which is exactly true
+         until 0058 is applied, and is better than a red error on a page whose
+         other half works. */
+      if (error) return {};
+      const out: Record<string, Integration[]> = {};
+      for (const row of (data as Integration[]) ?? []) (out[row.provider] ??= []).push(row);
+      return out;
+    },
+    retry: false,
   });
 }
 

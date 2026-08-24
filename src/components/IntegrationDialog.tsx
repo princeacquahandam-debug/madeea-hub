@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { X, Plus, Loader2, Check, Unplug, AlertTriangle } from "lucide-react";
 import type { Channel } from "@/lib/channels";
-import type { WorkspaceIntegration } from "@/types/db";
+import type { Integration } from "@/types/db";
 import { connectAccount, type ConnectProvider } from "@/lib/connect";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -38,7 +38,7 @@ export function IntegrationDialog({
   channel: Channel;
   provider: ConnectProvider;
   /** Shared installs. Empty for a personal mailbox. */
-  accounts: WorkspaceIntegration[];
+  accounts: Integration[];
   /** A personal mailbox's address, when this channel is one. */
   personalAccount?: string | null;
   connected: boolean;
@@ -65,37 +65,15 @@ export function IntegrationDialog({
     refresh();
   }
 
-  async function makeDefault(row: WorkspaceIntegration) {
-    if (!supabase || row.is_default) return;
-    setBusy(row.id);
-    setNote("");
-    /* Cleared first, then set. The database allows exactly one default per
-       provider (0057), so setting before clearing trips that index and the
-       change is refused rather than half-applied. */
-    const { error: clearErr } = await supabase
-      .from("workspace_integrations")
-      .update({ is_default: false })
-      .eq("provider", row.provider)
-      .eq("is_default", true);
-    if (!clearErr) {
-      const { error } = await supabase
-        .from("workspace_integrations")
-        .update({ is_default: true })
-        .eq("id", row.id);
-      if (error) setNote(error.message);
-    } else {
-      setNote(clearErr.message);
-    }
-    setBusy(null);
-    refresh();
-  }
-
-  async function remove(row: WorkspaceIntegration) {
+  async function remove(row: Integration) {
     if (!supabase) return;
-    const label = row.account_label ?? channel.label;
+    const label = row.provider_email ?? row.provider_account_name ?? channel.label;
     if (!window.confirm(`Disconnect ${label}? Messages already synced stay; nothing new arrives from it.`)) return;
     setBusy(row.id);
-    const { error } = await supabase.from("workspace_integrations").delete().eq("id", row.id);
+    /* One row, by id. RLS confines that to your own, so a colleague's
+       integration id in this request matches nothing rather than deleting
+       something. */
+    const { error } = await supabase.from("integrations").delete().eq("id", row.id);
     setNote(error ? error.message : `${label} disconnected.`);
     setBusy(null);
     refresh();
@@ -175,8 +153,7 @@ export function IntegrationDialog({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-faint">
-                    <th className="px-4 py-2 font-medium">Default</th>
-                    <th className="px-2 py-2 font-medium">Account</th>
+                    <th className="px-4 py-2 font-medium">Account</th>
                     <th className="px-2 py-2 font-medium">Status</th>
                     <th className="px-4 py-2" />
                   </tr>
@@ -184,29 +161,41 @@ export function IntegrationDialog({
                 <tbody>
                   {accounts.map((a) => (
                     <tr key={a.id} className="border-b border-border last:border-0">
-                      <td className="px-4 py-2.5">
-                        {/* A radio, because exactly one can hold it. A checkbox
-                            would imply two could, which the database refuses. */}
-                        <input
-                          type="radio"
-                          name={`default-${provider}`}
-                          checked={a.is_default}
-                          onChange={() => makeDefault(a)}
-                          disabled={busy !== null}
-                          aria-label={`Send from ${a.account_label ?? "this account"}`}
-                          className="h-3.5 w-3.5 accent-[var(--accent)]"
-                        />
-                      </td>
-                      <td className="min-w-0 px-2 py-2.5">
-                        <span className="block truncate font-medium">{a.account_label ?? "Connected account"}</span>
+                      <td className="min-w-0 px-4 py-2.5">
+                        {/* The address first: it is how a person recognises
+                            which of their own accounts this is. The provider's
+                            display name is the fallback for the channels that
+                            issue no address, like a Slack workspace. */}
+                        <span className="block truncate font-medium">
+                          {a.provider_email ?? a.provider_account_name ?? "Connected account"}
+                        </span>
                         <span className="block text-[11px] text-faint">
-                          Added {new Date(a.connected_at).toLocaleDateString()}
+                          {a.provider_email && a.provider_account_name ? `${a.provider_account_name} · ` : ""}
+                          Added {new Date(a.created_at).toLocaleDateString()}
                         </span>
                       </td>
                       <td className="px-2 py-2.5">
-                        <span className="pill bg-emerald-500/15 text-emerald-400">
-                          <Check size={11} /> Connected
-                        </span>
+                        {/* Three states, not two. A connection whose refresh
+                            token has been revoked is not "connected" and not
+                            "missing": it needs one sign-in, and saying so is
+                            the difference between a fix and a support ticket. */}
+                        {a.status === "connected" ? (
+                          <span className="pill bg-emerald-500/15 text-emerald-400">
+                            <Check size={11} /> Connected
+                          </span>
+                        ) : a.status === "reauth_required" ? (
+                          <button
+                            className="pill bg-amber-500/15 text-amber-300 hover:bg-amber-500/25"
+                            onClick={() => add()}
+                            title={a.last_error ?? "Authorisation expired"}
+                          >
+                            <AlertTriangle size={11} /> Reconnect
+                          </button>
+                        ) : (
+                          <span className="pill bg-red-500/15 text-red-400" title={a.last_error ?? undefined}>
+                            <AlertTriangle size={11} /> {a.status}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         <button
@@ -214,7 +203,7 @@ export function IntegrationDialog({
                           onClick={() => remove(a)}
                           disabled={busy !== null}
                           title="Disconnect this account"
-                          aria-label={`Disconnect ${a.account_label ?? "account"}`}
+                          aria-label={`Disconnect ${a.provider_email ?? a.provider_account_name ?? "account"}`}
                         >
                           {busy === a.id ? <Loader2 size={14} className="animate-spin" /> : <Unplug size={14} />}
                         </button>

@@ -3,12 +3,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Link2, SlidersHorizontal, MoreVertical, RefreshCw, Unplug } from "lucide-react";
 import { REAL_CHANNELS, type Channel, type ChannelId } from "@/lib/channels";
 import { syncSlack } from "@/lib/slack";
-import { useMailConnections, useMyEmail, useWorkspaceIntegrations } from "@/data/hooks";
+import { useMailConnections, useMyEmail, useMyIntegrations } from "@/data/hooks";
 import { syncDiscord } from "@/lib/discord";
 import { syncInstagram } from "@/lib/meta";
 import { type ConnectProvider } from "@/lib/connect";
 import { IntegrationDialog } from "@/components/IntegrationDialog";
-import type { WorkspaceIntegration } from "@/types/db";
+import type { Integration } from "@/types/db";
 import { supabase } from "@/lib/supabase";
 import type { MailProvider } from "@/types/db";
 import { cn } from "@/lib/utils";
@@ -102,11 +102,15 @@ const BLURB: Record<ChannelId, string> = {
  * the first of three would be quietly wrong about a workspace with a client
  * account connected beside the agency's.
  */
-function accountLabel(rows: WorkspaceIntegration[] | undefined): string | null {
+function accountLabel(rows: Integration[] | undefined): string | null {
   if (!rows?.length) return null;
-  const first = rows[0].account_label ?? "Connected";
+  const first = rows[0].provider_email ?? rows[0].provider_account_name ?? "Connected";
   return rows.length > 1 ? `${first} +${rows.length - 1} more` : first;
 }
+
+/** A connection that needs signing in again, rather than one that is simply absent. */
+const needsReauth = (rows: Integration[] | undefined) =>
+  Boolean(rows?.length) && rows!.every((r) => r.status === "reauth_required" || r.status === "error");
 
 interface ChannelState {
   connected: boolean;
@@ -124,13 +128,13 @@ interface ChannelState {
  */
 function useChannelStates(): Record<ChannelId, ChannelState> {
   const { data: mail } = useMailConnections();
-  const { data: installs } = useWorkspaceIntegrations();
+  const { data: installs } = useMyIntegrations();
   const myEmail = useMyEmail();
 
   const ms = mail?.outlook;
-  /* [0] is the default account, because the query orders default-first. The
-     card names the account a send would actually use; the dialog lists them
-     all. */
+  /* MY Meta connection, not the workspace's: RLS returns only rows whose
+     user_id is me, so a colleague's Instagram is not visible here and cannot
+     be. */
   const meta = installs?.meta?.[0];
   const base = (over: Partial<ChannelState>): ChannelState =>
     ({ connected: false, account: null, loading: false, ...over });
@@ -170,13 +174,13 @@ function useChannelStates(): Record<ChannelId, ChannelState> {
       /* One Meta login covers both, but it does not switch both on: a business
          with a Page and no Instagram account attached connects fine and has no
          Instagram. The card reflects what actually came back. */
-      connected: Boolean(meta?.details?.ig_id),
-      account: meta?.details?.ig_username ? `@${meta.details.ig_username}` : null,
+      connected: Boolean(meta?.metadata?.ig_id),
+      account: meta?.metadata?.ig_username ? `@${meta.metadata.ig_username}` : null,
       loading: !installs,
     }),
     whatsapp: base({
-      connected: Boolean(meta?.details?.whatsapp_phone_number_id),
-      account: meta?.details?.whatsapp_number ?? null,
+      connected: Boolean(meta?.metadata?.whatsapp_phone_number_id),
+      account: meta?.metadata?.whatsapp_number ?? null,
       loading: !installs,
     }),
     linkedin: base({
@@ -305,7 +309,7 @@ function CardMenu({ channel, state, onNote }: {
 function ChannelCard({ channel, state, accounts }: {
   channel: Channel;
   state: ChannelState;
-  accounts: WorkspaceIntegration[];
+  accounts: Integration[];
 }) {
   const [menu, setMenu] = useState(false);
   const [open, setOpen] = useState(false);
@@ -388,7 +392,7 @@ function ChannelCard({ channel, state, accounts }: {
 
 export function ChannelConnections() {
   const states = useChannelStates();
-  const { data: installs } = useWorkspaceIntegrations();
+  const { data: installs } = useMyIntegrations();
 
   return (
     <section className="mb-5">

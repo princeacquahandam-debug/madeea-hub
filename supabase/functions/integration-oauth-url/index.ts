@@ -1,91 +1,127 @@
 // Edge Function: integration-oauth-url   (Verify JWT: ON. Default)
 //
-// Turns "press Connect" into "sign in with the account you own", for the four
-// channels that used to be a token pasted into the Supabase dashboard.
+// Starts a connection for the SIGNED-IN PERSON. One function, every provider.
 //
-// ONE FUNCTION FOR FOUR PROVIDERS, because the differences are a URL, a scope
-// list and one query parameter each. What is NOT different is everything that
-// has to be right: the redirect target must be validated against APP_ORIGINS
-// rather than trusted from the browser, the state must be short-lived and
-// single-use, and the workspace has to be decided HERE, while the caller still
-// has a session, because the callback runs with none. Four copies of that is
-// four chances to get one of them wrong.
+// ── THE RULE THIS FUNCTION ENFORCES ──────────────────────────────────────
 //
-// WHAT STILL LIVES IN SUPABASE SECRETS, and why it is not the thing that was
-// wrong before. Each provider needs MadeEA's own app id and secret. That is the
-// application's identity, registered once by whoever owns this deployment, and
-// it is not the customer's credential. The change is that nobody pastes a Slack
-// bot token or a Facebook Page token any more: they press Connect, sign in as
-// themselves, and the token arrives over TLS carrying the name of what they
-// just authorised.
+// The identity of a connection is (workspace, person, provider, third-party
+// account). Three of those are decided here, while the caller still has a
+// session, and carried through the round trip in the state row. The fourth
+// comes back from the provider.
+//
+// None of them is ever read from the request body. A browser that could name
+// its own user_id or workspace_id could file somebody else's Google account
+// against itself, which is the whole attack this shape exists to prevent.
+//
+// ── WHAT THE CLIENT ID IS, SINCE IT IS ROUTINELY MISREAD ─────────────────
+//
+// GOOGLE_CLIENT_ID is MadeEA's identity with Google, registered once. It is not
+// a per-person credential and it is not a limit: every member signs in through
+// the same application and Google returns tokens for whichever account THEY
+// authorised. John gets john@gmail.com; Sarah gets sarah@gmail.com; the rows
+// differ by user_id.
+//
+// ── PKCE ─────────────────────────────────────────────────────────────────
+//
+// Sent to every provider that supports it. The verifier is stored encrypted
+// with the same key as the tokens, because for the ten minutes it lives it is
+// exactly as sensitive: whoever holds it and an intercepted code can complete
+// somebody else's authorisation.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const APP_ORIGINS = (Deno.env.get("APP_ORIGINS") ?? "")
   .split(",").map((o) => o.trim()).filter(Boolean);
 
-type Provider = "slack" | "discord" | "meta" | "linkedin";
+type Provider = "google" | "microsoft" | "slack" | "discord" | "meta" | "linkedin";
+
+const TENANT = Deno.env.get("MICROSOFT_TENANT") ?? "common";
 
 /**
- * What each provider needs, and the one thing worth knowing about each.
+ * Per-provider configuration, in one place rather than scattered through the
+ * routes that use it.
  *
- *   slack     bot scopes, not user scopes. The bot reads channels it is invited
- *             to; a user token would read everything the installer can see,
- *             which is far more than this app should ever hold.
- *   discord   `bot` plus `applications.commands`, with a permissions integer.
- *             1024+2048+65536 = View Channels, Send Messages, Read Message
- *             History: exactly what discord-sync and discord-send use.
- *   meta      one Facebook login covering the Page, the Instagram account
- *             attached to it and the WhatsApp number, because Meta issues them
- *             against the same token.
- *   linkedin  lead-gen only. LinkedIn's messaging API does not exist for us at
- *             any price, and this scope set does not pretend otherwise.
+ * `pkce` is per provider because sending a code_challenge to something that
+ * does not understand it is not always harmless: some providers echo it back as
+ * an error rather than ignoring it.
  */
 const PROVIDERS: Record<Provider, {
   authorize: string;
-  scopeParam: string;
   scopes: string;
+  scopeSeparator: string;
   clientIdEnv: string;
+  pkce: boolean;
   extra?: Record<string, string>;
 }> = {
+  google: {
+    authorize: "https://accounts.google.com/o/oauth2/v2/auth",
+    /* One Google authorisation covering Gmail and Calendar, rather than asking
+       the same person for the same account twice (spec §50). */
+    scopes: [
+      "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/gmail.send",
+      "https://www.googleapis.com/auth/calendar.readonly",
+      "openid", "email", "profile",
+    ].join(" "),
+    scopeSeparator: " ",
+    clientIdEnv: "GOOGLE_CLIENT_ID",
+    pkce: true,
+    // offline_access equivalent: without it there is no refresh token and the
+    // connection dies in an hour.
+    extra: { access_type: "offline", prompt: "consent", include_granted_scopes: "true" },
+  },
+  microsoft: {
+    authorize: `https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/authorize`,
+    scopes: [
+      "offline_access", "openid", "email", "profile",
+      "https://graph.microsoft.com/Mail.ReadWrite",
+      "https://graph.microsoft.com/Mail.Send",
+      "https://graph.microsoft.com/Chat.Read",
+      "https://graph.microsoft.com/ChatMessage.Send",
+    ].join(" "),
+    scopeSeparator: " ",
+    clientIdEnv: "MICROSOFT_CLIENT_ID",
+    pkce: true,
+    /* select_account, because the mailbox being connected is frequently not the
+       account the browser is already signed into. */
+    extra: { response_mode: "query", prompt: "select_account" },
+  },
   slack: {
     authorize: "https://slack.com/oauth/v2/authorize",
-    scopeParam: "scope",
     scopes: [
-      "channels:read", "groups:read",
-      "channels:history", "groups:history",
+      "channels:read", "groups:read", "channels:history", "groups:history",
       "users:read", "chat:write", "chat:write.public",
     ].join(","),
+    scopeSeparator: ",",
     clientIdEnv: "SLACK_CLIENT_ID",
+    pkce: false,
   },
   discord: {
     authorize: "https://discord.com/oauth2/authorize",
-    scopeParam: "scope",
-    scopes: "bot applications.commands",
+    scopes: "bot applications.commands identify",
+    scopeSeparator: " ",
     clientIdEnv: "DISCORD_CLIENT_ID",
+    pkce: false,
+    // View Channels + Send Messages + Read Message History: what the sync uses.
     extra: { permissions: "68608" },
   },
   meta: {
     authorize: "https://www.facebook.com/v21.0/dialog/oauth",
-    scopeParam: "scope",
     scopes: [
-      "pages_show_list",
-      "pages_manage_metadata",
-      "pages_read_engagement",
-      "pages_messaging",
-      "instagram_basic",
-      "instagram_manage_messages",
-      "whatsapp_business_messaging",
-      "whatsapp_business_management",
-      "business_management",
+      "pages_show_list", "pages_manage_metadata", "pages_read_engagement", "pages_messaging",
+      "instagram_basic", "instagram_manage_messages",
+      "whatsapp_business_messaging", "whatsapp_business_management", "business_management",
     ].join(","),
-    clientIdEnv: "META_APP_ID",
+    scopeSeparator: ",",
+    clientIdEnv: "META_CLIENT_ID",
+    pkce: false,
   },
   linkedin: {
     authorize: "https://www.linkedin.com/oauth/v2/authorization",
-    scopeParam: "scope",
-    scopes: "r_organization_admin rw_organization_admin r_marketing_leadgen_automation",
+    scopes: "openid profile email r_organization_admin r_marketing_leadgen_automation",
+    scopeSeparator: " ",
     clientIdEnv: "LINKEDIN_CLIENT_ID",
+    pkce: false,
   },
 };
 
@@ -99,6 +135,40 @@ function corsFor(req: Request) {
   };
 }
 
+const b64url = (bytes: Uint8Array) =>
+  btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+/** SHA-256, base64url. Used for both the state hash and the PKCE challenge. */
+async function sha256(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return b64url(new Uint8Array(digest));
+}
+
+/**
+ * AES-256-GCM, key from INTEGRATION_ENCRYPTION_KEY (base64, 32 bytes).
+ *
+ * Duplicated in integration-oauth-callback and in every function that spends a
+ * token. Supabase Edge Functions here are deployed one file at a time, so a
+ * shared module is not available: if this changes, it changes everywhere.
+ */
+async function encrypt(plain: string): Promise<string> {
+  const raw = Deno.env.get("INTEGRATION_ENCRYPTION_KEY");
+  if (!raw) throw new Error("INTEGRATION_ENCRYPTION_KEY is not configured");
+  const key = await crypto.subtle.importKey(
+    "raw", Uint8Array.from(atob(raw), (c) => c.charCodeAt(0)),
+    { name: "AES-GCM" }, false, ["encrypt"],
+  );
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cipher = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(plain)),
+  );
+  // iv || ciphertext(+tag), base64. The iv is not secret and must travel with it.
+  const out = new Uint8Array(iv.length + cipher.length);
+  out.set(iv);
+  out.set(cipher, iv.length);
+  return btoa(String.fromCharCode(...out));
+}
+
 Deno.serve(async (req) => {
   const CORS = corsFor(req);
   const json = (b: unknown, s = 200) =>
@@ -108,66 +178,98 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const auth = req.headers.get("Authorization");
-    if (!auth) return json({ error: "unauthorized" }, 401);
+    if (!auth) return json({ error: "Sign in first.", code: "AUTH_REQUIRED" }, 401);
 
     const user = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: auth } },
     });
     const { data: u } = await user.auth.getUser();
-    if (!u?.user) return json({ error: "unauthorized" }, 401);
+    if (!u?.user) return json({ error: "Sign in first.", code: "AUTH_REQUIRED" }, 401);
 
     const body = await req.json().catch(() => ({}));
     const provider = String(body.provider ?? "") as Provider;
     const spec = PROVIDERS[provider];
-    if (!spec) return json({ error: `unknown provider: ${provider}` }, 400);
-
-    const clientId = Deno.env.get(spec.clientIdEnv);
-    /* Said here, in words naming the missing secret. An unconfigured app
-       otherwise sends somebody to a provider login that fails with the
-       provider's own error code and no hint that the fix is in Supabase. */
-    if (!clientId) {
-      return json({ error: `${spec.clientIdEnv} is not configured, so ${provider} cannot be connected yet.` }, 400);
-    }
-
-    // Never trust a redirect target from the request body.
-    const redirectTo = APP_ORIGINS.includes(String(body.origin ?? "")) ? String(body.origin) : APP_ORIGINS[0];
-    if (!redirectTo) return json({ error: "APP_ORIGINS is not configured" }, 500);
+    if (!spec) return json({ error: `Unknown provider: ${provider}`, code: "PROVIDER_NOT_SUPPORTED" }, 400);
 
     const admin = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    /* The workspace, resolved while there is still a session to resolve it
-       from. The callback runs as the service role, where my_workspace() is
-       null, and a shared channel filed into the wrong workspace is one agency
-       reading another's messages. */
-    const { data: member } = await admin
-      .from("memberships").select("workspace_id").eq("user_id", u.user.id).limit(1).maybeSingle();
-    if (!member?.workspace_id) return json({ error: "You are not in a workspace yet." }, 400);
+    // Is the provider switched on at all? LinkedIn's messaging is the case this
+    // exists for: better a card that says so than a login that fails afterwards.
+    const { data: reg } = await admin
+      .from("integration_providers").select("enabled").eq("slug", provider).maybeSingle();
+    if (reg && reg.enabled === false) {
+      return json({ error: `${provider} is not available yet.`, code: "PROVIDER_NOT_SUPPORTED" }, 400);
+    }
 
-    const { data: st, error } = await admin
-      .from("oauth_states")
-      .insert({
-        user_id: u.user.id,
-        workspace_id: member.workspace_id,
-        redirect_to: redirectTo,
-        provider,
-        popup: body.popup !== false,
-        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-      })
-      .select("state")
-      .single();
+    const clientId = Deno.env.get(spec.clientIdEnv);
+    if (!clientId) {
+      return json({
+        error: `${spec.clientIdEnv} is not configured, so ${provider} cannot be connected yet.`,
+        code: "PROVIDER_NOT_SUPPORTED",
+      }, 400);
+    }
+
+    /* THE WORKSPACE COMES FROM MEMBERSHIP, NOT FROM THE BROWSER. This is the
+       §36 rule: the server derives identity from the session. A workspace_id in
+       the body would be a request to file a connection wherever the caller
+       fancied. */
+    const { data: member } = await admin
+      .from("memberships").select("workspace_id, role").eq("user_id", u.user.id).limit(1).maybeSingle();
+    if (!member?.workspace_id) {
+      return json({ error: "You are not in a workspace yet.", code: "WORKSPACE_REQUIRED" }, 400);
+    }
+
+    // Never trust a redirect target from the request body either.
+    const redirectTo = APP_ORIGINS.includes(String(body.origin ?? "")) ? String(body.origin) : APP_ORIGINS[0];
+    if (!redirectTo) return json({ error: "APP_ORIGINS is not configured" }, 500);
+
+    /* 32 random bytes. Stored as a hash, sent in the clear: a database read
+       yields no usable state, the same reasoning as a password. */
+    const state = b64url(crypto.getRandomValues(new Uint8Array(32)));
+    const stateHash = await sha256(state);
+
+    let codeVerifier: string | null = null;
+    let challenge: string | null = null;
+    if (spec.pkce) {
+      codeVerifier = b64url(crypto.getRandomValues(new Uint8Array(64)));
+      challenge = await sha256(codeVerifier);
+    }
+
+    const { error } = await admin.from("oauth_states").insert({
+      user_id: u.user.id,
+      workspace_id: member.workspace_id,
+      provider,
+      state_hash: stateHash,
+      code_verifier_encrypted: codeVerifier ? await encrypt(codeVerifier) : null,
+      redirect_to: redirectTo,
+      redirect_after: typeof body.redirect_after === "string" ? body.redirect_after : "/integrations",
+      popup: body.popup !== false,
+      expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    });
     if (error) return json({ error: error.message }, 500);
+
+    await admin.from("integration_logs").insert({
+      workspace_id: member.workspace_id,
+      user_id: u.user.id,
+      action: "oauth_started",
+      status: "success",
+      metadata: { provider },
+    });
 
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: `${SUPABASE_URL}/functions/v1/integration-oauth-callback`,
       response_type: "code",
-      [spec.scopeParam]: spec.scopes,
-      state: st.state,
+      scope: spec.scopes,
+      state,
       ...(spec.extra ?? {}),
+      ...(challenge ? { code_challenge: challenge, code_challenge_method: "S256" } : {}),
     });
 
     return json({ url: `${spec.authorize}?${params.toString()}` });
   } catch (e) {
+    // The message may name a missing secret, which is safe and useful; it never
+    // contains a token, because this function holds none at this point.
     return json({ error: String(e instanceof Error ? e.message : e) }, 500);
   }
 });
