@@ -112,7 +112,7 @@ const CELL_LABELS: Record<CellStatus, string> = {
 
 export default function EodReports() {
   const { meta } = EOD_DATA;
-  const { data: reports = [] } = useEodReports();
+  const { data: reports = [], isLoading: eodLoading, isError: eodError, error: eodErr, refetch: refetchEod } = useEodReports();
   const { data: tasks = [] } = useTasks();
   const { data: members = [] } = useWorkspaceMembers();
   const submit = useSubmitEod();
@@ -360,6 +360,24 @@ export default function EodReports() {
   return (
     <div>
       <PageTour steps={TOUR_STEPS} storageKey={TOUR_KEY} open={tour.open} onClose={tour.close} />
+
+      {/* A failed read used to render as a team that reported nothing: every
+          figure on this page reads 0, which is a real and alarming number, and
+          nothing said it was wrong. Two people on two machines saw different
+          totals and neither knew which to believe. */}
+      {eodError && (
+        <div className="card mb-3 flex flex-wrap items-center gap-2 border-amber-500/40 bg-amber-500/5 p-2.5 text-[12.5px] text-amber-200">
+          <AlertTriangle size={14} className="shrink-0" />
+          <span className="min-w-0 flex-1">
+            Could not load reports, so the figures below are not your team's. This is a read failure,
+            not an empty week. {(eodErr as Error)?.message}
+          </span>
+          <button className="btn-ghost border border-amber-500/40 px-2 py-1 text-[11.5px]" onClick={() => void refetchEod()}>
+            Try again
+          </button>
+        </div>
+      )}
+      {eodLoading && <p className="mb-3 text-sm text-faint">Loading reports…</p>}
 
       <PageHeader
         title="EOD Reports"

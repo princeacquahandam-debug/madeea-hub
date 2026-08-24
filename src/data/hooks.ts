@@ -1293,9 +1293,19 @@ export function useMyRole() {
       const uid = auth.user?.id;
       if (!uid) return "ea";
       const { data, error } = await supabase.from("memberships").select("role").eq("user_id", uid).limit(1).maybeSingle();
-      if (error) return "ea";
+      /* THROW, do not assume the lowest role. This returned "ea" on any error,
+         so one dropped request rendered an owner as an employee: the Admin
+         Panel vanished, Screenshots narrowed to their own, the invite form
+         disappeared. Nothing said anything had failed, and refreshing usually
+         fixed it, which is exactly what "it works on my machine but not on
+         hers" looks like from the outside.
+         Throwing lets the retry below actually happen. Callers use atLeast(),
+         which is already false for an undefined role, so an unresolved query
+         still grants nothing. */
+      if (error) throw error;
       return ((data?.role as MemberRole) ?? "employee");
     },
+    retry: 2,
   });
 }
 
@@ -1685,7 +1695,13 @@ export function useEodReports() {
         .from("eod_reports")
         .select("id,owner_id,person_name,report_date,done,blockers,plans,notes,raw,submitted_at")
         .order("report_date", { ascending: false });
-      if (error) return IMPORTED_EOD; // migration 0016 not applied yet
+      /* THROW. This returned an empty list on any read failure, so a dropped
+         request, an expired token or a policy change rendered as "0
+         submissions, 0.00% completion" and was indistinguishable from a team
+         that genuinely had not reported. Two people on two machines could see
+         32 reports and 0, with nothing on either screen saying which was
+         real. That is the whole of the "it does not sync" symptom. */
+      if (error) throw error;
       return (data as (Omit<EodReport, "person"> & { person_name: string })[]).map((r) => ({
         ...r,
         person: r.person_name,
