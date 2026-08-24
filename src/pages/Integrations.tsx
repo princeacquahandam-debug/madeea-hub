@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Calendar, CheckCircle2, RefreshCw, Plug, Loader2, Wand2, AlertTriangle } from "lucide-react";
-import { SlackMark } from "@/components/BrandIcons";
 import { PageHeader } from "@/components/ui";
 import { ChannelConnections } from "@/components/ChannelConnections";
 import { TeamConnections } from "@/components/TeamConnections";
@@ -147,47 +146,6 @@ export default function Integrations() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function syncSlack() {
-    if (!supabase) return;
-    setBusy("slack");
-    setNote("");
-    try {
-      const { data, error } = await supabase.functions.invoke("slack-sync");
-      if (error) {
-        let msg = error.message;
-        try {
-          const body = await (error as { context?: { json?: () => Promise<{ error?: string }> } }).context?.json?.();
-          if (body?.error) msg = body.error;
-        } catch { /* ignore */ }
-        setNote(`Slack: ${msg}`);
-      } else {
-        /* Say which channel and what was skipped, not just a number.
-           "Synced 0 messages from 1 channels" reads as broken, and the three
-           reasons it can be zero (nothing there, nothing readable, a write that
-           failed) all looked identical. */
-        const d = data as {
-          synced?: number; skipped?: number; channels?: number;
-          channel_names?: string[]; errors?: string[];
-        };
-        const where = d.channel_names?.length ? `#${d.channel_names.join(", #")}` : "no channels";
-        if (d.errors?.length) {
-          setNote(`Slack: ${d.errors[0]}`);
-        } else if ((d.synced ?? 0) > 0) {
-          setNote(`Pulled ${d.synced} message${d.synced === 1 ? "" : "s"} from ${where}.`);
-        } else if ((d.skipped ?? 0) > 0) {
-          setNote(`${where} has nothing new. ${d.skipped} item${d.skipped === 1 ? " was" : "s were"} skipped as joins or system notices rather than messages. Post something in Slack, then sync again.`);
-        } else if (!d.channels) {
-          setNote("The MadeEA bot is not in any channel yet. In Slack, run /invite @MadeEA in the channel you want to pull.");
-        } else {
-          setNote(`${where} is empty. Post something in Slack, then sync again.`);
-        }
-        qc.invalidateQueries({ queryKey: ["messages"] });
-      }
-    } finally {
-      setBusy(null);
-    }
-  }
-
   return (
     <div>
       <PageHeader title="Integrations" subtitle="Connect the tools your inbox, calendar and team live in" />
@@ -245,24 +203,8 @@ export default function Integrations() {
           </div>
         </div>
 
-        {/* Slack */}
-        <div className="card flex flex-col p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-surface-2">
-              <SlackMark size={20} />
-            </div>
-            <div>
-              <h3 className="font-semibold">Slack</h3>
-              <span className="pill bg-zinc-500/15 text-faint">Workspace bot</span>
-            </div>
-          </div>
-          <p className="mt-3 flex-1 text-sm text-muted">
-            Pull messages from the channels your MadeEA bot has joined into the Inbox.
-          </p>
-          <button className="btn-primary mt-4" onClick={syncSlack} disabled={!isSupabaseConfigured || busy === "slack"}>
-            {busy === "slack" ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Sync Slack
-          </button>
-        </div>
+        {/* Slack had a card here. The channel grid above now owns it
+            outright: same connection, same sync, and one place to look. */}
       </div>
 
       {/* Who on the team has connected what. Above the organiser card

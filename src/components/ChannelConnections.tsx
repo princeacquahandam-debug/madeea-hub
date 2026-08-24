@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Hash, Lock, Plug, RefreshCw } from "lucide-react";
-import { REAL_CHANNELS, STATUS_LABEL, type Channel, type ChannelStatus } from "@/lib/channels";
-import { listSlackChannels } from "@/lib/slack";
+import { Check, Loader2, Hash, Lock, Link2, SlidersHorizontal, RefreshCw, MoreVertical, Ban } from "lucide-react";
+import { REAL_CHANNELS, type Channel, type ChannelId } from "@/lib/channels";
+import { listSlackChannels, syncSlack } from "@/lib/slack";
 import { useMailConnections, useMyEmail } from "@/data/hooks";
 import { listDiscordChannels, syncDiscord } from "@/lib/discord";
 import { metaStatus, syncInstagram } from "@/lib/meta";
 import { reconnectMail } from "@/hooks/useSendEmail";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import type { MailProvider } from "@/types/db";
 import { cn } from "@/lib/utils";
 
@@ -15,507 +15,154 @@ import { cn } from "@/lib/utils";
  * Every message channel and its real state, in one place.
  *
  * WHY THIS EXISTS. "Which channels are connected" was answerable only by
- * opening the Inbox, choosing each channel, and reading a note beside it. That is three steps to learn something that should be a
- * glance, and it is the first question anyone asks when a client says they
- * messaged us somewhere.
+ * opening the Inbox, choosing each channel, and reading a note beside it. Three
+ * steps to learn something that should be a glance, and it is the first
+ * question anyone asks when a client says they messaged us somewhere.
  *
- * WHY IT DOES NOT OFFER A CONNECT BUTTON FOR EVERYTHING. The honest answer per
- * channel is wildly different. Gmail is an OAuth click. Slack was a scope and a
- * reinstall. Discord is a bot token. WhatsApp is a Meta Business review that
- * takes days and needs a phone number that has never been on WhatsApp. Giving
- * all four an identical "Connect" button would say those are the same job, and
- * whoever pressed the WhatsApp one would rightly feel lied to. So each states
- * what it actually needs, and only the ones that can be actioned here get a
- * control.
+ * ── THE CARD SHAPE, AND WHY EVERY CARD HAS THE SAME ONE ──────────────────
  *
- * WHICH IS WHY THE TWO MAILBOXES NOW HAVE ONE. Gmail and Outlook are genuinely
- * an OAuth click each, and this is where people arrive asking "can I connect my
- * email". Sending them somewhere else on the same page to press a button that
- * belongs on this card was a step that existed only because the cards were
- * built before the connections were.
+ * Logo, name, the connected account under it, one line of what the channel is
+ * for, and a single button that reads Connect or Manage. That is the shape
+ * every CRM uses for this screen, and it is worth copying for a reason that is
+ * not fashion: the question people bring here is "which of these am I on", and
+ * a grid answers that in one pass only if the cards are identical enough to
+ * compare at a glance.
  *
- * The status these two show is LIVE and personal: it is read from your own
- * credential row, not from the static catalogue, so "Connected" here means you
- * connected it, not that the product supports it. Everything else on the grid
- * still shows the catalogue's status, because for those two answers are the
- * same thing.
+ * An earlier version made each card argue its own case, with a status pill, a
+ * checklist of requirements and a different control per channel. Every word of
+ * that was true and the grid was unreadable: nine cards of different heights,
+ * each demanding to be read before it could be compared.
+ *
+ * WHAT THAT UNIFORMITY MUST NOT COST. The honest answer per channel is still
+ * wildly different. Gmail is an OAuth click; Slack was a scope and a reinstall;
+ * WhatsApp is a Meta Business review measured in days. So the differences moved
+ * behind Manage rather than being flattened away: the front of the card is
+ * uniform, and pressing it shows what this particular channel actually needs.
+ * Nobody is told that connecting WhatsApp is the same job as connecting Gmail.
+ *
+ * WHAT IS DELIBERATELY NOT ON THIS GRID. Every service the product does not
+ * integrate with. A grid of Connect buttons is an implicit promise that they
+ * work, and a card for something unbuilt is a support ticket waiting to happen.
+ * LinkedIn is the single exception, and it is here to say it is impossible
+ * rather than to imply it is queued.
  */
 
-/* Null means "we do not know yet", which is a third state and has to look like
-   one. A mailbox card that guesses while its credential row is in flight either
-   tells a connected person they are not connected or the reverse, and both are
-   read as the answer rather than as a loading state. */
-function StatusPill({ status }: { status: ChannelStatus | null }) {
-  // Status carries a word as well as a colour, so it survives being printed,
-  // screenshotted, or read by someone who does not distinguish red from green.
-  const tone: Record<ChannelStatus, string> = {
-    connected: "bg-emerald-500/15 text-emerald-400",
-    read_only: "bg-amber-500/15 text-amber-400",
-    not_connected: "bg-zinc-500/15 text-faint",
-    planned: "bg-zinc-500/15 text-faint",
-  };
-  if (!status) return <span className="pill bg-zinc-500/15 text-faint">Checking…</span>;
-  return <span className={cn("pill", tone[status])}>{STATUS_LABEL[status]}</span>;
-}
-
-/** Which channels are a mailbox, and which credential row each one lives in. */
-const MAIL_PROVIDER: Partial<Record<Channel["id"], MailProvider>> = {
-  gmail: "gmail",
-  outlook: "outlook",
-};
-
+/* Which channels are a mailbox, and where that credential lives. */
+const MAIL_PROVIDER: Partial<Record<ChannelId, MailProvider>> = { gmail: "gmail", outlook: "outlook" };
 const CREDENTIAL_TABLE: Record<MailProvider, string> = {
   gmail: "google_credentials",
   outlook: "microsoft_credentials",
 };
-
-const SYNC_FUNCTION: Record<MailProvider, string> = {
-  gmail: "gmail-sync",
-  outlook: "outlook-sync",
-};
-
-/**
- * Connect, sync and disconnect for one mailbox.
- *
- * ONE COMPONENT FOR BOTH PROVIDERS. The two differ in a table name, a function
- * name and one sentence of warning; everything else (the busy state, reading
- * the failure out of the edge function's body, invalidating the message list)
- * is identical, and two copies of it would drift the first time one was fixed.
- */
-function MailControls({ provider }: { provider: MailProvider }) {
-  const qc = useQueryClient();
-  const { data: mail } = useMailConnections();
-  const myEmail = useMyEmail();
-  const [busy, setBusy] = useState<"connect" | "sync" | "disconnect" | null>(null);
-  const [note, setNote] = useState("");
-
-  const conn = mail?.[provider];
-  const label = provider === "outlook" ? "Outlook" : "Gmail";
-  /* Gmail has no stored address because there cannot be one: Google's callback
-     requires the connected account to BE your login. Outlook stores its own,
-     because the two are routinely different. */
-  const address = provider === "outlook" ? conn?.account_email : myEmail;
-
-  async function connect() {
-    setBusy("connect");
-    setNote("");
-    // Returns a reason only when it could NOT start; on success the browser is
-    // already on its way to the provider and nothing below runs.
-    const err = await reconnectMail(provider);
-    if (err) {
-      setNote(err);
-      setBusy(null);
-    }
-  }
-
-  async function sync() {
-    if (!supabase) return;
-    setBusy("sync");
-    setNote("");
-    try {
-      const { data, error } = await supabase.functions.invoke(SYNC_FUNCTION[provider]);
-      /* The reason lives in the function's JSON body, which the SDK hides
-         behind error.context. Reporting error.message alone turns every
-         failure into "Edge Function returned a non-2xx status code", which
-         tells the person nothing they can act on. */
-      let payload = (data ?? null) as { synced?: number; error?: string } | null;
-      if (error) {
-        const ctx = (error as { context?: Response }).context;
-        if (ctx && typeof ctx.text === "function") {
-          try { payload = JSON.parse(await ctx.text()); } catch { payload = null; }
-        }
-      }
-      if (error || payload?.error) {
-        setNote(payload?.error ?? error?.message ?? "Sync failed");
-      } else {
-        const n = payload?.synced ?? 0;
-        setNote(n ? `Pulled ${n} message${n === 1 ? "" : "s"}.` : "Nothing new to pull.");
-        qc.invalidateQueries({ queryKey: ["messages"] });
-      }
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function disconnect() {
-    if (!supabase) return;
-    /* Confirmed, and the Gmail warning is not boilerplate: one Google consent
-       covers mail AND calendar, so disconnecting here stops the Dashboard's
-       events too. Somebody who only meant to stop mail syncing deserves to
-       know that before they press it, not after the calendar empties. */
-    const warning = provider === "gmail"
-      ? "Disconnect Google? This stops Gmail sync AND your calendar events, and you will need to sign in again to reconnect."
-      : "Disconnect Outlook? Mail stops syncing and replies can no longer be sent from it until you reconnect.";
-    if (!window.confirm(warning)) return;
-
-    setBusy("disconnect");
-    setNote("");
-    try {
-      /* RLS scopes the delete to your own row (0016 for Google, 0048 for
-         Microsoft), so the filter is only here because the client requires
-         one: it cannot reach anybody else's credentials whatever it sends. */
-      const { error } = await supabase
-        .from(CREDENTIAL_TABLE[provider])
-        .delete()
-        .neq("owner_id", "00000000-0000-0000-0000-000000000000");
-      /* Named for what actually stopped. "Gmail disconnected" would be a
-         half-truth on Google, where the same consent was carrying the calendar. */
-      const done = provider === "gmail"
-        ? "Google disconnected. Gmail and calendar sync have stopped."
-        : "Outlook disconnected.";
-      setNote(error ? error.message : done);
-      qc.invalidateQueries({ queryKey: ["mail-connections"] });
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  /* Same rule as the pill above: no buttons until the answer is in. Offering
-     "Connect" to somebody who is already connected invites a pointless trip
-     through a consent screen. */
-  if (!mail) {
-    return (
-      <p className="mt-3 flex items-center gap-2 border-t border-border pt-3 text-[12px] text-faint">
-        <Loader2 size={12} className="animate-spin" /> Checking connection…
-      </p>
-    );
-  }
-
-  return (
-    <div className="mt-3 border-t border-border pt-3">
-      {conn?.connected ? (
-        <>
-          {address && (
-            <p className="mb-2 truncate text-[12px] text-muted" title={address}>
-              Sending as <span className="text-text">{address}</span>
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <button className="btn-ghost border border-border py-1 text-[12px]" onClick={sync} disabled={busy !== null}>
-              {busy === "sync" ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Sync mail
-            </button>
-            <button className="btn-ghost border border-border py-1 text-[12px]" onClick={disconnect} disabled={busy !== null}>
-              Disconnect
-            </button>
-          </div>
-        </>
-      ) : (
-        <button
-          className="btn-primary py-1 text-[12px]"
-          onClick={connect}
-          disabled={!isSupabaseConfigured || busy !== null}
-        >
-          {busy === "connect" ? <Loader2 size={13} className="animate-spin" /> : <Plug size={13} />} Connect {label}
-        </button>
-      )}
-      {note && <p className="mt-2 text-[12px] leading-relaxed text-muted">{note}</p>}
-    </div>
-  );
-}
-
-/** Graph's name for "may read the chats this person is in". */
 const TEAMS_SCOPE = "Chat.Read";
 
 /**
- * Teams, which is not a connection of its own.
+ * What each card says it is for.
  *
- * It runs on the Microsoft consent the Outlook card already owns, so this card
- * deliberately has no Connect button: two buttons for one sign-in would let
- * somebody "connect Teams" and wonder why Outlook came with it. What it does
- * have is the third state that falls out of sharing a consent: connected to
- * Microsoft, but before Teams was supported, so the token has the mail scopes
- * and not Chat.Read. That is a reconnect, not a connect, and saying the wrong
- * one of those sends people looking for a button that is not there.
+ * One sentence, in the words the rest of the industry uses for the same
+ * integration, because these cards are read by people who have connected the
+ * same services in a CRM before and are looking for the thing they recognise.
+ * Where our answer genuinely differs from the familiar one (Outlook not needing
+ * to match your login; LinkedIn having no API at all) the sentence says so
+ * instead of borrowing a promise we cannot keep.
  */
-function TeamsControls() {
-  const qc = useQueryClient();
+const BLURB: Record<ChannelId, string> = {
+  all: "",
+  gmail:
+    "Connect your Google account to sync Gmail into your inbox and your events into the calendar, and reply without leaving MadeEA.",
+  outlook:
+    "Connect your Microsoft account to sync Outlook mail and reply in the original thread. It does not have to match your MadeEA login.",
+  teams:
+    "Sync your one-to-one and group chats and reply to them from here. Uses the same Microsoft sign-in as Outlook.",
+  slack:
+    "Pull messages from the channels your bot has been invited to, and post back to them without switching apps.",
+  discord:
+    "Sync messages from your server's channels and reply to them from MadeEA, the same way Slack works.",
+  instagram:
+    "Sync messages and set up automations to efficiently manage and engage with potential leads.",
+  whatsapp:
+    "Integrate WhatsApp to connect with over 2 billion customers on their favourite messaging app, and accelerate your business growth.",
+  linkedin:
+    "LinkedIn publishes no public messaging API. Access needs Partner Program approval, which is invite-only, so this may never be connectable.",
+};
+
+/** State of one channel, as far as the browser can see it. */
+interface ChannelState {
+  connected: boolean;
+  /** Shown under the name: the account this is connected AS. */
+  account: string | null;
+  loading: boolean;
+  /** True when connecting is an OAuth click here rather than a server secret. */
+  selfServe: boolean;
+  /** Nothing to connect, ever. */
+  unavailable?: boolean;
+}
+
+/**
+ * Every channel's state, gathered once.
+ *
+ * One place rather than a query per card, because four of these cards read the
+ * same two answers and a card that fetches its own would mean four loading
+ * spinners settling at four different moments in a grid whose whole job is to
+ * be compared at a glance.
+ */
+function useChannelStates(): Record<ChannelId, ChannelState> {
   const { data: mail } = useMailConnections();
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState("");
+  const myEmail = useMyEmail();
+  const { data: slack } = useQuery({ queryKey: ["slack-channels"], queryFn: listSlackChannels, staleTime: 60_000 });
+  const { data: discord } = useQuery({ queryKey: ["discord-channels"], queryFn: listDiscordChannels, staleTime: 60_000 });
+  const { data: meta } = useQuery({ queryKey: ["meta-status"], queryFn: metaStatus, staleTime: 60_000 });
 
-  if (!mail) {
-    return (
-      <p className="mt-3 flex items-center gap-2 border-t border-border pt-3 text-[12px] text-faint">
-        <Loader2 size={12} className="animate-spin" /> Checking connection…
-      </p>
-    );
-  }
+  const ms = mail?.outlook;
+  const base = (over: Partial<ChannelState>): ChannelState =>
+    ({ connected: false, account: null, loading: false, selfServe: false, ...over });
 
-  const ms = mail.outlook;
-  const hasTeams = Boolean(ms.connected && ms.scopes?.includes(TEAMS_SCOPE));
-
-  async function sync() {
-    if (!supabase) return;
-    setBusy(true);
-    setNote("");
-    try {
-      const { data, error } = await supabase.functions.invoke("teams-sync");
-      let payload = (data ?? null) as { synced?: number; chats?: number; error?: string } | null;
-      if (error) {
-        const ctx = (error as { context?: Response }).context;
-        if (ctx && typeof ctx.text === "function") {
-          try { payload = JSON.parse(await ctx.text()); } catch { payload = null; }
-        }
-      }
-      if (error || payload?.error) {
-        setNote(payload?.error ?? error?.message ?? "Sync failed");
-      } else {
-        const n = payload?.synced ?? 0;
-        setNote(n
-          ? `Pulled ${n} message${n === 1 ? "" : "s"} from ${payload?.chats ?? 0} chat${payload?.chats === 1 ? "" : "s"}.`
-          : "No new chat messages.");
-        qc.invalidateQueries({ queryKey: ["messages"] });
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="mt-3 border-t border-border pt-3">
-      {!ms.connected ? (
-        <p className="text-[12px] leading-relaxed text-muted">
-          Connect Microsoft on the Outlook card. Teams uses the same sign-in, so it switches on with it.
-        </p>
-      ) : !hasTeams ? (
-        <>
-          <p className="text-[12px] leading-relaxed text-muted">
-            This Microsoft account was connected before Teams was supported, so its permission does not
-            cover chats yet.
-          </p>
-          <button
-            className="btn-primary mt-2 py-1 text-[12px]"
-            onClick={async () => {
-              setBusy(true);
-              const err = await reconnectMail("outlook");
-              if (err) { setNote(err); setBusy(false); }
-            }}
-            disabled={busy}
-          >
-            {busy ? <Loader2 size={13} className="animate-spin" /> : <Plug size={13} />} Reconnect for Teams
-          </button>
-        </>
-      ) : (
-        <>
-          {ms.account_email && (
-            <p className="mb-2 truncate text-[12px] text-muted" title={ms.account_email}>
-              Signed in as <span className="text-text">{ms.account_email}</span>
-            </p>
-          )}
-          <button className="btn-ghost border border-border py-1 text-[12px]" onClick={sync} disabled={busy}>
-            {busy ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Sync chats
-          </button>
-        </>
-      )}
-      {note && <p className="mt-2 text-[12px] leading-relaxed text-muted">{note}</p>}
-    </div>
-  );
-}
-
-/**
- * Discord: a server-level bot, like Slack, so there is nothing per-person to
- * authorise and nothing this card can connect on its own.
- *
- * It shows the two states that are actually distinguishable and actionable: no
- * token on the server at all, and a token whose bot has not been let into
- * anything. They look identical from the outside ("no messages") and have
- * completely different fixes, which is exactly why they are separated here.
- */
-function DiscordControls() {
-  const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState("");
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ["discord-channels"],
-    queryFn: listDiscordChannels,
-    staleTime: 60_000,
-  });
-
-  if (isLoading) {
-    return (
-      <p className="mt-3 flex items-center gap-2 border-t border-border pt-3 text-[12px] text-faint">
-        <Loader2 size={12} className="animate-spin" /> Checking connection…
-      </p>
-    );
-  }
-
-  async function sync() {
-    setBusy(true);
-    setNote("");
-    const r = await syncDiscord();
-    /* The hint is the interesting one: every message empty means the Message
-       Content intent is off, which is a switch in the Developer Portal and not
-       anything visible in the server's permissions. */
-    setNote(
-      !r.ok ? (r.detail ?? "Sync failed")
-        : r.hint ? r.hint
-        : r.synced ? `Pulled ${r.synced} message${r.synced === 1 ? "" : "s"} from #${(r.channel_names ?? []).join(", #")}.`
-        : "Nothing new to pull.",
-    );
-    if (r.ok) qc.invalidateQueries({ queryKey: ["messages"] });
-    void refetch();
-    setBusy(false);
-  }
-
-  const readable = (data?.channels ?? []).filter((c) => c.can_read);
-
-  return (
-    <div className="mt-3 border-t border-border pt-3">
-      {!data?.configured ? (
-        <p className="text-[12px] leading-relaxed text-muted">
-          No bot token on the server yet. Create a Discord application, copy its bot token, and store it
-          as <span className="mono text-text">DISCORD_BOT_TOKEN</span> in Supabase.
-        </p>
-      ) : (
-        <>
-          {data.bot && (
-            <p className="mb-2 truncate text-[12px] text-muted">
-              Bot <span className="text-text">{data.bot}</span> in {data.guilds} server{data.guilds === 1 ? "" : "s"}
-            </p>
-          )}
-          {data.channels.length > 0 && (
-            <ul className="mb-2 space-y-1">
-              {data.channels.slice(0, 6).map((c) => (
-                <li key={c.id} className="text-[12.5px]">
-                  <div className="flex items-center gap-1.5">
-                    <Hash size={11} className="shrink-0 text-faint" />
-                    <span className="min-w-0 truncate font-medium">{c.name}</span>
-                  </div>
-                  {/* Read and post stated separately, as for Slack, because in
-                      Discord they are separate permissions and a channel
-                      routinely has one without the other. */}
-                  <div className="ml-[18px] flex flex-wrap gap-x-2 text-[11px]">
-                    <span className={c.can_post ? "text-emerald-400" : "text-faint"}>
-                      {c.can_post ? "can post" : "cannot post"}
-                    </span>
-                    <span className={c.can_read ? "text-emerald-400" : "text-amber-400"}>
-                      {c.can_read ? "can read" : "no history access"}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-          {data.error && <p className="mb-2 text-[12px] text-amber-300">{data.error}</p>}
-          {readable.length === 0 && data.configured && !data.error && (
-            <p className="mb-2 text-[12px] leading-relaxed text-muted">
-              The bot cannot read any channel yet. Give its role Read Message History where you want
-              messages pulled from.
-            </p>
-          )}
-          <button className="btn-ghost border border-border py-1 text-[12px]" onClick={sync} disabled={busy}>
-            {busy ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Sync Discord
-          </button>
-        </>
-      )}
-      {note && <p className="mt-2 text-[12px] leading-relaxed text-muted">{note}</p>}
-    </div>
-  );
-}
-
-/**
- * Instagram and WhatsApp, which share a Meta app and therefore a status call.
- *
- * BOTH ARE SERVER-CONFIGURED, like Slack and Discord: a business account is not
- * something each EA connects for themselves. So neither card has a Connect
- * button, and what they show instead is what Meta says is actually reachable,
- * because "configured" computed from a non-empty environment variable is a
- * check that passes with a typo in it.
- *
- * WHATSAPP HAS NO SYNC BUTTON AND WILL NOT GET ONE. The Cloud API has no
- * endpoint for past messages: inbound exists only as a webhook delivery. A
- * button that appeared to fetch WhatsApp history would be a lie about the API,
- * so the card reports whether the webhook is wired instead.
- */
-function MetaControls({ which }: { which: "instagram" | "whatsapp" }) {
-  const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState("");
-  const { data, isLoading } = useQuery({
-    queryKey: ["meta-status"],
-    queryFn: metaStatus,
-    staleTime: 60_000,
-  });
-
-  if (isLoading) {
-    return (
-      <p className="mt-3 flex items-center gap-2 border-t border-border pt-3 text-[12px] text-faint">
-        <Loader2 size={12} className="animate-spin" /> Checking connection…
-      </p>
-    );
-  }
-
-  const ig = data?.instagram;
-  const wa = data?.whatsapp;
-  const state = which === "instagram" ? ig : wa;
-
-  async function sync() {
-    setBusy(true);
-    setNote("");
-    const r = await syncInstagram();
-    setNote(
-      !r.ok ? (r.detail ?? "Sync failed")
-        : r.synced ? `Pulled ${r.synced} message${r.synced === 1 ? "" : "s"} from ${r.threads ?? 0} thread${r.threads === 1 ? "" : "s"}.`
-        : "Nothing new to pull.",
-    );
-    if (r.ok) qc.invalidateQueries({ queryKey: ["messages"] });
-    setBusy(false);
-  }
-
-  return (
-    <div className="mt-3 border-t border-border pt-3">
-      {!state?.configured ? (
-        <p className="text-[12px] leading-relaxed text-muted">
-          {which === "instagram"
-            ? "No Meta credentials on the server yet. Set META_PAGE_ID and META_PAGE_ACCESS_TOKEN in Supabase."
-            : "No WhatsApp credentials on the server yet. Set WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_TOKEN in Supabase."}
-        </p>
-      ) : which === "instagram" ? (
-        <>
-          {ig?.username && (
-            <p className="mb-2 truncate text-[12px] text-muted">
-              <span className="text-text">@{ig.username}</span>
-              {ig.page && <span className="text-faint"> · {ig.page}</span>}
-            </p>
-          )}
-          {ig?.linked === false && (
-            <p className="mb-2 text-[12px] leading-relaxed text-amber-300">
-              This Page has no Instagram Professional account linked to it, so no DM can be read or sent.
-            </p>
-          )}
-          <button className="btn-ghost border border-border py-1 text-[12px]" onClick={sync} disabled={busy}>
-            {busy ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Sync DMs
-          </button>
-        </>
-      ) : (
-        <>
-          {wa?.number && (
-            <p className="mb-2 truncate text-[12px] text-muted">
-              <span className="text-text">{wa.number}</span>
-              {wa.name && <span className="text-faint"> · {wa.name}</span>}
-            </p>
-          )}
-          {/* The two that decide whether anything ever arrives. A WhatsApp
-              integration with a working token and no webhook looks perfectly
-              healthy and receives nothing, for ever. */}
-          <ul className="space-y-1 text-[12px]">
-            <li className={wa?.webhook_secret_set ? "text-emerald-400" : "text-amber-400"}>
-              {wa?.webhook_secret_set ? "Webhook token set" : "META_VERIFY_TOKEN not set: the webhook cannot subscribe"}
-            </li>
-            <li className={wa?.signature_check ? "text-emerald-400" : "text-amber-400"}>
-              {wa?.signature_check ? "Signature checking on" : "META_APP_SECRET not set: inbound messages are refused"}
-            </li>
-          </ul>
-          <p className="mt-2 text-[12px] leading-relaxed text-faint">
-            There is no sync for WhatsApp. Meta delivers each message once, by webhook, and keeps no
-            history to fetch.
-          </p>
-        </>
-      )}
-      {state?.error && <p className="mt-2 text-[12px] leading-relaxed text-amber-300">{state.error}</p>}
-      {note && <p className="mt-2 text-[12px] leading-relaxed text-muted">{note}</p>}
-    </div>
-  );
+  return {
+    all: base({}),
+    gmail: base({
+      connected: Boolean(mail?.gmail.connected),
+      account: mail?.gmail.connected ? myEmail : null,
+      loading: !mail,
+      selfServe: true,
+    }),
+    outlook: base({
+      connected: Boolean(ms?.connected),
+      account: ms?.account_email ?? null,
+      loading: !mail,
+      selfServe: true,
+    }),
+    teams: base({
+      /* Teams is not a connection of its own: it rides on the Microsoft
+         consent, so "connected" is a question about the granted scopes. An
+         account authorised before Teams shipped reads as not connected here,
+         which is the true answer, and Manage explains that it is one reconnect
+         rather than a new sign-in. */
+      connected: Boolean(ms?.connected && ms.scopes?.includes(TEAMS_SCOPE)),
+      account: ms?.connected ? ms.account_email : null,
+      loading: !mail,
+      selfServe: true,
+    }),
+    slack: base({
+      connected: Boolean(slack?.ok),
+      account: slack?.joined ? `${slack.joined} channel${slack.joined === 1 ? "" : "s"} joined` : null,
+      loading: !slack,
+    }),
+    discord: base({
+      connected: Boolean(discord?.configured && discord.ok),
+      account: discord?.bot ? `${discord.bot} · ${discord.guilds} server${discord.guilds === 1 ? "" : "s"}` : null,
+      loading: !discord,
+    }),
+    instagram: base({
+      connected: Boolean(meta?.instagram.configured && meta.instagram.linked),
+      account: meta?.instagram.username ? `@${meta.instagram.username}` : null,
+      loading: !meta,
+    }),
+    whatsapp: base({
+      connected: Boolean(meta?.whatsapp.configured),
+      account: meta?.whatsapp.number ?? null,
+      loading: !meta,
+    }),
+    linkedin: base({ unavailable: true }),
+  };
 }
 
 /** The live channel list, shown only for Slack because only Slack has one. */
@@ -528,7 +175,7 @@ function SlackChannelList() {
 
   if (isLoading) {
     return (
-      <p className="mt-3 flex items-center gap-2 text-xs text-faint">
+      <p className="flex items-center gap-2 text-xs text-faint">
         <Loader2 size={12} className="animate-spin" /> Loading channels…
       </p>
     );
@@ -536,14 +183,13 @@ function SlackChannelList() {
   if (!data?.ok || data.channels.length === 0) return null;
 
   return (
-    <div className="mt-3 border-t border-border pt-3">
+    <div>
       <p className="field-label">Channels in this workspace</p>
       <ul className="mt-1.5 space-y-1">
         {data.channels.map((c) => (
           /* Name on its own line, capabilities beneath it. Side by side these
              competed for about 200px in a four-across card and the channel
-             name lost, which is the one part you cannot guess: "all-ma…" and
-             "new-c…" are not names anyone can act on. */
+             name lost, which is the one part you cannot guess. */
           <li key={c.id} className="text-[12.5px]">
             <div className="flex items-center gap-1.5">
               {c.is_private ? (
@@ -555,8 +201,7 @@ function SlackChannelList() {
             </div>
             {/* Read and post stated separately, because they genuinely differ:
                 a public channel is postable without an invite and never
-                readable without one. One combined badge would be wrong for
-                every channel the bot has not joined. */}
+                readable without one. */}
             <div className="ml-[18px] flex flex-wrap gap-x-2 text-[11px]">
               <span className={c.can_post ? "text-emerald-400" : "text-faint"}>
                 {c.can_post ? "can post" : "cannot post"}
@@ -578,31 +223,283 @@ function SlackChannelList() {
   );
 }
 
-export function ChannelConnections() {
-  const { data: mail } = useMailConnections();
+/** Discord's equivalent, with the same read/post honesty. */
+function DiscordChannelList() {
+  const { data } = useQuery({ queryKey: ["discord-channels"], queryFn: listDiscordChannels, staleTime: 60_000 });
+  if (!data?.configured || data.channels.length === 0) return null;
 
-  /* The catalogue says what the PRODUCT supports; the credential row says what
-     YOU have. For a mailbox those are different questions, and showing the
-     first while the person is asking the second is how a card ends up saying
-     "Connected" to somebody who has connected nothing. */
-  const liveStatus = (c: Channel): ChannelStatus | null => {
-    const provider = MAIL_PROVIDER[c.id];
-    if (provider) {
-      if (!mail) return null;   // still loading: say so rather than guess
-      return mail[provider].connected ? "connected" : "not_connected";
+  const readable = data.channels.filter((c) => c.can_read);
+  return (
+    <div>
+      <p className="field-label">Channels the bot can see</p>
+      <ul className="mt-1.5 space-y-1">
+        {data.channels.slice(0, 6).map((c) => (
+          <li key={c.id} className="text-[12.5px]">
+            <div className="flex items-center gap-1.5">
+              <Hash size={11} className="shrink-0 text-faint" />
+              <span className="min-w-0 truncate font-medium">{c.name}</span>
+            </div>
+            <div className="ml-[18px] flex flex-wrap gap-x-2 text-[11px]">
+              <span className={c.can_post ? "text-emerald-400" : "text-faint"}>
+                {c.can_post ? "can post" : "cannot post"}
+              </span>
+              <span className={c.can_read ? "text-emerald-400" : "text-amber-400"}>
+                {c.can_read ? "can read" : "no history access"}
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {readable.length === 0 && (
+        <p className="mt-2 text-[12px] leading-relaxed text-muted">
+          The bot cannot read any channel yet. Give its role Read Message History where you want messages
+          pulled from.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What Manage opens: the part that is genuinely different per channel.
+ *
+ * Sync, disconnect, the channel lists, and for the server-configured ones the
+ * setup that has to happen outside this app. Kept behind the button so the grid
+ * stays comparable, and kept honest so that opening it never says "press
+ * Connect" about something that needs a Meta business review.
+ */
+function ManagePanel({ channel, state }: { channel: Channel; state: ChannelState }) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const provider = MAIL_PROVIDER[channel.id];
+
+  /** The sync each channel has, or null where there is nothing to pull. */
+  async function sync() {
+    setBusy(true);
+    setNote("");
+    try {
+      if (channel.id === "slack") {
+        const r = await syncSlack();
+        setNote(r.ok ? `Pulled ${r.synced ?? 0} message${r.synced === 1 ? "" : "s"}.` : (r.detail ?? "Sync failed"));
+      } else if (channel.id === "discord") {
+        const r = await syncDiscord();
+        setNote(!r.ok ? (r.detail ?? "Sync failed") : r.hint ? r.hint : `Pulled ${r.synced ?? 0} message${r.synced === 1 ? "" : "s"}.`);
+      } else if (channel.id === "instagram") {
+        const r = await syncInstagram();
+        setNote(r.ok ? `Pulled ${r.synced ?? 0} message${r.synced === 1 ? "" : "s"}.` : (r.detail ?? "Sync failed"));
+      } else if (supabase) {
+        const fn = channel.id === "teams" ? "teams-sync" : provider === "outlook" ? "outlook-sync" : "gmail-sync";
+        const { data, error } = await supabase.functions.invoke(fn);
+        /* The reason lives in the function's JSON body, which the SDK hides
+           behind error.context. error.message alone is always "Edge Function
+           returned a non-2xx status code", which tells nobody anything. */
+        let payload = (data ?? null) as { synced?: number; error?: string } | null;
+        if (error) {
+          const ctx = (error as { context?: Response }).context;
+          if (ctx && typeof ctx.text === "function") {
+            try { payload = JSON.parse(await ctx.text()); } catch { payload = null; }
+          }
+        }
+        setNote(
+          error || payload?.error
+            ? (payload?.error ?? error?.message ?? "Sync failed")
+            : `Pulled ${payload?.synced ?? 0} message${payload?.synced === 1 ? "" : "s"}.`,
+        );
+      }
+      qc.invalidateQueries({ queryKey: ["messages"] });
+    } finally {
+      setBusy(false);
     }
-    /* Teams shares the Microsoft connection, so its state is a question about
-       the granted scopes rather than about a row of its own. */
-    if (c.id === "teams") {
-      if (!mail) return null;
-      return mail.outlook.connected && mail.outlook.scopes?.includes(TEAMS_SCOPE) ? "connected" : "not_connected";
+  }
+
+  async function disconnect() {
+    if (!supabase || !provider) return;
+    /* Confirmed, and the Google warning is not boilerplate: one consent covers
+       mail AND calendar, so disconnecting here stops the Dashboard's events
+       too. Somebody who only meant to stop mail deserves to know that before
+       they press it, not after the calendar empties. */
+    const warning =
+      provider === "gmail"
+        ? "Disconnect Google? This stops Gmail sync AND your calendar events, and you will need to sign in again to reconnect."
+        : "Disconnect Microsoft? Outlook mail and Teams chats both stop syncing until you reconnect.";
+    if (!window.confirm(warning)) return;
+
+    setBusy(true);
+    try {
+      /* RLS scopes the delete to your own row (0016 for Google, 0048 for
+         Microsoft), so the filter is only here because the client requires
+         one: it cannot reach anybody else's credentials whatever it sends. */
+      const { error } = await supabase
+        .from(CREDENTIAL_TABLE[provider])
+        .delete()
+        .neq("owner_id", "00000000-0000-0000-0000-000000000000");
+      setNote(
+        error
+          ? error.message
+          : provider === "gmail"
+            ? "Google disconnected. Gmail and calendar sync have stopped."
+            : "Microsoft disconnected. Outlook and Teams have stopped.",
+      );
+      qc.invalidateQueries({ queryKey: ["mail-connections"] });
+    } finally {
+      setBusy(false);
     }
-    /* Discord and Slack are workspace-level bots: the catalogue's "connected"
-       means the integration exists, and the card below says whether the bot has
-       actually been let into anything. Asking discord-channels here too would
-       be a second request for an answer that card already renders. */
-    return c.status;
-  };
+  }
+
+  const canSync = state.connected && channel.id !== "whatsapp";
+
+  return (
+    <div className="mt-3 space-y-3 border-t border-border pt-3">
+      {/* Teams before anything else: its commonest state is connected-to-
+          Microsoft-but-not-for-chats, and the fix is a reconnect rather than
+          anything on this panel. */}
+      {channel.id === "teams" && !state.connected && (
+        <div>
+          <p className="text-[12px] leading-relaxed text-muted">
+            {state.account
+              ? "This Microsoft account was connected before Teams was supported, so its permission does not cover chats yet. One reconnect adds them."
+              : "Connect Microsoft on the Outlook card. Teams uses the same sign-in, so it switches on with it."}
+          </p>
+          {state.account && (
+            <button
+              className="btn-primary mt-2 py-1 text-[12px]"
+              onClick={() => void reconnectMail("outlook")}
+            >
+              Reconnect for Teams
+            </button>
+          )}
+        </div>
+      )}
+
+      {channel.id === "slack" && <SlackChannelList />}
+      {channel.id === "discord" && <DiscordChannelList />}
+
+      {channel.id === "whatsapp" && state.connected && (
+        <p className="text-[12px] leading-relaxed text-faint">
+          There is no sync for WhatsApp. Meta delivers each message once, by webhook, and keeps no history
+          to fetch, so nothing appears until somebody messages the number.
+        </p>
+      )}
+
+      {/* What this actually needs, for the channels nobody can switch on from
+          a browser. Shown here rather than on the card face, so the grid stays
+          comparable and the truth stays one click away. */}
+      {!state.connected && channel.requires && channel.requires.length > 0 && (
+        <div>
+          <p className="field-label">What this needs</p>
+          <ul className="mt-1 space-y-1">
+            {channel.requires.map((r) => (
+              <li key={r} className="flex items-start gap-1.5 text-[12px] leading-relaxed text-muted">
+                <Check size={11} className="mt-1 shrink-0 text-faint" />
+                <span className="min-w-0 break-words">{r}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {(canSync || (state.connected && provider)) && (
+        <div className="flex flex-wrap gap-2">
+          {canSync && (
+            <button className="btn-ghost border border-border py-1 text-[12px]" onClick={sync} disabled={busy}>
+              {busy ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Sync now
+            </button>
+          )}
+          {state.connected && provider && (
+            <button className="btn-ghost border border-border py-1 text-[12px]" onClick={disconnect} disabled={busy}>
+              Disconnect
+            </button>
+          )}
+        </div>
+      )}
+
+      {note && <p className="text-[12px] leading-relaxed text-muted">{note}</p>}
+    </div>
+  );
+}
+
+/** One card. Same shape for all nine, whatever is behind them. */
+function ChannelCard({ channel, state }: { channel: Channel; state: ChannelState }) {
+  const [open, setOpen] = useState(false);
+
+  async function primary() {
+    /* Connected, or configured elsewhere: the button opens the detail. Only a
+       channel you can genuinely authorise from a browser starts a consent
+       flow, so nothing here sends somebody to a login screen for an
+       integration that actually needs a server secret. */
+    if (state.connected || !state.selfServe) { setOpen((v) => !v); return; }
+    const target: MailProvider = channel.id === "gmail" ? "gmail" : "outlook";
+    const err = await reconnectMail(target);
+    if (err) setOpen(true);   // the panel is where the reason belongs
+  }
+
+  return (
+    <div className="card flex flex-col p-4">
+      <div className="flex items-start gap-2.5">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-2">
+          <channel.icon size={18} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-sm font-semibold">{channel.label}</h3>
+          {/* The account, directly under the name. "Connected" without saying
+              connected as WHAT is the half-answer this grid exists to stop. */}
+          {state.account && (
+            <p className="truncate text-[11px] text-faint" title={state.account}>
+              {state.account}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-label={`${channel.label} options`}
+          aria-expanded={open}
+          className="-mr-1 shrink-0 rounded-md p-1 text-faint transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
+        >
+          <MoreVertical size={15} />
+        </button>
+      </div>
+
+      <p className="mt-2.5 flex-1 text-[12.5px] leading-relaxed text-muted">{BLURB[channel.id]}</p>
+
+      <button
+        onClick={primary}
+        disabled={state.unavailable || state.loading}
+        className={cn(
+          "mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border py-2 text-[12.5px] font-medium transition-colors",
+          state.unavailable
+            ? "cursor-not-allowed border-border text-faint"
+            : state.connected
+              ? "border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+              : "border-accent/50 text-accent-soft hover:bg-accent/10",
+        )}
+      >
+        {state.loading ? (
+          <>
+            <Loader2 size={14} className="animate-spin" /> Checking…
+          </>
+        ) : state.unavailable ? (
+          <>
+            <Ban size={14} /> Not available
+          </>
+        ) : state.connected ? (
+          <>
+            <SlidersHorizontal size={14} /> Manage
+          </>
+        ) : (
+          <>
+            <Link2 size={14} /> Connect
+          </>
+        )}
+      </button>
+
+      {open && <ManagePanel channel={channel} state={state} />}
+    </div>
+  );
+}
+
+export function ChannelConnections() {
+  const states = useChannelStates();
 
   return (
     <section className="mb-5">
@@ -613,52 +510,7 @@ export function ChannelConnections() {
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {REAL_CHANNELS.map((c) => (
-          <div
-            key={c.id}
-            className={cn(
-              "card flex flex-col p-4",
-              // Unavailable channels are dimmed but never hidden. Hiding
-              // WhatsApp is why somebody asks every week whether we support it.
-              c.status === "planned" && "opacity-70",
-            )}
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-2">
-                <c.icon size={18} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="truncate text-sm font-semibold">{c.label}</h3>
-              </div>
-            </div>
-
-            <div className="mt-2">
-              <StatusPill status={liveStatus(c)} />
-            </div>
-
-            {c.note && <p className="mt-2.5 text-[12.5px] leading-relaxed text-muted">{c.note}</p>}
-
-            {c.requires && c.requires.length > 0 && (
-              <div className="mt-3">
-                <p className="field-label">
-                  {c.status === "connected" ? "Ongoing" : "What this needs"}
-                </p>
-                <ul className="mt-1 space-y-1">
-                  {c.requires.map((r) => (
-                    <li key={r} className="flex items-start gap-1.5 text-[12px] leading-relaxed text-muted">
-                      <Check size={11} className="mt-1 shrink-0 text-faint" />
-                      <span className="min-w-0 break-words">{r}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {c.id === "slack" && <SlackChannelList />}
-            {MAIL_PROVIDER[c.id] && <MailControls provider={MAIL_PROVIDER[c.id]!} />}
-            {c.id === "teams" && <TeamsControls />}
-            {c.id === "discord" && <DiscordControls />}
-            {(c.id === "instagram" || c.id === "whatsapp") && <MetaControls which={c.id} />}
-          </div>
+          <ChannelCard key={c.id} channel={c} state={states[c.id]} />
         ))}
       </div>
     </section>
