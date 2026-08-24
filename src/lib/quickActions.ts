@@ -140,6 +140,10 @@ export const CURATED_QUICK_ACTIONS: Record<string, QuickActionSchema> = {
       // Absorbs Suggest Meeting Slots, Draft Calendar Block, Optimize Daily
       // Schedule and Priority Alignment Automation.
       KIND("output", "What you need", ["Suggest meeting times", "Block focus time", "Reorder today"]),
+      /* The day being planned, as a real field. The model returns wall-clock
+         times and the app turns them into instants, so it needs to know which
+         date they belong to. Prefilled when this is opened from the Calendar. */
+      { name: "date", label: "Which day", type: "text", placeholder: "YYYY-MM-DD" },
       { name: "constraints", label: "What has to be worked around", type: "textarea",
         placeholder: "Existing commitments, time zones, no-meeting rules, hard deadlines." },
       { name: "duration", label: "How long", type: "text", placeholder: "e.g. 45 minutes" },

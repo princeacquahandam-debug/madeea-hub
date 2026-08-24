@@ -235,6 +235,7 @@ export default function Calendar() {
     nav(`/quick-actions?${new URLSearchParams({
       action: "Plan the Calendar",
       output: "Reorder today",
+      date: day,
       constraints: lines.length
         ? `On ${dayLabel(day, { weekday: "long", day: "numeric", month: "long" })} I already have:\n${lines.join("\n")}`
         : `${dayLabel(day, { weekday: "long", day: "numeric", month: "long" })} is currently clear.`,

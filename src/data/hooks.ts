@@ -504,6 +504,49 @@ export function useGoogleConnection() {
   });
 }
 
+/**
+ * The zone the calendar is kept in, on a STABLE key.
+ *
+ * The first version asked useCalendarEvents for "the last 30 days to the next
+ * 120" and built those bounds with Date.now() in the component body. That is a
+ * new query key on every render, so the query never settled, the answer was
+ * never there when it was read, and the planner fell back to the browser's zone
+ * and offered to book a Manila calendar in Mountain time.
+ *
+ * One row, no date arithmetic, cached.
+ */
+export function useCalendarTimezone() {
+  return useQuery<string | null>({
+    queryKey: ["calendar-timezone"],
+    queryFn: async () => {
+      if (!supabase) return null;
+      const { data, error } = await supabase
+        .from("meetings")
+        .select("event_timezone")
+        .not("event_timezone", "is", null)
+        .order("starts_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+
+      /* The MOST COMMON zone, not the most recent one. An event carries its own
+         timeZone when it differs from the calendar's, so taking the newest row
+         meant one meeting booked in Dubai relabelled the entire calendar as
+         GMT+4 and would have booked every future block four hours out. Sixty-one
+         of these rows are Manila; one is not. */
+      const counts = new Map<string, number>();
+      for (const r of data ?? []) {
+        const z = (r as { event_timezone?: string | null }).event_timezone;
+        if (z) counts.set(z, (counts.get(z) ?? 0) + 1);
+      }
+      let best: string | null = null;
+      let bestN = 0;
+      for (const [z, n] of counts) if (n > bestN) { best = z; bestN = n; }
+      return best;
+    },
+    staleTime: 10 * 60_000,
+  });
+}
+
 export interface NewEventInput {
   title: string;
   startsAt: string;

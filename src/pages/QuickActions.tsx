@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { PlanProposals, parseProposals } from "@/components/calendar/PlanProposals";
+import { useCalendarTimezone } from "@/data/hooks";
 import { Sparkles, Mail, Calendar, Search, BarChart3, Share2, Infinity as InfinityIcon, ArrowLeft } from "lucide-react";
 import { QUICK_ACTION_GROUPS } from "@/lib/constants";
 import { CURATED_QUICK_ACTIONS, QUICK_ACTION_SCHEMAS, DEFAULT_QUICK_ACTION } from "@/lib/quickActions";
@@ -23,6 +25,13 @@ export default function QuickActions() {
   const [active, setActive] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [output, setOutput] = useState("");
+  /* The calendar's own zone, so a block the model calls 09:30 is booked at
+     09:30 where the calendar lives rather than where this laptop happens to be.
+     Deliberately its own cached query: deriving it from a date range built with
+     Date.now() changed the query key on every render, so the answer was never
+     ready and this silently fell back to the browser's zone. */
+  const { data: calendarTz } = useCalendarTimezone();
+  const planTz = calendarTz ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [busy, setBusy] = useState(false);
 
   // Curated first, then the superseded originals, so anything restored to the
@@ -30,6 +39,7 @@ export default function QuickActions() {
   const found = active ? CURATED_QUICK_ACTIONS[active] ?? QUICK_ACTION_SCHEMAS[active] : undefined;
   const schema = active ? found ?? DEFAULT_QUICK_ACTION : null;
   const example = found?.example;
+  const plan = active === "Plan the Calendar" && output ? parseProposals(output) : null;
 
   function open(action: string) {
     setActive(action);
@@ -137,7 +147,19 @@ export default function QuickActions() {
           <p className="py-8 text-center text-sm text-faint">Generating with AI…</p>
         ) : output ? (
           <div className="space-y-4">
-            <OutputViewer output={output} title={active ?? "AI Output"} />
+            {/* A plan you can book, rather than one you retype. The prose still
+                renders either way: if the model returns no block, or a broken
+                one, there are simply no buttons. Never invented ones. */}
+            {plan ? (
+              <>
+                <OutputViewer output={plan.prose} title={active ?? "AI Output"} />
+                {plan.proposals && (
+                  <PlanProposals proposals={plan.proposals} date={values.date ?? ""} tz={planTz} />
+                )}
+              </>
+            ) : (
+              <OutputViewer output={output} title={active ?? "AI Output"} />
+            )}
             <button className="btn-ghost border border-border" onClick={() => setOutput("")}>
               <ArrowLeft size={15} /> Back to inputs
             </button>

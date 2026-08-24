@@ -97,6 +97,40 @@ function systemFor(tool: string, format: string): string {
       "and (most importantly) what would change the answer. If the input says it is too close to call, say so plainly and " +
       "state that the numbers do not settle it. Structure: the question, the options considered, how they were weighed, " +
       "where the numbers landed, what would flip it, what remains a judgement call.";
+  /* PLANNING HAS TO COME BACK BOOKABLE.
+     This returned prose: a description of a better day that somebody then had
+     to retype into Google by hand, which is most of the work it claimed to
+     save. Now it must emit the slots as data as well, so the app can offer to
+     book them.
+
+     Times are wall-clock on the given date, deliberately, and never ISO with a
+     zone. The model does not know which zone the calendar is kept in, and a
+     confident timestamp in the wrong one books the middle of the night. The
+     app owns that conversion because it is the only part that knows. */
+  if (format === "Plan the Calendar") {
+    return `${BASE} Action: "Plan the Calendar".
+
+Answer in two parts, in this order.
+
+1. A short paragraph of reasoning: what you moved, what you protected and why.
+   Two or three sentences. No preamble, no headings.
+
+2. A fenced code block tagged json containing ONLY an array of the blocks you
+   are proposing to ADD to the calendar. Each item:
+   {"title": string, "start": "HH:MM", "end": "HH:MM", "why": string}
+
+Rules for the JSON:
+- 24-hour times on the date given in the inputs. Never a date, never a zone,
+  never an offset. The application converts these to the calendar's timezone.
+- Only NEW blocks you want booked. Never repeat an existing commitment back.
+- end must be after start, and blocks must not overlap each other or anything
+  in the existing commitments provided.
+- If there is nothing worth adding, return an empty array. An empty array is a
+  valid and useful answer; inventing filler is not.
+- Keep it to at most six blocks.
+- "why" is one short clause, not a sentence with a full stop.`;
+  }
+
   return `${BASE} Action: "${format}". Produce the most useful one-shot output for an EA serving senior executives.`;
 }
 
