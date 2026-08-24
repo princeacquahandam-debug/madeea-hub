@@ -33,15 +33,19 @@ export interface ConnectResult {
   error?: string;
 }
 
-/** Which edge function mints the consent URL for each provider. */
-const URL_FUNCTION: Record<ConnectProvider, string> = {
-  google: "google-oauth-url",
-  microsoft: "microsoft-oauth-url",
-  slack: "integration-oauth-url",
-  discord: "integration-oauth-url",
-  meta: "integration-oauth-url",
-  linkedin: "integration-oauth-url",
-};
+/**
+ * One consent path for every provider.
+ *
+ * Google and Microsoft used to have their own pair of functions. They now go
+ * through the same one as the rest, and that is the point rather than tidiness:
+ * the shared path is what writes the per-user `integrations` row, with the
+ * account id, the encrypted tokens and the audit log. Leaving two providers on
+ * the old route would have left them outside the model that exists to keep one
+ * colleague out of another's mailbox.
+ *
+ * The old functions still exist and still work; nothing calls them from here.
+ */
+const URL_FUNCTION = "integration-oauth-url";
 
 /** Read the reason out of an edge function's body, which the SDK hides. */
 async function reasonFrom(error: { message: string; context?: Response }): Promise<string> {
@@ -73,7 +77,7 @@ function openCentred(url: string, name: string): Window | null {
 export async function connectAccount(provider: ConnectProvider): Promise<ConnectResult> {
   if (!supabase) return { ok: false, error: "Supabase is not configured, so nothing can be connected." };
 
-  const { data, error } = await supabase.functions.invoke(URL_FUNCTION[provider], {
+  const { data, error } = await supabase.functions.invoke(URL_FUNCTION, {
     body: { provider, origin: window.location.origin, popup: true },
   });
   let payload = (data ?? null) as { url?: string; error?: string } | null;
@@ -105,27 +109,15 @@ export async function connectAccount(provider: ConnectProvider): Promise<Connect
          forging if it makes the UI say connected when nothing is. */
       if (e.origin !== window.location.origin) return;
       const d = e.data as
-        { source?: string; ok?: boolean; provider?: string; account?: string; error?: string; claim?: string } | null;
+        { source?: string; ok?: boolean; provider?: string; account?: string; error?: string } | null;
       if (!d || d.source !== "madeea-oauth") return;
 
-      /* Microsoft has a second step: the callback parks the tokens and hands
-         back a claim code, because it cannot know who is asking. Only a window
-         with a session can spend it, and that is this one. */
-      if (d.claim && supabase) {
-        void supabase.functions
-          .invoke("microsoft-oauth-claim", { body: { claim: d.claim } })
-          .then(async ({ data, error }) => {
-            let body = (data ?? null) as { ok?: boolean; account_email?: string; error?: string } | null;
-            if (error) body = { error: await reasonFrom(error as { message: string; context?: Response }) };
-            finish(
-              body?.ok
-                ? { ok: true, account: body.account_email }
-                : { ok: false, error: body?.error ?? "Could not finish the Microsoft connection." },
-            );
-          });
-        return;
-      }
-
+      /* The Microsoft claim step is gone. It existed because the old callback
+         could not know who was asking, so it parked the tokens and handed back
+         a code for the app to redeem. The unified callback reads the user from
+         the state row it minted while the caller was authenticated, so there is
+         nobody left to ask: the connection is already filed by the time this
+         message arrives. */
       finish({ ok: Boolean(d.ok), account: d.account, error: d.error });
     }
     window.addEventListener("message", onMessage);
