@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDirtyGuard } from "@/hooks/useDirtyGuard";
 import { X, Loader2, CheckCircle2, AlertTriangle, ExternalLink, Link2 } from "lucide-react";
 import { useCreateCalendarEvent } from "@/data/hooks";
 import { reconnectMail } from "@/hooks/useSendEmail";
@@ -34,8 +35,35 @@ export function NewEventDialog({
   const [attendees, setAttendees] = useState("");
   const [description, setDescription] = useState("");
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [nudge, setNudge] = useState(false);
+  const { ref, isDirty } = useDirtyGuard(true);
 
   useEffect(() => { setDate(day); }, [day]);
+
+  /* A half-filled event is real work. Clicking beside the dialog used to throw
+     it away with no warning, which is a lot of damage for a stray click. */
+  const attemptClose = useCallback(() => {
+    if (isDirty()) { setConfirming(true); return; }
+    onClose();
+  }, [isDirty, onClose]);
+
+  useEffect(() => {
+    if (!nudge) return;
+    const t = setTimeout(() => setNudge(false), 2600);
+    return () => clearTimeout(t);
+  }, [nudge]);
+
+  /* Escape is handled here rather than by the page, so it asks instead of
+     discarding. The page's own handler still closes a clean dialog. */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (isDirty()) { e.stopPropagation(); setConfirming(true); }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [isDirty]);
 
   /* A wall-clock time in a named zone is not a Date. Build the instant by
      asking what offset that zone is at on that date, then subtracting it: the
@@ -74,8 +102,12 @@ export function NewEventDialog({
   const done = create.isSuccess ? create.data : null;
 
   return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-black/50 p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-40 grid place-items-center bg-black/50 p-4"
+      onClick={() => { if (isDirty()) setNudge(true); else onClose(); }}
+    >
       <form
+        ref={ref as React.RefObject<HTMLFormElement>}
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
         className="card w-full max-w-md p-4"
@@ -90,10 +122,26 @@ export function NewEventDialog({
               Added to your Google Calendar, in {zoneLabel(tz, date)} ({tz.split("/").pop()?.replace(/_/g, " ")}).
             </p>
           </div>
-          <button type="button" className="btn-ghost grid h-7 w-7 place-items-center p-0" onClick={onClose} aria-label="Close">
+          <button type="button" className="btn-ghost grid h-7 w-7 place-items-center p-0" onClick={attemptClose} aria-label="Close">
             <X size={15} />
           </button>
         </div>
+
+        {confirming && (
+          <div role="alertdialog" aria-label="Discard this event?"
+               className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-2.5 text-[12.5px] text-amber-200">
+            <span className="min-w-0 flex-1">This event has not been added yet.</span>
+            <button type="button" className="btn-ghost border border-amber-500/40 px-2 py-1 text-[11.5px]" onClick={() => setConfirming(false)}>
+              Keep editing
+            </button>
+            <button type="button" className="btn-primary px-2 py-1 text-[11.5px]" onClick={onClose}>Discard</button>
+          </div>
+        )}
+        {nudge && !confirming && (
+          <p role="status" className="mb-3 rounded-xl border border-border bg-surface-2 p-2 text-[12px] text-muted">
+            Still here. Use Close or Escape to leave.
+          </p>
+        )}
 
         {!canCreate && (
           <Notice>
