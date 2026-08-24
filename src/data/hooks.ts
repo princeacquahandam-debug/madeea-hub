@@ -759,18 +759,24 @@ export function useMailConnections() {
  * because nothing that functions as a credential is written into it.
  */
 export function useWorkspaceIntegrations() {
-  return useQuery<Record<string, WorkspaceIntegration>>({
+  return useQuery<Record<string, WorkspaceIntegration[]>>({
     queryKey: ["workspace-integrations"],
     queryFn: async () => {
       if (!supabase) return {};
       const { data, error } = await supabase
         .from("workspace_integrations")
-        .select("id,provider,account_label,external_id,details,connected_at,scopes");
+        .select("id,provider,account_label,external_id,details,connected_at,scopes,is_default")
+        /* Default first, then oldest. The card reads [0] for the account it
+           names, and that must be the one a send would actually use. */
+        .order("is_default", { ascending: false })
+        .order("connected_at", { ascending: true });
       /* Not migrated yet is an empty grid rather than an error: every card
          reads as not connected, which is exactly true until 0056 is applied. */
       if (error) return {};
-      const out: Record<string, WorkspaceIntegration> = {};
-      for (const row of (data as WorkspaceIntegration[]) ?? []) out[row.provider] = row;
+      const out: Record<string, WorkspaceIntegration[]> = {};
+      for (const row of (data as WorkspaceIntegration[]) ?? []) {
+        (out[row.provider] ??= []).push(row);
+      }
       return out;
     },
     retry: false,

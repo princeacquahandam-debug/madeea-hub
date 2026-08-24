@@ -464,6 +464,8 @@ export interface WorkspaceIntegration {
   /** Non-secret ids the provider needs at call time. Never a credential. */
   details: Record<string, string | null>;
   scopes: string | null;
+  /** Which account an unqualified send uses. Exactly one per provider (0057). */
+  is_default: boolean;
   connected_at: string;
 }
 

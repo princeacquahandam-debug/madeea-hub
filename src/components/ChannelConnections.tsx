@@ -6,7 +6,9 @@ import { syncSlack } from "@/lib/slack";
 import { useMailConnections, useMyEmail, useWorkspaceIntegrations } from "@/data/hooks";
 import { syncDiscord } from "@/lib/discord";
 import { syncInstagram } from "@/lib/meta";
-import { connectAccount, disconnectIntegration, type ConnectProvider } from "@/lib/connect";
+import { type ConnectProvider } from "@/lib/connect";
+import { IntegrationDialog } from "@/components/IntegrationDialog";
+import type { WorkspaceIntegration } from "@/types/db";
 import { supabase } from "@/lib/supabase";
 import type { MailProvider } from "@/types/db";
 import { cn } from "@/lib/utils";
@@ -93,6 +95,19 @@ const BLURB: Record<ChannelId, string> = {
     "Connect to get leads from your LinkedIn lead generation ads into your CRM",
 };
 
+/**
+ * What the card writes under the name.
+ *
+ * The default account, and how many others there are. A card that named only
+ * the first of three would be quietly wrong about a workspace with a client
+ * account connected beside the agency's.
+ */
+function accountLabel(rows: WorkspaceIntegration[] | undefined): string | null {
+  if (!rows?.length) return null;
+  const first = rows[0].account_label ?? "Connected";
+  return rows.length > 1 ? `${first} +${rows.length - 1} more` : first;
+}
+
 interface ChannelState {
   connected: boolean;
   /** Shown under the name: the account this is connected AS. */
@@ -113,7 +128,10 @@ function useChannelStates(): Record<ChannelId, ChannelState> {
   const myEmail = useMyEmail();
 
   const ms = mail?.outlook;
-  const meta = installs?.meta;
+  /* [0] is the default account, because the query orders default-first. The
+     card names the account a send would actually use; the dialog lists them
+     all. */
+  const meta = installs?.meta?.[0];
   const base = (over: Partial<ChannelState>): ChannelState =>
     ({ connected: false, account: null, loading: false, ...over });
 
@@ -139,13 +157,13 @@ function useChannelStates(): Record<ChannelId, ChannelState> {
       loading: !mail,
     }),
     slack: base({
-      connected: Boolean(installs?.slack),
-      account: installs?.slack?.account_label ?? null,
+      connected: Boolean(installs?.slack?.length),
+      account: accountLabel(installs?.slack),
       loading: !installs,
     }),
     discord: base({
-      connected: Boolean(installs?.discord),
-      account: installs?.discord?.account_label ?? null,
+      connected: Boolean(installs?.discord?.length),
+      account: accountLabel(installs?.discord),
       loading: !installs,
     }),
     instagram: base({
@@ -162,8 +180,8 @@ function useChannelStates(): Record<ChannelId, ChannelState> {
       loading: !installs,
     }),
     linkedin: base({
-      connected: Boolean(installs?.linkedin),
-      account: installs?.linkedin?.account_label ?? null,
+      connected: Boolean(installs?.linkedin?.length),
+      account: accountLabel(installs?.linkedin),
       loading: !installs,
     }),
   };
@@ -251,11 +269,9 @@ function CardMenu({ channel, state, onNote }: {
         onNote(error ? error.message : `${channel.label} disconnected.`);
         qc.invalidateQueries({ queryKey: ["mail-connections"] });
       } else {
-        const target = CONNECT_AS[channel.id];
-        if (!target) return;
-        const err = await disconnectIntegration(target);
-        onNote(err ?? `${channel.label} disconnected.`);
-        qc.invalidateQueries({ queryKey: ["workspace-integrations"] });
+        /* Shared channels can hold several accounts, so "disconnect" is not a
+           single answer any more. The dialog lists them and detaches one. */
+        onNote("Open Manage to choose which account to disconnect.");
       }
     } finally {
       setBusy(false);
@@ -286,27 +302,15 @@ function CardMenu({ channel, state, onNote }: {
 }
 
 /** One card. The same five things, whatever is behind them. */
-function ChannelCard({ channel, state }: { channel: Channel; state: ChannelState }) {
-  const qc = useQueryClient();
+function ChannelCard({ channel, state, accounts }: {
+  channel: Channel;
+  state: ChannelState;
+  accounts: WorkspaceIntegration[];
+}) {
   const [menu, setMenu] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   const target = CONNECT_AS[channel.id];
-
-  async function press() {
-    if (!target) return;
-    if (state.connected) { setMenu((v) => !v); return; }
-
-    setBusy(true);
-    setNote("");
-    const r = await connectAccount(target);
-    setBusy(false);
-    /* Only a failure is worth words. Success is visible: the card turns green
-       and names the account, which says more than a sentence would. */
-    if (!r.ok) setNote(r.error ?? "That did not connect.");
-    qc.invalidateQueries({ queryKey: ["mail-connections"] });
-    qc.invalidateQueries({ queryKey: ["workspace-integrations"] });
-  }
 
   return (
     <div className="card relative flex flex-col p-4">
@@ -336,9 +340,13 @@ function ChannelCard({ channel, state }: { channel: Channel; state: ChannelState
 
       <p className="mt-2.5 flex-1 text-[12.5px] leading-relaxed text-muted">{BLURB[channel.id]}</p>
 
+      {/* Both states open the same dialog. Connect and Manage differ in what
+          you find inside, not in where they go: pressing Connect on a channel
+          somebody else already connected should show you that, not start a
+          second sign-in. */}
       <button
-        onClick={press}
-        disabled={busy || state.loading}
+        onClick={() => setOpen(true)}
+        disabled={state.loading || !target}
         className={cn(
           "mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border py-2 text-[12.5px] font-medium transition-colors",
           state.connected
@@ -346,9 +354,9 @@ function ChannelCard({ channel, state }: { channel: Channel; state: ChannelState
             : "border-accent/50 text-accent-soft hover:bg-accent/10",
         )}
       >
-        {state.loading || busy ? (
+        {state.loading ? (
           <>
-            <Loader2 size={14} className="animate-spin" /> {busy ? "Waiting for sign-in…" : "Checking…"}
+            <Loader2 size={14} className="animate-spin" /> Checking…
           </>
         ) : state.connected ? (
           <>
@@ -363,12 +371,24 @@ function ChannelCard({ channel, state }: { channel: Channel; state: ChannelState
 
       {menu && <CardMenu channel={channel} state={state} onNote={(s) => { setNote(s); setMenu(false); }} />}
       {note && <p className="mt-2 text-[11.5px] leading-relaxed text-muted">{note}</p>}
+
+      {open && target && (
+        <IntegrationDialog
+          channel={channel}
+          provider={target}
+          accounts={accounts}
+          personalAccount={state.account}
+          connected={state.connected}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </div>
   );
 }
 
 export function ChannelConnections() {
   const states = useChannelStates();
+  const { data: installs } = useWorkspaceIntegrations();
 
   return (
     <section className="mb-5">
@@ -379,7 +399,15 @@ export function ChannelConnections() {
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {REAL_CHANNELS.map((c) => (
-          <ChannelCard key={c.id} channel={c} state={states[c.id]} />
+          <ChannelCard
+            key={c.id}
+            channel={c}
+            state={states[c.id]}
+            /* Instagram and WhatsApp are two cards over one Meta login, so both
+               show the same list. Disconnecting from either takes both, which
+               is what the dialog's confirmation says. */
+            accounts={installs?.[CONNECT_AS[c.id] ?? ""] ?? []}
+          />
         ))}
       </div>
     </section>

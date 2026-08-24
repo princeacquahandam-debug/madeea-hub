@@ -138,15 +138,3 @@ export async function connectAccount(provider: ConnectProvider): Promise<Connect
     }, 500);
   });
 }
-
-/**
- * Disconnect a shared channel.
- *
- * Mailboxes are not here: those are per person and live in their own tables
- * with their own confirmations (see ChannelConnections).
- */
-export async function disconnectIntegration(provider: ConnectProvider): Promise<string | null> {
-  if (!supabase) return "Supabase is not configured.";
-  const { error } = await supabase.from("workspace_integrations").delete().eq("provider", provider);
-  return error ? error.message : null;
-}

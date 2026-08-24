@@ -272,20 +272,37 @@ Deno.serve(async (req) => {
       : null;
     if (!result) return finish(st, { ok: false, provider });
 
+    /* Whether this workspace already has an account for this provider. The
+       first one connected becomes the default; a second one is added beside it
+       and changes nothing about where sends go, because somebody adding an
+       account should not silently redirect a client's replies. */
+    const { count } = await admin
+      .from("workspace_integrations")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", st.workspace_id)
+      .eq("provider", provider);
+
+    /* Never null by the time it reaches the database: it is the account's
+       identity now (0057). LinkedIn issues no id with its token, so it falls
+       back to the provider name, which makes LinkedIn single-account by
+       construction rather than by a rule somebody has to remember. */
+    const externalId = result.external_id ?? provider;
+
     const { error } = await admin.from("workspace_integrations").upsert(
       {
         workspace_id: st.workspace_id,
         provider,
+        is_default: (count ?? 0) === 0,
         access_token: result.access_token,
         scopes: result.scopes,
         token_expiry: (result as { token_expiry?: string | null }).token_expiry ?? null,
         account_label: result.account_label,
-        external_id: result.external_id,
+        external_id: externalId,
         details: result.details,
         connected_by: st.user_id,
         connected_at: new Date().toISOString(),
       },
-      { onConflict: "workspace_id,provider" },
+      { onConflict: "workspace_id,provider,external_id" },
     );
     if (error) {
       console.error("could not store integration", provider, error.message);
