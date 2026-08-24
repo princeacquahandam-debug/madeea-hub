@@ -125,6 +125,10 @@ export default function EodReports() {
   const [date, setDate] = useState<string>("all");
   const [blockersOnly, setBlockersOnly] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  /* The blocker feed opens short. It is the section people scroll PAST to reach
+     the reports, and at 23 verbatim paragraphs it was several screens of text
+     before anything else on the page could be reached. */
+  const [allBlockers, setAllBlockers] = useState(false);
   // Tour no longer auto-opens on EOD. Only via the "Replay" button below.
   const tour = usePageTour(TOUR_KEY, false);
 
@@ -601,19 +605,32 @@ export default function EodReports() {
           <span className="text-xs text-faint">Verbatim · “None” answers excluded</span>
         </div>
         <div className="space-y-2">
-          {blockerFeed.map((b) => (
-            <div key={b.key} className="flex gap-3 rounded-lg bg-surface-2 p-3">
-              <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-400" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm">{b.text}</p>
-                <p className="mt-0.5 text-xs text-faint">
-                  {b.person} · {fmtDate(b.date)}
-                </p>
-              </div>
-            </div>
+          {(allBlockers ? blockerFeed : blockerFeed.slice(0, BLOCKER_PREVIEW)).map((b) => (
+            <BlockerCard key={b.key} text={b.text} person={b.person} date={b.date} />
           ))}
           {blockerFeed.length === 0 && <p className="py-4 text-center text-xs text-faint">No blockers recorded</p>}
         </div>
+
+        {/* Counted, not just "See more". A blocker feed is a queue of things
+            somebody is stuck on, and how many are hidden is the part worth
+            knowing before deciding whether to open it. */}
+        {blockerFeed.length > BLOCKER_PREVIEW && (
+          <button
+            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs text-accent-soft transition-colors hover:bg-surface-2"
+            onClick={() => setAllBlockers((v) => !v)}
+            aria-expanded={allBlockers}
+          >
+            {allBlockers ? (
+              <>
+                <ChevronDown size={13} /> Show fewer
+              </>
+            ) : (
+              <>
+                <ChevronRight size={13} /> See all {blockerFeed.length} blockers
+              </>
+            )}
+          </button>
+        )}
       </section>
 
       {/* ---------------- Report browser ---------------- */}
@@ -994,6 +1011,63 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
   );
 }
 
+/**
+ * One blocker, small until it needs to be large.
+ *
+ * TWO LEVELS OF COLLAPSE, AND WHY BOTH EARN THEIR PLACE. The feed hides
+ * everything past the fourth card, which fixes the length of the SECTION. This
+ * fixes the length of a CARD: several blockers are a paragraph each, so four
+ * cards could still be a screen and a half, and the fix for that is not fewer
+ * cards but shorter ones.
+ *
+ * Clamped to three lines, expanded by pressing it. Whole-card rather than a
+ * "more" link, because the card is already the click target people reach for
+ * and a 40px link inside a paragraph is not.
+ */
+function BlockerCard({ text, person, date }: { text: string; person: string; date: string }) {
+  const [open, setOpen] = useState(false);
+  /* Only interactive when there is something hidden. A short blocker that
+     already fits must not grow a pointer cursor and an expand affordance that
+     do nothing when pressed. */
+  const long = text.length > CLAMP_CHARS;
+
+  const body = (
+    <>
+      <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-400" />
+      <div className="min-w-0 flex-1">
+        <p className={cn("text-sm", long && !open && "line-clamp-3")}>{text}</p>
+        <p className="mt-0.5 text-xs text-faint">
+          {person} · {fmtDate(date)}
+          {long && <span className="ml-1.5 text-accent-soft">{open ? "Show less" : "Show more"}</span>}
+        </p>
+      </div>
+    </>
+  );
+
+  if (!long) return <div className="flex gap-3 rounded-lg bg-surface-2 p-3">{body}</div>;
+
+  return (
+    <button
+      type="button"
+      onClick={() => setOpen((v) => !v)}
+      aria-expanded={open}
+      className="flex w-full gap-3 rounded-lg bg-surface-2 p-3 text-left transition-colors hover:bg-surface-2/70"
+    >
+      {body}
+    </button>
+  );
+}
+
+/** How much of a report is worth showing before it earns a click. Two items is
+ *  enough to recognise which report this is, which is all the collapsed state
+ *  has to do. */
+const PREVIEW_ITEMS = 2;
+/** Roughly three lines of prose. Only used to decide whether the See more
+ *  button appears at all; the visual cut is done with line-clamp. */
+const CLAMP_CHARS = 220;
+/** Blockers shown before the feed asks. */
+const BLOCKER_PREVIEW = 4;
+
 function ReportCard({
   entry,
   open,
@@ -1009,6 +1083,24 @@ function ReportCard({
   const [confirm, setConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
+  /* Collapsed by default, and this is the change that makes the page readable.
+     An imported report is one enormous run-on paragraph per section, so three
+     of them filled a screen and a half EACH: scanning ten reports meant
+     scrolling past fifteen screens of prose to find the one you wanted. The
+     card now shows enough to recognise a report and hides the rest behind a
+     count. */
+  const [full, setFull] = useState(false);
+
+  /* Whether there is anything to reveal, worked out from the content rather
+     than assumed. A short report that already fits shows no button, because a
+     "See more" that expands into nothing is worse than no button at all. */
+  const all = [...entry.done, ...entry.blockers, ...entry.plans];
+  const hiddenItems =
+    Math.max(0, entry.done.length - PREVIEW_ITEMS) +
+    Math.max(0, entry.blockers.length - PREVIEW_ITEMS) +
+    Math.max(0, entry.plans.length - PREVIEW_ITEMS);
+  const hasLongText = all.some((t) => t.length > CLAMP_CHARS) || (entry.notes?.length ?? 0) > CLAMP_CHARS;
+  const truncatable = hiddenItems > 0 || hasLongText;
 
   /**
    * The button is always shown; the database decides. RLS ("eod write") allows
@@ -1073,14 +1165,36 @@ function ReportCard({
       </div>
 
       <div className="space-y-4 px-4 py-3">
-        <Section title="Completed" items={entry.done} dot="bg-emerald-400" />
-        <Section title="Blockers" items={entry.blockers} dot="bg-red-400" />
-        <Section title="Plan for next day" items={entry.plans} dot="bg-amber-400" />
+        <Section title="Completed" items={entry.done} dot="bg-emerald-400" collapsed={!full} />
+        <Section title="Blockers" items={entry.blockers} dot="bg-red-400" collapsed={!full} />
+        <Section title="Plan for next day" items={entry.plans} dot="bg-amber-400" collapsed={!full} />
         {entry.notes?.trim() && (
           <div>
             <p className="eyebrow mb-1.5">Notes</p>
-            <p className="whitespace-pre-wrap text-sm text-zinc-200">{entry.notes}</p>
+            <p className={cn("whitespace-pre-wrap text-sm text-zinc-200", !full && "line-clamp-3")}>{entry.notes}</p>
           </div>
+        )}
+
+        {truncatable && (
+          <button
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border py-1.5 text-xs text-accent-soft transition-colors hover:bg-surface-2"
+            onClick={() => setFull((v) => !v)}
+            aria-expanded={full}
+            aria-label={full ? `Collapse ${entry.person}'s report` : `Expand ${entry.person}'s report`}
+          >
+            {full ? (
+              <>
+                <ChevronDown size={13} /> Show less
+              </>
+            ) : (
+              <>
+                <ChevronRight size={13} />
+                {/* Says what is behind it. "See more" alone does not tell you
+                    whether that is one hidden line or forty. */}
+                See more{hiddenItems > 0 ? ` · ${hiddenItems} more item${hiddenItems === 1 ? "" : "s"}` : ""}
+              </>
+            )}
+          </button>
         )}
 
         {links.length > 0 && (
@@ -1120,19 +1234,38 @@ function ReportCard({
   );
 }
 
-function Section({ title, items, dot }: { title: string; items: string[]; dot: string }) {
+function Section({
+  title, items, dot, collapsed = false,
+}: {
+  title: string;
+  items: string[];
+  dot: string;
+  /** Preview mode: a couple of items, each cut to three lines. */
+  collapsed?: boolean;
+}) {
   if (items.length === 0) return null;
+  const shown = collapsed ? items.slice(0, PREVIEW_ITEMS) : items;
+  const rest = items.length - shown.length;
+
   return (
     <div>
       <p className="eyebrow mb-1.5">{title}</p>
       <ul className="space-y-1">
-        {items.map((t, i) => (
+        {shown.map((t, i) => (
           <li key={i} className="flex gap-2 text-sm text-zinc-200">
             <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-sm", dot)} />
-            <span className="min-w-0">{t}</span>
+            {/* Clamped by lines rather than cut by characters: a hard character
+                cut lands mid-word and reads as corrupted text, and the imported
+                reports are one long paragraph where that happens every time. */}
+            <span className={cn("min-w-0", collapsed && "line-clamp-3")}>{t}</span>
           </li>
         ))}
       </ul>
+      {rest > 0 && (
+        <p className="mt-1 pl-4 text-[11px] text-faint">
+          +{rest} more {rest === 1 ? "item" : "items"}
+        </p>
+      )}
     </div>
   );
 }
