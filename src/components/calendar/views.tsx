@@ -86,13 +86,22 @@ export function MonthView({ days, itemsByDay, tz, today, selected, onSelectDay, 
           const list = itemsByDay.get(d) ?? [];
           const outside = d.slice(0, 7) !== selected.slice(0, 7);
           return (
-            <button
+            /* A DIV, not a button. The chips inside are buttons, and a button
+               inside a button is invalid HTML: the browser closes the outer one
+               early, which silently broke every chip click in the month. Found
+               by clicking one and getting the day instead of the event. */
+            <div
               key={d}
+              role="gridcell"
+              tabIndex={0}
               onClick={() => onSelectDay(d)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelectDay(d); }
+              }}
               aria-label={`${dayLabel(d, { weekday: "long", day: "numeric", month: "long" })}, ${list.length} item${list.length === 1 ? "" : "s"}`}
-              aria-pressed={d === selected}
+              aria-selected={d === selected}
               className={cn(
-                "min-h-[86px] rounded-lg border p-1.5 text-left align-top transition-colors",
+                "min-h-[86px] cursor-pointer rounded-lg border p-1.5 text-left align-top transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                 d === selected ? "border-accent ring-1 ring-accent" : "border-border hover:border-[var(--border-strong)]",
                 outside && "opacity-40",
               )}
@@ -111,7 +120,7 @@ export function MonthView({ days, itemsByDay, tz, today, selected, onSelectDay, 
                   <span className="block px-1 text-[10px] text-faint">+{list.length - 3} more</span>
                 )}
               </span>
-            </button>
+            </div>
           );
         })}
       </div>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ChevronLeft, ChevronRight, RefreshCw, Link2, MapPin, Users, Check,
-  ExternalLink, Sparkles, AlertTriangle, CalendarDays, ChevronDown, X,
+  ExternalLink, Sparkles, AlertTriangle, CalendarDays, ChevronDown, X, Plus,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import {
@@ -17,6 +17,7 @@ import {
 import {
   MonthView, TimeGridView, YearView, ScheduleView, type CalendarItem,
 } from "@/components/calendar/views";
+import { NewEventDialog } from "@/components/calendar/NewEventDialog";
 import { cn } from "@/lib/utils";
 
 /**
@@ -78,6 +79,7 @@ export default function Calendar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [detail, setDetail] = useState<CalendarItem | null>(null);
   const [tzOverride, setTzOverride] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const nav = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -185,16 +187,28 @@ export default function Calendar() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      /* Escape before EVERYTHING, including the "ignore keys typed in a field"
+         rule below. The cursor is almost always in a field when you want to
+         abandon a dialog, so an Escape handler that sits behind that check is
+         an Escape handler that never fires. Caught by pressing it in the title
+         box and watching the dialog stay open. */
+      if (e.key === "Escape") { setMenuOpen(false); setDetail(null); setCreating(false); return; }
+
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+
+      /* Everything else is for the calendar, not for whatever is on top of it.
+         Without this, clicking into a dialog and typing "Weekly sync" would
+         fire W and Y and page the view around underneath it. */
+      if (detail || creating || menuOpen) return;
+
       const hit = VIEWS.find((v) => v.key.toLowerCase() === e.key.toLowerCase());
       if (hit) { setPrefs((p) => ({ ...p, view: hit.id })); return; }
-      if (e.key.toLowerCase() === "t") { setAnchor(todayKey(tz)); return; }
-      if (e.key === "Escape") { setMenuOpen(false); setDetail(null); }
+      if (e.key.toLowerCase() === "t") { setAnchor(todayKey(tz)); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tz]);
+  }, [tz, detail, creating, menuOpen]);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -348,6 +362,25 @@ export default function Calendar() {
           )}
         </div>
 
+        {/* Plan works on the SELECTED day, so a clear day can be planned too.
+            It used to live only inside an event's detail, which meant the one
+            day most worth planning, an empty one, had no way to reach it. */}
+        <button
+          className="btn-ghost border border-border px-2.5 py-1.5 text-xs"
+          onClick={() => planThisDay(anchor)}
+          title="Hand this day's commitments to the planner"
+        >
+          <Sparkles size={13} /> Plan day
+        </button>
+
+        <button
+          className="btn-primary px-2.5 py-1.5 text-xs"
+          onClick={() => setCreating(true)}
+          title={google?.canCreate ? "Add an event to your Google Calendar" : "Reconnect Google to allow calendar changes"}
+        >
+          <Plus size={13} /> New event
+        </button>
+
         <button
           className="btn-ghost border border-border px-2.5 py-1.5 text-xs"
           onClick={() => sync.mutate({ timeMin: fromIso, timeMax: toIso })}
@@ -380,6 +413,15 @@ export default function Calendar() {
         <ScheduleView {...viewProps} />
       ) : (
         <TimeGridView {...viewProps} zoneLabel={zoneLabel(tz, anchor)} />
+      )}
+
+      {creating && (
+        <NewEventDialog
+          day={anchor}
+          tz={tz}
+          canCreate={Boolean(google?.canCreate)}
+          onClose={() => setCreating(false)}
+        />
       )}
 
       {detail && (

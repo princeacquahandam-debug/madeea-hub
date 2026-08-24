@@ -488,6 +488,11 @@ export function useGoogleConnection() {
       const scopes = String(data?.scopes ?? "");
       return {
         connected: Boolean(data),
+        /* Reading and writing are separate grants. A connection made when the
+           app only asked for calendar.readonly is valid and simply cannot book
+           anything, and the button has to know the difference before it is
+           pressed rather than after Google refuses. */
+        canCreate: scopes.includes("calendar.events") || /auth\/calendar(\s|$)/.test(scopes),
         /* Asked of the granted scopes, not assumed from the fact of a
            connection. An account linked before calendar access was requested
            has a perfectly valid token that cannot read a calendar, and the
@@ -495,6 +500,38 @@ export function useGoogleConnection() {
         calendar: scopes.includes("calendar"),
         connected_at: data?.connected_at ?? null,
       };
+    },
+  });
+}
+
+export interface NewEventInput {
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  timeZone: string;
+  description?: string;
+  location?: string;
+  attendees?: string[];
+}
+
+export function useCreateCalendarEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: NewEventInput) => {
+      if (!supabase) throw new Error("Creating events isn't available in demo mode.");
+      const { data, error } = await supabase.functions.invoke("calendar-create-event", { body: input });
+      if (error) {
+        const f = await edgeFailure(error, "Could not create the event.");
+        const err = new Error(f.message) as Error & { status?: number; needsScope?: boolean };
+        err.status = f.status;
+        err.needsScope = f.status === 403;
+        throw err;
+      }
+      return data as { ok: boolean; id: string; htmlLink: string | null; warning?: string };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["calendar"] });
+      qc.invalidateQueries({ queryKey: ["meetings"] });
     },
   });
 }

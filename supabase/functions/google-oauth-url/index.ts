@@ -21,7 +21,12 @@ const APP_ORIGINS = (Deno.env.get("APP_ORIGINS") ?? "")
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.send",
-  "https://www.googleapis.com/auth/calendar.readonly",
+  /* events, not readonly. The calendar could be read and never written, so
+     "Plan the Calendar" could describe a better day and not book any of it.
+     calendar.events covers creating, updating and deleting events on calendars
+     this account can already see; it does NOT grant access to new calendars or
+     to settings, which is the narrowest scope that makes booking possible. */
+  "https://www.googleapis.com/auth/calendar.events",
   "openid",
   "email",
 ].join(" ");
