@@ -15,7 +15,10 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
+    // No baseUrl: it is deprecated and stops working in TypeScript 6. paths has
+    // not needed it since 5.0, because a mapping beginning with ./ resolves
+    // against this file. The one below already did, so dropping baseUrl changes
+    // nothing about where @/ points.
     "paths": {
       "@/*": ["./src/*"]
     }
