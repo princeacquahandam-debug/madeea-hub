@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Calendar, CheckCircle2, RefreshCw, Plug, Loader2, Wand2, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { ChannelConnections } from "@/components/ChannelConnections";
+import { IntegrationReadiness } from "@/components/IntegrationReadiness";
 import { TeamConnections } from "@/components/TeamConnections";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useMailboxSync, useMailConnections } from "@/data/hooks";
@@ -158,6 +159,11 @@ export default function Integrations() {
           with, and it used to require three clicks inside the Communication
           Center to answer. Mail connects from here too, on the card that
           already says whether it is connected. */}
+      {/* Above the grid, because "why will none of these connect" is answered
+          once here rather than six times by pressing six buttons. It removes
+          itself when every provider is registered. */}
+      <IntegrationReadiness />
+
       <ChannelConnections />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
