@@ -49,7 +49,11 @@ const PROVIDERS: Record<Provider, {
   authorize: string;
   scopes: string;
   scopeSeparator: string;
-  clientIdEnv: string;
+  /* Names this provider is CALLED in the dashboard people copy it from, in
+     order of preference. Meta labels the same value "App ID" on its own screen
+     and "client_id" in its API, and somebody following either is right; a
+     product that accepts only one of them is just a spelling test. */
+  clientIdEnv: string[];
   pkce: boolean;
   extra?: Record<string, string>;
 }> = {
@@ -64,7 +68,7 @@ const PROVIDERS: Record<Provider, {
       "openid", "email", "profile",
     ].join(" "),
     scopeSeparator: " ",
-    clientIdEnv: "GOOGLE_CLIENT_ID",
+    clientIdEnv: ["GOOGLE_CLIENT_ID"],
     pkce: true,
     // offline_access equivalent: without it there is no refresh token and the
     // connection dies in an hour.
@@ -80,7 +84,7 @@ const PROVIDERS: Record<Provider, {
       "https://graph.microsoft.com/ChatMessage.Send",
     ].join(" "),
     scopeSeparator: " ",
-    clientIdEnv: "MICROSOFT_CLIENT_ID",
+    clientIdEnv: ["MICROSOFT_CLIENT_ID", "MICROSOFT_APP_ID"],
     pkce: true,
     /* select_account, because the mailbox being connected is frequently not the
        account the browser is already signed into. */
@@ -93,14 +97,14 @@ const PROVIDERS: Record<Provider, {
       "users:read", "chat:write", "chat:write.public",
     ].join(","),
     scopeSeparator: ",",
-    clientIdEnv: "SLACK_CLIENT_ID",
+    clientIdEnv: ["SLACK_CLIENT_ID"],
     pkce: false,
   },
   discord: {
     authorize: "https://discord.com/oauth2/authorize",
     scopes: "bot applications.commands identify",
     scopeSeparator: " ",
-    clientIdEnv: "DISCORD_CLIENT_ID",
+    clientIdEnv: ["DISCORD_CLIENT_ID", "DISCORD_APP_ID"],
     pkce: false,
     // View Channels + Send Messages + Read Message History: what the sync uses.
     extra: { permissions: "68608" },
@@ -113,14 +117,14 @@ const PROVIDERS: Record<Provider, {
       "whatsapp_business_messaging", "whatsapp_business_management", "business_management",
     ].join(","),
     scopeSeparator: ",",
-    clientIdEnv: "META_CLIENT_ID",
+    clientIdEnv: ["META_CLIENT_ID", "META_APP_ID", "FACEBOOK_APP_ID"],
     pkce: false,
   },
   linkedin: {
     authorize: "https://www.linkedin.com/oauth/v2/authorization",
     scopes: "openid profile email r_organization_admin r_marketing_leadgen_automation",
     scopeSeparator: " ",
-    clientIdEnv: "LINKEDIN_CLIENT_ID",
+    clientIdEnv: ["LINKEDIN_CLIENT_ID"],
     pkce: false,
   },
 };
@@ -201,10 +205,14 @@ Deno.serve(async (req) => {
       return json({ error: `${provider} is not available yet.`, code: "PROVIDER_NOT_SUPPORTED" }, 400);
     }
 
-    const clientId = Deno.env.get(spec.clientIdEnv);
+    /* The first of the accepted names that is actually set. */
+    const clientId = spec.clientIdEnv.map((n) => Deno.env.get(n)).find(Boolean);
     if (!clientId) {
       return json({
-        error: `${spec.clientIdEnv} is not configured, so ${provider} cannot be connected yet.`,
+        /* Names every accepted spelling, because "META_CLIENT_ID is not
+           configured" sends somebody to look for a value Meta does not call
+           that. */
+        error: `Set ${spec.clientIdEnv.join(" or ")} in Supabase before connecting ${provider}.`,
         code: "PROVIDER_NOT_SUPPORTED",
       }, 400);
     }

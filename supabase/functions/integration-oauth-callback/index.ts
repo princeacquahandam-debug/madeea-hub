@@ -182,7 +182,7 @@ async function exchangeMicrosoft(code: string, redirectUri: string, verifier: st
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       code,
-      client_id: Deno.env.get("MICROSOFT_CLIENT_ID") ?? "",
+      client_id: Deno.env.get("MICROSOFT_CLIENT_ID") ?? Deno.env.get("MICROSOFT_APP_ID") ?? "",
       client_secret: Deno.env.get("MICROSOFT_CLIENT_SECRET") ?? "",
       redirect_uri: redirectUri,
       grant_type: "authorization_code",
@@ -241,7 +241,7 @@ async function exchangeDiscord(code: string, redirectUri: string): Promise<Token
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: Deno.env.get("DISCORD_CLIENT_ID") ?? "",
+      client_id: Deno.env.get("DISCORD_CLIENT_ID") ?? Deno.env.get("DISCORD_APP_ID") ?? "",
       client_secret: Deno.env.get("DISCORD_CLIENT_SECRET") ?? "",
       grant_type: "authorization_code",
       code,
@@ -265,7 +265,7 @@ async function exchangeDiscord(code: string, redirectUri: string): Promise<Token
 }
 
 async function exchangeMeta(code: string, redirectUri: string): Promise<TokenResult> {
-  const appId = Deno.env.get("META_CLIENT_ID") ?? "";
+  const appId = Deno.env.get("META_CLIENT_ID") ?? Deno.env.get("META_APP_ID") ?? Deno.env.get("FACEBOOK_APP_ID") ?? "";
   const appSecret = Deno.env.get("META_CLIENT_SECRET") ?? Deno.env.get("META_APP_SECRET") ?? "";
 
   const tok = await fetch(
