@@ -403,7 +403,16 @@ function CapturePanel({ capture, minutes }: { capture: MonitoringStatus; minutes
           <p className="text-xs text-faint">
             {capture.state === "capturing"
               ? `Sharing your ${capture.surface ?? "screen"}. A frame every ${minutes} minutes.` +
-                (capture.lastCaptureAt ? ` Last at ${capture.lastCaptureAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.` : "")
+                (capture.lastCaptureAt
+                  ? ` Last at ${capture.lastCaptureAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}, ` +
+                    /* The next one, worked out from the last rather than from a
+                       countdown: a number that ticks invites watching, and the
+                       question people have is "is this still running", not
+                       "how many seconds". Approximate on purpose, because the
+                       interval is randomised so captures cannot be timed. */
+                    `next around ${new Date(capture.lastCaptureAt.getTime() + minutes * 60_000)
+                      .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`
+                  : " Waiting for the first frame.")
               : `Screenshots every ${minutes} minutes while you are clocked in. Your browser has to ask you first.`}
           </p>
         </div>
@@ -415,6 +424,20 @@ function CapturePanel({ capture, minutes }: { capture: MonitoringStatus; minutes
           </button>
         )}
       </div>
+
+      {/* Running and producing nothing. Louder than the tab warning because
+          it is worse: that one records weak evidence, this one records none,
+          and both look identical from the outside until somebody checks. */}
+      {capture.stalledMinutes !== null && (
+        <p className="mt-2 flex items-start gap-2 rounded-lg border border-red-500/50 bg-red-500/10 p-2.5 text-[12.5px] text-red-200">
+          <Info size={14} className="mt-0.5 shrink-0" />
+          <span>
+            <b>No screenshot has landed for {capture.stalledMinutes} minutes.</b> Screen sharing is
+            still on, so something is failing between the capture and the upload. The message
+            underneath usually names it; if it does not, stop and start sharing again.
+          </span>
+        </p>
+      )}
 
       {weak && (
         <p className="mt-2 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-[12.5px] text-amber-200">

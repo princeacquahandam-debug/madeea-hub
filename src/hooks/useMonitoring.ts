@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   perceptualHash, renderFrame, toJpegBlob, nextCaptureDelayMs, hammingDistance,
+  shouldCapture, stalledMinutes as overdueMinutes,
 } from "@/lib/imaging";
 
 /**
@@ -76,6 +77,16 @@ export interface MonitoringStatus {
    * stops it now records a reason, and the screen shows it.
    */
   stoppedReason: string | null;
+  /**
+   * How many minutes since a screenshot last landed, once that is long enough
+   * to be a fault rather than a wait. Null while the rhythm is healthy.
+   *
+   * Capture that is RUNNING and producing nothing is the failure this whole
+   * file is about, and it is the one the UI could not previously show: every
+   * failure path reports and returns, so the schedule keeps ticking and the
+   * person keeps working while nothing is recorded.
+   */
+  stalledMinutes: number | null;
   /** What the user shared. A single tab is far weaker evidence than a monitor. */
   surface: string | null;
   shots: number;
@@ -113,6 +124,9 @@ export function useMonitoring(opts: {
   const [shots, setShots] = useState(0);
   const [lastCaptureAt, setLastCaptureAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /* Minutes since the last screenshot actually landed, once that is long enough to
+     be a fault rather than a wait. Null while the rhythm is healthy. */
+  const [stalledMinutes, setStalled] = useState<number | null>(null);
   const [surfaceRefused, setSurfaceRefused] = useState(false);
   const [screenChange, setScreenChange] = useState<number | null>(null);
   const [stoppedReason, setStoppedReason] = useState<string | null>(null);
@@ -269,8 +283,22 @@ export function useMonitoring(opts: {
         })
         .select("id")
         .single();
-      if (actErr) { setError(`Could not record activity: ${actErr.message}`); return; }
-      activityId = activity.id;
+      /* NOT a return. This used to abandon the whole capture, which meant one
+         rejected activity row — a constraint, a policy, a dropped connection —
+         cost the screenshot as well, every ten minutes, for the rest of the
+         shift. The screenshot is the part somebody is relying on, and it does
+         not need its activity row to be worth keeping: the column is nullable
+         precisely so an image can exist without one.
+
+         The failure is still reported, and the image is still stored. Losing
+         the keystroke counts for one period is a smaller loss than losing the
+         evidence that the period happened at all. */
+      if (actErr) {
+        console.error("activity record failed", actErr.message);
+        setError(`Could not record activity for this period: ${actErr.message}`);
+      } else {
+        activityId = activity?.id ?? null;
+      }
     }
 
     const blob = await toJpegBlob(canvas, 0.6);
@@ -303,6 +331,8 @@ export function useMonitoring(opts: {
 
     setShots((n) => n + 1);
     setLastCaptureAt(now);
+    lastOkRef.current = Date.now();
+    setStalled(null);
     setError(null);
   }, [teardown]);
 
@@ -337,6 +367,10 @@ export function useMonitoring(opts: {
    */
   const nextDueRef = useRef<number>(0);
   const capturingRef = useRef(false);
+  /* When a screenshot last actually landed, as a number rather than the Date in
+     state: the watchdog reads it on every beat and must not re-render anything
+     to do so. */
+  const lastOkRef = useRef<number>(0);
 
   const scheduleNext = useCallback(() => {
     const cfg = settingsRef.current;
@@ -411,6 +445,8 @@ export function useMonitoring(opts: {
       videoRef.current = video;
 
       periodStart.current = new Date();
+      lastOkRef.current = Date.now();
+      setStalled(null);
       lastHash.current = null;
       tally.current = { keystrokes: 0, mouseEvents: 0, lastInputAt: Date.now(), idleSeconds: 0 };
       setState("capturing");
@@ -450,12 +486,30 @@ export function useMonitoring(opts: {
     if (state !== "capturing") return;
 
     const tick = () => {
-      if (!streamRef.current || capturingRef.current) return;
-      /* Checked every beat, not only at start: an admin switching screenshots
-         off mid-shift must stop the next capture, not the one after the person
-         next reloads. */
-      if (!settingsRef.current.screenshotsEnabled) return;
-      if (Date.now() < nextDueRef.current) return;
+      const now = Date.now();
+      /* The decision lives in lib/imaging, where it can be tested: this exact
+         rule has been wrong twice, and both times only a real shift would have
+         shown it. The switch is read every beat rather than at start, so an
+         admin turning screenshots off stops the NEXT capture. */
+      if (!shouldCapture(now, nextDueRef.current, {
+        busy: capturingRef.current,
+        enabled: settingsRef.current.screenshotsEnabled,
+        hasStream: Boolean(streamRef.current),
+      })) return;
+
+      /**
+       * THE WATCHDOG. A capture that has not landed in well over an interval
+       * means something is wrong that nothing else will say out loud.
+       *
+       * Every failure path in captureOnce reports and returns, so the schedule
+       * keeps ticking and the person keeps working while nothing is recorded.
+       * That is the state this whole file exists to prevent: a shift that looks
+       * monitored and is not. 1.8 intervals is late enough that a slow upload
+       * or one skipped beat cannot trigger it, and early enough to catch the
+       * problem inside a second cycle rather than at the end of the day.
+       */
+      const overdue = overdueMinutes(now, lastOkRef.current, settingsRef.current.screenshotMinutes);
+      if (overdue !== null) setStalled(overdue);
 
       /* Before, not after. See above. */
       scheduleNext();
@@ -503,6 +557,7 @@ export function useMonitoring(opts: {
 
   return {
     state, surface, shots, lastCaptureAt, error, surfaceRefused, screenChange, stoppedReason,
+    stalledMinutes,
     keystrokes: counts.keystrokes,
     mouseEvents: counts.mouseEvents,
     idleSeconds: counts.idleSeconds,

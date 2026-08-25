@@ -216,3 +216,46 @@ export function nextCaptureDelayMs(intervalMinutes: number, randomize: boolean):
   const jitter = 0.4;
   return Math.round(interval * (1 - jitter / 2 + Math.random() * jitter));
 }
+
+/**
+ * Is a screenshot due, and has the rhythm stopped?
+ *
+ * WHY THESE ARE HERE AND NOT INSIDE THE HOOK. They were inside it, as two
+ * comparisons buried in a heartbeat, and that is the part of the tracker that
+ * has been wrong twice: once because a failed capture never rescheduled, once
+ * because the interval arithmetic averaged half of what it claimed. Neither
+ * could be tested where it sat, because reaching it meant a real browser, a
+ * real screen share and a real ten-minute wait.
+ *
+ * Out here they are two pure functions over numbers, and check:schedule runs a
+ * simulated eight-hour shift through them — including captures that fail — in
+ * a few milliseconds.
+ */
+
+/** Whether this beat should take a screenshot. */
+export function shouldCapture(now: number, nextDueAt: number, opts: {
+  /** A capture already running. Two at once would double-count a period. */
+  busy: boolean;
+  /** The account's switch. Checked every beat so turning it off stops the next. */
+  enabled: boolean;
+  /** No stream means the share ended; there is nothing to photograph. */
+  hasStream: boolean;
+}): boolean {
+  if (!opts.hasStream || opts.busy || !opts.enabled) return false;
+  return now >= nextDueAt;
+}
+
+/**
+ * Minutes since a screenshot last landed, once that is long enough to be a
+ * fault rather than a wait. Null while the rhythm is healthy.
+ *
+ * 1.8 intervals: late enough that a slow upload or one missed beat cannot raise
+ * it, early enough to catch the problem inside a second cycle rather than at
+ * the end of a shift.
+ */
+export function stalledMinutes(now: number, lastOkAt: number, intervalMinutes: number): number | null {
+  if (!lastOkAt) return null;
+  const overdue = now - lastOkAt;
+  const limit = Math.max(1, intervalMinutes) * 60_000 * 1.8;
+  return overdue > limit ? Math.round(overdue / 60_000) : null;
+}
