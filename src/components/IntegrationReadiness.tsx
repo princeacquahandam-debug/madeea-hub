@@ -23,6 +23,17 @@ import { cn } from "@/lib/utils";
  * question while setting up.
  */
 
+/**
+ * The providers this app actually offers, in the order the cards appear.
+ *
+ * The function reports on every provider it knows how to connect, which is more
+ * than the page shows: Integrations offers Gmail, Outlook and Teams, and those
+ * are two logins between them. Warning that Discord is unregistered would be a
+ * warning about a card nobody can press, and it would keep this panel open
+ * forever over a setup that is in fact complete.
+ */
+const OFFERED = ["google", "microsoft"];
+
 interface Readiness {
   ok: boolean;
   providers: { provider: string; label: string; ready: boolean; missing: string[]; where: string }[];
@@ -49,10 +60,11 @@ export function IntegrationReadiness() {
     staleTime: 60_000,
   });
 
-  if (isLoading || !data?.providers?.length) return null;
+  const providers = (data?.providers ?? []).filter((p) => OFFERED.includes(p.provider));
+  if (isLoading || !data || !providers.length) return null;
 
-  const waiting = data.providers.filter((p) => !p.ready);
-  const ready = data.providers.length - waiting.length;
+  const waiting = providers.filter((p) => !p.ready);
+  const ready = providers.length - waiting.length;
   // Everything registered: nothing to say.
   if (waiting.length === 0 && data.encryption_key && data.app_origins) return null;
 
@@ -71,7 +83,7 @@ export function IntegrationReadiness() {
             {waiting.length} channel{waiting.length === 1 ? "" : "s"} not registered yet
           </h3>
           <p className="text-[12.5px] text-faint">
-            {ready} of {data.providers.length} ready. The rest need an app registered with that
+            {ready} of {providers.length} ready. The rest need an app registered with that
             provider before Connect can do anything.
           </p>
         </div>
@@ -115,7 +127,7 @@ export function IntegrationReadiness() {
           )}
 
           <ul className="space-y-2">
-            {data.providers.map((p) => (
+            {providers.map((p) => (
               <li
                 key={p.provider}
                 className="flex flex-wrap items-start gap-x-3 gap-y-1 rounded-lg bg-surface-2 px-3 py-2.5 text-[12.5px]"

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Link2, SlidersHorizontal, MoreVertical, RefreshCw, Unplug } from "lucide-react";
-import { REAL_CHANNELS, type Channel, type ChannelId } from "@/lib/channels";
+import { CONNECTABLE_CHANNELS, type Channel, type ChannelId } from "@/lib/channels";
 import { syncSlack } from "@/lib/slack";
 import { useMailConnections, useMyEmail, useMyIntegrations } from "@/data/hooks";
 import { syncDiscord } from "@/lib/discord";
@@ -398,11 +398,11 @@ export function ChannelConnections() {
     <section className="mb-5">
       <div className="mb-2 flex items-baseline justify-between">
         <h2 className="text-sm font-semibold">Message channels</h2>
-        <p className="text-xs text-faint">Where clients can reach you</p>
+        <p className="text-xs text-faint">Your mail and chat, connected with your own sign-in</p>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {REAL_CHANNELS.map((c) => (
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {CONNECTABLE_CHANNELS.map((c) => (
           <ChannelCard
             key={c.id}
             channel={c}

@@ -232,6 +232,30 @@ export const channelById = (id: ChannelId): Channel =>
 /** Channels a message could actually be in. Excludes the aggregate. */
 export const REAL_CHANNELS = CHANNELS.filter((c) => c.id !== "all");
 
+/**
+ * What the Integrations page offers, which is NOT the same list as above.
+ *
+ * WHY THE TWO DIFFER. REAL_CHANNELS answers "what could a message have come
+ * from", and it has to keep every id it has ever had: a Slack message already
+ * synced into the Inbox still needs its name and its logo to render, and
+ * removing the entry would leave rows labelled with nothing.
+ *
+ * This one answers a different question — "what can somebody connect today" —
+ * and the honest answer is Google and Microsoft. Both are registered, both are
+ * signed into with an ordinary account, and Teams rides on the Outlook consent.
+ * The rest each need an app registered, reviewed and in several cases approved
+ * by the provider before Connect can do anything at all, and a card that cannot
+ * do its one job is worse than no card: it reads as a broken product rather
+ * than an unfinished setup.
+ *
+ * ADDING ONE BACK is this array, not a rewrite. Every channel's connect flow,
+ * sync function and dialog is still here and still works; the only thing that
+ * changed is whether it is on the page.
+ */
+export const CONNECTABLE_CHANNELS = CHANNELS.filter((c) =>
+  (["gmail", "outlook", "teams"] as ChannelId[]).includes(c.id),
+);
+
 /** Only what a person can act on today, for pickers and counts. */
 export const LIVE_CHANNELS = CHANNELS.filter(
   (c) => c.status === "connected" || c.status === "read_only",
