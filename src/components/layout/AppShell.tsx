@@ -1,4 +1,5 @@
 import { Suspense, useEffect } from "react";
+import { WorkspaceGate } from "@/components/WorkspaceGate";
 import { Outlet, useLocation } from "react-router-dom";
 import { PageSkeleton } from "@/components/Skeleton";
 import { AmbientBackground } from "./AmbientBackground";
@@ -51,6 +52,10 @@ export function AppShell() {
         <TopBar onMenu={() => setNavOpen(true)} />
         <div className="flex flex-1 overflow-hidden">
           <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6">
+          {/* Above every page: an account with no seat sees zeros everywhere,
+              which is indistinguishable from an empty database until something
+              says otherwise. */}
+          <WorkspaceGate />
             <GuideCard />
             {/* Keyed by path so page content fades up on every route change.
                 Suspense shows the shimmer skeleton while a lazy page chunk loads. */}
