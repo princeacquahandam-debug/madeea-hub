@@ -2348,7 +2348,10 @@ export function useSubmitEod() {
           plans: report.plans,
           notes: report.notes ?? null,
         },
-        { onConflict: "person_name,report_date" },
+        /* Matches the unique index from 0060. workspace_id is not sent — it
+           defaults to my_workspace() — but it belongs in the conflict target,
+           or the upsert compares against a key the database no longer has. */
+        { onConflict: "workspace_id,person_name,report_date" },
       );
       if (error) throw error;
     },
