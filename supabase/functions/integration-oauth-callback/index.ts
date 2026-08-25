@@ -493,6 +493,29 @@ Deno.serve(async (req) => {
       }, { onConflict: "owner_id" });
     }
 
+    /* CLEAR THE PLACEHOLDER THIS REPLACES.
+       0058 carried the old per-person credentials across so the page told the
+       truth on day one, but it could not encrypt (a migration has no key), so
+       those rows hold no token and sit at reauth_required. Their
+       provider_account_id is the address, standing in for an id the migration
+       did not have; a real connection uses the provider own id, so it lands as
+       a NEW row and the placeholder would linger beside it for ever — one
+       account listed twice, one of them permanently broken.
+
+       Deleted only when a working connection for the same person and provider
+       now exists, and only from rows that hold no token: a second REAL account
+       is a thing people legitimately have, and nothing here may touch it. */
+    if (saved?.id) {
+      await admin
+        .from("integrations")
+        .delete()
+        .eq("workspace_id", st.workspace_id)
+        .eq("user_id", st.user_id)
+        .eq("provider", provider)
+        .is("access_token_encrypted", null)
+        .neq("id", saved.id);
+    }
+
     await log("oauth_connected", "success", { integration_id: saved?.id, account: result.account_id });
     return finish(st, { ok: true, provider, account: result.account_email ?? result.account_name ?? null });
   } catch (e) {
