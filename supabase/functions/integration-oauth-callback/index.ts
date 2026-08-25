@@ -92,19 +92,48 @@ async function decrypt(payload: string): Promise<string> {
 
 // ── what comes back to the browser ───────────────────────────────────────
 function popupPage(origin: string, payload: Record<string, unknown>) {
+  const ok = Boolean(payload.ok);
+  const message = ok
+    ? (payload.account ? `Connected as ${payload.account}.` : "Connected.")
+    /* The reason, when there is one worth reading. A blank "that did not
+       complete" sends somebody back to press the same button again, which is
+       the one thing guaranteed not to help. */
+    : String(payload.detail ?? "That did not complete. Nothing was saved, so it is safe to try again.");
   const body = JSON.stringify({ source: "madeea-oauth", ...payload });
+
+  /* Branded, because this page appears mid-flow in a window the person did not
+     open themselves, next to a Google screen that has just warned them about
+     trusting an app. A bare unstyled page at that exact moment looks like the
+     thing the warning was about. */
   return new Response(
-    `<!doctype html><meta charset="utf-8"><title>Connecting</title>
-<body style="font:14px system-ui;background:#0b0f17;color:#e5e7eb;display:grid;place-items:center;height:100vh;margin:0">
-<p>${payload.ok ? "Connected. You can close this window." : "That did not complete. You can close this window."}</p>
+    `<!doctype html><html><head><meta charset="utf-8"><title>MadeEA OS</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{color-scheme:dark}
+  body{margin:0;height:100vh;display:grid;place-items:center;background:#0b0f17;
+       color:#e5e7eb;font:15px/1.5 system-ui,"Segoe UI",Roboto,sans-serif}
+  .card{max-width:340px;padding:28px;text-align:center}
+  .mark{font:700 15px/1 system-ui;letter-spacing:.14em;color:#f97316}
+  h1{margin:18px 0 6px;font-size:18px;font-weight:600}
+  p{margin:0;color:#9ca3af;font-size:13.5px}
+  .tick{width:44px;height:44px;margin:0 auto;border-radius:50%;display:grid;place-items:center;
+        background:${ok ? "rgba(16,185,129,.15)" : "rgba(245,158,11,.15)"};
+        color:${ok ? "#34d399" : "#fbbf24"};font-size:22px}
+</style></head><body>
+  <div class="card">
+    <div class="mark">MADEEA OS</div>
+    <div class="tick" style="margin-top:20px">${ok ? "&#10003;" : "!"}</div>
+    <h1>${ok ? "Account connected" : "Not connected"}</h1>
+    <p>${message}</p>
+    <p style="margin-top:14px">This window closes by itself.</p>
+  </div>
 <script>
   try { window.opener && window.opener.postMessage(${body}, ${JSON.stringify(origin)}); } catch (e) {}
-  setTimeout(function () { try { window.close(); } catch (e) {} }, 300);
-</script>`,
+  setTimeout(function () { try { window.close(); } catch (e) {} }, 1200);
+</script></body></html>`,
     { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } },
   );
 }
-
 function finish(
   st: { redirect_to?: string | null; popup?: boolean; redirect_after?: string | null },
   payload: Record<string, unknown>,
@@ -391,7 +420,7 @@ Deno.serve(async (req) => {
   await admin.from("oauth_states").delete().lt("expires_at", new Date().toISOString());
 
   if (!st.expires_at || new Date(st.expires_at).getTime() < Date.now()) {
-    return finish(st, { ok: false, provider: st.provider, code: "oauth_expired" });
+    return finish(st, { ok: false, provider: st.provider, code: "oauth_expired", detail: "That sign-in took longer than ten minutes. Press Connect again." });
   }
 
   const provider = String(st.provider) as Provider;
@@ -409,7 +438,7 @@ Deno.serve(async (req) => {
     // The provider's words go to the log, never into the URL.
     console.error("consent declined", provider, denied);
     await log("oauth_failed", "failure", { error: String(denied) });
-    return finish(st, { ok: false, provider, code: "oauth_denied" });
+    return finish(st, { ok: false, provider, code: "oauth_denied", detail: "You declined the permissions, so nothing was connected." });
   }
   if (!code) return new Response("Missing code", { status: 400 });
 
@@ -420,7 +449,7 @@ Deno.serve(async (req) => {
     .eq("user_id", st.user_id).eq("workspace_id", st.workspace_id).maybeSingle();
   if (!member) {
     await log("oauth_failed", "failure", { error: "no longer a member" });
-    return finish(st, { ok: false, provider, code: "forbidden" });
+    return finish(st, { ok: false, provider, code: "forbidden", detail: "You are no longer a member of that workspace." });
   }
 
   const redirectUri = `${SUPABASE_URL}/functions/v1/integration-oauth-callback`;
@@ -522,6 +551,10 @@ Deno.serve(async (req) => {
     const message = e instanceof Error ? e.message : String(e);
     console.error("install failed", provider, message);
     await log("oauth_failed", "failure", { error: message });
-    return finish(st, { ok: false, provider, code: "token_exchange_failed" });
+    /* The provider own words, which are the useful half: "redirect_uri_mismatch"
+       and "invalid_client" send somebody to completely different screens, and a
+       generic failure sends them nowhere. Safe to show: this runs before any
+       token exists, so the message names configuration rather than a secret. */
+    return finish(st, { ok: false, provider, code: "token_exchange_failed", detail: message });
   }
 });
