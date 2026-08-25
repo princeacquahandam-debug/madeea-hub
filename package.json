@@ -15,7 +15,7 @@
     "check:isolation": "node scripts/check-integration-isolation.mjs",
     "check:functions": "node scripts/check-functions.mjs",
     "check:schedule": "node --experimental-strip-types scripts/check-capture-schedule.mjs",
-    "deploy:functions": "bash scripts/deploy-functions.sh"
+    "deploy:functions": "node scripts/deploy-functions.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
