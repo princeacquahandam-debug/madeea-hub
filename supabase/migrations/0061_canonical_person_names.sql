@@ -16,11 +16,13 @@
 -- exactly as designed: it guarantees ONE name per person, and has no opinion
 -- about whether that name is the right one.
 --
--- This happened before (see supabase/fixes/2026-07-25-canonical-eod-names.sql,
--- Bryan, July) and was fixed by hand. It came back the moment those accounts
--- were deleted and re-invited, because a new auth user gets a new profile with
--- a freshly generated name. A repair that must be re-run after every invite is
--- not a repair, so this one changes where the name comes from.
+-- This happened before. In July, Bryan's profile was renamed by hand with a
+-- one-off UPDATE, and it came back the moment those accounts were deleted and
+-- re-invited, because a new auth user gets a new profile with a freshly
+-- generated name. A repair that must be re-run after every invite is not a
+-- repair, so this one changes where the name comes from. The hand-written
+-- script it replaces is deleted, not archived: a superseded repair that still
+-- looks runnable is a trap for whoever finds it next.
 --
 -- ── WHAT THIS DOES ───────────────────────────────────────────────────────
 --
@@ -70,7 +72,6 @@ returns text language plpgsql stable set search_path = public, pg_temp as $canon
 declare
   local_part text;
   key text;
-  surname text;
   hit text;
   n int;
 begin

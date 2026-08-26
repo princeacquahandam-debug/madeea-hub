@@ -7,7 +7,8 @@
  * Everything else about the sheet is retired: the Task Tracker tab is replaced
  * by the real Kanban, and new reports are submitted in-app.
  *
- * To load these into a live database, see scripts/import_eod.sql.
+ * The import is done and its scripts are gone. scripts/parse_eod.py and
+ * build_eod_data.py remain because they generate eod.ts, which is still read.
  */
 import { EOD_DATA } from "@/data/eod";
 import type { EodReport } from "@/types/db";
@@ -15,9 +16,10 @@ import type { EodReport } from "@/types/db";
 /**
  * The July history no longer ships in the client bundle, it contained
  * security-sensitive report text (a live XSS disclosure, MFA gaps, prod config)
- * that must not be readable from the public JS. It now lives in the database
- * (see supabase/seed_eod.sql), behind RLS, and the app loads it via useEodReports
- * once signed in.
+ * that must not be readable from the public JS. It lives in the database behind
+ * RLS instead, loaded by useEodReports once signed in — though the July rows
+ * themselves were lost when the old workspace was deleted, so today this loads
+ * nothing until somebody restores them from a backup.
  *
  * This stays an empty array so demo mode (dev-only, no DB) simply shows no
  * historical reports rather than leaking them. eod.ts keeps only the
