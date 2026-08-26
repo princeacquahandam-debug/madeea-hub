@@ -286,6 +286,23 @@ export default function EodReports() {
   }, [tasks]);
 
   const { byPerson, byDate, activeDates, counts } = stats;
+
+  /**
+   * Who the report BROWSER offers, which is not the whole roster.
+   *
+   * A filter chip is a promise that there is something behind it. Seven of them
+   * reading "0" are seven promises the page cannot keep: pressing one empties
+   * the list and says nobody reported, which is a fact the chip already stated.
+   *
+   * The sections above still list everyone on purpose. Compliance and the
+   * coverage grid exist precisely to show the gaps — a member at 0% is the
+   * point of those, not noise in them. This one answers "whose report do I want
+   * to read", and only people who filed one are answers to it.
+   */
+  const reportedPeople = useMemo(
+    () => people.filter((p) => (byPerson[p]?.subs ?? 0) > 0),
+    [people, byPerson],
+  );
   // Days where everyone expected to report actually did.
   const fullTurnoutDays = activeDates.filter((d) => byDate[d] === people.length).length;
   // The sheet divides every member by a fixed 31, so this is the highest anyone
@@ -653,11 +670,16 @@ export default function EodReports() {
             <FilterChip active={person === "all"} onClick={() => setPerson("all")}>
               All members
             </FilterChip>
-            {people.map((p) => (
+            {reportedPeople.map((p) => (
               <FilterChip key={p} active={person === p} onClick={() => setPerson(p)}>
                 {p.split(" ")[0]} <span className="opacity-60">{byPerson[p].subs}</span>
               </FilterChip>
             ))}
+            {reportedPeople.length === 0 && (
+              <span className="self-center text-xs text-faint">
+                Nobody has filed a report yet. Names appear here as reports come in.
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             {/* Newest first. A report browser is nearly always opened to read

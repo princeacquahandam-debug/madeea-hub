@@ -160,5 +160,40 @@ console.log("\nReports already filed under the wrong name\n");
   check("and it is the newer submission", String(r.rows[0]?.done), "the real one");
 }
 
+console.log("\nTwo devices, one person, one row\n");
+{
+  const ws = await db.query("insert into workspaces (name) values ('d') returning id");
+  const u = await db.query("insert into auth.users (email) values ($1) returning id", ["rowena.petran@madeeas.com"]);
+  const wsId = ws.rows[0].id, uid = u.rows[0].id;
+  await db.query("insert into memberships (workspace_id, user_id, role) values ($1,$2,'ea')", [wsId, uid]);
+
+  const file = (name, text) => db.query(
+    `insert into eod_reports (workspace_id, owner_id, person_name, report_date, done, submitted_at)
+     values ($1,$2,$3,'2026-08-26',$4, now())
+     on conflict (workspace_id, person_name, report_date)
+     do update set done = excluded.done, submitted_at = excluded.submitted_at`,
+    [wsId, uid, name, [text]],
+  );
+
+  // The laptop, then the phone with a different cached display name.
+  await file("Rowena Rose Petran", "from the laptop");
+  await file("rowena.petran", "from the phone");
+  let r = await db.query("select person_name, done from eod_reports where owner_id = $1", [uid]);
+  check("a stale name on device two does not fork the row", String(r.rows.length), "1");
+  check("both devices land on the roster name", r.rows[0]?.person_name, "Rowena Rose Petran");
+  check("the later submission wins", String(r.rows[0]?.done), "from the phone");
+
+  /* And the case the trigger used to step aside for: no profile name at all,
+     which is what a freshly re-invited account has. The client's value must
+     still not become the name. */
+  await db.query("delete from eod_reports where owner_id = $1", [uid]);
+  await db.query("update profiles set full_name = '' where id = $1", [uid]);
+  await file("whatever-this-device-cached", "device A");
+  await file("something-else-entirely", "device B");
+  r = await db.query("select person_name from eod_reports where owner_id = $1", [uid]);
+  check("blank profile name still cannot fork", String(r.rows.length), "1");
+  check("it falls back to the address, not the client", r.rows[0]?.person_name, "Rowena Rose Petran");
+}
+
 console.log(failed === 0 ? "\nAll name checks passed.\n" : `\n${failed} FAILED\n`);
 process.exit(failed === 0 ? 0 : 1);
