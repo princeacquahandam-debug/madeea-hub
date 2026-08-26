@@ -14,7 +14,13 @@
  * the property that would have caught it in a second: over many draws the mean
  * must be the interval, not some fraction of it.
  */
+/* Set BEFORE any Date is constructed. The day-range bugs below are invisible
+   in UTC and wrong everywhere else, so the check has to stand somewhere: Manila,
+   which is where this team works and where the bug was reported from. */
+process.env.TZ = "Asia/Manila";
+
 import { nextCaptureDelayMs, shouldCapture, stalledMinutes } from "../src/lib/imaging.ts";
+import { localDayRange, workDate } from "../src/lib/workday.ts";
 
 let failed = 0;
 const check = (name, passed, detail = "") => {
@@ -115,6 +121,62 @@ check("nothing is due before its deadline",
   shouldCapture(1_000, 600_000, { busy: false, enabled: true, hasStream: true }) === false);
 check("a healthy rhythm never reads as stalled",
   stalledMinutes(600_000, 300_000, 10) === null);
+
+/* ── The day a screenshot belongs to ────────────────────────────────────
+ *
+ * Reported as: "the date is delayed, I have to select yesterday to see today's
+ * work". Captures at 03:39-04:17 on the 26th could only be found under the
+ * 25th, because the query sent bare timestamps and the database read them as
+ * UTC — so "the 26th" began at 08:00 Manila and the first eight hours of every
+ * day fell into the day before.
+ */
+{
+  const { from, to } = localDayRange("2026-08-26");
+  check("a Manila day starts at 16:00 UTC the day before",
+    from === "2026-08-25T16:00:00.000Z", from);
+  check("and ends at 16:00 UTC on the day itself",
+    to === "2026-08-26T16:00:00.000Z", to);
+
+  // The exact capture from the screenshot: 4:17:37 AM on the 26th, in Manila.
+  const shot = new Date("2026-08-26T04:17:37+08:00").toISOString();
+  check("the 04:17 capture belongs to the 26th", shot >= from && shot < to, shot);
+
+  /* What the old code asked for, and why it answered the 25th. These two are
+     the regression itself: if either ever flips, the bug is back. */
+  const oldDay = (d) => shot >= `${d}T00:00:00Z` && shot <= `${d}T23:59:59.999Z`;
+  check("the old bounds missed it on the 26th", oldDay("2026-08-26") === false, shot);
+  check("and found it on the 25th, which is what was reported", oldDay("2026-08-25") === true);
+
+  // The boundaries themselves, from both sides.
+  check("23:59:59 local is still that day",
+    new Date("2026-08-26T23:59:59+08:00").toISOString() < to, "");
+  check("00:00:00 local is already that day",
+    new Date("2026-08-26T00:00:00+08:00").toISOString() >= from, "");
+  check("one second before midnight belongs to the previous day",
+    new Date("2026-08-25T23:59:59+08:00").toISOString() < from, "");
+
+  // The two must agree, or the date picker opens on a day the query cannot fill.
+  const now = new Date("2026-08-26T04:17:37+08:00");
+  const d = workDate(now);
+  const r = localDayRange(d);
+  check("workDate and localDayRange agree about 'today'",
+    d === "2026-08-26" && now.toISOString() >= r.from && now.toISOString() < r.to, d);
+
+  /* A day is not always 24 hours. Manila has no DST, so this is checked where
+     it exists: the range stays exactly one day wide however many hours that
+     day contains, which "add 86,399,999ms" would not. */
+  const hours = (day, tz) => {
+    const prev = process.env.TZ;
+    process.env.TZ = tz;
+    const g = localDayRange(day);
+    process.env.TZ = prev;
+    return (Date.parse(g.to) - Date.parse(g.from)) / 3_600_000;
+  };
+  check("a spring-forward day is 23 hours", hours("2026-03-08", "America/New_York") === 23);
+  check("a fall-back day is 25 hours", hours("2026-11-01", "America/New_York") === 25);
+  check("an ordinary day is 24", hours("2026-08-26", "America/New_York") === 24);
+}
+
 
 console.log(failed === 0 ? "\nSchedule is correct.\n" : `\n${failed} check(s) FAILED.\n`);
 process.exit(failed ? 1 : 0);

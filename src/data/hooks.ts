@@ -2207,13 +2207,11 @@ export async function recordingUrl(r: Recording): Promise<string | null> {
 
 // ---------------- time tracking (migration 0027) ----------------
 
-/** The EA's own local date as YYYY-MM-DD. Not toISOString(), which shifts the
- *  day for anyone west of UTC, and an EA in Manila finishing at 01:00 is still
- *  working the previous day. */
-export function workDate(now: Date = new Date()): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
-}
+/* Both moved to lib/workday.ts, where a test can import them without dragging
+   in Supabase and React Query. Re-exported because pages import them from here,
+   and because which module they live in is not the interesting part. */
+import { workDate, localDayRange } from "@/lib/workday";
+export { workDate, localDayRange };
 
 /** Seconds on an entry; counts up live while it is still running. */
 export function entrySeconds(e: TimeEntry, now: number = Date.now()): number {
@@ -2845,7 +2843,10 @@ export function useScreenshots(opts: { day?: string; ownerId?: string } = {}) {
         .limit(500);
       if (ownerId) q = q.eq("owner_id", ownerId);
       if (day) {
-        q = q.gte("captured_at", `${day}T00:00:00`).lte("captured_at", `${day}T23:59:59.999`);
+        /* The person's own day, not UTC's. See localDayRange: without this a
+           shift worked before 8am in Manila filed itself under yesterday. */
+        const { from, to } = localDayRange(day);
+        q = q.gte("captured_at", from).lt("captured_at", to);
       }
       const { data, error } = await q;
       if (error) throw error;
