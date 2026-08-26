@@ -26,27 +26,24 @@ import type { EodReport } from "@/types/db";
 export const IMPORTED_EOD: EodReport[] = [];
 
 /**
- * The roster is the names, and nothing is retired from it any more.
+ * There is no roster export here any more, and that is the point.
  *
- * There used to be a RETIRED_ROSTER_NAMES set here, holding "Bryan Sumait". It
- * existed because his live account reported under a name generated from his
- * email, so the sheet name sat beside it as an empty duplicate chip and the
- * cheapest fix was to hide one of them.
+ * This file used to publish EOD_PEOPLE — the July sheet's eight names — and the
+ * EOD page treated it as a list of who works here, alongside the live
+ * membership list. Two lists of the same humans is what put "FJ Caballes 0.00%"
+ * directly above "fj.caballes 6.45%" in the compliance table: ten rows for
+ * eight people, and every total split down the middle.
  *
- * That treated the symptom in the wrong place. Migration 0061 makes the roster
- * the SOURCE of a profile's name — an address belonging to somebody on this
- * list gets this list's spelling, on account creation and as a one-time repair
- * — so the live account and the sheet row are one identity in the database
- * rather than two that the UI papers over. Hiding a roster name would now
- * hide that person's July history for no reason.
+ * Making the two lists agree (migration 0061 names accounts from the roster)
+ * collapses the pairs, but agreement is a thing that must KEEP being true, and
+ * it stops being true the first time somebody is invited who was never on the
+ * sheet. So the page reads membership and nothing else. Who works here is a
+ * question the workspace can answer; a spreadsheet from July cannot.
  *
- * If a duplicate chip ever appears again, it means an account's profile name
- * does not match its roster entry. The fix is a row in person_name_overrides,
- * not an entry here.
+ * EOD_DATA.people survives below as the key into the July coverage matrix,
+ * which is what it always actually was: column headings from an archive, not a
+ * statement about the present.
  */
-
-/** Everyone who has ever reported, in the sheet's column order. */
-export const EOD_PEOPLE: string[] = EOD_DATA.people;
 
 /** Every dated row the sheet defined, so reporting gaps stay visible. */
 export const EOD_DATES: string[] = EOD_DATA.dates;

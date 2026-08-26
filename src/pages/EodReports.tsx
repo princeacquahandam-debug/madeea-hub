@@ -18,7 +18,7 @@ import { Link } from "react-router-dom";
 import { Badge, PageHeader } from "@/components/ui";
 import { PageTour, usePageTour, type TourStep } from "@/components/PageTour";
 import { EOD_DATA, type CellStatus } from "@/data/eod";
-import { EOD_DATES, EOD_PEOPLE, IMPORTED_EOD } from "@/data/eodImport";
+import { EOD_DATES, IMPORTED_EOD } from "@/data/eodImport";
 import { atLeast, useDeleteEod, useEodReports, useMyRole, useSubmitEod, useTaskMutations, useTasks, useWorkspaceMembers } from "@/data/hooks";
 import { draftFromTasks, todayIso, type EodDraft as EodDraftState } from "@/lib/eodDraft";
 import type { EodReport } from "@/types/db";
@@ -195,21 +195,43 @@ export default function EodReports() {
   };
 
   /**
-   * Everyone who has ever reported: the sheet's eight, plus anyone who has
-   * submitted since.
+   * Everyone this page measures: the people who are actually on the team.
    *
-   * Deliberately NOT "every current workspace member". Completion divides by
-   * people.length, so folding in the live roster would let a new hire silently
-   * rewrite July's numbers (33/248 = 13.31% became 33/310 = 10.65% the moment
-   * two demo members appeared). July is settled history measured over eight
-   * people, and it has to keep matching the sheet the team already reads.
-   * A member shows up here the first time they submit.
+   * ── WHY THIS STOPPED BEING THE SHEET'S ROSTER ──────────────────────────
+   *
+   * It used to be the July sheet's eight names, plus anyone who had submitted
+   * since. That is TWO sources of identity for one person, and the compliance
+   * table showed exactly what two sources produce: "FJ Caballes 0.00%" from the
+   * sheet and "fj.caballes 6.45%" from his account, one above the other. Ten
+   * rows for eight humans, and the same split in the coverage grid, the
+   * leaderboard and the team total.
+   *
+   * Renaming the accounts (0061) makes the two sources AGREE, which collapses
+   * the pairs. But agreement between two lists is a thing that has to keep
+   * being true: the moment somebody is invited who is not on the sheet, or a
+   * name is spelled differently, the twins come back. So the second list is
+   * gone. Membership is the source, because membership is what the workspace
+   * actually knows about who works here.
+   *
+   * Reports still contribute names, for one reason: the July import has no
+   * owner_id, and a report whose author has left would otherwise vanish from
+   * the totals while its rows stayed in the browser below.
+   *
+   * Matched case-insensitively so "FJ Caballes" and "fj caballes" cannot be two
+   * people. The first spelling seen wins, and membership is read first, so the
+   * name on the page is the name on the account.
    */
   const people = useMemo(() => {
-    const names = [...EOD_PEOPLE];
-    for (const r of reports) if (r.person && !names.includes(r.person)) names.push(r.person);
-    return names;
-  }, [reports]);
+    const seen = new Map<string, string>();
+    const add = (raw: string | null | undefined) => {
+      const name = (raw ?? "").trim();
+      const key = name.toLowerCase();
+      if (key && !seen.has(key)) seen.set(key, name);
+    };
+    for (const m of members) add(m.name);
+    for (const r of reports) add(r.person);
+    return [...seen.values()];
+  }, [members, reports]);
 
   // Every dated row the sheet defined, extended by any day reported since.
   const dates = useMemo(() => {
