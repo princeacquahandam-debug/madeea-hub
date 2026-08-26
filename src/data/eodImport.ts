@@ -26,18 +26,27 @@ import type { EodReport } from "@/types/db";
 export const IMPORTED_EOD: EodReport[] = [];
 
 /**
- * Names from the sheet roster that are now LIVE accounts reporting under their
- * own profile name. The sheet copy is a stale duplicate. E.g. "Bryan Sumait"
- * from the July sheet showed as an empty chip next to the real account, which
- * submits as "Bryansumait Automate". Dropping it here removes the duplicate so
- * only the live identity shows. Add a name here whenever a sheet person becomes
- * an account under a different display name (or, alternatively, rename their
- * profile to match the roster. See supabase/fixes/2026-07-25-canonical-eod-names.sql).
+ * The roster is the names, and nothing is retired from it any more.
+ *
+ * There used to be a RETIRED_ROSTER_NAMES set here, holding "Bryan Sumait". It
+ * existed because his live account reported under a name generated from his
+ * email, so the sheet name sat beside it as an empty duplicate chip and the
+ * cheapest fix was to hide one of them.
+ *
+ * That treated the symptom in the wrong place. Migration 0061 makes the roster
+ * the SOURCE of a profile's name — an address belonging to somebody on this
+ * list gets this list's spelling, on account creation and as a one-time repair
+ * — so the live account and the sheet row are one identity in the database
+ * rather than two that the UI papers over. Hiding a roster name would now
+ * hide that person's July history for no reason.
+ *
+ * If a duplicate chip ever appears again, it means an account's profile name
+ * does not match its roster entry. The fix is a row in person_name_overrides,
+ * not an entry here.
  */
-const RETIRED_ROSTER_NAMES = new Set<string>(["Bryan Sumait"]);
 
 /** Everyone who has ever reported, in the sheet's column order. */
-export const EOD_PEOPLE: string[] = EOD_DATA.people.filter((n) => !RETIRED_ROSTER_NAMES.has(n));
+export const EOD_PEOPLE: string[] = EOD_DATA.people;
 
 /** Every dated row the sheet defined, so reporting gaps stay visible. */
 export const EOD_DATES: string[] = EOD_DATA.dates;
