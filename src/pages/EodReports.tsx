@@ -167,6 +167,20 @@ export default function EodReports() {
     setDraft(next);
   };
 
+  /**
+   * Typing a note is editing the report, so it marks the draft touched too.
+   *
+   * It used to be wired straight to setNotes, which left `touched` false, and
+   * the re-sync effect above only respects text it thinks you wrote. Anything
+   * that gave the board query a new result — a tab switch is enough, the tasks
+   * query refetches on window focus — re-ran that effect and overwrote the note
+   * with the empty string. Whoever was mid-sentence saw the box clear itself.
+   */
+  const editNotes = (next: string) => {
+    setTouched(true);
+    setNotes(next);
+  };
+
   /** Switching day discards an unsaved draft and loads that day's instead. */
   const changeReportDate = (next: string) => {
     setReportDate(next);
@@ -443,7 +457,7 @@ export default function EodReports() {
         draft={draft}
         onChange={editDraft}
         notes={notes}
-        onNotes={setNotes}
+        onNotes={editNotes}
         existing={myReportForDate}
         saving={submit.isPending}
         reportDate={reportDate}
