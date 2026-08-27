@@ -2271,11 +2271,20 @@ export function useTimeMutations() {
   const invalidate = () => qc.invalidateQueries({ queryKey: ["time_entries"] });
 
   const start = useMutation({
-    mutationFn: async (input: { task_id?: string | null; client_id?: string | null; note?: string | null }) => {
+    mutationFn: async (input: {
+      task_id?: string | null;
+      client_id?: string | null;
+      note?: string | null;
+      /* What the day is for. The clock-in gate collects it (lib/clockGates) and
+         it is asked once per work_date, so the second session of a day carries
+         the same answer forward rather than asking again. */
+      focus?: string | null;
+    }) => {
       const row = {
         task_id: input.task_id ?? null,
         client_id: input.client_id ?? null,
         note: input.note ?? null,
+        focus: input.focus?.trim() || null,
         started_at: new Date().toISOString(),
         work_date: workDate(),
       };
@@ -2297,10 +2306,21 @@ export function useTimeMutations() {
     /* Takes a reason, because clocking out early is the moment to ask. Asking
        later means asking someone to reconstruct a Tuesday, and asking through a
        dropdown of guessed options collects nothing worth reading. */
-    mutationFn: async (input: string | { id: string; early_reason?: string | null }) => {
-      const { id, early_reason } = typeof input === "string" ? { id: input, early_reason: null } : input;
+    mutationFn: async (
+      input: string | { id: string; early_reason?: string | null; eod_skipped_reason?: string | null },
+    ) => {
+      const { id, early_reason, eod_skipped_reason } =
+        typeof input === "string" ? { id: input, early_reason: null, eod_skipped_reason: null } : input;
       const ended_at = new Date().toISOString();
-      const patch = { ended_at, ...(early_reason?.trim() ? { early_reason: early_reason.trim() } : {}) };
+      /* eod_skipped_reason is written only when the EOD gate was stepped past,
+         and it is never defaulted to a string: null is what "the report was
+         filed" looks like, and a row that says "not given" for every normal
+         shift would make the exception impossible to find. */
+      const patch = {
+        ended_at,
+        ...(early_reason?.trim() ? { early_reason: early_reason.trim() } : {}),
+        ...(eod_skipped_reason?.trim() ? { eod_skipped_reason: eod_skipped_reason.trim() } : {}),
+      };
       if (!supabase) { updateDemoTime(id, patch); return; }
       const { error } = await supabase.from("time_entries").update(patch).eq("id", id);
       if (error) throw error;

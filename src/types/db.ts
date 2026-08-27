@@ -255,6 +255,10 @@ export interface TimeEntry {
   /** Why the EA clocked out before finishing the expected day. Free text on
       purpose: the reasons worth reading are the ones no dropdown anticipated. */
   early_reason?: string | null;
+  /** What the EA said this working day is for. Asked once per work_date. */
+  focus?: string | null;
+  /** Why this shift closed with no EOD. Null is the normal case: it was filed. */
+  eod_skipped_reason?: string | null;
   /** Joined for display; never written. */
   task_title?: string | null;
   client_name?: string | null;

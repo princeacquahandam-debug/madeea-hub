@@ -16,7 +16,9 @@
     "check:functions": "node scripts/check-functions.mjs",
     "check:schedule": "node --experimental-strip-types scripts/check-capture-schedule.mjs",
     "deploy:functions": "node scripts/deploy-functions.mjs",
-    "check:names": "node scripts/check-names.mjs"
+    "check:names": "node scripts/check-names.mjs",
+    "check:gates": "node --experimental-strip-types scripts/check-clock-gates.mjs",
+    "e2e:gates": "node scripts/e2e-clock-gates.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
