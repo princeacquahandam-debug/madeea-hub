@@ -110,6 +110,65 @@ check("a zero interval is floored at one minute", nextCaptureDelayMs(0, false) =
     stallSeen !== null, stallSeen === null ? "never fired" : `first at ${stallSeen} min`);
 }
 
+/**
+ * A capture that HANGS, which is different from one that fails, and was the
+ * difference between 48 screenshots and 5.
+ *
+ * The shift above makes every third capture REJECT, and proves the schedule
+ * survives that. Nothing modelled a capture that does neither: no resolve, no
+ * reject, just a fetch left open by a connection that went away mid-upload.
+ * That matters because the `busy` flag is lowered in a .finally(), and a
+ * promise that never settles never reaches one. One hung upload at 08:40 and
+ * shouldCapture answered "one is already running" for the remaining seven
+ * hours, while the UI still said capturing.
+ *
+ * Both versions are run here. The one without a timeout is the bug, kept so it
+ * cannot come back unnoticed.
+ */
+{
+  const BEAT = 15_000;
+  const SHIFT = 8 * 60 * 60_000;
+  const INTERVAL = 10;
+  const HANGS_ON = 3;             // the third capture of the day never settles
+
+  /** `releaseAfterMs` is Infinity for the old behaviour, the timeout for the fix. */
+  const shift = (releaseAfterMs) => {
+    let nextDue = 0;
+    let busyUntil = null;         // null when no capture is in flight
+    let attempts = 0;
+    let stored = 0;
+
+    for (let now = 0; now <= SHIFT; now += BEAT) {
+      // A capture in flight stops being "busy" once it settles, or once the
+      // timeout gives up on it. Without a timeout, never.
+      if (busyUntil !== null && now >= busyUntil) busyUntil = null;
+
+      if (shouldCapture(now, nextDue, { busy: busyUntil !== null, enabled: true, hasStream: true })) {
+        nextDue = now + nextCaptureDelayMs(INTERVAL, true);
+        attempts++;
+        if (attempts === HANGS_ON) {
+          busyUntil = now + releaseAfterMs;   // the upload that never comes back
+        } else {
+          stored++;                            // settles within the beat
+        }
+      }
+    }
+    return { attempts, stored };
+  };
+
+  const broken = shift(Infinity);
+  check("WITHOUT a timeout one hung upload ends the shift", broken.attempts <= 4,
+    `${broken.attempts} attempts, ${broken.stored} stored in 8 hours`);
+
+  const fixed = shift(90_000);
+  check("WITH a timeout the shift carries on past a hung upload",
+    fixed.attempts >= 44 && fixed.attempts <= 52, `${fixed.attempts} attempts`);
+  check("and only the hung capture is lost", fixed.stored === fixed.attempts - 1,
+    `${fixed.stored} stored of ${fixed.attempts}`);
+  check("the timeout costs less than one interval", 90_000 < INTERVAL * 60_000,
+    "90s against a 10 min interval");
+}
+
 // The guards, checked directly rather than inferred from the shift.
 check("a disabled account never captures",
   shouldCapture(999_999_999, 0, { busy: false, enabled: false, hasStream: true }) === false);
