@@ -85,6 +85,10 @@ Deno.serve(async (req) => {
     const timeZone = String(body.timeZone ?? "UTC");
     const description = String(body.description ?? "").trim();
     const location = String(body.location ?? "").trim();
+    /* Whether to attach a Google Meet room. Opt-in rather than always: a
+        "block focus time" event with a video call on it is noise, and Google
+        charges a conference create against the organiser either way. */
+    const addMeet = body.addMeet === true;
     const attendees: string[] = Array.isArray(body.attendees)
       ? body.attendees.map((a: unknown) => String(a).trim().toLowerCase()).filter((a: string) => EMAIL_RE.test(a))
       : [];
@@ -104,7 +108,11 @@ Deno.serve(async (req) => {
     const res = await fetch(
       // sendUpdates=all so invitees are actually told. Creating an event with
       // attendees who are never notified is worse than not inviting them.
-      "https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all&conferenceDataVersion=0",
+      /* conferenceDataVersion=1 is what makes Google honour conferenceData at
+         all. At 0 — which this used to send unconditionally — the field is
+         accepted and silently ignored, so the event is created with no room and
+         no error to explain it. */
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all&conferenceDataVersion=${addMeet ? 1 : 0}`,
       {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -115,11 +123,31 @@ Deno.serve(async (req) => {
           start: { dateTime: start.toISOString(), timeZone },
           end: { dateTime: end.toISOString(), timeZone },
           attendees: attendees.length ? attendees.map((email) => ({ email })) : undefined,
+          /* requestId is Google's idempotency key for the conference. A retry
+             carrying the same id returns the SAME room rather than minting a
+             second one, which is what makes a network-level retry safe here. */
+          conferenceData: addMeet
+            ? {
+                createRequest: {
+                  requestId: crypto.randomUUID(),
+                  conferenceSolutionKey: { type: "hangoutsMeet" },
+                },
+              }
+            : undefined,
         }),
       },
     );
 
     const ev = await res.json();
+
+    /* Where the call actually is. hangoutLink is the convenient form; the
+       entryPoints array is the authoritative one, and Google has returned a
+       conference with entry points and no hangoutLink. Read both. */
+    const meetUrl: string | null =
+      ev?.hangoutLink ??
+      ev?.conferenceData?.entryPoints?.find((e: { entryPointType?: string; uri?: string }) =>
+        e.entryPointType === "video")?.uri ??
+      null;
     if (!res.ok) {
       console.error("calendar insert failed", res.status, JSON.stringify(ev));
       if (res.status === 401 || res.status === 403) {
@@ -144,6 +172,7 @@ Deno.serve(async (req) => {
         all_day: false,
         location: location || null,
         html_link: ev.htmlLink ?? null,
+        hangout_link: meetUrl,
         organizer_email: ev.organizer?.email ?? null,
         description: description || null,
         calendar_id: "primary",
@@ -160,6 +189,13 @@ Deno.serve(async (req) => {
       ok: true,
       id: ev.id,
       htmlLink: ev.htmlLink ?? null,
+      hangoutLink: meetUrl,
+      /* Asked for and not given. A Workspace policy can forbid Meet creation,
+         and Google's answer is a perfectly successful event with no conference
+         on it. Reporting that as a clean success is how somebody sends out an
+         invitation to a call that does not exist. */
+      meetRequested: addMeet,
+      meetMissing: addMeet && !meetUrl,
       /* The event IS on Google at this point. If only the mirror failed, say so
          rather than reporting a clean success or a failure, because both would
          be wrong and one of them invites a duplicate booking. */

@@ -20,7 +20,7 @@
 process.env.TZ = "Asia/Manila";
 
 import { nextCaptureDelayMs, shouldCapture, stalledMinutes } from "../src/lib/imaging.ts";
-import { localDayRange, workDate } from "../src/lib/workday.ts";
+import { localDayRange, workDate, instantFor, endInstant } from "../src/lib/workday.ts";
 
 let failed = 0;
 const check = (name, passed, detail = "") => {
@@ -110,6 +110,65 @@ check("a zero interval is floored at one minute", nextCaptureDelayMs(0, false) =
     stallSeen !== null, stallSeen === null ? "never fired" : `first at ${stallSeen} min`);
 }
 
+/**
+ * A capture that HANGS, which is different from one that fails, and was the
+ * difference between 48 screenshots and 5.
+ *
+ * The shift above makes every third capture REJECT, and proves the schedule
+ * survives that. Nothing modelled a capture that does neither: no resolve, no
+ * reject, just a fetch left open by a connection that went away mid-upload.
+ * That matters because the `busy` flag is lowered in a .finally(), and a
+ * promise that never settles never reaches one. One hung upload at 08:40 and
+ * shouldCapture answered "one is already running" for the remaining seven
+ * hours, while the UI still said capturing.
+ *
+ * Both versions are run here. The one without a timeout is the bug, kept so it
+ * cannot come back unnoticed.
+ */
+{
+  const BEAT = 15_000;
+  const SHIFT = 8 * 60 * 60_000;
+  const INTERVAL = 10;
+  const HANGS_ON = 3;             // the third capture of the day never settles
+
+  /** `releaseAfterMs` is Infinity for the old behaviour, the timeout for the fix. */
+  const shift = (releaseAfterMs) => {
+    let nextDue = 0;
+    let busyUntil = null;         // null when no capture is in flight
+    let attempts = 0;
+    let stored = 0;
+
+    for (let now = 0; now <= SHIFT; now += BEAT) {
+      // A capture in flight stops being "busy" once it settles, or once the
+      // timeout gives up on it. Without a timeout, never.
+      if (busyUntil !== null && now >= busyUntil) busyUntil = null;
+
+      if (shouldCapture(now, nextDue, { busy: busyUntil !== null, enabled: true, hasStream: true })) {
+        nextDue = now + nextCaptureDelayMs(INTERVAL, true);
+        attempts++;
+        if (attempts === HANGS_ON) {
+          busyUntil = now + releaseAfterMs;   // the upload that never comes back
+        } else {
+          stored++;                            // settles within the beat
+        }
+      }
+    }
+    return { attempts, stored };
+  };
+
+  const broken = shift(Infinity);
+  check("WITHOUT a timeout one hung upload ends the shift", broken.attempts <= 4,
+    `${broken.attempts} attempts, ${broken.stored} stored in 8 hours`);
+
+  const fixed = shift(90_000);
+  check("WITH a timeout the shift carries on past a hung upload",
+    fixed.attempts >= 44 && fixed.attempts <= 52, `${fixed.attempts} attempts`);
+  check("and only the hung capture is lost", fixed.stored === fixed.attempts - 1,
+    `${fixed.stored} stored of ${fixed.attempts}`);
+  check("the timeout costs less than one interval", 90_000 < INTERVAL * 60_000,
+    "90s against a 10 min interval");
+}
+
 // The guards, checked directly rather than inferred from the shift.
 check("a disabled account never captures",
   shouldCapture(999_999_999, 0, { busy: false, enabled: false, hasStream: true }) === false);
@@ -177,6 +236,49 @@ check("a healthy rhythm never reads as stalled",
   check("an ordinary day is 24", hours("2026-08-26", "America/New_York") === 24);
 }
 
+
+/* ── Booking a wall-clock time into somebody else's calendar ──────────────
+ *
+ * The EA is in Manila (process.env.TZ above). The calendar may not be. "09:30"
+ * means 09:30 WHERE THE CALENDAR LIVES, and the browser's own zone must not
+ * leak into the answer — that mistake books the middle of the night and the
+ * response looks perfectly normal, which is why it needs a test rather than a
+ * careful reading.
+ */
+{
+  const at = (date, hhmm, tz) => instantFor(date, hhmm, tz);
+
+  check("09:30 in Manila is 01:30 UTC",
+    at("2026-08-26", "09:30", "Asia/Manila") === "2026-08-26T01:30:00.000Z",
+    at("2026-08-26", "09:30", "Asia/Manila"));
+
+  // The machine running this IS in Manila, so a London booking is the case
+  // where a browser-zone leak would show up.
+  check("09:30 in London during BST is 08:30 UTC",
+    at("2026-08-26", "09:30", "Europe/London") === "2026-08-26T08:30:00.000Z",
+    at("2026-08-26", "09:30", "Europe/London"));
+  check("and 09:30 in London during GMT is 09:30 UTC",
+    at("2026-01-15", "09:30", "Europe/London") === "2026-01-15T09:30:00.000Z",
+    "the same wall clock, four months apart, is a different instant");
+
+  check("09:30 in New York during EDT is 13:30 UTC",
+    at("2026-08-26", "09:30", "America/New_York") === "2026-08-26T13:30:00.000Z");
+  check("and during EST is 14:30 UTC",
+    at("2026-01-15", "09:30", "America/New_York") === "2026-01-15T14:30:00.000Z");
+
+  /* The bug this replaces: reading the string in the browser's zone. From
+     Manila that would put every one of the above at 01:30 UTC. */
+  const naive = new Date("2026-08-26T09:30").toISOString();
+  check("the naive reading really would have been wrong",
+    naive !== at("2026-08-26", "09:30", "Europe/London"),
+    `naive ${naive} vs London ${at("2026-08-26", "09:30", "Europe/London")}`);
+
+  check("a 45 minute meeting ends 45 minutes later",
+    endInstant("2026-08-26T01:30:00.000Z", 45) === "2026-08-26T02:15:00.000Z");
+  check("and a 90 minute one crosses the hour correctly",
+    endInstant("2026-08-26T23:30:00.000Z", 90) === "2026-08-27T01:00:00.000Z",
+    "over midnight, into the next day");
+}
 
 console.log(failed === 0 ? "\nSchedule is correct.\n" : `\n${failed} check(s) FAILED.\n`);
 process.exit(failed ? 1 : 0);

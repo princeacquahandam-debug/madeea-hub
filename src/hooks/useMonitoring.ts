@@ -112,6 +112,47 @@ const IDLE_AFTER_SECONDS = 60;
  */
 const HEARTBEAT_MS = 15_000;
 
+/**
+ * How long one capture may take before the schedule stops waiting for it.
+ *
+ * THIS IS THE BUG THAT COST A SHIFT ITS SCREENSHOTS. `capturingRef` is raised
+ * before a capture and lowered in a .finally(), so that two captures cannot
+ * overlap and double-count a period. But .finally() runs when a promise
+ * SETTLES, and the upload inside captureOnce is a fetch with no timeout on it:
+ * storage-js takes no AbortSignal, so a request that neither resolves nor
+ * rejects — a laptop that changed Wi-Fi mid-upload, a connection held open by a
+ * captive portal — leaves that flag raised forever.
+ *
+ * shouldCapture() then answers "no, one is already running" on every beat for
+ * the rest of the day. Capture does not stop, error, or say anything: the state
+ * is still "capturing", the stream is still live, and the screenshot count
+ * simply never moves again. Eight hours produced five.
+ *
+ * Ninety seconds is far longer than a 1280px JPEG needs on any connection worth
+ * working on, and far shorter than the ten minute interval, so a timeout can
+ * never eat the next capture's slot.
+ */
+const CAPTURE_TIMEOUT_MS = 90_000;
+
+/**
+ * The same promise, guaranteed to settle.
+ *
+ * Rejecting does not cancel the upload underneath — nothing can, the storage
+ * client takes no signal — it releases the SCHEDULE from waiting on it. A
+ * request still in flight that later succeeds is a duplicate screenshot at
+ * worst; one that hangs forever used to be every remaining screenshot of the
+ * shift.
+ */
+function withTimeout<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(
+      () => reject(new Error(`${label} did not finish within ${Math.round(ms / 1000)}s and was abandoned. The next one is still scheduled.`)),
+      ms,
+    );
+    work.then(resolve, reject).finally(() => window.clearTimeout(timer));
+  });
+}
+
 export function useMonitoring(opts: {
   timeEntryId: string | null;
   settings: MonitoringSettings;
@@ -451,24 +492,47 @@ export function useMonitoring(opts: {
       tally.current = { keystrokes: 0, mouseEvents: 0, lastInputAt: Date.now(), idleSeconds: 0 };
       setState("capturing");
 
-      /* One immediately, then on the schedule. Without the first, a shift
-         always has an unmonitored window at the front equal to the whole
-         interval, which is the easiest gap in the schedule to plan around.
-
-         The deadline is set before that first capture for the same reason the
-         heartbeat sets it first: if the opening screenshot fails, the ten
-         minute rhythm still starts. */
+      /* The deadline starts at the share, not at the first screenshot: if the
+         opening capture fails, the ten minute rhythm still runs. The opening
+         capture itself is fired by the effect below rather than from here. */
       scheduleNext();
-      void captureOnce(false).catch((e) => {
-        console.error("first capture failed", e);
-        setError(e instanceof Error ? e.message : String(e));
-      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setState(/denied|not allowed|permission/i.test(msg) ? "denied" : "off");
       setError(msg);
     }
   }, [captureOnce, scheduleNext, teardown]);
+
+  /**
+   * The opening screenshot, fired when there is both a share AND a session.
+   *
+   * Without one at the front, every shift starts with an unmonitored window the
+   * full length of the interval, which is the easiest gap in a schedule to plan
+   * around. This used to sit inside start(), which was right while capture could
+   * only be authorised from the Time page, mid-shift, with the session already
+   * open.
+   *
+   * Clocking in now asks for the share on the same click, because the browser
+   * grants getDisplayMedia only during a real gesture: it is either that click
+   * or a second one people forget to make. At that instant the session row does
+   * not exist yet — entryRef is still null — and captureOnce would return
+   * silently with nothing to attach a screenshot to, opening every shift with a
+   * ten minute hole.
+   *
+   * So the opening capture waits for the id rather than for the click. Once per
+   * share, both ways round: authorising mid-shift fires it immediately, because
+   * the id is already there.
+   */
+  const openingRef = useRef(false);
+  useEffect(() => {
+    if (state !== "capturing") { openingRef.current = false; return; }
+    if (openingRef.current || !timeEntryId) return;
+    openingRef.current = true;
+    void withTimeout(captureOnce(false), CAPTURE_TIMEOUT_MS, "The first screenshot").catch((e) => {
+      console.error("first capture failed", e);
+      setError(e instanceof Error ? e.message : String(e));
+    });
+  }, [state, timeEntryId, captureOnce]);
 
   /**
    * The heartbeat. Fires often, captures rarely.
@@ -514,7 +578,10 @@ export function useMonitoring(opts: {
       /* Before, not after. See above. */
       scheduleNext();
       capturingRef.current = true;
-      void captureOnce()
+      /* Timed out, because .finally() is what lowers the flag and a promise that
+         never settles never reaches one. See CAPTURE_TIMEOUT_MS: without this,
+         a single hung upload silently ended capture for the rest of the shift. */
+      void withTimeout(captureOnce(), CAPTURE_TIMEOUT_MS, "A screenshot")
         .catch((e) => {
           /* A capture that throws is reported and forgotten. The schedule is
              already set, so the next one goes ahead: an upload failing at

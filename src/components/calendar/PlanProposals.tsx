@@ -3,6 +3,7 @@ import { CalendarPlus, Check, Loader2, AlertTriangle, ExternalLink, Link2 } from
 import { useCreateCalendarEvent, useGoogleConnection } from "@/data/hooks";
 import { reconnectMail } from "@/hooks/useSendEmail";
 import { zoneLabel } from "@/lib/calendarTime";
+import { instantFor } from "@/lib/workday";
 import { parseProposals, type Proposal } from "@/lib/planProposals";
 import { cn } from "@/lib/utils";
 
@@ -25,20 +26,6 @@ export { parseProposals, type Proposal };
  * WHEN PARSING FAILS, THE PROSE STILL SHOWS. A missing or malformed block means
  * no buttons, never invented ones.
  */
-
-/** HH:MM on a date, in a named zone, as an instant. */
-function instantFor(date: string, hhmm: string, tz: string): string {
-  const [h, m] = hhmm.split(":").map(Number);
-  const [y, mo, d] = date.split("-").map(Number);
-  const guess = Date.UTC(y, mo - 1, d, h, m);
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hour12: false,
-  }).formatToParts(new Date(guess));
-  const p = Object.fromEntries(parts.map((x) => [x.type, x.value])) as Record<string, string>;
-  const asZone = Date.UTC(+p.year, +p.month - 1, +p.day, Number(p.hour) % 24, +p.minute);
-  return new Date(guess - (asZone - guess)).toISOString();
-}
 
 export function PlanProposals({ proposals, date, tz }: {
   proposals: Proposal[];

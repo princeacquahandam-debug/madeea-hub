@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Play, Square, CameraOff } from "lucide-react";
 import { entrySeconds, useTimeEntries, useTimeMutations, useEffectiveTimeSettings } from "@/data/hooks";
 import { useMonitoringContext } from "@/store/monitoringContext";
+import { useClockGate } from "@/components/ClockGates";
 import { useNow } from "@/hooks/useNow";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,26 @@ export function ClockControl() {
 
   const running = entries.find((e) => !e.ended_at);
   const now = useNow(running ? 1000 : null);
+
+  /**
+   * The clock is gated on reporting: clocking in states the day's focus,
+   * clocking out files that day's EOD. Both rules and both dialogs live in
+   * components/ClockGates, so this control and the Time page cannot drift into
+   * two different sets of requirements for the same act.
+   */
+  const gate = useClockGate({
+    onClockIn: (focus) => {
+      start.mutate({ focus });
+      /* The share is asked for on this same click. getDisplayMedia needs a live
+         user gesture, and this runs inside the dialog's own button handler with
+         nothing awaited before it, so the gesture is still there. */
+      if (settings?.screenshotsEnabled !== false && capture.state !== "capturing") void capture.start();
+    },
+    onClockOut: (skipped) => {
+      if (!running) return;
+      stop.mutate({ id: running.id, eod_skipped_reason: skipped });
+    },
+  });
 
   const label = (() => {
     if (!running) return "Clock in";
@@ -65,7 +86,7 @@ export function ClockControl() {
             ? "border-emerald-500/60 text-emerald-400 hover:bg-emerald-500/10"
             : "border-border text-muted hover:bg-[var(--chip-bg)] hover:text-text",
         )}
-        onClick={() => (running ? stop.mutate(running.id) : start.mutate({}))}
+        onClick={() => (running ? gate.requestClockOut(running) : gate.requestClockIn())}
         // Right-click / long-press goes to the full timesheet rather than
         // hijacking the primary click, which has to stay one-tap.
         onContextMenu={(e) => { e.preventDefault(); nav("/time"); }}
@@ -89,6 +110,9 @@ export function ClockControl() {
           <span className="hidden md:inline">No screenshots</span>
         </button>
       )}
+
+      {/* Nothing renders until a gate actually stops somebody. */}
+      {gate.dialog}
     </div>
   );
 }

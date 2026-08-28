@@ -5,6 +5,7 @@ import { PageSkeleton } from "@/components/Skeleton";
 import { AmbientBackground } from "./AmbientBackground";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
+import { Footer } from "./Footer";
 import { MadelineRail } from "./MadelineRail";
 import { AssistantWidget } from "@/components/AssistantWidget";
 import { FloatingSop } from "@/components/FloatingSop";
@@ -64,6 +65,10 @@ export function AppShell() {
                 <Outlet />
               </Suspense>
             </div>
+            {/* Outside the keyed wrapper, so it does not re-animate on every
+                route change, and inside <main>, which is the element that
+                scrolls. */}
+            <Footer />
           </main>
           <MadelineRail />
         </div>

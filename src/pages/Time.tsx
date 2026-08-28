@@ -8,6 +8,7 @@ import { atLeast,
 import type { TimeEntry } from "@/types/db";
 import { useNow } from "@/hooks/useNow";
 import { useMonitoringContext } from "@/store/monitoringContext";
+import { useClockGate } from "@/components/ClockGates";
 import type { MonitoringStatus } from "@/hooks/useMonitoring";
 import { useClientContext } from "@/store/clientContext";
 
@@ -131,20 +132,67 @@ export default function Time() {
     return days * dailySeconds;
   }, [range, from, to, dailySeconds]);
 
-  function clockIn() {
-    start.mutate({ client_id: clientId || null, note: note.trim() || null });
-    setNote("");
-  }
+  /**
+   * Clocking in and out, both gated on reporting (components/ClockGates).
+   *
+   * ── THE SCREEN SHARE RIDES ON THE SAME CLICK ─────────────────────────────
+   * getDisplayMedia is granted only during a real user gesture, so the share
+   * has to be requested from a click somebody is already making. It used to be
+   * a separate button further down this page, and a shift where nobody pressed
+   * it ran for hours recording nothing — the warning badge in the header exists
+   * because that kept happening.
+   *
+   * THE PROMPT ITSELF CANNOT BE REMOVED. No web page can photograph a screen
+   * without the browser asking first, and no setting, permission or flag in
+   * this codebase changes that. All that can be done is to stop it being a step
+   * of its own that is easy to skip. A desktop agent is the only thing that
+   * removes it, which is why the data model already allows for one
+   * (source='agent' beside source='browser').
+   *
+   * Clock-in fires FIRST, so declining the share still records attendance, and
+   * capture.start() runs in the same handler with nothing awaited in between:
+   * one await and the gesture has expired, and the share is refused without a
+   * prompt ever appearing.
+   */
+  const gate = useClockGate({
+    onClockIn: (focus) => {
+      start.mutate({ client_id: clientId || null, note: note.trim() || null, focus });
+      setNote("");
+      if (effective?.screenshotsEnabled !== false && capture.state !== "capturing") {
+        void capture.start();
+      }
+    },
+    onClockOut: (skipped) => afterEod(skipped),
+  });
 
-  function clockOut() {
+  /* Carried between the two questions asked at clock-out. The EOD gate answers
+     first and hands its verdict here; the early-finish question may then need
+     asking, and the answer to the first has to survive that second round trip
+     or a short day would quietly lose the fact that its report was skipped. */
+  const [pendingSkip, setPendingSkip] = useState<string | null>(null);
+
+  /** Where the EOD gate hands back. This order on purpose: a short day still
+      owes a report, and asking both things at once gets one of them answered. */
+  function afterEod(skipped: string | null) {
     if (!running) return;
     const short = todaySeconds < dailySeconds;
     // Ask at the moment of clocking out, not later. Reconstructing why you left
     // early on a Tuesday three weeks ago produces fiction, not a reason.
-    if (short && !askEarly) { setAskEarly(true); return; }
-    stop.mutate({ id: running.id, early_reason: short ? earlyReason.trim() || null : null });
+    if (short && !askEarly) { setPendingSkip(skipped); setAskEarly(true); return; }
+    finishClockOut(skipped);
+  }
+
+  function finishClockOut(skipped: string | null) {
+    if (!running) return;
+    const short = todaySeconds < dailySeconds;
+    stop.mutate({
+      id: running.id,
+      early_reason: short ? earlyReason.trim() || null : null,
+      eod_skipped_reason: skipped,
+    });
     setEarlyReason("");
     setAskEarly(false);
+    setPendingSkip(null);
   }
 
   return (
@@ -177,7 +225,7 @@ export default function Time() {
             </div>
 
             <div className="ml-auto flex flex-col items-end gap-2">
-              <button className="btn-primary" onClick={clockOut} disabled={stop.isPending}>
+              <button className="btn-primary" onClick={() => gate.requestClockOut(running)} disabled={stop.isPending}>
                 <Square size={15} /> Clock out
               </button>
               {screenshotsOn && <CaptureBadge capture={capture} minutes={settings?.screenshot_minutes ?? 10} />}
@@ -208,7 +256,7 @@ export default function Time() {
                 value={note} onChange={(e) => setNote(e.target.value)}
               />
             </div>
-            <button className="btn-primary shrink-0" onClick={clockIn} disabled={start.isPending}>
+            <button className="btn-primary shrink-0" onClick={gate.requestClockIn} disabled={start.isPending}>
               <Play size={15} /> Clock in
             </button>
           </div>
@@ -225,9 +273,9 @@ export default function Time() {
                 id="early-reason" className="input min-w-0 flex-1" autoFocus
                 placeholder="e.g. approved half day, power outage, medical"
                 value={earlyReason} onChange={(e) => setEarlyReason(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") clockOut(); }}
+                onKeyDown={(e) => { if (e.key === "Enter") finishClockOut(pendingSkip); }}
               />
-              <button className="btn-primary shrink-0" onClick={clockOut} disabled={stop.isPending}>
+              <button className="btn-primary shrink-0" onClick={() => finishClockOut(pendingSkip)} disabled={stop.isPending}>
                 Clock out
               </button>
               <button className="btn-ghost shrink-0 border border-border" onClick={() => setAskEarly(false)}>
