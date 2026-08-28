@@ -121,16 +121,32 @@ export const CURATED_QUICK_ACTIONS: Record<string, QuickActionSchema> = {
 
   // ---- Meetings and calendar.
   "Meeting Preparation": {
-    howTo: "Describe the meeting and get the agenda, the pre-read, or the prep checklist.",
-    example: "Agenda, Q3 board meeting, 90 minutes, 6 attendees",
+    howTo: "Describe the meeting, get the agenda written, then put it in the calendar with a Meet link.",
+    example: "Agenda, Q3 board meeting, 26 August 14:00, 90 minutes",
     fields: [
       // Absorbs Write Meeting Agenda, Generate Meeting Brief and Meeting Prep
       // Automation, which were three views of the same preparation.
       KIND("output", "What you need", ["Timed agenda", "Pre-read brief", "Prep checklist"]),
-      { name: "meeting", label: "The meeting", type: "text", placeholder: "e.g. Weekly leadership sync, Q3 board meeting" },
-      { name: "topics", label: "Topics and attendees", type: "textarea",
+      { name: "meeting", label: "The meeting", type: "text", placeholder: "e.g. Weekly leadership sync, Q3 board meeting",
+        help: "Becomes the event title if you book it." },
+      { name: "topics", label: "Topics and context", type: "textarea",
         placeholder: "What has to be covered, who is in the room, and anything unresolved from last time." },
-      { name: "length", label: "Length", type: "text", placeholder: "e.g. 30 minutes, 90 minutes" },
+      /* ── The scheduling half, and why it is real fields ─────────────────
+         Length used to be free text ("e.g. 30 minutes") because nothing did
+         anything with it. It feeds a booking now, so a date, a start and a
+         duration have to be answerable rather than described: "next Tuesday
+         morning" cannot be turned into an instant, and guessing one puts a
+         meeting in the wrong place with a confident timestamp on it.
+
+         All optional. The agenda is still worth generating for a meeting that
+         already exists in somebody's calendar; leaving these blank simply
+         means there is nothing to book. */
+      { name: "date", label: "Date", type: "date", help: "Leave blank to just write the agenda." },
+      { name: "time", label: "Start time", type: "time" },
+      { name: "duration", label: "How long", type: "duration" },
+      { name: "attendees", label: "Invite (email addresses)", type: "text",
+        placeholder: "rowena@client.com, james@client.com",
+        help: "Comma separated. They get a real Google invitation." },
     ],
   },
   "Plan the Calendar": {

@@ -46,3 +46,39 @@ export function localDayRange(day: string): { from: string; to: string } {
   next.setDate(next.getDate() + 1);
   return { from: start.toISOString(), to: next.toISOString() };
 }
+
+/**
+ * A wall-clock time on a date, in a named zone, as an absolute instant.
+ *
+ * WHY THIS IS NOT `new Date(`${date}T${hhmm}`)`. That reads the string in the
+ * BROWSER's zone. An EA in Manila booking 09:30 into a calendar kept in London
+ * would book 01:30, and the event would look perfectly normal in the response —
+ * a confident ISO timestamp in the wrong zone books the middle of the night.
+ *
+ * The trick is to guess the instant as if the wall clock were UTC, ask the
+ * target zone what wall clock that instant actually shows, and shift by the
+ * difference. One round trip through Intl handles every offset and both DST
+ * directions without a table of rules to maintain.
+ *
+ * Lifted out of components/calendar/PlanProposals when meeting prep started
+ * booking events too. Two copies of a timezone conversion is two chances to fix
+ * only one of them, and this file exists precisely because date arithmetic here
+ * has been wrong in production twice.
+ */
+export function instantFor(date: string, hhmm: string, tz: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const [y, mo, d] = date.split("-").map(Number);
+  const guess = Date.UTC(y, mo - 1, d, h, m);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(new Date(guess));
+  const p = Object.fromEntries(parts.map((x) => [x.type, x.value])) as Record<string, string>;
+  const asZone = Date.UTC(+p.year, +p.month - 1, +p.day, Number(p.hour) % 24, +p.minute);
+  return new Date(guess - (asZone - guess)).toISOString();
+}
+
+/** `instantFor` plus a length in minutes, for booking a block of known duration. */
+export function endInstant(startIso: string, minutes: number): string {
+  return new Date(Date.parse(startIso) + minutes * 60_000).toISOString();
+}

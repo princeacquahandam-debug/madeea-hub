@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PlanProposals, parseProposals } from "@/components/calendar/PlanProposals";
+import { BookMeeting } from "@/components/calendar/BookMeeting";
 import { useCalendarTimezone } from "@/data/hooks";
 import { DurationSlider } from "@/components/DurationSlider";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,9 @@ export default function QuickActions() {
   const schema = active ? found ?? DEFAULT_QUICK_ACTION : null;
   const example = found?.example;
   const plan = active === "Plan the Calendar" && output ? parseProposals(output) : null;
+  /* Same seam as the plan above: the prose renders, and where the action can
+     lead somewhere real, the thing that does it renders under it. */
+  const prepped = active === "Meeting Preparation" && output;
 
   function open(action: string) {
     setActive(action);
@@ -160,7 +164,10 @@ export default function QuickActions() {
                 )}
               </>
             ) : (
-              <OutputViewer output={output} title={active ?? "AI Output"} />
+              <>
+                <OutputViewer output={output} title={active ?? "AI Output"} />
+                {prepped && <BookMeeting values={values} agenda={output} tz={planTz} />}
+              </>
             )}
             <button className="btn-ghost border border-border" onClick={() => setOutput("")}>
               <ArrowLeft size={15} /> Back to inputs
@@ -178,10 +185,10 @@ export default function QuickActions() {
                       value={values[field.name] ?? ""}
                       onChange={(v) => setValues((x) => ({ ...x, [field.name]: v }))}
                     />
-                  ) : field.type === "date" ? (
+                  ) : field.type === "date" || field.type === "time" ? (
                     <input
                       id={`qa-${field.name}`}
-                      type="date"
+                      type={field.type}
                       className="input"
                       value={values[field.name] ?? ""}
                       onChange={(e) => setValues((v) => ({ ...v, [field.name]: e.target.value }))}

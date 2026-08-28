@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
-import { Upload, FileText, Trash2, Download, Bookmark, Loader2 } from "lucide-react";
+import { Upload, FileText, Trash2, Download, Bookmark, Loader2, Users, Lock } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { fileUrl, useClients, useFileMutations, useFiles, useSaved, useSavedMutations } from "@/data/hooks";
-import type { WorkspaceFile } from "@/types/db";
+import type { WorkspaceFile, KbScope } from "@/types/db";
 import { cn } from "@/lib/utils";
 
 /**
@@ -28,6 +28,10 @@ export default function Uploads() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [client, setClient] = useState("");
+  /* Which shelf is open, and where an upload lands. Team first because it is
+     the one a covering EA can find; a personal shelf nobody else can read is
+     the exception, so it is the one you choose. */
+  const [scope, setScope] = useState<KbScope>("team");
   const [error, setError] = useState<string | null>(null);
 
   const savedIds = new Set(saved.filter((s) => s.kind === "file").map((s) => s.target_id));
@@ -41,7 +45,7 @@ export default function Uploads() {
         setError(`"${f.name}" is ${humanSize(f.size)}, the limit is 50 MB.`);
         continue;
       }
-      upload.mutate({ file: f, clientId: client || null });
+      upload.mutate({ file: f, clientId: client || null, scope });
     }
   };
 
@@ -50,11 +54,20 @@ export default function Uploads() {
     if (url) window.open(url, "_blank", "noopener");
   };
 
+  /* Filtered here rather than in the query: both shelves arrive in one fetch
+     (the row policies already withhold other people's personal files), so
+     switching tabs is instant and does not re-hit the network. */
+  const shown = files.filter((f) => (f.scope ?? "team") === scope);
+
   return (
     <div>
       <PageHeader
-        title="Uploads"
-        subtitle="Documents the whole team can find, not a link in someone's inbox."
+        title="Knowledge base"
+        subtitle={
+          scope === "team"
+            ? "Documents the whole team can find, not a link in someone's inbox."
+            : "Your own shelf. Nobody else can open these, administrators included."
+        }
         action={
           <button className="btn-primary" onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
             {upload.isPending ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
@@ -64,6 +77,33 @@ export default function Uploads() {
       />
 
       <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => { send(e.target.files); e.target.value = ""; }} />
+
+      {/* The two shelves. A count on each, because "is it in Team or Personal"
+          is the question somebody asks when a file is not where they expected. */}
+      <div className="mb-4 flex gap-1.5">
+        {([
+          { key: "team" as KbScope, label: "Team", icon: Users },
+          { key: "personal" as KbScope, label: "Personal", icon: Lock },
+        ]).map(({ key, label, icon: Icon }) => {
+          const n = files.filter((f) => (f.scope ?? "team") === key).length;
+          return (
+            <button
+              key={key}
+              onClick={() => setScope(key)}
+              aria-pressed={scope === key}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                scope === key
+                  ? "border-accent bg-accent/15 text-accent-soft"
+                  : "border-border text-muted hover:text-zinc-100",
+              )}
+            >
+              <Icon size={13} /> {label}
+              <span className="text-faint">{n}</span>
+            </button>
+          );
+        })}
+      </div>
 
       {/* Drop zone. Drag-and-drop is the way people actually move a file, and a
           button alone makes them hunt for it. */}
@@ -85,23 +125,32 @@ export default function Uploads() {
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
-        <p className="mt-2 text-[11px] text-faint">Up to 50 MB each.</p>
+        <p className="mt-2 text-[11px] text-faint">
+          Up to 50 MB each · lands on{" "}
+          <span className={scope === "personal" ? "text-amber-300" : "text-zinc-300"}>
+            {scope === "personal" ? "your personal shelf" : "the team shelf"}
+          </span>
+        </p>
       </div>
 
       {error && <div className="card mb-4 border-red-500/40 bg-red-500/5 p-3 text-sm text-red-300">{error}</div>}
 
       {isLoading && <p className="text-sm text-faint">Loading…</p>}
 
-      {!isLoading && files.length === 0 && (
+      {!isLoading && shown.length === 0 && (
         <div className="card p-8 text-center">
           <FileText size={24} className="mx-auto mb-3 text-faint" />
-          <p className="font-medium">No files yet</p>
-          <p className="mt-1 text-sm text-faint">Contracts, briefs, brand assets. Anything the next EA will need.</p>
+          <p className="font-medium">{scope === "team" ? "No team files yet" : "Nothing on your shelf yet"}</p>
+          <p className="mt-1 text-sm text-faint">
+            {scope === "team"
+              ? "Contracts, briefs, brand assets. Anything the next EA will need."
+              : "Drafts, notes, anything not ready to be shared."}
+          </p>
         </div>
       )}
 
       <div className="card divide-y divide-border">
-        {files.map((f) => {
+        {shown.map((f) => {
           const isSaved = savedIds.has(f.id);
           const gone = !f.storage_key && !f.local_url;
           return (

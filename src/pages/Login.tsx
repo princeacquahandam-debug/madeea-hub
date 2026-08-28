@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AmbientBackground } from "@/components/layout/AmbientBackground";
 
@@ -109,6 +110,15 @@ export default function Login() {
 
         <p className="mt-5 text-center text-xs text-faint">
           Access is invite-only. Need an account? Contact your MadeEA admin.
+        </p>
+
+        {/* Before the password field, not buried in Settings. This is a
+            monitoring product, and the page where somebody signs into one is
+            the page where they should be able to read what it records. */}
+        <p className="mt-3 text-center text-xs text-faint">
+          <Link to="/privacy" className="hover:text-muted hover:underline">Privacy</Link>
+          <span className="mx-1.5">·</span>
+          <Link to="/terms" className="hover:text-muted hover:underline">Terms</Link>
         </p>
       </div>
     </div>

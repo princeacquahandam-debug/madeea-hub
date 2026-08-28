@@ -176,6 +176,9 @@ export interface Credential {
 }
 
 /** A document the workspace owns, rather than a link that rots (migration 0031). */
+/** Which knowledge base a file belongs to (migration 0067). */
+export type KbScope = "team" | "personal";
+
 export interface WorkspaceFile {
   id: string;
   folder_id: string | null;
@@ -186,6 +189,8 @@ export interface WorkspaceFile {
   size_bytes: number;
   storage_key: string;
   uploaded_by: string | null;
+  /** Which shelf: the shared team KB, or the uploader's own. */
+  scope: KbScope;
   created_at: string;
   /** Demo mode only: an in-memory object URL, gone on reload. */
   local_url?: string | null;

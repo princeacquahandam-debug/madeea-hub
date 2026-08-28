@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { edgeFailure } from "@/lib/edgeError";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MailConnection, MailProvider, Integration, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MailConnection, MailProvider, Integration, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, KbScope, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
@@ -555,6 +555,20 @@ export interface NewEventInput {
   description?: string;
   location?: string;
   attendees?: string[];
+  /** Attach a Google Meet room. Off unless asked: not every event is a call. */
+  addMeet?: boolean;
+}
+
+export interface CreatedEvent {
+  ok: boolean;
+  id: string;
+  htmlLink: string | null;
+  /** The room, when one was asked for and Google granted it. */
+  hangoutLink?: string | null;
+  meetRequested?: boolean;
+  /** Asked for a room and did not get one — a Workspace policy can refuse. */
+  meetMissing?: boolean;
+  warning?: string;
 }
 
 export function useCreateCalendarEvent() {
@@ -570,7 +584,7 @@ export function useCreateCalendarEvent() {
         err.needsScope = f.status === 403;
         throw err;
       }
-      return data as { ok: boolean; id: string; htmlLink: string | null; warning?: string };
+      return data as CreatedEvent;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["calendar"] });
@@ -1998,7 +2012,7 @@ export function useFiles() {
       if (!supabase) return loadDemoFiles();
       const { data, error } = await supabase
         .from("files")
-        .select("id,folder_id,client_id,task_id,name,mime_type,size_bytes,storage_key,uploaded_by,created_at")
+        .select("id,folder_id,client_id,task_id,name,mime_type,size_bytes,storage_key,uploaded_by,scope,created_at")
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) return []; // migration not applied yet
@@ -2013,13 +2027,19 @@ export function useFileMutations() {
   const invalidate = () => qc.invalidateQueries({ queryKey: ["files"] });
 
   const upload = useMutation({
-    mutationFn: async ({ file, clientId }: { file: File; clientId?: string | null }) => {
+    mutationFn: async ({ file, clientId, scope = "team" }: {
+      file: File;
+      clientId?: string | null;
+      /** Which shelf it lands on. Team unless asked, because the shared KB is
+          the one a covering EA can find. */
+      scope?: KbScope;
+    }) => {
       if (!supabase) {
         addDemoFile(
           {
             id: demoId(), folder_id: null, client_id: clientId ?? null, task_id: null,
             name: file.name, mime_type: file.type || null, size_bytes: file.size,
-            storage_key: "", uploaded_by: "demo", created_at: new Date().toISOString(),
+            storage_key: "", uploaded_by: "demo", scope, created_at: new Date().toISOString(),
           },
           URL.createObjectURL(file),
         );
@@ -2027,9 +2047,22 @@ export function useFileMutations() {
       }
       /* Path carries the original name so a download does not arrive called
          "8f3a-2b1c". Prefixed with a timestamp because two people uploading
-         "invoice.pdf" must not overwrite each other. */
+         "invoice.pdf" must not overwrite each other.
+
+         FOLDERED BY UPLOADER, and that part is load-bearing rather than tidy.
+         0067's storage insert policy is
+         (storage.foldername(name))[1] = auth.uid()::text — the one rule that
+         cannot consult the files row, because at upload time the row does not
+         exist yet. A flat key is refused by the bucket now.
+
+         The folder does NOT decide the shelf: a team file and a personal one
+         both live under their uploader. Which shelf it is on is the row's
+         business, and the row is what read access is decided by. */
+      const { data: u } = await supabase.auth.getUser();
+      const uid = u.user?.id;
+      if (!uid) throw new Error("Sign in again before uploading.");
       const safe = file.name.replace(/[^\w.\-]+/g, "_");
-      const key = `${Date.now()}-${safe}`;
+      const key = `${uid}/${Date.now()}-${safe}`;
       const up = await supabase.storage.from("workspace-files").upload(key, file, {
         contentType: file.type || "application/octet-stream",
         upsert: false,
@@ -2037,7 +2070,7 @@ export function useFileMutations() {
       if (up.error) throw up.error;
       const { error } = await supabase.from("files").insert({
         name: file.name, mime_type: file.type || null, size_bytes: file.size,
-        storage_key: key, client_id: clientId ?? null,
+        storage_key: key, client_id: clientId ?? null, scope,
       });
       if (error) throw error;
     },
@@ -2211,6 +2244,7 @@ export async function recordingUrl(r: Recording): Promise<string | null> {
    in Supabase and React Query. Re-exported because pages import them from here,
    and because which module they live in is not the interesting part. */
 import { workDate, localDayRange } from "@/lib/workday";
+import { emitAlert } from "@/lib/alerts";
 export { workDate, localDayRange };
 
 /** Seconds on an entry; counts up live while it is still running. */
@@ -2266,6 +2300,78 @@ export function useTimeEntries() {
   });
 }
 
+/**
+ * Tell the clients this EA leads that their day has started.
+ *
+ * ── WHY AN EVENT AND NOT A MESSAGE ───────────────────────────────────────
+ * This does not know, and must not know, where the notice ends up. The webhook
+ * base and key are server env vars; in the bundle they would be public, and any
+ * page on the internet could post into the team's chat. So the browser says
+ * what happened and alert_routes decides the destination (lib/alerts, 0036).
+ * Sending it to Slack instead of Teams is then an n8n node, not a deploy.
+ *
+ * ── "THEIR EA" IS lead_ea_id ─────────────────────────────────────────────
+ * The accountable EA for a client, from 0015, already used to count clients per
+ * member. Not time_entries.client_id: the header clock is one tap by design and
+ * passes no client at all, so keying off it would notify nobody on most of the
+ * clock-ins people actually make.
+ *
+ * ── ONCE A DAY, ENFORCED BY THE DATABASE ─────────────────────────────────
+ * The subject is the EA and the working day, so the unique index on
+ * (workspace, event, subject) collapses every clock-in that day into one
+ * notice. Coming back from lunch does not tell a client their assistant has
+ * started work for a second time. That guarantee is in the index, not in a
+ * flag somebody could forget to check.
+ *
+ * ── IT CANNOT BREAK CLOCKING IN ──────────────────────────────────────────
+ * Every failure is swallowed. An EA whose shift will not start because a
+ * notification failed is a far worse outcome than a client who was not told,
+ * and the failure is already recorded server-side in alert_deliveries, which is
+ * where somebody would look for it.
+ */
+async function announceTimeIn(day: string): Promise<void> {
+  if (!supabase) return;
+  try {
+    const { data: u } = await supabase.auth.getUser();
+    const uid = u.user?.id;
+    if (!uid) return;
+
+    /* Cheap guard against re-querying on every clock-in of the same day. The
+       permanent dedupe is the server's; this only saves the round trips. */
+    const key = `${uid}:${day}`;
+    if (announced.has(key)) return;
+    announced.add(key);
+
+    const { data: mine } = await supabase
+      .from("clients")
+      .select("id,name,email,preferred_channel")
+      .eq("lead_ea_id", uid);
+    // Nobody to tell. Not an error, and not worth a delivery row.
+    if (!mine?.length) return;
+
+    /* The name from the profile, not from user_metadata. 0062 is the whole
+       argument: metadata can be blank or stale, and this one is read by a
+       customer rather than by a colleague who would shrug at the wrong
+       spelling. */
+    const { data: profile } = await supabase
+      .from("profiles").select("full_name").eq("id", uid).maybeSingle();
+
+    void emitAlert("ea_timed_in", key, {
+      ea_user_id: uid,
+      ea_name: profile?.full_name ?? null,
+      work_date: day,
+      started_at: new Date().toISOString(),
+      clients: mine,
+    });
+  } catch {
+    /* Deliberately silent. See the note above: this must never be the reason
+       somebody cannot start their shift. */
+  }
+}
+
+/** Emitted subjects this browser session has already handled. */
+const announced = new Set<string>();
+
 export function useTimeMutations() {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: ["time_entries"] });
@@ -2298,6 +2404,7 @@ export function useTimeMutations() {
       }
       const { error } = await supabase.from("time_entries").insert(row);
       if (error) throw error;
+      await announceTimeIn(row.work_date);
     },
     onSettled: invalidate,
   });
@@ -2583,7 +2690,12 @@ export function useAlertRoutes() {
     queryFn: async () => {
       // Demo mode has no server to route anything to, so it reports the honest
       // state rather than a switch that pretends to work.
-      if (!supabase) return [{ event: "sla_breach", channel: "none", target: null, audience: "internal", is_active: false }];
+      if (!supabase) {
+        return [
+          { event: "sla_breach", channel: "none", target: null, audience: "internal", is_active: false },
+          { event: "ea_timed_in", channel: "none", target: null, audience: "client", is_active: false },
+        ];
+      }
       const { data, error } = await supabase
         .from("alert_routes").select("event,channel,target,audience,is_active");
       if (error) return []; // migration not applied yet; Settings says so

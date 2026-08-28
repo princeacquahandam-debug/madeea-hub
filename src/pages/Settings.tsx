@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTour } from "@/store/tour";
 import { atLeast, useMyRole } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
-import { useAlertRoutes, useAlertRouteMutations } from "@/data/hooks";
+import { useAlertRoutes, useAlertRouteMutations, type AlertRoute } from "@/data/hooks";
 import { useFollowUpSettings } from "@/store/followupSettings";
 import { useUI } from "@/store/ui";
 import { APP_VERSION } from "@/lib/changelog";
@@ -431,14 +431,15 @@ function AlertRouting() {
   const { data: role } = useMyRole();
   const isAdmin = atLeast(role, "admin");
   const sla = routes.find((r) => r.event === "sla_breach");
+  const timedIn = routes.find((r) => r.event === "ea_timed_in");
 
   return (
     <section className="card p-5">
       <p className="field-label">Alerts</p>
       <p className="mb-4 text-sm text-muted">
-        Where the app reaches out when something needs attention. Breach alerts go to the team,
-        not to the client: telling a client we were late, at the moment we are late, is not a
-        report. Client-facing reporting is the Scoreboard.
+        Where the app reaches out when something happens. Each one is off and pointing nowhere
+        until an admin chooses a destination, and the webhook base and key stay on the server —
+        never in the browser.
       </p>
 
       {isLoading ? (
@@ -449,69 +450,123 @@ function AlertRouting() {
           Run migration 0036 to enable alert routing.
         </p>
       ) : (
-        <div className="rounded-lg border border-border p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Radio size={15} className={sla.is_active && sla.channel !== "none" ? "text-emerald-400" : "text-faint"} />
-            <span className="text-sm font-medium">SLA breach</span>
-            <span
-              className={
-                sla.is_active && sla.channel !== "none"
-                  ? "pill bg-emerald-500/15 text-emerald-400"
-                  : "pill bg-zinc-500/15 text-zinc-400"
-              }
-            >
-              {sla.is_active && sla.channel !== "none" ? "Connected" : "Not connected"}
-            </span>
-            <span className="ml-auto text-xs text-faint">to the EA and admins</span>
-          </div>
+        <div className="space-y-3">
+          <RouteCard
+            route={sla}
+            label="SLA breach"
+            who="to the EA and admins"
+            placeholder="sla-breach"
+            isAdmin={isAdmin}
+            onChange={(patch) => setRoute.mutate({ event: "sla_breach", ...patch })}
+          />
 
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div>
-              <label className="field-label" htmlFor="route-channel">Channel</label>
-              <select
-                id="route-channel"
-                className="input"
-                disabled={!isAdmin}
-                value={sla.channel}
-                onChange={(e) => setRoute.mutate({ event: "sla_breach", channel: e.target.value as "none" | "n8n" })}
-              >
-                <option value="none">Not connected</option>
-                <option value="n8n">n8n webhook</option>
-              </select>
-            </div>
-            <div>
-              <label className="field-label" htmlFor="route-target">Webhook path</label>
-              <input
-                id="route-target"
-                className="input"
-                disabled={!isAdmin || sla.channel === "none"}
-                placeholder="sla-breach"
-                defaultValue={sla.target ?? ""}
-                onBlur={(e) => setRoute.mutate({ event: "sla_breach", target: e.target.value.trim() || null })}
-              />
-            </div>
-          </div>
-
-          <label className="mt-3 flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="mt-0.5 accent-[color:var(--accent)]"
-              disabled={!isAdmin || sla.channel === "none"}
-              checked={sla.is_active}
-              onChange={(e) => setRoute.mutate({ event: "sla_breach", is_active: e.target.checked })}
+          {/* Absent until 0064 is applied. Said out loud rather than hidden: a
+              missing switch reads as a feature that was never built, and this
+              one is built and waiting on a paste into the SQL editor. */}
+          {timedIn ? (
+            <RouteCard
+              route={timedIn}
+              label="EA timed in"
+              who="to the client, once a day"
+              placeholder="ea-timed-in"
+              isAdmin={isAdmin}
+              onChange={(patch) => setRoute.mutate({ event: "ea_timed_in", ...patch })}
             />
-            <span>
-              Send these
-              <span className="block text-xs text-faint">
-                The path is appended to the server's N8N_BASE_URL. The base URL and key are env vars,
-                never in the browser. With no base URL set, alerts are recorded as skipped rather than sent.
-              </span>
-            </span>
-          </label>
-
-          {!isAdmin && <p className="mt-3 text-xs text-faint">Admins change this.</p>}
+          ) : (
+            <p className="flex items-start gap-2 rounded-lg border border-border bg-surface-2/50 p-3 text-[12.5px] text-muted">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-400" />
+              Run migration 0064 to let clients be told when their EA starts the day.
+            </p>
+          )}
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * One routed event: where it goes, and whether it goes at all.
+ *
+ * Lifted out of AlertRouting when the second event arrived. The first version
+ * hardcoded 'sla_breach' into six places, so adding an event to the database —
+ * which 0036 deliberately made a one-line insert — still meant no way to switch
+ * it on. A route nobody can enable is a route that does not exist.
+ */
+function RouteCard({
+  route, label, who, placeholder, isAdmin, onChange,
+}: {
+  route: AlertRoute;
+  label: string;
+  /** Who receives it, said plainly. Internal and client-facing must not look alike. */
+  who: string;
+  placeholder: string;
+  isAdmin: boolean;
+  onChange: (patch: Partial<AlertRoute>) => void;
+}) {
+  const live = route.is_active && route.channel !== "none";
+  const id = `route-${route.event}`;
+
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Radio size={15} className={live ? "text-emerald-400" : "text-faint"} />
+        <span className="text-sm font-medium">{label}</span>
+        <span className={live ? "pill bg-emerald-500/15 text-emerald-400" : "pill bg-zinc-500/15 text-zinc-400"}>
+          {live ? "Connected" : "Not connected"}
+        </span>
+        {/* A client-facing route is called out, because the cost of a mistake
+            here is a message to somebody outside the company. */}
+        {route.audience === "client" && (
+          <span className="pill bg-amber-500/15 text-amber-300">Goes to the client</span>
+        )}
+        <span className="ml-auto text-xs text-faint">{who}</span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <div>
+          <label className="field-label" htmlFor={`${id}-channel`}>Channel</label>
+          <select
+            id={`${id}-channel`}
+            className="input"
+            disabled={!isAdmin}
+            value={route.channel}
+            onChange={(e) => onChange({ channel: e.target.value as "none" | "n8n" })}
+          >
+            <option value="none">Not connected</option>
+            <option value="n8n">n8n webhook</option>
+          </select>
+        </div>
+        <div>
+          <label className="field-label" htmlFor={`${id}-target`}>Webhook path</label>
+          <input
+            id={`${id}-target`}
+            className="input"
+            disabled={!isAdmin || route.channel === "none"}
+            placeholder={placeholder}
+            defaultValue={route.target ?? ""}
+            onBlur={(e) => onChange({ target: e.target.value.trim() || null })}
+          />
+        </div>
+      </div>
+
+      <label className="mt-3 flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-0.5 accent-[color:var(--accent)]"
+          disabled={!isAdmin || route.channel === "none"}
+          checked={route.is_active}
+          onChange={(e) => onChange({ is_active: e.target.checked })}
+        />
+        <span>
+          Send these
+          <span className="block text-xs text-faint">
+            The path is appended to the server's N8N_BASE_URL. The base URL and key are env vars,
+            never in the browser. With no base URL set, alerts are recorded as skipped rather than sent.
+          </span>
+        </span>
+      </label>
+
+      {!isAdmin && <p className="mt-3 text-xs text-faint">Admins change this.</p>}
+    </div>
   );
 }

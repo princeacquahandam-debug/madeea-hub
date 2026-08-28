@@ -1,5 +1,5 @@
-import { lazy } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { CommandCenterProvider } from "@/hooks/useCommandCenter";
@@ -45,10 +45,28 @@ const Academy = lazy(() => import("@/pages/Academy"));
 const MeetingIntelligence = lazy(() => import("@/pages/MeetingIntelligence"));
 const Calendar = lazy(() => import("@/pages/Calendar"));
 
+/* Both documents live in one module; each route takes one of its named exports. */
+const Privacy = lazy(() => import("@/pages/Legal").then((m) => ({ default: m.Privacy })));
+const Terms = lazy(() => import("@/pages/Legal").then((m) => ({ default: m.Terms })));
+
 const queryClient = new QueryClient();
 
 function Gate() {
   const { user, loading, recovering } = useAuth();
+  const { pathname } = useLocation();
+
+  /* ── PUBLIC, AND CHECKED BEFORE EVERY GATE BELOW ───────────────────────
+     Not inside the routed tree, because that tree only renders once there is
+     a session. A privacy policy reachable only after signing in is not
+     reachable by the person deciding whether to sign in, and not reachable at
+     all by a client whose data it describes.
+
+     Above the loading check too, not just the user check: these two pages
+     need nothing from the session, so making them wait on one would blank
+     them for anybody whose token is slow to resolve. */
+  if (pathname === "/privacy") return <Suspense fallback={null}><Privacy /></Suspense>;
+  if (pathname === "/terms") return <Suspense fallback={null}><Terms /></Suspense>;
+
   if (loading) {
     return <div className="flex h-screen items-center justify-center text-faint">Loading…</div>;
   }

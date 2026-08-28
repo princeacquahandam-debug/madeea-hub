@@ -20,7 +20,7 @@
 process.env.TZ = "Asia/Manila";
 
 import { nextCaptureDelayMs, shouldCapture, stalledMinutes } from "../src/lib/imaging.ts";
-import { localDayRange, workDate } from "../src/lib/workday.ts";
+import { localDayRange, workDate, instantFor, endInstant } from "../src/lib/workday.ts";
 
 let failed = 0;
 const check = (name, passed, detail = "") => {
@@ -236,6 +236,49 @@ check("a healthy rhythm never reads as stalled",
   check("an ordinary day is 24", hours("2026-08-26", "America/New_York") === 24);
 }
 
+
+/* ── Booking a wall-clock time into somebody else's calendar ──────────────
+ *
+ * The EA is in Manila (process.env.TZ above). The calendar may not be. "09:30"
+ * means 09:30 WHERE THE CALENDAR LIVES, and the browser's own zone must not
+ * leak into the answer — that mistake books the middle of the night and the
+ * response looks perfectly normal, which is why it needs a test rather than a
+ * careful reading.
+ */
+{
+  const at = (date, hhmm, tz) => instantFor(date, hhmm, tz);
+
+  check("09:30 in Manila is 01:30 UTC",
+    at("2026-08-26", "09:30", "Asia/Manila") === "2026-08-26T01:30:00.000Z",
+    at("2026-08-26", "09:30", "Asia/Manila"));
+
+  // The machine running this IS in Manila, so a London booking is the case
+  // where a browser-zone leak would show up.
+  check("09:30 in London during BST is 08:30 UTC",
+    at("2026-08-26", "09:30", "Europe/London") === "2026-08-26T08:30:00.000Z",
+    at("2026-08-26", "09:30", "Europe/London"));
+  check("and 09:30 in London during GMT is 09:30 UTC",
+    at("2026-01-15", "09:30", "Europe/London") === "2026-01-15T09:30:00.000Z",
+    "the same wall clock, four months apart, is a different instant");
+
+  check("09:30 in New York during EDT is 13:30 UTC",
+    at("2026-08-26", "09:30", "America/New_York") === "2026-08-26T13:30:00.000Z");
+  check("and during EST is 14:30 UTC",
+    at("2026-01-15", "09:30", "America/New_York") === "2026-01-15T14:30:00.000Z");
+
+  /* The bug this replaces: reading the string in the browser's zone. From
+     Manila that would put every one of the above at 01:30 UTC. */
+  const naive = new Date("2026-08-26T09:30").toISOString();
+  check("the naive reading really would have been wrong",
+    naive !== at("2026-08-26", "09:30", "Europe/London"),
+    `naive ${naive} vs London ${at("2026-08-26", "09:30", "Europe/London")}`);
+
+  check("a 45 minute meeting ends 45 minutes later",
+    endInstant("2026-08-26T01:30:00.000Z", 45) === "2026-08-26T02:15:00.000Z");
+  check("and a 90 minute one crosses the hour correctly",
+    endInstant("2026-08-26T23:30:00.000Z", 90) === "2026-08-27T01:00:00.000Z",
+    "over midnight, into the next day");
+}
 
 console.log(failed === 0 ? "\nSchedule is correct.\n" : `\n${failed} check(s) FAILED.\n`);
 process.exit(failed ? 1 : 0);
