@@ -3018,3 +3018,89 @@ export async function signedScreenshotUrl(path: string): Promise<string | null> 
   if (error) return null;
   return data.signedUrl;
 }
+
+// ---------------- AI spend (migration 0069) ----------------
+
+export interface AiSpendRow {
+  owner_id: string;
+  /** Display name, resolved from membership. "Unknown" only if a member was removed. */
+  name: string;
+  is_me: boolean;
+  calls: number;
+  total_tokens: number;
+  /** Null when no model in the period has a rate configured. Not zero: unpriced is not free. */
+  cost_usd: number | null;
+  /** Tokens this account may spend this month. */
+  allowance: number;
+}
+
+/**
+ * Who spent what on AI this calendar month.
+ *
+ * ── WHY THE ROWS ARE COMPOSED HERE AND NOT IN SQL ────────────────────────
+ * The view knows spend and the memberships table knows names, and joining them
+ * in the view would mean the view could show a name the caller is not otherwise
+ * allowed to read. Composing in the client keeps each query answering for its
+ * own table, and the RLS on both already decides what comes back: an EA gets one
+ * row, an admin gets everybody's.
+ *
+ * An account with an allowance and no spend still appears, at zero. Leaving it
+ * out would make "nobody is using it" look identical to "nobody has an account".
+ */
+export function useAiSpend() {
+  return useQuery<AiSpendRow[]>({
+    queryKey: ["ai-spend"],
+    queryFn: async () => {
+      if (!supabase) return [];
+      const [spend, allowances, members] = await Promise.all([
+        supabase.from("ai_spend_current_month").select("owner_id,calls,total_tokens,cost_usd"),
+        supabase.from("ai_allowances").select("owner_id,monthly_tokens"),
+        supabase.from("memberships").select("user_id"),
+      ]);
+      // Migration not applied yet: say nothing rather than half a dashboard.
+      if (spend.error || allowances.error) return [];
+
+      const rows = (spend.data ?? []) as { owner_id: string; calls: number; total_tokens: number; cost_usd: number | null }[];
+      const allow = (allowances.data ?? []) as { owner_id: string | null; monthly_tokens: number }[];
+      const fallback = allow.find((a) => a.owner_id === null)?.monthly_tokens ?? 0;
+      const perPerson = new Map(allow.filter((a) => a.owner_id).map((a) => [a.owner_id as string, a.monthly_tokens]));
+
+      /* Everyone who could spend, not only everyone who has. */
+      const ids = new Set<string>([
+        ...rows.map((r) => r.owner_id),
+        ...(((members.data ?? []) as { user_id: string }[]).map((m) => m.user_id)),
+      ]);
+
+      return [...ids].map((id) => {
+        const r = rows.find((x) => x.owner_id === id);
+        return {
+          owner_id: id,
+          name: "",
+          is_me: false,
+          calls: r?.calls ?? 0,
+          total_tokens: r?.total_tokens ?? 0,
+          cost_usd: r?.cost_usd ?? null,
+          allowance: perPerson.get(id) ?? fallback,
+        };
+      }).sort((a, b) => b.total_tokens - a.total_tokens);
+    },
+    retry: false,
+    staleTime: 60_000,
+  });
+}
+
+/** Whether any model in use has a price against it. Drives "not priced" rather than a false zero. */
+export function useAiRatesConfigured() {
+  return useQuery<boolean>({
+    queryKey: ["ai-rates-configured"],
+    queryFn: async () => {
+      if (!supabase) return false;
+      const { data, error } = await supabase
+        .from("ai_rates").select("input_per_mtok").not("input_per_mtok", "is", null).limit(1);
+      if (error) return false;
+      return (data ?? []).length > 0;
+    },
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+}

@@ -350,5 +350,82 @@ const objectsSeenBy = async (who) =>
     rows.map((r) => `${r.scope}=${r.bytes}B`).join(" "));
 }
 
+/* ══ AI spend: who can see it, and what it costs ═════════════════════════
+ *
+ * A billing surface, so the read rule is deliberately wider than the private
+ * ones above: an admin has to be able to see where the money went. It is still
+ * not open — an EA sees their own line and nobody else's.
+ */
+console.log("\nAI spend\n");
+
+// One model priced, one deliberately left unpriced, which is how 0069 ships.
+await db.query(
+  `update ai_rates set input_per_mtok = 2.50, output_per_mtok = 10.00
+    where provider = 'openai' and model = 'gpt-4o'`,
+);
+
+const spend = async (who, model, inTok, outTok) =>
+  db.query(
+    `insert into ai_spend (workspace_id, owner_id, feature, provider, model, input_tokens, output_tokens)
+     values ($1,$2,'generate','openai',$3,$4,$5) returning cost_usd`,
+    [ws, ids[who], model, inTok, outTok],
+  );
+
+const priced = await spend("eaLead", "gpt-4o", 1_000_000, 500_000);
+const unpriced = await spend("eaOther", "gpt-4o-mini", 200_000, 100_000);
+
+{
+  // 1M in at 2.50 + 0.5M out at 10.00 = 2.50 + 5.00
+  const c = Number(priced.rows[0].cost_usd);
+  check("a priced call is costed on the way in", Math.abs(c - 7.5) < 0.000001, `${c}`);
+}
+check("an unpriced model records tokens and leaves cost null",
+  unpriced.rows[0].cost_usd === null,
+  "null reads as 'not priced'; zero would read as free");
+
+{
+  const rows = await as("eaLead", `select owner_id, total_tokens from ai_spend_current_month`);
+  check("an EA sees their own spend", rows.length === 1 && rows[0].owner_id === ids.eaLead,
+    `${rows.length} row(s)`);
+  check("and the tokens are the ones recorded", Number(rows[0].total_tokens) === 1_500_000);
+}
+{
+  const rows = await as("eaOther", `select owner_id from ai_spend_current_month`);
+  check("an EA does NOT see a colleague's spend",
+    rows.length === 1 && rows[0].owner_id === ids.eaOther);
+}
+{
+  const rows = await as("admin", `select owner_id from ai_spend_current_month order by owner_id`);
+  check("an admin sees the whole workspace, because somebody has to", rows.length === 2,
+    `${rows.length} accounts`);
+}
+{
+  const rows = await as("clientA", `select count(*)::int as n from ai_spend`);
+  check("a client account sees no spend at all", rows[0].n === 0);
+}
+{
+  let refused = false;
+  try {
+    await as("eaOther", `insert into ai_spend (workspace_id, owner_id, feature, provider, model)
+                         values ($1,$2,'generate','openai','gpt-4o')`, [ws, ids.eaLead]);
+  } catch { refused = true; }
+  check("nobody can log spend against another account", refused, "owner_id is pinned to auth.uid()");
+}
+{
+  /* No update or delete policy exists, so both are refused for everyone. A
+     spend record that can be edited afterwards is not a record of spend. */
+  let noUpdate = false, noDelete = false;
+  try { await as("admin", `update ai_spend set input_tokens = 0`); } catch { noUpdate = true; }
+  try { await as("admin", `delete from ai_spend`); } catch { noDelete = true; }
+  const u = await as("admin", `select sum(input_tokens)::bigint as n from ai_spend`);
+  check("spend cannot be edited after the fact", noUpdate || Number(u[0].n) === 1_200_000);
+  check("and cannot be deleted", noDelete || Number(u[0].n) === 1_200_000);
+}
+{
+  const rows = await db.query(`select monthly_tokens from ai_allowances where workspace_id = $1 and owner_id is null`, [ws]);
+  check("every workspace gets a default allowance", rows.rows.length === 1,
+    `${rows.rows[0]?.monthly_tokens ?? "none"} tokens`);
+}
+
 console.log(failed === 0 ? "\nAccess is correct.\n" : `\n${failed} check(s) FAILED.\n`);
 process.exit(failed ? 1 : 0);

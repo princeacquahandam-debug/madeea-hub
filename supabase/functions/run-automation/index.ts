@@ -9,10 +9,56 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+
+/** What one model call spent, taken from the provider's own response. */
+interface Spend { model: string; input: number; output: number }
+
+/* Recorded per call so Settings can show usage per account (migration 0069).
+   Takes the auth header rather than a client so it works from anywhere in the
+   handler, and builds its own: the row is written AS THE CALLER, which is what
+   the insert policy pins spend to.
+
+   Never throws and never blocks. A spend row that fails to write must not fail
+   the request that earned it — the call has already been paid for by then, and
+   losing the record is cheaper than losing the work.
+
+   Inlined rather than shared because each function here deploys standalone,
+   the same reason corsFor and aesKey are already duplicated across this
+   directory. */
+async function recordSpend(
+  authHeader: string,
+  feature: string,
+  provider: "openai" | "anthropic",
+  s: Spend,
+): Promise<void> {
+  try {
+    const db = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { error } = await db.from("ai_spend").insert({
+      feature,
+      provider,
+      model: s.model,
+      input_tokens: s.input,
+      output_tokens: s.output,
+    });
+    if (error) console.error("ai_spend insert failed", error.message);
+  } catch (e) {
+    console.error("ai_spend insert threw", e);
+  }
+}
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
 
-async function complete(system: string, user: string, model = "gpt-4o"): Promise<string> {
+async function complete(
+  system: string,
+  user: string,
+  model = "gpt-4o",
+  onUsage?: (s: Spend) => void,
+): Promise<string> {
   if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -24,6 +70,11 @@ async function complete(system: string, user: string, model = "gpt-4o"): Promise
     console.error("openai error", res.status, JSON.stringify(data));
     throw new Error("upstream model error");
   }
+  onUsage?.({
+    model,
+    input: data.usage?.prompt_tokens ?? 0,
+    output: data.usage?.completion_tokens ?? 0,
+  });
   return data.choices?.[0]?.message?.content ?? "";
 }
 
@@ -54,6 +105,11 @@ Deno.serve(async (req) => {
       return json({ error: "Rate limit reached. Please try again in a little while." }, 429);
     }
 
+    /* Every model call in this handler goes through here, so the spend is
+       recorded once at the seam rather than at four call sites. */
+    const run = (system: string, user: string, model = "gpt-4o") =>
+      complete(system, user, model, (s) => void recordSpend(auth, "run-automation", "openai", s));
+
     const { automation_id } = await req.json();
     const { data: automation, error: aErr } = await supa
       .from("automations").select("id,name,automation_key,total_runs,trigger,action").eq("id", automation_id).single();
@@ -69,7 +125,7 @@ Deno.serve(async (req) => {
         supa.from("meetings").select("title,status,starts_at").limit(20),
         supa.from("messages").select("sender_name,subject,category").eq("category", "urgent").limit(20),
       ]);
-      output = await complete(
+      output = await run(
         EA,
         `Produce a prioritised daily briefing for the executive. Rank what matters, flag conflicts and urgent items, and suggest schedule optimisations.\n\nTasks: ${JSON.stringify(tasks ?? [])}\nMeetings: ${JSON.stringify(meetings ?? [])}\nUrgent messages: ${JSON.stringify(messages ?? [])}`,
       );
@@ -77,7 +133,7 @@ Deno.serve(async (req) => {
     } else if (key === "meeting_prep") {
       const { data: meetings } = await supa
         .from("meetings").select("title,status,starts_at,clients(name,title,company,preferred_channel,tone,preferences_notes)").limit(10);
-      output = await complete(
+      output = await run(
         EA,
         `Prepare concise prep briefs for these upcoming meetings, for each: attendee context, a suggested agenda, and prep notes.\n\n${JSON.stringify(meetings ?? [])}`,
       );
@@ -86,14 +142,14 @@ Deno.serve(async (req) => {
       // rule-based: auto-archive newsletters
       await supa.from("messages").update({ category: "archive" }).ilike("sender_name", "%newsletter%").neq("category", "archive");
       const { data: messages } = await supa.from("messages").select("sender_name,subject,preview,category").limit(40);
-      output = await complete(
+      output = await run(
         EA,
         `Triage this inbox. Summarise what needs the executive's attention, group by urgency, and suggest who/what to delegate or archive.\n\n${JSON.stringify(messages ?? [])}`,
         "gpt-4o-mini",
       );
       summary = `Triaged ${(messages ?? []).length} message(s); newsletters archived.`;
     } else {
-      output = await complete(
+      output = await run(
         EA,
         `Automation "${automation.name}". Trigger: ${automation.trigger ?? "-"}. Action: ${automation.action ?? "-"}. Produce the most useful output this automation would generate.`,
       );

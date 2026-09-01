@@ -18,6 +18,43 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 const FATHOM_API_KEY = Deno.env.get("FATHOM_API_KEY") ?? "";
 const MODEL = "gpt-4o";              // extraction quality matters more here than cost
+
+/** What one model call spent, taken from the provider's own response. */
+interface Spend { model: string; input: number; output: number }
+
+/* Recorded per call so Settings can show usage per account (migration 0069).
+   Takes the auth header rather than a client so it works from anywhere in the
+   handler, and builds its own: the row is written AS THE CALLER, which is what
+   the insert policy pins spend to.
+
+   Never throws and never blocks. A spend row that fails to write must not fail
+   the request that earned it — the call has already been paid for by then, and
+   losing the record is cheaper than losing the work. */
+async function recordSpend(
+  authHeader: string,
+  feature: string,
+  provider: "openai" | "anthropic",
+  s: Spend,
+): Promise<void> {
+  try {
+    const db = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { error } = await db.from("ai_spend").insert({
+      feature,
+      provider,
+      model: s.model,
+      input_tokens: s.input,
+      output_tokens: s.output,
+    });
+    if (error) console.error("ai_spend insert failed", error.message);
+  } catch (e) {
+    console.error("ai_spend insert threw", e);
+  }
+}
+
 const FATHOM_BASE = "https://api.fathom.ai/external/v1";
 const MAX_TRANSCRIPT_CHARS = 90_000; // ~1h of talk; longer gets truncated with a note
 
@@ -61,7 +98,12 @@ Rules that matter more than completeness:
 - Return empty arrays rather than inventing content. A short honest extraction beats
   a padded one; the team will act on these.`;
 
-async function extract(transcript: string, title: string, when: string): Promise<Record<string, unknown>> {
+async function extract(
+  transcript: string,
+  title: string,
+  when: string,
+  onUsage?: (s: Spend) => void,
+): Promise<Record<string, unknown>> {
   if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
   const truncated = transcript.length > MAX_TRANSCRIPT_CHARS;
   const body = truncated ? transcript.slice(0, MAX_TRANSCRIPT_CHARS) + "\n\n[transcript truncated]" : transcript;
@@ -85,6 +127,11 @@ async function extract(transcript: string, title: string, when: string): Promise
     throw new Error("The extraction model is unavailable right now.");
   }
   const j = await res.json();
+  onUsage?.({
+    model: MODEL,
+    input: j.usage?.prompt_tokens ?? 0,
+    output: j.usage?.completion_tokens ?? 0,
+  });
   try {
     return JSON.parse(String(j?.choices?.[0]?.message?.content ?? "{}"));
   } catch {
@@ -243,7 +290,12 @@ Deno.serve(async (req) => {
       const when = str(m.recording_start_time || m.scheduled_start_time || m.created_at || "", 40);
       let ex: Record<string, unknown>;
       try {
-        ex = await extract(transcript, title, when);
+        ex = await extract(
+          transcript,
+          title,
+          when,
+          (s) => void recordSpend(auth, "meeting-intelligence", "openai", s),
+        );
       } catch (e) {
         failures.push(title);
         await db.from("meeting_notes").insert({

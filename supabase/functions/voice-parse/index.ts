@@ -9,8 +9,49 @@
 // Deploy:  supabase functions deploy voice-parse
 // Secret:  supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 
+// Imported solely to record what a call spent; the parse itself talks to
+// Anthropic directly and needs nothing from Supabase.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 const MODEL = "claude-opus-4-8";
+
+/** What one model call spent, taken from the provider's own response. */
+interface Spend { model: string; input: number; output: number }
+
+/* Recorded per call so Settings can show usage per account (migration 0069).
+   Takes the auth header rather than a client so it works from anywhere in the
+   handler, and builds its own: the row is written AS THE CALLER, which is what
+   the insert policy pins spend to.
+
+   Never throws and never blocks. A spend row that fails to write must not fail
+   the request that earned it — the call has already been paid for by then, and
+   losing the record is cheaper than losing the work. */
+async function recordSpend(
+  authHeader: string,
+  feature: string,
+  provider: "openai" | "anthropic",
+  s: Spend,
+): Promise<void> {
+  try {
+    const db = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { error } = await db.from("ai_spend").insert({
+      feature,
+      provider,
+      model: s.model,
+      input_tokens: s.input,
+      output_tokens: s.output,
+    });
+    if (error) console.error("ai_spend insert failed", error.message);
+  } catch (e) {
+    console.error("ai_spend insert threw", e);
+  }
+}
+
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -89,6 +130,12 @@ Deno.serve(async (req) => {
 
     if (!res.ok) return json({ error: `Anthropic error ${res.status}: ${await res.text()}` }, 502);
     const data = await res.json();
+
+    void recordSpend(auth, "voice-parse", "anthropic", {
+      model: MODEL,
+      input: data.usage?.input_tokens ?? 0,
+      output: data.usage?.output_tokens ?? 0,
+    });
 
     if (data.stop_reason === "refusal") return json({ error: "request declined" }, 422);
     const text = (data.content ?? []).find((b: { type: string }) => b.type === "text")?.text ?? "";

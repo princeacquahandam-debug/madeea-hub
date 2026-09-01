@@ -15,7 +15,52 @@ const CORS = {
 
 interface LlmMessage { role: "system" | "user" | "assistant"; content: string }
 
-async function complete(messages: LlmMessage[], model: keyof typeof MODELS = "premium"): Promise<string> {
+/** What one model call spent, taken from the provider's own response. */
+interface Spend { model: string; input: number; output: number }
+
+/* Recorded per call so Settings can show usage per account (migration 0069).
+   Takes the auth header rather than a client so it works from anywhere in the
+   handler, and builds its own: the row is written AS THE CALLER, which is what
+   the insert policy pins spend to.
+
+   Never throws and never blocks. A spend row that fails to write must not fail
+   the request that earned it — the call has already been paid for by then, and
+   losing the record is cheaper than losing the work.
+
+   Inlined rather than shared because each function here deploys standalone,
+   the same reason corsFor and aesKey are already duplicated across this
+   directory. */
+async function recordSpend(
+  authHeader: string,
+  feature: string,
+  provider: "openai" | "anthropic",
+  s: Spend,
+): Promise<void> {
+  try {
+    const db = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { error } = await db.from("ai_spend").insert({
+      feature,
+      provider,
+      model: s.model,
+      input_tokens: s.input,
+      output_tokens: s.output,
+    });
+    if (error) console.error("ai_spend insert failed", error.message);
+  } catch (e) {
+    console.error("ai_spend insert threw", e);
+  }
+}
+
+
+async function complete(
+  messages: LlmMessage[],
+  model: keyof typeof MODELS = "premium",
+  onUsage?: (s: Spend) => void,
+): Promise<string> {
   if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -29,6 +74,11 @@ async function complete(messages: LlmMessage[], model: keyof typeof MODELS = "pr
     throw new Error("The writing engine is unavailable right now. Please try again.");
   }
   const data = await res.json();
+  onUsage?.({
+    model: MODELS[model],
+    input: data.usage?.prompt_tokens ?? 0,
+    output: data.usage?.completion_tokens ?? 0,
+  });
   return data.choices?.[0]?.message?.content ?? "";
 }
 
@@ -180,10 +230,14 @@ Deno.serve(async (req) => {
     const prompt = userFor(String(format), inputs);
     if (prompt.length > MAX_INPUT_CHARS) return json({ error: "Input is too long." }, 413);
 
-    const output = await complete([
-      { role: "system", content: systemFor(tool, format) },
-      { role: "user", content: prompt },
-    ]);
+    const output = await complete(
+      [
+        { role: "system", content: systemFor(tool, format) },
+        { role: "user", content: prompt },
+      ],
+      "premium",
+      (s) => void recordSpend(authHeader0, "generate", "openai", s),
+    );
 
     // Best-effort history log (SUPABASE_URL / SUPABASE_ANON_KEY are auto-injected by the platform).
     const authHeader = req.headers.get("Authorization");
