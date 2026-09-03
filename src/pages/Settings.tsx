@@ -7,6 +7,7 @@ import { useTour } from "@/store/tour";
 import { atLeast, useMyRole } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { useAlertRoutes, useAlertRouteMutations, type AlertRoute } from "@/data/hooks";
+import { AiSpendPanel } from "@/components/AiSpendPanel";
 import { useFollowUpSettings } from "@/store/followupSettings";
 import { useUI } from "@/store/ui";
 import { APP_VERSION } from "@/lib/changelog";
@@ -138,6 +139,8 @@ export default function Settings() {
         {/* Where an SLA breach goes when one happens. Its own section rather
             than a line in the SLA card, because the threshold and the
             destination are edited by different people at different times. */}
+        <AiSpendPanel />
+
         <AlertRouting />
 
         <section className="card p-5">

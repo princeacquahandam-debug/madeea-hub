@@ -14,7 +14,48 @@ const CORS = {
 
 interface LlmMessage { role: "system" | "user" | "assistant"; content: string }
 
-async function complete(messages: LlmMessage[]): Promise<string> {
+/** What one model call spent, taken from the provider's own response. */
+interface Spend { model: string; input: number; output: number }
+
+/* Recorded per call so Settings can show usage per account (migration 0069).
+   Takes the auth header rather than a client so it works from anywhere in the
+   handler, and builds its own: the row is written AS THE CALLER, which is what
+   the insert policy pins spend to.
+
+   Never throws and never blocks. A spend row that fails to write must not fail
+   the request that earned it — the call has already been paid for by then, and
+   losing the record is cheaper than losing the work.
+
+   Inlined rather than shared because each function here deploys standalone,
+   the same reason corsFor and aesKey are already duplicated across this
+   directory. */
+async function recordSpend(
+  authHeader: string,
+  feature: string,
+  provider: "openai" | "anthropic",
+  s: Spend,
+): Promise<void> {
+  try {
+    const db = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { error } = await db.from("ai_spend").insert({
+      feature,
+      provider,
+      model: s.model,
+      input_tokens: s.input,
+      output_tokens: s.output,
+    });
+    if (error) console.error("ai_spend insert failed", error.message);
+  } catch (e) {
+    console.error("ai_spend insert threw", e);
+  }
+}
+
+
+async function complete(messages: LlmMessage[], onUsage?: (s: Spend) => void): Promise<string> {
   if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -26,6 +67,11 @@ async function complete(messages: LlmMessage[]): Promise<string> {
     throw new Error("upstream model error");
   }
   const data = await res.json();
+  onUsage?.({
+    model: "gpt-4o",
+    input: data.usage?.prompt_tokens ?? 0,
+    output: data.usage?.completion_tokens ?? 0,
+  });
   return data.choices?.[0]?.message?.content ?? "";
 }
 
@@ -115,7 +161,10 @@ Deno.serve(async (req) => {
         context,
     };
 
-    const reply = await complete([system, ...history]);
+    const reply = await complete(
+      [system, ...history],
+      (s) => void recordSpend(authHeader, "assistant-chat", "openai", s),
+    );
     return json({ reply });
   } catch (e) {
     console.error("assistant-chat failed", e);

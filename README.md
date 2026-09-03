@@ -247,6 +247,20 @@ vercel --prod
 - **Google Cloud → OAuth client:** add the Vercel URL to **Authorized JavaScript
   origins** and the Supabase callback to **Authorized redirect URIs**.
 
+## Shipping changes
+
+Requests are collected rather than built as they arrive, and ship together in a
+maintenance window roughly every 24 hours.
+
+- **[docs/CHANGE-REQUEST.md](docs/CHANGE-REQUEST.md)** — the intake template and
+  the queue. One entry per request.
+- **[docs/RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md)** — the window itself:
+  pre-flight checks, then migrations, functions, frontend, tightening migrations,
+  in that order. The order is what keeps a batch safe.
+
+Anything that stops an EA being paid or a client being served skips the queue.
+Everything else waits for the window.
+
 ## Status (this build)
 - ✅ **Phase 0–1:** app shell, routing, auth (email + Google), all 9 views ported
   and interactive on seed data, responsive layout, brand-matched theme.
