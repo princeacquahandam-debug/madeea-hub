@@ -168,6 +168,24 @@ Deno.serve(async (req) => {
     return json({ reply });
   } catch (e) {
     console.error("assistant-chat failed", e);
+    /* WHICH 500 this is decides who can fix it, so say so.
+       "Unavailable right now. Please try again." reads as "wait and retry",
+       and it was shown for a secret that had never been set — no amount of
+       retrying was ever going to help. Neither branch below leaks anything: a
+       signed-in member learns the server is misconfigured, never the key. */
+    const msg = e instanceof Error ? e.message : "";
+    if (msg.includes("OPENAI_API_KEY")) {
+      return json(
+        { error: "The assistant is not configured: OPENAI_API_KEY is not set on the server." },
+        500,
+      );
+    }
+    if (msg.includes("upstream model error")) {
+      return json(
+        { error: "OpenAI refused the request. Check the API key is valid and the account has credit." },
+        502,
+      );
+    }
     return json({ error: "The assistant is unavailable right now. Please try again." }, 500);
   }
 });
