@@ -1,4 +1,26 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { edgeFailure } from "@/lib/edgeError";
+
+/**
+ * The reason an AI call failed, rather than the fact that it did.
+ *
+ * WHY. supabase-js reports every non-2xx as "Edge Function returned a non-2xx
+ * status code", so the chat rail printed that same sentence whether the account
+ * had no workspace (429, via check_ai_rate_limit), OPENAI_API_KEY was unset
+ * (500) or the function was never deployed (404). Three different jobs, one
+ * indistinguishable message. edgeFailure reads the body the SDK hides.
+ *
+ * The status stays in the text on purpose: assistant-chat deliberately keeps its
+ * 500 vague ("unavailable right now") so it leaks no configuration, which makes
+ * the number the only thing separating "over budget / no workspace" from "the
+ * server is misconfigured".
+ */
+async function aiError(error: unknown, fallback: string): Promise<Error> {
+  const { message, status, missing } = await edgeFailure(error, fallback);
+  if (missing) return new Error("That AI function isn't deployed. Run: npm run deploy:functions");
+  if (status === 401) return new Error("Your session has expired. Sign in again.");
+  return new Error(status ? `${message} (${status})` : message);
+}
 
 /**
  * Some tools here send facts this app already computed rather than free-form
@@ -38,7 +60,7 @@ export interface GeneratePayload {
 export async function generate(payload: GeneratePayload): Promise<string> {
   if (isSupabaseConfigured && supabase) {
     const { data, error } = await supabase.functions.invoke("generate", { body: payload });
-    if (error) throw error;
+    if (error) throw await aiError(error, "Generation failed.");
     return (data as { output: string }).output;
   }
   // Demo fallback
@@ -162,7 +184,7 @@ export interface ChatMessage {
 export async function assistantChat(messages: ChatMessage[]): Promise<string> {
   if (isSupabaseConfigured && supabase) {
     const { data, error } = await supabase.functions.invoke("assistant-chat", { body: { messages } });
-    if (error) throw error;
+    if (error) throw await aiError(error, "The assistant is unavailable right now.");
     return (data as { reply: string }).reply;
   }
   await new Promise((r) => setTimeout(r, 600));
