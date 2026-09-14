@@ -63,8 +63,18 @@ async function complete(messages: LlmMessage[], onUsage?: (s: Spend) => void): P
     body: JSON.stringify({ model: "gpt-4o", messages, temperature: 0.6, max_tokens: 1500 }),
   });
   if (!res.ok) {
-    console.error("openai error", res.status, await res.text());
-    throw new Error("upstream model error");
+    const body = await res.text();
+    console.error("openai error", res.status, body);
+    /* Carry OpenAI's own error code out of here. "upstream model error" alone
+       is true of a dead key, an empty balance and a model this key cannot see —
+       three different people fix those three things. The code is a public
+       identifier ("insufficient_quota"), never a credential. */
+    let code = "";
+    try {
+      const parsed = JSON.parse(body);
+      code = String(parsed?.error?.code ?? parsed?.error?.type ?? "");
+    } catch { /* not JSON; the status alone still narrows it */ }
+    throw new Error(`upstream model error ${res.status} ${code}`.trim());
   }
   const data = await res.json();
   onUsage?.({
@@ -181,10 +191,16 @@ Deno.serve(async (req) => {
       );
     }
     if (msg.includes("upstream model error")) {
-      return json(
-        { error: "OpenAI refused the request. Check the API key is valid and the account has credit." },
-        502,
-      );
+      /* Say which fix applies, rather than listing every fix that might. */
+      const detail =
+        msg.includes("insufficient_quota")
+          ? "The OpenAI account is out of credit. Add billing at platform.openai.com."
+          : msg.includes("invalid_api_key") || msg.includes(" 401")
+            ? "OPENAI_API_KEY is invalid or has been revoked. Set a new key and redeploy."
+            : msg.includes("model_not_found")
+              ? "This OpenAI key has no access to gpt-4o."
+              : `OpenAI refused the request (${msg.replace("upstream model error", "").trim() || "no detail"}).`;
+      return json({ error: detail }, 502);
     }
     return json({ error: "The assistant is unavailable right now. Please try again." }, 500);
   }
