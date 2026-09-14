@@ -5,6 +5,10 @@ import { clearLocalWorkspaceData } from "@/lib/localData";
 import { USER } from "@/data/seed";
 
 interface SessionUser {
+  /* Needed to tell "sent by me" from "sent by the agency" in the client
+     portal. A client cannot read auth.users, so the id has to come from the
+     session they already hold. */
+  id: string;
   email: string;
   name: string;
   initials: string;
@@ -34,7 +38,7 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-const DEMO_USER: SessionUser = { email: "rio@madeea.com", name: USER.name, initials: USER.initials };
+const DEMO_USER: SessionUser = { id: "demo-user", email: "rio@madeea.com", name: USER.name, initials: USER.initials };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -166,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 function sameUser(a: SessionUser | null, b: SessionUser | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
-  return a.email === b.email && a.name === b.name && a.initials === b.initials;
+  return a.id === b.id && a.email === b.email && a.name === b.name && a.initials === b.initials;
 }
 
 /** Title-case an email local part: "rio.castillo" becomes "Rio Castillo". */
@@ -180,7 +184,7 @@ function nameFromEmail(email: string): string {
 }
 
 function toUser(
-  u: { email?: string; user_metadata?: { full_name?: string; name?: string } } | undefined | null,
+  u: { id?: string; email?: string; user_metadata?: { full_name?: string; name?: string } } | undefined | null,
 ): SessionUser | null {
   if (!u?.email) return null;
   /* The greeting used the raw email local part, so the first thing on screen
@@ -189,7 +193,7 @@ function toUser(
      firstname.lastname addresses this workspace uses. */
   const name = u.user_metadata?.full_name?.trim() || u.user_metadata?.name?.trim() || nameFromEmail(u.email);
   const initials = name.split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
-  return { email: u.email, name, initials };
+  return { id: u.id ?? "", email: u.email, name, initials };
 }
 
 export function useAuth() {

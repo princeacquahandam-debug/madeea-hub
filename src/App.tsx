@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { useClientUser } from "@/hooks/useClientUser";
 import { CommandCenterProvider } from "@/hooks/useCommandCenter";
 import { AppShell } from "@/components/layout/AppShell";
 // Login and Dashboard are eager: Login is the gate before the shell, and
@@ -48,11 +49,13 @@ const Calendar = lazy(() => import("@/pages/Calendar"));
 /* Both documents live in one module; each route takes one of its named exports. */
 const Privacy = lazy(() => import("@/pages/Legal").then((m) => ({ default: m.Privacy })));
 const Terms = lazy(() => import("@/pages/Legal").then((m) => ({ default: m.Terms })));
+const ClientPortal = lazy(() => import("@/pages/ClientPortal"));
 
 const queryClient = new QueryClient();
 
 function Gate() {
   const { user, loading, recovering } = useAuth();
+  const { data: clientId, isLoading: clientLoading } = useClientUser(!!user);
   const { pathname } = useLocation();
 
   /* ── PUBLIC, AND CHECKED BEFORE EVERY GATE BELOW ───────────────────────
@@ -76,6 +79,22 @@ function Gate() {
      still on the account. */
   if (recovering) return <ResetPassword />;
   if (!user) return <Login />;
+
+  /* Which APP renders, not which page inside it — so it has to be settled
+     before either one mounts. Falling through to <Routes> while this resolves
+     would flash the agency shell at a client, and every panel in it would then
+     deny: a client holds no membership, so my_workspace() is NULL and the
+     workspace policies refuse the lot. See 0065. */
+  if (clientLoading) {
+    return <div className="flex h-screen items-center justify-center text-faint">Loading…</div>;
+  }
+  if (clientId) {
+    return (
+      <Suspense fallback={null}>
+        <ClientPortal clientId={clientId} />
+      </Suspense>
+    );
+  }
 
   return (
     <Routes>
