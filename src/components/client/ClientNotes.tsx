@@ -31,7 +31,7 @@ interface NoteRow {
   updated_at: string;
 }
 
-export function ClientNotes() {
+export function ClientNotes({ readOnly = false }: { readOnly?: boolean }) {
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -81,6 +81,7 @@ export function ClientNotes() {
 
   return (
     <div className="space-y-6 px-6 py-4">
+      {readOnly ? null : (
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider">Leave a note</h2>
         <p className="text-faint mb-2 text-sm">
@@ -119,6 +120,7 @@ export function ClientNotes() {
           </p>
         ) : null}
       </section>
+      )}
 
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider">Shared notes</h2>
@@ -126,8 +128,9 @@ export function ClientNotes() {
           <p className="text-faint text-sm">Loading…</p>
         ) : notes.length === 0 ? (
           <p className="text-faint text-sm">
-            Nothing shared yet. Notes you leave, and notes your assistant shares with
-            you, both appear here.
+            {readOnly
+              ? "Nothing has been shared on this account yet."
+              : "Nothing shared yet. Notes you leave, and notes your assistant shares with you, both appear here."}
           </p>
         ) : (
           <ul className="space-y-2">

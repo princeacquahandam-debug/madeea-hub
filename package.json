@@ -21,7 +21,8 @@
     "e2e:gates": "node scripts/e2e-clock-gates.mjs",
     "check:access": "node scripts/check-conversation-access.mjs",
     "check:client-surface": "node scripts/check-client-surface.mjs",
-    "check:pasteable": "node scripts/check-pasteable.mjs"
+    "check:pasteable": "node scripts/check-pasteable.mjs",
+    "check:client-viewer": "node scripts/check-client-viewer.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

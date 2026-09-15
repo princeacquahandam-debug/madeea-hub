@@ -2,12 +2,13 @@ import { useState } from "react";
 import { MessageSquare, ChevronRight, CheckCircle2, Plus, Trash2, Pencil, AlertTriangle } from "lucide-react";
 import type { Client } from "@/types/db";
 import { Badge, PageHeader, Modal } from "@/components/ui";
+import { InviteClientLogin } from "@/components/InviteClientLogin";
 import { Avatar } from "@/components/Avatar";
 import { SlaBadge, TrendArrow, TREND_LABEL } from "@/components/SlaBadge";
 import { ClientActivity } from "@/components/ClientActivity";
 import { AssigneeAvatar } from "@/components/Assignee";
 import { useWorkspaceMembers } from "@/data/hooks";
-import { useClients, useTasks, useMeetings, useMessages, useClientMutations } from "@/data/hooks";
+import { useClientLogins, useClients, useTasks, useMeetings, useMessages, useClientMutations } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { clientSla, dayLength, formatDuration } from "@/lib/sla";
 import { supabase } from "@/lib/supabase";
@@ -16,6 +17,8 @@ const BLANK = { name: "", title: "", company: "", preferred_channel: "Email", to
 
 export default function ClientVault() {
   const { data: clients = [], isLoading } = useClients();
+  // Which clients already hold a portal login, so the Vault can say which do not.
+  const { data: logins = [] } = useClientLogins();
   const { data: tasks = [] } = useTasks();
   const { data: meetings = [] } = useMeetings();
   const { data: messages = [] } = useMessages();
@@ -110,6 +113,11 @@ export default function ClientVault() {
                   <p className="text-xs text-faint">{c.company}</p>
                 </div>
                 <div className="reveal-on-hover flex items-center gap-1">
+                  <InviteClientLogin
+                    clientId={c.id}
+                    clientName={c.name}
+                    hasLogin={logins.some((l) => l.client_id === c.id)}
+                  />
                   <button className="text-faint hover:text-accent" onClick={() => startEdit(c)} aria-label="Edit client">
                     <Pencil size={14} />
                   </button>

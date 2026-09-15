@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   LogOut, Send, ShieldCheck, MessageSquare, LayoutDashboard,
-  Activity, CalendarDays, StickyNote,
+  Activity, CalendarDays, StickyNote, Eye, Users,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +10,7 @@ import { ClientOverview } from "@/components/client/ClientOverview";
 import { ClientActivity } from "@/components/client/ClientActivity";
 import { ClientCalendar } from "@/components/client/ClientCalendar";
 import { ClientNotes } from "@/components/client/ClientNotes";
+import { ClientPeople } from "@/components/client/ClientPeople";
 
 /**
  * What a client sees. Deliberately not the agency app with things hidden.
@@ -27,7 +28,7 @@ import { ClientNotes } from "@/components/client/ClientNotes";
  */
 
 type Kind = "client_ea" | "escalation";
-type Tab = "overview" | "activity" | "calendar" | "notes" | Kind;
+type Tab = "overview" | "activity" | "calendar" | "notes" | "people" | Kind;
 
 interface Conversation {
   id: string;
@@ -61,6 +62,7 @@ const TABS: { id: Tab; label: string; icon: typeof MessageSquare }[] = [
   { id: "activity", label: "Activity", icon: Activity },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "notes", label: "Notes", icon: StickyNote },
+  { id: "people", label: "People", icon: Users },
   { id: "client_ea", label: CHANNEL.client_ea.label, icon: CHANNEL.client_ea.icon },
   { id: "escalation", label: CHANNEL.escalation.label, icon: CHANNEL.escalation.icon },
 ];
@@ -71,12 +73,35 @@ const PANES: Partial<Record<Tab, boolean>> = {
   activity: true,
   calendar: true,
   notes: true,
+  people: true,
 };
 
 export default function ClientPortal({ clientId }: { clientId: string }) {
   const { user, signOut } = useAuth();
+  /* primary is the client. viewer is a colleague they added, who may read the
+     account and nothing else (0074). Everything below reads this rather than
+     testing the string in six places. */
+  const { data: clientRole } = useQuery({
+    queryKey: ["client-portal", "role"],
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data, error } = await supabase!.rpc("my_client_role");
+      if (error) throw error;
+      return (data as string | null) ?? "primary";
+    },
+  });
+  const isViewer = clientRole === "viewer";
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("overview");
+
+  /* A viewer has no channels at all, and that is the point of there being two
+     of them: the escalation channel is where a client raises something about
+     their assistant. See 0074. The database refuses them underneath, so this
+     is about not offering a door that opens onto an error. */
+  const tabs = useMemo(
+    () => (isViewer ? TABS.filter((t) => PANES[t.id]) : TABS),
+    [isViewer],
+  );
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -177,6 +202,11 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
           </h1>
         </div>
         <div className="flex items-center gap-3">
+          {isViewer ? (
+            <span className="pill bg-accent/15 text-accent-soft flex items-center gap-1.5 text-xs">
+              <Eye size={12} /> View only
+            </span>
+          ) : null}
           <span className="text-faint hidden text-sm sm:inline">{user?.email}</span>
           <button
             onClick={() => void signOut()}
@@ -189,7 +219,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
       </header>
 
       <nav className="flex flex-wrap gap-2 px-6 pt-4">
-        {TABS.map(({ id, label, icon: Icon }) => {
+        {tabs.map(({ id, label, icon: Icon }) => {
           const on = id === tab;
           return (
             <button
@@ -210,10 +240,13 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
 
       {PANES[tab] ? (
         <div className="flex-1 overflow-y-auto">
-          {tab === "overview" ? <ClientOverview onSeeActivity={() => setTab("activity")} /> : null}
+          {tab === "overview" ? (
+            <ClientOverview onSeeActivity={() => setTab("activity")} readOnly={isViewer} />
+          ) : null}
           {tab === "activity" ? <ClientActivity /> : null}
           {tab === "calendar" ? <ClientCalendar /> : null}
-          {tab === "notes" ? <ClientNotes /> : null}
+          {tab === "notes" ? <ClientNotes readOnly={isViewer} /> : null}
+          {tab === "people" ? <ClientPeople readOnly={isViewer} /> : null}
         </div>
       ) : (
         <>

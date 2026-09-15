@@ -3108,3 +3108,48 @@ export function useAiRatesConfigured() {
     staleTime: 5 * 60_000,
   });
 }
+
+// ---------------- client portal logins ----------------
+/**
+ * Giving a client a login to their own portal. Admins and owners only, which
+ * the Edge Function checks against the database rather than trusting this call.
+ *
+ * WHY A FUNCTION AND NOT AN INSERT. The client_users row has to be written in
+ * the same request that creates the account: 0070's fallback grants a staff
+ * seat to any confirmed account that holds no such row, so a two-step version
+ * has a window where confirming early makes a client into an employee. That
+ * window is not theoretical -- it happened during setup.
+ */
+export function useInviteClientLogin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { email: string; client_id: string }) => {
+      if (!supabase) return { ok: true, email: input.email };
+      const { data, error } = await supabase.functions.invoke("invite-client", { body: input });
+      if (error) {
+        const f = await edgeFailure(error, "Could not send that invitation.");
+        const err = new Error(f.message) as Error & { status?: number; missing?: boolean };
+        err.status = f.status;
+        err.missing = f.missing;
+        throw err;
+      }
+      return data as { ok: boolean; email?: string; client?: string; linked?: boolean };
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["client-logins"] }),
+  });
+}
+
+/** Who already holds a portal login, per client, so the Vault can say so. */
+export function useClientLogins() {
+  return useQuery<{ client_id: string; role: string }[]>({
+    queryKey: ["client-logins"],
+    queryFn: async () => {
+      if (!supabase) return [];
+      const { data, error } = await supabase.from("client_users").select("client_id, role");
+      // Not migrated yet reads as "nobody has one", never as a crash.
+      if (error) return [];
+      return (data ?? []) as { client_id: string; role: string }[];
+    },
+    retry: false,
+  });
+}

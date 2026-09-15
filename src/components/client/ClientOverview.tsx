@@ -46,7 +46,15 @@ interface TaskRow {
   requested_by_client: boolean;
 }
 
-export function ClientOverview({ onSeeActivity }: { onSeeActivity: () => void }) {
+export function ClientOverview({
+  onSeeActivity,
+  readOnly = false,
+}: {
+  onSeeActivity: () => void;
+  /* A viewer reads the account and cannot ask for work (0074). The RPC refuses
+     them anyway; this is so they are not offered a box that only ever errors. */
+  readOnly?: boolean;
+}) {
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
   const [due, setDue] = useState("");
@@ -138,6 +146,7 @@ export function ClientOverview({ onSeeActivity }: { onSeeActivity: () => void })
         <p className="text-faint text-sm">No assistant is assigned to your account yet.</p>
       )}
 
+      {readOnly ? null : (
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider">Ask for something</h2>
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -176,6 +185,7 @@ export function ClientOverview({ onSeeActivity }: { onSeeActivity: () => void })
           </p>
         ) : null}
       </section>
+      )}
 
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider">Your tasks</h2>

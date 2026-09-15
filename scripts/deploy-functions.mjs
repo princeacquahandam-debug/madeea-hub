@@ -28,16 +28,34 @@ const DIR = join(ROOT, "supabase", "functions");
 const PROJECT = process.env.SUPABASE_PROJECT_REF ?? "bglduxferbjmoeqzyypx";
 
 /**
- * The four a provider redirects a browser into, with no session attached.
+ * Deployed with JWT verification OFF. Two different reasons, both real.
+ *
+ * THE CALLBACKS a provider redirects a browser into, with no session attached.
  * Verifying a JWT there would reject the callback AFTER the person has already
- * approved, which looks like the provider failing. They are still protected:
- * by a single-use state row, and in WhatsApp's case by an HMAC signature.
+ * approved, which looks like the provider failing. They are still protected: by
+ * a single-use state row, and in WhatsApp's case by an HMAC signature.
+ *
+ * THE INVITES, because the browser sends a CORS preflight before the POST, and
+ * a preflight carries no Authorization header. With verification on, Supabase
+ * answers that OPTIONS with a 401 and the browser reports a CORS failure — the
+ * function is never reached, and nothing in the logs says why. Each of these
+ * requires and validates the bearer token in its own code, and checks the
+ * caller's rank against the database before doing anything.
+ *
+ * invite-member was MISSING from this list while working in production, which
+ * means it was deployed by hand through the dashboard with the toggle off. A
+ * no-argument `npm run deploy:functions` would have silently turned its JWT
+ * check back on and broken member invites — exactly the drift this script was
+ * written to end.
  */
 const NO_JWT = new Set([
   "integration-oauth-callback",
   "google-oauth-callback",
   "microsoft-oauth-callback",
   "whatsapp-webhook",
+  "invite-member",
+  "invite-client",
+  "invite-client-viewer",
 ]);
 
 if (!process.env.SUPABASE_ACCESS_TOKEN) {
