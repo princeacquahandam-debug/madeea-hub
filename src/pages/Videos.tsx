@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Video, Trash2, Clock, Play, Bookmark } from "lucide-react";
+import { Video, Trash2, Clock, Play, Bookmark, Lock } from "lucide-react";
 import { PageHeader, Modal, Badge } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { ScreenRecorder } from "@/components/ScreenRecorder";
-import { recordingUrl, useRecordingMutations, useRecordings, useSaved, useSavedMutations } from "@/data/hooks";
+import {
+  atLeast, recordingUrl, useMyRole, useRecordingMutations, useRecordings, useSaved, useSavedMutations,
+} from "@/data/hooks";
 import type { Recording } from "@/types/db";
 
 /**
@@ -13,11 +15,30 @@ import type { Recording } from "@/types/db";
  * where nobody found it. A recording is not a sub-feature of a checklist: it is
  * how a process gets out of somebody's head in the first place, and the SOP is
  * what it becomes afterwards.
+ *
+ * ═══ ADMINS ONLY, ON COST ════════════════════════════════════════════════
+ *
+ * Rowena, 14 Sep (24:06): "huwag mong ipapakita yan." Transcribing video is by
+ * some distance the most expensive thing in this app, and the team had already
+ * watched a $100 OpenAI balance go in a couple of days. The balance is shared
+ * across the workspace, so whoever spends it does not just lose this page —
+ * they take the quick actions, the EOD drafts and the assistant down with it
+ * for everyone, and the first anyone knows is a feature quietly failing.
+ *
+ * The constants.ts entry hides the link. This is the half that matters: a link
+ * is not a lock, and anybody who used this page before it was gated still has
+ * the URL. Agreed on the call as a future upsell, so nothing is deleted.
+ *
+ * Not a security boundary. Recordings are still governed by workspace RLS, and
+ * an employee reaching the API directly is refused there rather than here.
+ * This is a spending control, which is a different thing and is allowed to
+ * live in the UI.
  */
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 const daysLeft = (iso: string) => Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 864e5));
 
 export default function Videos() {
+  const { data: role, isLoading: roleLoading } = useMyRole();
   const { data: recordings = [], isLoading } = useRecordings();
   const { save, remove } = useRecordingMutations();
   const { data: saved = [] } = useSaved();
@@ -30,6 +51,37 @@ export default function Videos() {
     const url = await recordingUrl(r);
     if (url) setPlaying({ title: r.title, url });
   };
+
+  /* Nothing at all while the role resolves. Rendering the library first and
+     snatching it back a moment later would show the page to exactly the person
+     it is being kept from, and useMyRole throws rather than assuming the lowest
+     role, so this settles either way. */
+  if (roleLoading) return null;
+
+  if (!atLeast(role, "admin")) {
+    return (
+      <div>
+        <PageHeader
+          title="Video Instruction"
+          subtitle="Recording is limited to workspace admins."
+        />
+        <div className="card mt-4 flex items-start gap-3 p-4">
+          <Lock size={16} className="mt-0.5 shrink-0 text-faint" />
+          <div className="text-sm text-muted">
+            <p>
+              Screen recording and transcription run up the workspace AI balance
+              faster than anything else in the app, and that balance is shared —
+              so it is kept with the admins who can see what it costs.
+            </p>
+            <p className="mt-2">
+              If you need a process captured, ask an admin to record it, or write
+              it up in <span className="text-text">Workflows</span> instead.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

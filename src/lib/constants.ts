@@ -53,6 +53,14 @@ export interface NavItem {
   icon: LucideIcon;
   group: NavGroup;
   badge?: string;
+  /**
+   * The lowest role that may see this at all. Absent means everyone.
+   *
+   * UI GATING ONLY, and the one page using it needs more than that — see the
+   * note on Video Instruction. Anything where the real boundary matters is
+   * enforced in Postgres, not here.
+   */
+  minRole?: "owner" | "admin" | "manager" | "employee";
 }
 
 export const NAV: NavItem[] = [
@@ -101,8 +109,20 @@ export const NAV: NavItem[] = [
      and "workflow" is the word the team and the reference product use out
      loud. The route stays /sops so existing links still work. */
   { to: "/sops", label: "Workflows", icon: ClipboardCheck, group: "Playbook" },
-  { to: "/videos", label: "Video Instruction", icon: Video, group: "Playbook" },
-  { to: "/routines", label: "Routines", icon: Repeat, group: "Playbook" },
+  /* ADMINS ONLY, AND THIS IS A COST CONTROL, NOT A PERMISSION.
+     Rowena, 14 Sep (24:06): "huwag mong ipapakita yan" — video capture is the
+     most expensive thing in the app by a wide margin, and the team watched a
+     $100 OpenAI balance disappear in days. Left open to every EA it is one
+     careless afternoon away from draining the account again, and the balance
+     is shared, so the EA who drains it takes every other feature down with it.
+     Agreed on the call as a future upsell, so the page stays and the route
+     stays mounted; only the door narrows.
+     The page repeats the check. Hiding a link does not unbookmark it. */
+  { to: "/videos", label: "Video Instruction", icon: Video, group: "Playbook", minRole: "admin" },
+  /* Called beta out loud on the 14 Sep walkthrough and labelled nowhere. An EA
+     clicking into something half-built with no warning is a support ticket; a
+     client watching it happen in a demo is worse. */
+  { to: "/routines", label: "Routines", icon: Repeat, group: "Playbook", badge: "Beta" },
   /* The Academy was routed but never in the nav. The only way in was a promo
      card in the sidebar footer, which is dismissible, so dismissing it hid the
      training entirely. "Training Center" is what the team calls it. */

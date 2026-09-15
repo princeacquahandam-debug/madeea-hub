@@ -91,14 +91,25 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
   const { data: role } = useMyRole();
   const { sidebarCollapsed, toggleSidebar } = useUI();
   const { pathname } = useLocation();
-  // Intersected with NAV rather than taken from it, so the declared order in
+  /* Filtered ONCE, and everything below reads this rather than NAV.
+     The sidebar renders its items in three places — the collapsed rail, the
+     expanded list, and the active-group lookup. A role filter applied to two
+     of them is not a filter: the link simply reappears when somebody collapses
+     the sidebar, which is the version of this bug nobody would think to test
+     for. */
+  const nav = useMemo(
+    () => NAV.filter((n) => !n.minRole || atLeast(role, n.minRole)),
+    [role],
+  );
+  // Intersected with the nav rather than taken from it, so the declared order in
   // NAV_GROUPS decides the sidebar order while an empty group still cannot
   // render. That last part matters: "AI Suite" sat here for weeks after the
   // 09 Aug cut emptied it, as a header you could click to expand onto nothing.
+  // It matters again now that a role can empty a group.
   const groups = useMemo(() => {
-    const present = new Set(NAV.map((n) => n.group));
+    const present = new Set(nav.map((n) => n.group));
     return NAV_GROUPS.filter((g) => present.has(g));
-  }, []);
+  }, [nav]);
   const collapsed = sidebarCollapsed && !forceExpanded;
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
@@ -117,10 +128,10 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
      about where you were. */
   const activeGroup = useMemo(
     () =>
-      NAV.filter((n) => (n.to === "/" ? pathname === "/" : pathname.startsWith(n.to)))
+      nav.filter((n) => (n.to === "/" ? pathname === "/" : pathname.startsWith(n.to)))
         // Longest match wins, so /saved does not lose to /.
         .sort((a, b) => b.to.length - a.to.length)[0]?.group,
-    [pathname],
+    [nav, pathname],
   );
 
   /* A default, never a lock.
@@ -205,7 +216,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
                   <GroupIcon size={18} className="shrink-0" />
                 </button>
                 {open &&
-                  NAV.filter((n) => n.group === group).map((item) => (
+                  nav.filter((n) => n.group === group).map((item) => (
                     <NavLink
                       key={item.to}
                       to={item.to}
@@ -328,7 +339,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
               </button>
               {open && (
                 <div className="mt-1 space-y-0.5">
-                  {NAV.filter((n) => n.group === group).map((item) => (
+                  {nav.filter((n) => n.group === group).map((item) => (
                     <NavLink
                       key={item.to}
                       to={item.to}
