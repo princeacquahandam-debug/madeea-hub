@@ -79,6 +79,8 @@ export interface Task {
   /** Blocked and why (migration 0016). Rolls straight into the EOD draft. */
   blocked?: boolean;
   blocker_note?: string | null;
+  /** Written for the client, and the only blocker text they ever read (0075). */
+  client_visible_blocker?: string | null;
   /**
    * Client-facing output that needs sign-off (migration 0030). A task with this
    * set cannot reach `done` without an approval. Enforced by a DB trigger, not

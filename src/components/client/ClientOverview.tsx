@@ -41,6 +41,7 @@ interface TaskRow {
   priority: string;
   due_label: string | null;
   blocked: boolean;
+  client_visible_blocker: string | null;
   completed_at: string | null;
   created_at: string;
   requested_by_client: boolean;
@@ -214,6 +215,14 @@ export function ClientOverview({
                     {t.blocked ? <span style={{ color: "var(--c-danger)" }}>Blocked</span> : null}
                     {t.requested_by_client ? <span>Requested by you</span> : null}
                   </div>
+                  {/* The assistant wrote this for the client specifically (0075).
+                      blocker_note, the private one, is not published at all. */}
+                  {t.blocked && t.client_visible_blocker ? (
+                    <p className="mt-1.5 flex items-start gap-1.5 text-xs" style={{ color: "var(--c-danger)" }}>
+                      <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                      Waiting on you: {t.client_visible_blocker}
+                    </p>
+                  ) : null}
                 </div>
               </li>
             ))}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ClockWatch } from "@/components/ClockWatch";
 import { Clock, Play, Square, Trash2, CalendarDays, Camera, ShieldAlert, Info, MonitorPlay } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui";
 import { atLeast,
@@ -201,6 +202,11 @@ export default function Time() {
         title="Time Tracker"
         subtitle="Clock in to start your day. Attendance and payroll are recorded from this."
       />
+
+      {/* Renders nothing below manager, and nothing when everyone has started.
+          Above the clock because a manager opening this page is here to check
+          the team, not their own shift. */}
+      <ClockWatch />
 
       {/* ---- the clock ----
           Fixed min-height across both states. The card used to be a different

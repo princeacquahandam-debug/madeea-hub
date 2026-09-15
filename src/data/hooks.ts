@@ -49,6 +49,7 @@ const mapTask = (r: TaskRow): Task => ({
      hid it, because the seed objects are used as-is and skip this function. */
   blocked: (r as { blocked?: boolean }).blocked ?? false,
   blocker_note: (r as { blocker_note?: string | null }).blocker_note ?? null,
+  client_visible_blocker: (r as { client_visible_blocker?: string | null }).client_visible_blocker ?? null,
   // Migration 0030. Defaulted, so the board works before it is applied.
   requires_approval: (r as { requires_approval?: boolean }).requires_approval ?? false,
   approved_by: (r as { approved_by?: string | null }).approved_by ?? null,
@@ -214,6 +215,7 @@ export function useTaskMutations() {
     /** Declared blocker + reason (migration 0016). Feeds the EOD draft. */
     blocked?: boolean;
     blocker_note?: string | null;
+    client_visible_blocker?: string | null;
     /* Migration 0026. Listed here as well as on the insert below: `update`
        spreads whatever it is given straight into Postgres, but `create` names
        its columns, so a field missing from that list is silently dropped and
@@ -252,6 +254,7 @@ export function useTaskMutations() {
           assignee_id: input.assignee_id ?? null,
           blocked: input.blocked ?? false,
           blocker_note: input.blocker_note ?? null,
+          client_visible_blocker: input.client_visible_blocker ?? null,
           notes: input.notes ?? null,
           progress: input.progress ?? [],
           attachments: input.attachments ?? [],
@@ -266,6 +269,7 @@ export function useTaskMutations() {
         assignee_id: input.assignee_id ?? null,
         blocked: input.blocked ?? false,
         blocker_note: input.blocker_note ?? null,
+        client_visible_blocker: input.client_visible_blocker ?? null,
         notes: input.notes ?? null,
         progress: input.progress ?? [],
         attachments: input.attachments ?? [],

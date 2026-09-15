@@ -22,13 +22,16 @@ import { supabase } from "@/lib/supabase";
  *
  *   sla_breach   — internal. We were late; the team needs to know.
  *   ea_timed_in  — client-facing. Their assistant has started the day.
+ *   ea_not_clocked_in — internal. Somebody has not started, and the client
+ *                       learning that first is how a recoverable morning
+ *                       becomes an account review (0075).
  *
  * The two audiences are opposite on purpose and 0036 spelled out why: a breach
  * alert tells a client we were late at the moment that is least useful to hear,
  * so it stays internal. A time-in is addressed to the client, true when it is
  * sent, and carries nothing they should not see.
  */
-export type AlertEvent = "sla_breach" | "ea_timed_in";
+export type AlertEvent = "sla_breach" | "ea_timed_in" | "ea_not_clocked_in";
 
 export interface EmitResult {
   ok: boolean;

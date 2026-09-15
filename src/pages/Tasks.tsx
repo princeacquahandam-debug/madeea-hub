@@ -520,7 +520,7 @@ function TaskList({
 
 const BLANK = {
   title: "", priority: "normal" as Priority, due: "", subtasks: [] as Subtask[],
-  recurrence: "none" as Recurrence, dependsOn: "", clientId: "", assigneeId: "", blockerNote: "",
+  recurrence: "none" as Recurrence, dependsOn: "", clientId: "", assigneeId: "", blockerNote: "", clientBlocker: "",
   notes: "", progress: [] as TaskProgress[], attachments: [] as TaskAttachment[],
   status: "todo" as TaskStatus,
   requiresApproval: false,
@@ -672,11 +672,11 @@ export default function Tasks() {
      in In Progress starts there instead of appearing in To Do to be dragged. */
   function startCreate(status: TaskStatus = "todo") { setForm({ ...BLANK, status }); setEditingId(null); setModal(true); }
   function startEdit(t: Task) {
-    setForm({ title: t.title, priority: t.priority, due: t.due_at ? t.due_at.slice(0, 10) : "", subtasks: t.subtasks ?? [], recurrence: t.recurrence ?? "none", dependsOn: t.depends_on ?? "", clientId: clients.find((c) => c.name === t.client_name)?.id ?? "", assigneeId: t.assignee_id ?? "", blockerNote: t.blocker_note ?? "", notes: t.notes ?? "", progress: t.progress ?? [], attachments: t.attachments ?? [], status: t.status, requiresApproval: t.requires_approval ?? false });
+    setForm({ title: t.title, priority: t.priority, due: t.due_at ? t.due_at.slice(0, 10) : "", subtasks: t.subtasks ?? [], recurrence: t.recurrence ?? "none", dependsOn: t.depends_on ?? "", clientId: clients.find((c) => c.name === t.client_name)?.id ?? "", assigneeId: t.assignee_id ?? "", blockerNote: t.blocker_note ?? "", clientBlocker: t.client_visible_blocker ?? "", notes: t.notes ?? "", progress: t.progress ?? [], attachments: t.attachments ?? [], status: t.status, requiresApproval: t.requires_approval ?? false });
     setEditingId(t.id); setModal(true);
   }
   function fromTemplate(t: TaskTemplate) {
-    setForm({ title: t.title, priority: t.priority, due: "", recurrence: "none", dependsOn: "", clientId: "", assigneeId: "", blockerNote: "", notes: "", progress: [], attachments: [], status: "todo", requiresApproval: false, subtasks: t.subtasks.map((l, i) => ({ id: `${Date.now()}-${i}`, label: l, done: false })) });
+    setForm({ title: t.title, priority: t.priority, due: "", recurrence: "none", dependsOn: "", clientId: "", assigneeId: "", blockerNote: "", clientBlocker: "", notes: "", progress: [], attachments: [], status: "todo", requiresApproval: false, subtasks: t.subtasks.map((l, i) => ({ id: `${Date.now()}-${i}`, label: l, done: false })) });
     setEditingId(null); setTemplates(false); setModal(true);
   }
   function submit() {
@@ -692,6 +692,7 @@ export default function Tasks() {
       // rather than a checkbox you can leave contradicting the note.
       blocked: Boolean(form.blockerNote.trim()),
       blocker_note: form.blockerNote.trim() || null,
+      client_visible_blocker: form.clientBlocker.trim() || null,
       notes: form.notes.trim() || null,
       progress: form.progress,
       attachments: form.attachments,
@@ -938,6 +939,23 @@ export default function Tasks() {
               onChange={(e) => setForm((f) => ({ ...f, blockerNote: e.target.value }))}
             />
             <p className="mt-1 text-[11px] text-faint">Fill this in and the task shows as blocked, and it lands in your EOD report by itself.</p>
+          </div>
+
+          {/* The client reads THIS one and never the field above. 0072 keeps
+              blocker_note unpublished because it is written to yourself and to
+              your EOD; but the most common blocker on an assistant task is the
+              client themselves, and "1 blocked" with no reason is how a task
+              sits for a week over a login nobody asked for. */}
+          <div>
+            <label className="field-label" htmlFor="task-client-blocker">What do you need from the client? (optional)</label>
+            <input
+              id="task-client-blocker"
+              className="input"
+              placeholder="e.g. Access to the bank portal"
+              value={form.clientBlocker}
+              onChange={(e) => setForm((f) => ({ ...f, clientBlocker: e.target.value }))}
+            />
+            <p className="mt-1 text-[11px] text-faint">Shown to the client in their portal, in these exact words. Leave it empty and they see only that the task is blocked.</p>
           </div>
 
           {/* R-4.7.3. Kept apart from the blocker field above on purpose: that

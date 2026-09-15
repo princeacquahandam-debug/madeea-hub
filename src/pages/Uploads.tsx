@@ -61,11 +61,21 @@ export default function Uploads() {
 
   return (
     <div>
+      {/* ROWENA'S FRAMING, 20:54, and close to verbatim: "the reason for the
+          uploads will be the knowledge base or database for the AI Quick
+          Actions. YOUR AI Quick Actions."
+
+          The page said "Knowledge base" and did not say whose or what for.
+          Uploading documents is the most sensitive thing this app asks of a
+          client, and the objection on the call was not about storage -- it was
+          that an unexplained upload box reads as the agency collecting
+          material. Naming what it feeds, and that it feeds THEIR assistant,
+          is the whole difference. */}
       <PageHeader
         title="Knowledge base"
         subtitle={
           scope === "team"
-            ? "Documents the whole team can find, not a link in someone's inbox."
+            ? "What your AI Quick Actions read from. Documents here give your drafts, replies and research the context they would otherwise have to be told every time."
             : "Your own shelf. Nobody else can open these, administrators included."
         }
         action={
