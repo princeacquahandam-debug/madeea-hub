@@ -1,18 +1,25 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, CheckCircle2, Circle, Loader2, Plus, AlertTriangle } from "lucide-react";
+import { Clock, CheckCircle2, Circle, Loader2, Plus, AlertTriangle, ArrowRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { hm } from "./format";
 
 /**
- * The proof-of-work half of the client portal.
+ * The front page of the client portal: where the account stands, right now.
  *
  * Every read here goes through a VIEW, never a table. `client_tasks` and
- * `client_hours` list their columns by name, so a column added to `tasks` or
+ * `client_days` list their columns by name, so a column added to `tasks` or
  * `time_entries` later is not published to clients by accident — see 0072.
  *
- * What is deliberately absent: EOD reports (one report covers every client that
- * assistant touched, so it is not this client's to read) and screenshots (a
- * photograph of a monitor shows whoever else was on it).
+ * SCOPE. This pane answers "what is open, and what can I ask for?". The day by
+ * day record of what was finished moved to ClientActivity when 0073 added the
+ * digest, because the two answer different questions and one long scroll
+ * answered neither well.
+ *
+ * Still deliberately absent, and 0073 says why at length: the EOD report itself
+ * (one report covers every client that assistant touched) and the screenshot
+ * images (a photograph of a monitor shows whoever else was on it). Activity
+ * carries the accountability both were asked for.
  */
 
 interface Overview {
@@ -22,10 +29,9 @@ interface Overview {
   assistant_initials: string | null;
 }
 
-interface HoursRow {
+interface DayRow {
   work_date: string;
   minutes: number;
-  sessions: number;
 }
 
 interface TaskRow {
@@ -40,13 +46,7 @@ interface TaskRow {
   requested_by_client: boolean;
 }
 
-function hm(minutes: number): string {
-  const m = Math.max(0, Math.round(minutes));
-  const h = Math.floor(m / 60);
-  return h ? `${h}h ${m % 60}m` : `${m}m`;
-}
-
-export function ClientOverview() {
+export function ClientOverview({ onSeeActivity }: { onSeeActivity: () => void }) {
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
   const [due, setDue] = useState("");
@@ -61,16 +61,18 @@ export function ClientOverview() {
     },
   });
 
-  const { data: hours = [] } = useQuery({
-    queryKey: ["client-portal", "hours"],
+  /* Seven days, because the only thing read off this is the seven-day total.
+     Activity is where the per-day record lives, and it asks for its own. */
+  const { data: days = [] } = useQuery({
+    queryKey: ["client-portal", "week"],
     queryFn: async () => {
       const { data, error } = await supabase!
-        .from("client_hours")
-        .select("*")
+        .from("client_days")
+        .select("work_date, minutes")
         .order("work_date", { ascending: false })
-        .limit(14);
+        .limit(7);
       if (error) throw error;
-      return (data ?? []) as HoursRow[];
+      return (data ?? []) as DayRow[];
     },
   });
 
@@ -87,11 +89,11 @@ export function ClientOverview() {
   });
 
   const totals = useMemo(() => {
-    const last7 = hours.slice(0, 7).reduce((n, r) => n + Number(r.minutes ?? 0), 0);
+    const last7 = days.reduce((n, r) => n + Number(r.minutes ?? 0), 0);
     const open = tasks.filter((t) => t.status !== "done").length;
     const done = tasks.filter((t) => t.status === "done").length;
     return { last7, open, done };
-  }, [hours, tasks]);
+  }, [days, tasks]);
 
   const request = useMutation({
     mutationFn: async () => {
@@ -209,24 +211,16 @@ export function ClientOverview() {
         )}
       </section>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider">Time on your account</h2>
-        {hours.length === 0 ? (
-          <p className="text-faint text-sm">No time has been logged against your account yet.</p>
-        ) : (
-          <ul className="space-y-1">
-            {hours.map((h) => (
-              <li key={h.work_date} className="flex items-center justify-between text-sm">
-                <span className="text-faint">{new Date(h.work_date + "T00:00:00").toLocaleDateString()}</span>
-                <span>
-                  {hm(Number(h.minutes))}
-                  <span className="text-faint"> · {h.sessions} session{h.sessions === 1 ? "" : "s"}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {days.length > 0 ? (
+        <button
+          onClick={onSeeActivity}
+          className="flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm"
+          style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }}
+        >
+          <span>See what was done, day by day</span>
+          <ArrowRight size={15} className="text-faint shrink-0" />
+        </button>
+      ) : null}
     </div>
   );
 }

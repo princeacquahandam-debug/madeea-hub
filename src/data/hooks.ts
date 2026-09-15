@@ -1550,7 +1550,7 @@ export function useNotes() {
       if (!supabase) return applyDemo<Note>("notes", DEMO_NOTES);
       const { data, error } = await supabase
         .from("notes")
-        .select("id,client_id,title,body,pinned,created_at,updated_at")
+        .select("id,client_id,title,body,pinned,shared_with_client,author_is_client,created_at,updated_at")
         .order("pinned", { ascending: false })
         .order("updated_at", { ascending: false });
       if (error) return applyDemo<Note>("notes", []); // not migrated yet. Empty, never invented
@@ -1569,6 +1569,10 @@ export function useNoteMutations() {
     body: string;
     client_id?: string | null;
     pinned?: boolean;
+    /* Toggled from the Notes page. Not settable on create: sharing is a second,
+       deliberate act, so a note cannot reach a client on the same keystroke
+       that wrote it. */
+    shared_with_client?: boolean;
   };
 
   const create = useMutation({

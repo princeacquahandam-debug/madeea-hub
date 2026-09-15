@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { StickyNote, Plus, Trash2, Pin, PinOff, Search, Info, Check, X, Pencil } from "lucide-react";
+import { StickyNote, Plus, Trash2, Pin, PinOff, Search, Info, Check, X, Pencil, Eye, EyeOff, Users } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { useClients, useNotes, useNoteMutations } from "@/data/hooks";
 import { NOTE_EXAMPLES, noteClientName, noteHeading, searchNotes, sortNotes, type Note } from "@/lib/notes";
@@ -198,6 +198,16 @@ export default function Notes() {
                             <Pin size={10} /> Pinned
                           </span>
                         )}
+                        {n.author_is_client && (
+                          <span className="pill bg-accent/15 text-accent-soft">
+                            <Users size={10} /> From the client
+                          </span>
+                        )}
+                        {n.shared_with_client && !n.author_is_client && (
+                          <span className="pill bg-accent/15 text-accent-soft">
+                            <Eye size={10} /> Shared
+                          </span>
+                        )}
                       </div>
                       {(n.title.trim() || n.body.trim() !== noteHeading(n)) && (
                         <p className="whitespace-pre-wrap text-sm text-muted">{n.body}</p>
@@ -212,6 +222,29 @@ export default function Notes() {
                       >
                         <Pencil size={14} />
                       </button>
+                      {/* Only a note tied to a client can be shared: client_notes
+                          matches on client_id, so sharing a general note would
+                          set a flag that reaches nobody and reads as a lie. */}
+                      {n.client_id && !n.author_is_client && (
+                        <button
+                          className="rounded-md p-1.5 text-faint transition-colors hover:bg-accent/10 hover:text-accent"
+                          onClick={() =>
+                            update.mutate({ id: n.id, shared_with_client: !n.shared_with_client })
+                          }
+                          title={
+                            n.shared_with_client
+                              ? "Stop showing this to the client"
+                              : "Show this to the client in their portal"
+                          }
+                          aria-label={
+                            n.shared_with_client
+                              ? `Stop sharing ${noteHeading(n)} with the client`
+                              : `Share ${noteHeading(n)} with the client`
+                          }
+                        >
+                          {n.shared_with_client ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      )}
                       <button
                         className="rounded-md p-1.5 text-faint transition-colors hover:bg-accent/10 hover:text-accent"
                         onClick={() => update.mutate({ id: n.id, pinned: !n.pinned })}

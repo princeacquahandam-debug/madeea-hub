@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { LogOut, Send, ShieldCheck, MessageSquare, LayoutDashboard } from "lucide-react";
+import {
+  LogOut, Send, ShieldCheck, MessageSquare, LayoutDashboard,
+  Activity, CalendarDays, StickyNote,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
-import { ClientOverview } from "@/components/ClientOverview";
+import { ClientOverview } from "@/components/client/ClientOverview";
+import { ClientActivity } from "@/components/client/ClientActivity";
+import { ClientCalendar } from "@/components/client/ClientCalendar";
+import { ClientNotes } from "@/components/client/ClientNotes";
 
 /**
  * What a client sees. Deliberately not the agency app with things hidden.
@@ -12,11 +18,16 @@ import { ClientOverview } from "@/components/ClientOverview";
  * workspace policies deny everything: notes, EOD reports, the staff list. That
  * is 0065's isolation working, and it means there is no agency screen to filter
  * down to — what a client may read is their own row, their two conversations,
- * and the three views 0072 defines.
+ * and the views 0072 and 0073 define.
+ *
+ * THE TAB ORDER IS THE 14 SEP WALKTHROUGH. Where do I stand, what was done,
+ * what is booked, what should they know, and then the two ways to talk to
+ * somebody. Messaging sits last because it is the thing a client reaches for
+ * when the first four have not already answered them.
  */
 
 type Kind = "client_ea" | "escalation";
-type Tab = "overview" | Kind;
+type Tab = "overview" | "activity" | "calendar" | "notes" | Kind;
 
 interface Conversation {
   id: string;
@@ -47,9 +58,20 @@ const CHANNEL: Record<Kind, { label: string; blurb: string; icon: typeof Message
 
 const TABS: { id: Tab; label: string; icon: typeof MessageSquare }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "activity", label: "Activity", icon: Activity },
+  { id: "calendar", label: "Calendar", icon: CalendarDays },
+  { id: "notes", label: "Notes", icon: StickyNote },
   { id: "client_ea", label: CHANNEL.client_ea.label, icon: CHANNEL.client_ea.icon },
   { id: "escalation", label: CHANNEL.escalation.label, icon: CHANNEL.escalation.icon },
 ];
+
+/** The panes that are not a conversation, so the message furniture falls away. */
+const PANES: Partial<Record<Tab, boolean>> = {
+  overview: true,
+  activity: true,
+  calendar: true,
+  notes: true,
+};
 
 export default function ClientPortal({ clientId }: { clientId: string }) {
   const { user, signOut } = useAuth();
@@ -83,8 +105,8 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
     },
   });
 
-  // "overview" matches no conversation, which is what makes the channel panes
-  // fall away without a second piece of state deciding it.
+  // A pane tab matches no conversation, which is what makes the channel
+  // furniture fall away without a second piece of state deciding it.
   const active = useMemo(
     () => conversations.find((c) => c.kind === tab) ?? null,
     [conversations, tab],
@@ -139,7 +161,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
     }
   }
 
-  const channel = tab === "overview" ? null : CHANNEL[tab];
+  const channel = PANES[tab] ? null : CHANNEL[tab as Kind];
 
   return (
     <div className="flex h-screen flex-col" style={{ background: "var(--c-bg)" }}>
@@ -186,9 +208,12 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
         })}
       </nav>
 
-      {tab === "overview" ? (
+      {PANES[tab] ? (
         <div className="flex-1 overflow-y-auto">
-          <ClientOverview />
+          {tab === "overview" ? <ClientOverview onSeeActivity={() => setTab("activity")} /> : null}
+          {tab === "activity" ? <ClientActivity /> : null}
+          {tab === "calendar" ? <ClientCalendar /> : null}
+          {tab === "notes" ? <ClientNotes /> : null}
         </div>
       ) : (
         <>

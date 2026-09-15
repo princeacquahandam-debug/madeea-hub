@@ -23,6 +23,14 @@ export interface Note {
   title: string;
   body: string;
   pinned: boolean;
+  /**
+   * The client on this account can read it in their portal. Default false, and
+   * deliberately separate from client_id: that says a note is ABOUT a client,
+   * which is true of most of an assistant's private working notes. See 0073.
+   */
+  shared_with_client?: boolean;
+  /** The client wrote this one, rather than the assistant. */
+  author_is_client?: boolean;
   created_at?: string | null;
   updated_at?: string | null;
 }
