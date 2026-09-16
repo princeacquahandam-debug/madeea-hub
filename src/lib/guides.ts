@@ -63,8 +63,8 @@ export const GUIDES: Record<string, Guide> = {
     ],
   },
   "/sops": {
-    // "Workflows", matching the nav and the page. This still said SOPs.
-    title: "How Workflows work",
+    // Matches the nav and the page. All three move together or one goes stale.
+    title: "How SOPs work",
     points: [
       "Open a procedure, pick the client and task, and tick each step as you go.",
       "Finishing marks the task done, so the work lands in today's EOD without retyping it.",

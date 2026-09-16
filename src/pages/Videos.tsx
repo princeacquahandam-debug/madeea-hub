@@ -75,7 +75,7 @@ export default function Videos() {
             </p>
             <p className="mt-2">
               If you need a process captured, ask an admin to record it, or write
-              it up in <span className="text-text">Workflows</span> instead.
+              it up in <span className="text-text">SOP</span> instead.
             </p>
           </div>
         </div>

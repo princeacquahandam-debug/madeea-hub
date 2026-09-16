@@ -196,10 +196,10 @@ export default function Sops() {
 
   return (
     <div>
-      {/* "Workflows", matching the nav. The page still said "SOPs", so the tab
+      {/* "SOP", matching the nav. The page and the nav have disagreed twice; the
           you clicked and the page you landed on had different names. */}
       <PageHeader
-        title="Workflows"
+        title="SOP"
         subtitle="Checklists for the work that repeats. Run one and it lands on your board and in your EOD."
         action={
           <div className="flex gap-2">

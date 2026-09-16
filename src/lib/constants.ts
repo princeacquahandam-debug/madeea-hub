@@ -105,10 +105,15 @@ export const NAV: NavItem[] = [
      thing you can see rather than a line in a spec. The loop reads top to
      bottom: record it, write it up, put it on a schedule, learn it.
 
-     "Workflows", not "SOPs". PROJECT_PLAN §5.6 treats them as the same thing,
-     and "workflow" is the word the team and the reference product use out
-     loud. The route stays /sops so existing links still work. */
-  { to: "/sops", label: "Workflows", icon: ClipboardCheck, group: "Playbook" },
+     "SOP", after a spell as "Workflows". The earlier rename argued that
+     "workflow" was the word the team used out loud; the 14 Sep call settled it
+     the other way -- Rowena, unprompted: "kailangan din natin SOP natin", in
+     preparation for incoming leads. It is also the word the sales material
+     uses when it promises a client that their assistant follows a documented
+     standard, and the product should say what the pitch says.
+
+     The route stays /sops, which it never stopped being. */
+  { to: "/sops", label: "SOP", icon: ClipboardCheck, group: "Playbook" },
   /* ADMINS ONLY, AND THIS IS A COST CONTROL, NOT A PERMISSION.
      Rowena, 14 Sep (24:06): "huwag mong ipapakita yan" — video capture is the
      most expensive thing in the app by a wide margin, and the team watched a
