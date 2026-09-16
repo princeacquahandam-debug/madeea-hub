@@ -3,6 +3,7 @@ import { MessageSquare, ChevronRight, CheckCircle2, Plus, Trash2, Pencil, AlertT
 import type { Client } from "@/types/db";
 import { Badge, PageHeader, Modal } from "@/components/ui";
 import { InviteClientLogin } from "@/components/InviteClientLogin";
+import { DelegationPlans } from "@/components/DelegationPlans";
 import { Avatar } from "@/components/Avatar";
 import { SlaBadge, TrendArrow, TREND_LABEL } from "@/components/SlaBadge";
 import { ClientActivity } from "@/components/ClientActivity";
@@ -304,6 +305,12 @@ export default function ClientVault() {
                 </Section>
 
                 {open.bio && <Section title="Biography"><p className="text-sm text-muted">{open.bio}</p></Section>}
+
+                {/* Renders nothing when the client has written none, which is
+                    most of them. The brief sits above the work it produced. */}
+                <Section title="What they have delegated">
+                  <DelegationPlans clientId={open.id} />
+                </Section>
 
                 <Section title="Active Tasks">
                   {active.length ? (

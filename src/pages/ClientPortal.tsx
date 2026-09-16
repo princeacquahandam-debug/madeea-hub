@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   LogOut, Send, ShieldCheck, MessageSquare, LayoutDashboard,
-  Activity, CalendarDays, StickyNote, Eye, Users,
+  Activity, CalendarDays, StickyNote, Eye, Users, Share2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,6 +11,7 @@ import { ClientActivity } from "@/components/client/ClientActivity";
 import { ClientCalendar } from "@/components/client/ClientCalendar";
 import { ClientNotes } from "@/components/client/ClientNotes";
 import { ClientPeople } from "@/components/client/ClientPeople";
+import { ClientDelegation } from "@/components/client/ClientDelegation";
 
 /**
  * What a client sees. Deliberately not the agency app with things hidden.
@@ -28,7 +29,7 @@ import { ClientPeople } from "@/components/client/ClientPeople";
  */
 
 type Kind = "client_ea" | "escalation";
-type Tab = "overview" | "activity" | "calendar" | "notes" | "people" | Kind;
+type Tab = "overview" | "activity" | "calendar" | "notes" | "delegate" | "people" | Kind;
 
 interface Conversation {
   id: string;
@@ -62,6 +63,7 @@ const TABS: { id: Tab; label: string; icon: typeof MessageSquare }[] = [
   { id: "activity", label: "Activity", icon: Activity },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "notes", label: "Notes", icon: StickyNote },
+  { id: "delegate", label: "Delegate", icon: Share2 },
   { id: "people", label: "People", icon: Users },
   { id: "client_ea", label: CHANNEL.client_ea.label, icon: CHANNEL.client_ea.icon },
   { id: "escalation", label: CHANNEL.escalation.label, icon: CHANNEL.escalation.icon },
@@ -73,6 +75,7 @@ const PANES: Partial<Record<Tab, boolean>> = {
   activity: true,
   calendar: true,
   notes: true,
+  delegate: true,
   people: true,
 };
 
@@ -246,6 +249,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
           {tab === "activity" ? <ClientActivity /> : null}
           {tab === "calendar" ? <ClientCalendar /> : null}
           {tab === "notes" ? <ClientNotes readOnly={isViewer} /> : null}
+          {tab === "delegate" ? <ClientDelegation readOnly={isViewer} /> : null}
           {tab === "people" ? <ClientPeople readOnly={isViewer} /> : null}
         </div>
       ) : (

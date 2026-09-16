@@ -56,6 +56,8 @@ const NO_JWT = new Set([
   "invite-member",
   "invite-client",
   "invite-client-viewer",
+  // Called from the client portal, so the same preflight problem applies.
+  "delegation-coach",
 ]);
 
 if (!process.env.SUPABASE_ACCESS_TOKEN) {

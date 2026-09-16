@@ -70,6 +70,21 @@ const BANNED = {
     owner_id: "an auth user id",
     workspace_id: "the agency's workspace",
   },
+  client_delegation_plans: {
+    created_by: "an auth user id",
+    workspace_id: "the agency workspace",
+    client_id: "they are the client, they do not need their own id",
+  },
+  client_delegation_assessments: {
+    created_by: "an auth user id",
+    workspace_id: "the agency workspace",
+    client_id: "same",
+  },
+  client_delegation_follow_ups: {
+    created_by: "an auth user id",
+    workspace_id: "the agency workspace",
+    client_id: "same",
+  },
   client_overview: {
     lead_ea_id: "an auth user id; the name is published instead, deliberately",
     workspace_id: "the agency's workspace",
