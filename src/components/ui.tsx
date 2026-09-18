@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useDirtyGuard } from "@/hooks/useDirtyGuard";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -66,7 +67,19 @@ export function Modal({ open, onClose, children }: { open: boolean; onClose: () 
   }, [nudge]);
 
   if (!open) return null;
-  return (
+
+  /* ═══ RENDERED INTO document.body, AND IT HAS TO BE ═══════════════════════
+     `.card` carries backdrop-filter for the frosted-glass look, and an element
+     with a backdrop-filter becomes the CONTAINING BLOCK for any fixed-position
+     descendant. So a Modal opened from inside a card stopped resolving
+     `fixed inset-0` against the viewport and resolved it against the card
+     instead: a full-screen dialog rendered at the width of one grid column,
+     heading wrapping three lines deep, with the page still scrollable behind
+     it. Nothing in the Modal's own classes is wrong, which is what makes it
+     hard to find -- the bug is 200 lines away in a decorative blur.
+     A portal to body puts it outside every such ancestor, permanently, for
+     every caller rather than the one that happened to report it. */
+  return createPortal(
     <div
       className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto bg-black/70 sm:items-center sm:p-4"
       /* NOT onClose. Clicking beside a dialog used to throw away everything
@@ -116,6 +129,7 @@ export function Modal({ open, onClose, children }: { open: boolean; onClose: () 
 
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
