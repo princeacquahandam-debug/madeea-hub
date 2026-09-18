@@ -25,17 +25,29 @@ import { dateOnly, dayLabel, localDayKey } from "./format";
  */
 
 interface Person {
-  role: "primary" | "viewer";
+  role: "primary" | "viewer" | "member";
   created_at: string;
   is_you: boolean;
   email: string | null;
 }
 
-const CAP = 5;
+const CAP: Record<string, number> = { viewer: 5, member: 10 };
+
+const ROLE_COPY: Record<string, { label: string; blurb: string }> = {
+  viewer: {
+    label: "Colleague, view only",
+    blurb: "Sees the work, the calendar and shared notes. Cannot request work, and cannot read your messages with your assistant or with agency leadership.",
+  },
+  member: {
+    label: "Team member, does the work",
+    blurb: "Gets their own clock, their own task list, and screen capture while they work. You see their hours and screenshots. They cannot read your messages or see the rest of the account.",
+  },
+};
 
 export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
+  const [role, setRole] = useState("viewer");
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
 
@@ -52,13 +64,13 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
     },
   });
 
-  const viewers = people.filter((p) => p.role === "viewer");
-  const full = viewers.length >= CAP;
+  const seated = people.filter((p) => p.role === role).length;
+  const full = seated >= CAP[role];
 
   const invite = useMutation({
     mutationFn: async (addr: string) => {
       const { data, error } = await supabase!.functions.invoke("invite-client-viewer", {
-        body: { email: addr },
+        body: { email: addr, role },
       });
       if (error) {
         /* The function's own sentence, not "non-2xx status code". It answers
@@ -121,10 +133,26 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
             Give a colleague access
           </h2>
           <p className="text-faint mb-2 text-sm">
-            They will see the work, the calendar and shared notes on this account. They
-            cannot request work from your assistant, and they cannot read your messages
-            with your assistant or with agency leadership.
+            Choose what they are here to do. Neither can read your messages with your
+            assistant or with agency leadership.
           </p>
+          <div className="mb-2 flex flex-col gap-2 sm:flex-row">
+            {Object.entries(ROLE_COPY).map(([k, c]) => (
+              <button
+                key={k}
+                onClick={() => setRole(k)}
+                className={
+                  role === k
+                    ? "flex-1 rounded-lg border border-accent bg-accent/15 p-3 text-left"
+                    : "flex-1 rounded-lg border border-border bg-surface-2 p-3 text-left hover:border-accent/50"
+                }
+              >
+                <div className="text-sm font-medium">{c.label}</div>
+                <div className="mt-0.5 text-xs text-faint">{c.blurb}</div>
+              </button>
+            ))}
+          </div>
+
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
               value={email}
@@ -146,8 +174,8 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
 
           <p className="text-faint mt-2 text-xs">
             {full
-              ? `You have added ${CAP} colleagues, which is the limit. Remove one to add another, or talk to us about more seats.`
-              : `${viewers.length} of ${CAP} colleague seats used.`}
+              ? `That is the limit of ${CAP[role]}. Remove one to add another, or talk to us about more seats.`
+              : `${seated} of ${CAP[role]} ${role === "member" ? "team member" : "colleague"} seats used.`}
           </p>
 
           {error ? (
@@ -185,16 +213,16 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
                   <div className="truncate text-sm">
                     {/* A viewer is not shown colleague addresses (0074), so the
                         row still has to read as somebody without one. */}
-                    {p.email ?? (p.role === "primary" ? "Account owner" : "Colleague")}
+                    {p.email ?? (p.role === "primary" ? "Account owner" : p.role === "member" ? "Team member" : "Colleague")}
                     {p.is_you ? <span className="text-faint"> · you</span> : null}
                   </div>
                   <div className="text-faint mt-0.5 text-xs">
-                    {p.role === "primary" ? "Full access" : "View only"}
+                    {p.role === "primary" ? "Full access" : p.role === "member" ? "Team member" : "View only"}
                     {" · added "}
                     {dayLabel(dateOnly(localDayKey(p.created_at)))}
                   </div>
                 </div>
-                {!readOnly && p.role === "viewer" && p.email ? (
+                {!readOnly && p.role !== "primary" && p.email ? (
                   <button
                     onClick={() => removePerson.mutate(p.email!)}
                     disabled={removePerson.isPending}

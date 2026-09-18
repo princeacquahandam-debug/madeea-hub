@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Send, ShieldCheck, MessageSquare, LayoutDashboard,
-  Activity, CalendarDays, StickyNote, Users, Share2,
+  Activity, CalendarDays, StickyNote, Users, Share2, Briefcase, UsersRound,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,6 +14,8 @@ import { ClientPeople } from "@/components/client/ClientPeople";
 import { ClientDelegation } from "@/components/client/ClientDelegation";
 import { ClientShell, type ClientNavItem } from "@/components/client/ClientShell";
 import { ClientSettings } from "@/components/client/ClientSettings";
+import { ClientMyWork } from "@/components/client/ClientMyWork";
+import { ClientTeam } from "@/components/client/ClientTeam";
 
 /**
  * What a client sees. Deliberately not the agency app with things hidden.
@@ -36,7 +38,7 @@ import { ClientSettings } from "@/components/client/ClientSettings";
  */
 
 type Kind = "client_ea" | "escalation";
-type Tab = "overview" | "activity" | "calendar" | "notes" | "delegate" | "people" | "settings" | Kind;
+type Tab = "overview" | "activity" | "calendar" | "notes" | "delegate" | "people" | "team" | "mywork" | "settings" | Kind;
 
 interface Conversation {
   id: string;
@@ -79,6 +81,8 @@ const TABS: (ClientNavItem & { id: Tab; title: string; subtitle: string })[] = [
     title: "Notes", subtitle: "Things your assistant should keep to hand." },
   { id: "delegate", label: "Delegate", icon: Share2, group: "Working together",
     title: "Delegate", subtitle: "Hand a piece of work over properly." },
+  { id: "team", label: "Team", icon: UsersRound, group: "Working together",
+    title: "Your team", subtitle: "Their hours, their screens, and the work you hand them." },
   { id: "people", label: "People", icon: Users, group: "Working together",
     title: "People", subtitle: "Who can see this account." },
   { id: "client_ea", label: CHANNEL.client_ea.label, icon: CHANNEL.client_ea.icon, group: "Messages",
@@ -95,8 +99,23 @@ const PANES: Partial<Record<Tab, boolean>> = {
   notes: true,
   delegate: true,
   people: true,
+  team: true,
+  mywork: true,
   settings: true,
 };
+
+/* A member's nav is not the client's with things removed. They get their own
+   work, and the two panes that give it context -- what is booked, and what the
+   client wrote down. Overview, Activity, Delegate, Team and People are the
+   account's, not theirs. */
+const MEMBER_NAV: (ClientNavItem & { id: Tab; title: string; subtitle: string })[] = [
+  { id: "mywork", label: "My Work", icon: Briefcase, group: "Your work",
+    title: "My work", subtitle: "Your clock, your tasks, and the day so far." },
+  { id: "calendar", label: "Calendar", icon: CalendarDays, group: "Your work",
+    title: "Calendar", subtitle: "What is booked on this account." },
+  { id: "notes", label: "Notes", icon: StickyNote, group: "Your work",
+    title: "Notes", subtitle: "What the account owner wants kept to hand." },
+];
 
 /* Reached from the sidebar footer rather than the nav, which is where the staff
    app keeps it too. It is account housekeeping, not a place you work. */
@@ -120,20 +139,31 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
     },
   });
   const isViewer = clientRole === "viewer";
+  const isMember = clientRole === "member";
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("overview");
+  const landed = useRef(false);
 
   /* A viewer has no channels at all, and that is the point of there being two
      of them: the escalation channel is where a client raises something about
      their assistant. See 0074. The database refuses them underneath, so this
      is about not offering a door that opens onto an error. */
-  const tabs = useMemo(
-    () => (isViewer ? TABS.filter((t) => PANES[t.id]) : TABS),
-    [isViewer],
-  );
+  const tabs = useMemo(() => {
+    if (isMember) return MEMBER_NAV;
+    return isViewer ? TABS.filter((t) => PANES[t.id] && t.id !== "team") : TABS;
+  }, [isViewer, isMember]);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  /* Once, when the role first resolves. A member opening on Overview would see
+     an account summary they have no rows for, which reads as an empty account
+     rather than as the wrong page. */
+  useEffect(() => {
+    if (landed.current || !clientRole) return;
+    landed.current = true;
+    if (clientRole === "member") setTab("mywork");
+  }, [clientRole]);
 
   const { data: header } = useQuery({
     queryKey: ["client-portal", "header"],
@@ -242,6 +272,8 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
           {tab === "notes" ? <ClientNotes readOnly={isViewer} /> : null}
           {tab === "delegate" ? <ClientDelegation readOnly={isViewer} /> : null}
           {tab === "people" ? <ClientPeople readOnly={isViewer} /> : null}
+          {tab === "team" ? <ClientTeam /> : null}
+          {tab === "mywork" ? <ClientMyWork clientId={clientId} /> : null}
           {tab === "settings" ? <ClientSettings email={user?.email} /> : null}
         </>
       ) : (

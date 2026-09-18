@@ -85,6 +85,20 @@ const BANNED = {
     workspace_id: "the agency workspace",
     client_id: "same",
   },
+  client_my_tasks: {
+    notes: "the assistant's own working notes",
+    blocker_note: "the private blocker, not the one written for this audience",
+    assignee_id: "they are the assignee; publishing the id adds nothing",
+    owner_id: "an auth user id",
+    workspace_id: "the agency workspace",
+  },
+  client_team_time: {
+    note: "what a member typed about their own shift is theirs",
+    workspace_id: "the agency workspace",
+  },
+  client_team_screenshots: {
+    workspace_id: "the agency workspace",
+  },
   client_overview: {
     lead_ea_id: "an auth user id; the name is published instead, deliberately",
     workspace_id: "the agency's workspace",
@@ -92,7 +106,13 @@ const BANNED = {
   },
 };
 
-/** Every client-facing view must filter on my_client(), or it publishes the lot. */
+/** Every client-facing view must filter on my_client(), or it publishes the lot.
+ *
+ *  client_my_time and client_my_tasks are NOT the exception they look like:
+ *  client_my_tasks filters on my_client() AND the assignee, so it is listed.
+ *  client_my_time filters on owner_id = auth.uid() alone, which is strictly
+ *  tighter than my_client() -- it cannot reach another account even in
+ *  principle -- so requiring the weaker clause would be asking it to widen. */
 const MUST_SCOPE = Object.keys(BANNED);
 
 const db = await PGlite.create();

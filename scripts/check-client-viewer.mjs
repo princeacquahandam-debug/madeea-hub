@@ -53,18 +53,23 @@ await db.exec(`
 const BOSS = "11111111-1111-1111-1111-111111111111";
 const PRIMARY = "22222222-2222-2222-2222-222222222222";
 const VIEWER = "99999999-9999-9999-9999-999999999999";
+const MEMBER = "88888888-8888-8888-8888-888888888888";
+const MEMBER2 = "77777777-7777-7777-7777-777777777777";
 const WS = "33333333-3333-3333-3333-333333333333";
 const CLIENT = "55555555-5555-5555-5555-555555555555";
 
 await db.exec(`
   insert into auth.users (id,email) values
-   ('${BOSS}','boss@agency.com'), ('${PRIMARY}','founder@breakaway.com'), ('${VIEWER}','ops@breakaway.com');
+   ('${BOSS}','boss@agency.com'), ('${PRIMARY}','founder@breakaway.com'), ('${VIEWER}','ops@breakaway.com'),
+   ('${MEMBER}','coach@breakaway.com'), ('${MEMBER2}','other@breakaway.com');
   insert into workspaces (id,name) values ('${WS}','MadeEA');
   insert into memberships (user_id,workspace_id,role) values ('${BOSS}','${WS}','owner');
   insert into clients (id,owner_id,workspace_id,name,lead_ea_id) values ('${CLIENT}','${BOSS}','${WS}','Breakaway Hoops','${BOSS}');
   insert into client_users (user_id,client_id,workspace_id,role) values
    ('${PRIMARY}','${CLIENT}','${WS}','primary'),
-   ('${VIEWER}','${CLIENT}','${WS}','viewer');
+   ('${VIEWER}','${CLIENT}','${WS}','viewer'),
+   ('${MEMBER}','${CLIENT}','${WS}','member'),
+   ('${MEMBER2}','${CLIENT}','${WS}','member');
   -- 0065 opens both channels by trigger when the client row lands, so there is
   -- nothing to insert here. Inserting them was a duplicate-key error, which is
   -- the trigger proving it works.
@@ -99,7 +104,7 @@ async function mustReturn(uid, sql, n, label) {
 console.log("\nA VIEWER MAY READ:");
 await mustReturn(VIEWER, `select * from client_tasks`, 1, "sees the account tasks");
 await mustReturn(VIEWER, `select * from client_calendar`, 0, "sees the calendar view");
-await mustReturn(VIEWER, `select * from client_people`, 2, "sees who else holds a login");
+await mustReturn(VIEWER, `select * from client_people`, 4, "sees who else holds a login");
 
 console.log("\nA VIEWER MAY NOT ACT:");
 await mustThrow(VIEWER, `select client_create_task('Do this for me')`, "cannot request a task");
@@ -145,6 +150,46 @@ const removed = await db.transaction(async (t) => {
 });
 removed.rows[0].gone ? ok("the primary can remove a viewer") : bad("the primary could not remove a viewer");
 
-console.log(failed ? `\n${failed} viewer rule(s) broken.` : "\nViewer rules hold.");
+
+console.log("\nA TEAM MEMBER WORKS, AND ONLY ON THEIR OWN WORK:");
+
+const assigned = await db.transaction(async (tx) => {
+  await tx.exec(`set local role authenticated; set local request.jwt.claim.sub = '${PRIMARY}'; set local request.jwt.claim.role = 'authenticated';`);
+  return tx.query(`select client_create_team_task('Run the Tuesday session','coach@breakaway.com') as id`);
+});
+const TASK = assigned.rows[0].id;
+TASK ? ok("the client can assign work to a member") : bad("the client could not assign work");
+
+await mustReturn(MEMBER, `select * from client_my_tasks`, 1, "the member sees the task assigned to them");
+await mustReturn(MEMBER2, `select * from client_my_tasks`, 0, "another member sees none of it");
+await mustThrow(PRIMARY, `select client_create_team_task('x','nobody@nowhere.com')`, "assigning to a stranger fails");
+await mustThrow(VIEWER, `select client_create_team_task('x','coach@breakaway.com')`, "a viewer cannot assign work");
+
+const clocked = await db.transaction(async (tx) => {
+  await tx.exec(`set local role authenticated; set local request.jwt.claim.sub = '${MEMBER}'; set local request.jwt.claim.role = 'authenticated';`);
+  return tx.query(`select client_clock_in() as id`);
+});
+clocked.rows[0].id ? ok("a member can clock in") : bad("a member could not clock in");
+
+await mustThrow(MEMBER, `select client_clock_in()`, "cannot clock in twice");
+await mustThrow(VIEWER, `select client_clock_in()`, "a viewer cannot clock in");
+await mustThrow(PRIMARY, `select client_clock_in()`, "the client cannot clock in as their own staff");
+
+await mustReturn(MEMBER, `select * from client_my_time`, 1, "the member sees their own shift");
+await mustReturn(MEMBER2, `select * from client_my_time`, 0, "another member does not see it");
+await mustReturn(PRIMARY, `select * from client_team_time`, 1, "the client sees the team timesheet");
+await mustReturn(VIEWER, `select * from client_team_time`, 0, "a viewer sees no timesheet");
+
+const moved = await db.transaction(async (tx) => {
+  await tx.exec(`set local role authenticated; set local request.jwt.claim.sub = '${MEMBER}'; set local request.jwt.claim.role = 'authenticated';`);
+  return tx.query(`select client_member_set_status('${TASK}','in_progress') as done`);
+});
+moved.rows[0].done ? ok("a member can move their own task along") : bad("a member could not update their task");
+await mustThrow(MEMBER2, `select client_member_set_status('${TASK}','done')`, "cannot touch another member's task");
+
+await mustReturn(MEMBER, `select * from conversations`, 0, "a member cannot see the client channels");
+
+console.log("");
+console.log(failed ? failed + " rule(s) broken." : "Client, member and viewer rules all hold.");
 await db.close();
 process.exit(failed ? 1 : 0);

@@ -1,6 +1,8 @@
 // Supabase Edge Function: invite-client-viewer  (self-contained. Paste as-is)
-// POST { email } -> { ok, email, linked? }
-// Lets a CLIENT give a colleague read-only access to their own account.
+// POST { email, password, role?, mode? } -> { ok, email, role, linked?, reset? }
+// Lets a CLIENT add somebody to their own account: a read-only colleague, or a
+// team member who does timed work on it (0078). The client sets their starting
+// password and tells them it.
 //
 // THIS IS THE ONLY PLACE A NON-EMPLOYEE CREATES AN ACCOUNT, AND THAT IS WHY IT
 // IS WRITTEN LIKE THIS.
@@ -11,11 +13,12 @@
 // the service-role key's ability to create an auth user, through a very narrow
 // slot, and every line below is about how narrow.
 //
-//   NOTHING ABOUT THE TARGET ACCOUNT COMES FROM THE BODY except the address.
-//   client_id, workspace_id and role are read from the CALLER'S OWN row. A
-//   client cannot name another client, cannot name a workspace, and cannot ask
-//   for 'primary'. Taking client_id from the body would let any client seat a
-//   viewer on any account whose id they could guess.
+//   NOTHING ABOUT THE TARGET ACCOUNT COMES FROM THE BODY except the address,
+//   the role and the password. client_id and workspace_id are read from the
+//   CALLER'S OWN row. A client cannot name another client, cannot name a
+//   workspace, and cannot ask for 'primary'. Taking client_id from the body
+//   would let any client seat a viewer on any account whose id they could
+//   guess.
 //
 //   ONLY A PRIMARY MAY INVITE. Otherwise a viewer invites a viewer and the cap
 //   below means nothing after the second hop.
@@ -30,6 +33,32 @@
 //   A MEMBER CAN NEVER BECOME A VIEWER. 0070 refuses the combination by
 //   trigger; refusing it here turns a raw check_violation into a sentence, and
 //   stops a client from discovering which addresses are staff by trying them.
+//
+// ═══ WHY THE CLIENT SETS THE PASSWORD ════════════════════════════════════
+//
+// This used to call inviteUserByEmail, and the person it mailed arrived signed
+// in without ever choosing a password -- which the portal's own Password form
+// then asked them for, because it requires the current one. They could not
+// change a password they had never had, and the way out, a recovery email, ran
+// into the project-wide SMTP rate limit. The same trap as invite-member and
+// invite-client, one level further out: here the person stuck with it is
+// somebody the CLIENT invited, so the client is the one who has to be able to
+// fix it. So the client types the password, the same way the agency does for
+// them, and passes it on. Nothing is emailed from here.
+//
+// MODE 'reset' is the client's version of that fix: set a new password for
+// somebody already on their account. It reaches nobody else -- not the other
+// primary, not staff, not another client's people -- and it is a separate mode
+// so that re-typing an address cannot silently change a working password.
+//
+// ═══ CREATE, LINK, THEN CONFIRM ══════════════════════════════════════════
+//
+// 0070's fallback grants a staff seat in the AGENCY workspace to any account
+// that confirms holding no client_users row. So the row must exist before the
+// confirm does: the account is created unconfirmed, linked, and only then
+// confirmed. Creating it confirmed would hand a client's colleague a seat in
+// the agency's own workspace -- the failure 0070 was written for, and the
+// reason a repair script for it exists in supabase/.
 //
 // Security:
 //  - Auth enforced in-code (deploy with Verify JWT OFF so CORS preflight passes).
@@ -53,8 +82,17 @@ function json(body: unknown, status = 200) {
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
-/** How many read-only colleagues one client account may hold. See the header. */
-const VIEWER_CAP = 5;
+/* 8 is the floor Supabase enforces and what the portal's own password form
+   asks for. 72 is bcrypt's ceiling: everything past it is ignored when hashed,
+   so a longer password would appear to be accepted and then not match. */
+const MIN_PW = 8;
+const MAX_PW = 72;
+
+/** How many people one client account may seat, per role. See the header.
+ *  Members are capped harder than viewers: a viewer is another pair of eyes,
+ *  a member is a person doing the work, and that is the number the commercial
+ *  line in 0078 actually turns on. */
+const CAP: Record<string, number> = { viewer: 5, member: 10 };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -84,21 +122,84 @@ Deno.serve(async (req) => {
     const addr = String(body.email ?? "").trim().toLowerCase();
     if (!EMAIL_RE.test(addr)) return json({ error: "a valid email is required" }, 400);
 
+    /* Required, and the refusal says why rather than just saying no: a browser
+       still running the previous build sends no password at all, and the person
+       reading the message is the one who can fix that with a reload. */
+    const pw = String(body.password ?? "");
+    if (pw.length < MIN_PW) {
+      return json(
+        { error: `Give them a starting password of at least ${MIN_PW} characters. They cannot set one themselves, so you choose it and tell them.` },
+        400,
+      );
+    }
+    if (pw.length > MAX_PW) return json({ error: `That password is too long. ${MAX_PW} characters at most.` }, 400);
+
+    const mode = String(body.mode ?? "invite");
+    if (mode !== "invite" && mode !== "reset") return json({ error: `Unknown mode: ${mode}` }, 400);
+
     if (addr === String(authed.user.email ?? "").toLowerCase()) {
       return json({ error: "That is your own address." }, 400);
     }
 
     const admin = createClient(URL, SERVICE);
 
-    const { count: viewers } = await admin
+    // ── mode: reset ────────────────────────────────────────────────────────
+    // Set a new password for somebody already on this account. Scoped to this
+    // account's own people and to nobody else, by the caller's own row.
+    if (mode === "reset") {
+      const { data: targetId, error: lookupErr } = await admin.rpc("auth_user_id_by_email", { addr });
+      if (lookupErr) return json({ error: lookupErr.message }, 500);
+
+      /* Deliberately one sentence for three different situations: no such
+         account, an account on somebody else's client, and agency staff. A
+         client must not be able to learn which addresses exist by the shape of
+         the refusal. */
+      const notYours = { error: "Nobody with that address is on your account." };
+      if (!targetId) return json(notYours, 404);
+
+      const { data: link } = await admin
+        .from("client_users").select("client_id, role").eq("user_id", targetId).maybeSingle();
+      if (!link || link.client_id !== me.client_id) return json(notYours, 404);
+
+      if (link.role === "primary") {
+        return json(
+          { error: "That is an account owner. They change their own password in their settings." },
+          403,
+        );
+      }
+
+      const { error: pwErr } = await admin.auth.admin.updateUserById(targetId, {
+        password: pw,
+        /* An invite that was mailed and never opened leaves an unconfirmed
+           address, and an unconfirmed address cannot sign in whatever the
+           password is. Safe to confirm here: the client_users row already
+           exists, so 0070's fallback sees a client's colleague rather than an
+           unclaimed staff account. */
+        email_confirm: true,
+      });
+      if (pwErr) return json({ error: pwErr.message }, 400);
+
+      return json({ ok: true, email: addr, role: link.role, reset: true });
+    }
+
+    // ── mode: invite ───────────────────────────────────────────────────────
+    /* Defaults to viewer. A client asking for something this function does not
+       recognise gets a refusal rather than the more powerful of the two. */
+    const role = String(body.role ?? "viewer");
+    if (role !== "viewer" && role !== "member") {
+      return json({ error: "role must be viewer or member" }, 400);
+    }
+
+    const { count: seated } = await admin
       .from("client_users")
       .select("user_id", { count: "exact", head: true })
       .eq("client_id", me.client_id)
-      .eq("role", "viewer");
+      .eq("role", role);
 
-    if ((viewers ?? 0) >= VIEWER_CAP) {
+    if ((seated ?? 0) >= CAP[role]) {
+      const noun = role === "member" ? "team members" : "colleagues";
       return json(
-        { error: `You can give ${VIEWER_CAP} colleagues access. Remove one before adding another, or talk to us about more seats.` },
+        { error: `You can have ${CAP[role]} ${noun}. Remove one before adding another, or talk to us about more seats.` },
         409,
       );
     }
@@ -120,44 +221,67 @@ Deno.serve(async (req) => {
       if (already) {
         return json(
           already.client_id === me.client_id
-            ? { error: "They already have access to this account." }
+            ? { error: "They already have access to this account. Use Set a password if they cannot get in." }
             : { error: "That address cannot be added to this account." },
           409,
         );
       }
 
-      /* An existing account with no seat and no link: connect it rather than
-         emailing. inviteUserByEmail refuses an address that is already
-         registered, so a send here could only fail. */
+      /* An existing account with no seat and no link: connect it, and set the
+         password the caller typed, because an account being connected by hand
+         is rarely one whose password anybody still remembers. */
       const { error: linkErr } = await admin.from("client_users").insert({
         user_id: existingId,
         client_id: me.client_id,
         workspace_id: me.workspace_id,
-        role: "viewer",
+        role,
       });
       if (linkErr) return json({ error: linkErr.message }, 400);
 
-      return json({ ok: true, email: addr, linked: true });
+      const { error: pwErr } = await admin.auth.admin.updateUserById(existingId, {
+        password: pw,
+        email_confirm: true,
+      });
+      if (pwErr) return json({ error: pwErr.message }, 400);
+
+      return json({ ok: true, email: addr, role, linked: true });
     }
 
-    // No account yet: create one, then link it BEFORE it can be confirmed.
-    // 0070's fallback grants a staff seat to any confirmed account holding no
-    // client_users row, so the order here is the whole ballgame.
-    const { data: created, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(addr);
-    if (inviteErr) return json({ error: inviteErr.message }, 400);
+    // No account yet: create it unconfirmed, link it, then confirm it. See the
+    // ordering note in the header -- 0070's fallback is what it is guarding.
+    const { data: created, error: createErr } = await admin.auth.admin.createUser({
+      email: addr,
+      password: pw,
+      email_confirm: false,
+    });
+    if (createErr) return json({ error: createErr.message }, 400);
 
     const newId = created?.user?.id;
-    if (!newId) return json({ error: "Supabase created no user for that invite." }, 500);
+    if (!newId) return json({ error: "Supabase created no user for that address." }, 500);
 
     const { error: linkErr } = await admin.from("client_users").insert({
       user_id: newId,
       client_id: me.client_id,
       workspace_id: me.workspace_id,
-      role: "viewer",
+      role,
     });
-    if (linkErr) return json({ error: linkErr.message }, 400);
+    if (linkErr) {
+      /* An account with no link is the exact thing 0070 guards against, so it
+         does not get left behind when the link fails. */
+      await admin.auth.admin.deleteUser(newId).catch(() => {});
+      return json({ error: linkErr.message }, 400);
+    }
 
-    return json({ ok: true, email: addr });
+    const { error: confirmErr } = await admin.auth.admin.updateUserById(newId, { email_confirm: true });
+    if (confirmErr) {
+      /* Unconfirmed means unusable: the password is right and the sign-in is
+         refused anyway. Better no account than one that quietly cannot be used;
+         the link row cascades away with it. */
+      await admin.auth.admin.deleteUser(newId).catch(() => {});
+      return json({ error: `Could not activate the account: ${confirmErr.message}` }, 400);
+    }
+
+    return json({ ok: true, email: addr, role });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : "unexpected error" }, 500);
   }
