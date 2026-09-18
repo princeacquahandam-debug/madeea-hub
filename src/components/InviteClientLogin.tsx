@@ -85,8 +85,11 @@ export function InviteClientLogin({
       </button>
 
       <Modal open={open} onClose={() => setOpen(false)}>
-        <div className="p-5">
-          <h2 className="text-lg font-semibold">Portal access for {clientName}</h2>
+        {/* No padding wrapper: Modal already applies p-6, and the second one
+            narrowed the content until the buttons wrapped mid-word. pr-10 keeps
+            the heading clear of the close button Modal draws at top-right. */}
+        <div>
+          <h2 className="pr-10 text-lg font-semibold">Portal access for {clientName}</h2>
           <p className="mt-1 text-sm text-muted">
             They get their own sign-in, showing what their assistant has done, the
             calendar on their account, shared notes, and the two message channels.
@@ -121,9 +124,15 @@ export function InviteClientLogin({
             </p>
           ) : null}
 
-          <div className="mt-5 flex justify-end gap-2">
-            <button className="btn-ghost border border-border" onClick={() => setOpen(false)}>Close</button>
-            <button className="btn-primary" onClick={() => void send()} disabled={!email.trim() || invite.isPending}>
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button className="btn-ghost whitespace-nowrap border border-border" onClick={() => setOpen(false)}>
+              Close
+            </button>
+            <button
+              className="btn-primary whitespace-nowrap"
+              onClick={() => void send()}
+              disabled={!email.trim() || invite.isPending}
+            >
               {invite.isPending ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}
               Send invitation
             </button>

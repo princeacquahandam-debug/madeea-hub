@@ -106,27 +106,18 @@ export default function ClientVault() {
             const sla = clientSla(c, messages, cfg);
             return (
             <div key={c.id} className="card group flex flex-col p-5">
-              <div className="flex items-center gap-3">
-                <Avatar name={c.name} url={c.avatar_url} className="h-11 w-11 text-sm" />
-                <div className="flex-1">
-                  <h3 className="font-semibold">{c.name}</h3>
-                  <p className="text-xs text-faint">{c.title}</p>
-                  <p className="text-xs text-faint">{c.company}</p>
+              {/* min-w-0 is what lets the name truncate. A flex child defaults to
+                  min-width:auto, so a long name refuses to shrink and pushes the
+                  buttons instead -- which is how "Bryan Sumait (portal test)"
+                  came out stacked four words tall in a three-column grid. */}
+              <div className="flex items-start gap-3">
+                <Avatar name={c.name} url={c.avatar_url} className="h-11 w-11 shrink-0 text-sm" />
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate font-semibold" title={c.name}>{c.name}</h3>
+                  {c.title ? <p className="truncate text-xs text-faint" title={c.title}>{c.title}</p> : null}
+                  {c.company ? <p className="truncate text-xs text-faint" title={c.company}>{c.company}</p> : null}
                 </div>
-                {/* OUTSIDE reveal-on-hover, deliberately. Edit and delete are
-                    hover-revealed because you already know the row you want.
-                    Giving a client their login is the opposite: it is the thing
-                    you came here to do and cannot find, and hiding it at
-                    opacity 0 meant the owner of the workspace could not see it
-                    at all. */}
-                <div className="flex items-center gap-1">
-                  <InviteClientLogin
-                    clientId={c.id}
-                    clientName={c.name}
-                    hasLogin={logins.some((l) => l.client_id === c.id)}
-                  />
-                </div>
-                <div className="reveal-on-hover flex items-center gap-1">
+                <div className="reveal-on-hover flex shrink-0 items-center gap-1">
                   <button className="text-faint hover:text-accent" onClick={() => startEdit(c)} aria-label="Edit client">
                     <Pencil size={14} />
                   </button>
@@ -135,6 +126,18 @@ export default function ClientVault() {
                   </button>
                 </div>
               </div>
+              {/* Its own row rather than the header. In the header it competed with
+                  the name for a 3-column card's width and won, and it is also the
+                  one control here that deserves a full-width target: edit and
+                  delete are hover-revealed icons, this is the thing you came for. */}
+              <div className="mt-3">
+                <InviteClientLogin
+                  clientId={c.id}
+                  clientName={c.name}
+                  hasLogin={logins.some((l) => l.client_id === c.id)}
+                />
+              </div>
+
               {/* Response-time SLA, the headline service metric for this client. */}
               <div className="mt-4 rounded-lg bg-surface-2 px-3 py-2.5">
                 <div className="flex items-center justify-between gap-2">
@@ -205,11 +208,15 @@ export default function ClientVault() {
           };
           return (
             <div>
+              {/* Same min-w-0 as the card. The close button sits top-right, so the
+                  heading gets pr-10 to stop a long name running underneath it. */}
               <div className="flex items-center gap-4 border-b border-border pb-4">
-                <Avatar name={open.name} url={open.avatar_url} className="h-14 w-14 text-lg" />
-                <div>
-                  <h2 className="text-lg font-semibold">{open.name}</h2>
-                  <p className="text-sm text-faint">{open.title}, {open.company}</p>
+                <Avatar name={open.name} url={open.avatar_url} className="h-14 w-14 shrink-0 text-lg" />
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate pr-10 text-lg font-semibold" title={open.name}>{open.name}</h2>
+                  <p className="truncate text-sm text-faint">
+                    {[open.title, open.company].filter(Boolean).join(", ")}
+                  </p>
                   {(open.preferred_channel || open.tone) && (
                     <div className="mt-1 flex items-center gap-1.5 text-xs text-muted">
                       <MessageSquare size={12} />
