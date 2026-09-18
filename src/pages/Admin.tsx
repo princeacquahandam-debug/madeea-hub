@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { ShieldCheck, ArrowLeft, UserPlus, Trash2, ArrowUpCircle, ArrowDownCircle, Users, Lock } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { ROLE_LABEL, ROLE_RANK, ROLE_BLURB, useGrantableRoles, useRoleCapabilities, type MemberRole, useMyRole, useWorkspaceMembers, useMemberMutations, useInviteMember, useTasks } from "@/data/hooks";
@@ -173,8 +173,18 @@ export default function Admin() {
 
       <section className="card mb-5 p-5">
         <p className="field-label">Invite a team member</p>
-        <p className="mb-3 text-sm text-muted">
+        <p className="mb-1 text-sm text-muted">
           They join this workspace at the role you choose. The role decides what they can see and do, and it can be changed later.
+        </p>
+        {/* The owner of the workspace came here looking for the client invite and
+            found this one, which creates STAFF. The two are not interchangeable:
+            a client must never hold a membership (0070), so there is no role on
+            the picker below that produces a client. Say where it actually is. */}
+        <p className="mb-3 text-sm text-faint">
+          Giving a <span className="text-text">client</span> a login to their own portal is a
+          different thing, and it lives in{" "}
+          <Link to="/clients" className="text-accent hover:underline">Client Vault</Link>{" "}
+          &mdash; look for <span className="text-text">Give access</span> on their card.
         </p>
         <form onSubmit={sendInvite} className="flex flex-col gap-2 sm:flex-row">
           <input

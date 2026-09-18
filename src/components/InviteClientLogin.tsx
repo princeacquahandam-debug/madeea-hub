@@ -67,13 +67,21 @@ export function InviteClientLogin({
 
   return (
     <>
+      {/* Two states, and the one that matters is "no login yet". A bare icon
+          read as decoration and sat unnoticed; a client with no way in is the
+          thing this page should be shouting about, so that state gets words. */}
       <button
-        className="text-faint hover:text-accent"
+        className={
+          hasLogin
+            ? "pill bg-accent/15 text-accent-soft whitespace-nowrap"
+            : "pill border border-accent/40 text-accent whitespace-nowrap hover:bg-accent/10"
+        }
         onClick={() => { setOpen(true); setError(""); setDone(""); }}
         title={hasLogin ? `${clientName} has a portal login` : `Give ${clientName} a portal login`}
         aria-label={hasLogin ? `Manage portal access for ${clientName}` : `Invite ${clientName} to the portal`}
       >
-        {hasLogin ? <Check size={14} /> : <KeyRound size={14} />}
+        {hasLogin ? <Check size={11} /> : <KeyRound size={11} />}
+        {hasLogin ? "Portal" : "Give access"}
       </button>
 
       <Modal open={open} onClose={() => setOpen(false)}>

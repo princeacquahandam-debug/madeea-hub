@@ -113,12 +113,20 @@ export default function ClientVault() {
                   <p className="text-xs text-faint">{c.title}</p>
                   <p className="text-xs text-faint">{c.company}</p>
                 </div>
-                <div className="reveal-on-hover flex items-center gap-1">
+                {/* OUTSIDE reveal-on-hover, deliberately. Edit and delete are
+                    hover-revealed because you already know the row you want.
+                    Giving a client their login is the opposite: it is the thing
+                    you came here to do and cannot find, and hiding it at
+                    opacity 0 meant the owner of the workspace could not see it
+                    at all. */}
+                <div className="flex items-center gap-1">
                   <InviteClientLogin
                     clientId={c.id}
                     clientName={c.name}
                     hasLogin={logins.some((l) => l.client_id === c.id)}
                   />
+                </div>
+                <div className="reveal-on-hover flex items-center gap-1">
                   <button className="text-faint hover:text-accent" onClick={() => startEdit(c)} aria-label="Edit client">
                     <Pencil size={14} />
                   </button>
