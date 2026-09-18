@@ -22,7 +22,9 @@
     "check:access": "node scripts/check-conversation-access.mjs",
     "check:client-surface": "node scripts/check-client-surface.mjs",
     "check:pasteable": "node scripts/check-pasteable.mjs",
-    "check:client-viewer": "node scripts/check-client-viewer.mjs"
+    "check:client-viewer": "node scripts/check-client-viewer.mjs",
+    "check:wiring": "node scripts/check-wiring.mjs",
+    "check:all": "npm run check:migrations && npm run check:wiring && npm run check:client-surface && npm run check:client-viewer && npm run check:pasteable && npm run check:functions && npm run check:access && npm run check:isolation && npm run check:gates && npm run check:names"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
