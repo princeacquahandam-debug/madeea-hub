@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { LogOut, Menu, X, type LucideIcon } from "lucide-react";
+import { LogOut, Menu, X, Sun, Handshake, MessagesSquare, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -28,6 +28,15 @@ import { cn } from "@/lib/utils";
  * no room for a rail, so it becomes a drawer -- the same trade the agency shell
  * makes at the same breakpoint.
  */
+
+/* The staff sidebar puts an icon beside every group heading. Matching it is not
+   decoration: the icon is what makes a heading read as a section rather than as
+   a dimmed nav row that will not click. */
+const GROUP_ICON: Record<string, LucideIcon> = {
+  "Your account": Sun,
+  "Working together": Handshake,
+  "Messages": MessagesSquare,
+};
 
 export interface ClientNavItem {
   id: string;
@@ -98,9 +107,12 @@ export function ClientShell({
       </div>
 
       <nav className="no-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto px-3 pb-2">
-        {groups.map((group) => (
+        {groups.map((group) => {
+          const GroupIcon = GROUP_ICON[group];
+          return (
           <div key={group}>
-            <p className="mb-1.5 px-3 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-faint">
+            <p className="mb-1.5 flex items-center gap-2 px-3 text-[10.5px] font-bold uppercase tracking-[0.16em] text-faint">
+              {GroupIcon ? <GroupIcon size={13} className="shrink-0" /> : null}
               {group}
             </p>
             <div className="space-y-0.5">
@@ -117,7 +129,8 @@ export function ClientShell({
               ))}
             </div>
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       <div className="border-t border-border p-3">
@@ -171,9 +184,13 @@ export function ClientShell({
         </header>
 
         <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6">
-          <div className="mb-5">
-            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-            <p className="mt-1 text-sm text-muted">{subtitle}</p>
+          {/* greeting-title, the same class the agency dashboard uses for
+              "Good afternoon, ...". Solid accent, 40px, 800 weight. The portal
+              heading was plain white, which is most of why it read as a
+              different product. */}
+          <div className="mb-7">
+            <h1 className="greeting-title">{title}</h1>
+            <p className="mt-1.5 text-[15px] text-muted">{subtitle}</p>
           </div>
           {children}
         </main>

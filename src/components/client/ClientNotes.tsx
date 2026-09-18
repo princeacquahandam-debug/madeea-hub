@@ -82,8 +82,8 @@ export function ClientNotes({ readOnly = false }: { readOnly?: boolean }) {
   return (
     <div className="space-y-6">
       {readOnly ? null : (
-      <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider">Leave a note</h2>
+      <section className="card p-5">
+        <h2 className="mb-3 text-[17px] font-bold">Leave a note</h2>
         <p className="text-faint mb-2 text-sm">
           Anything your assistant should keep to hand — a preference, a contact, how you
           like something done. Your assistant sees these on their own notes page.
@@ -93,22 +93,19 @@ export function ClientNotes({ readOnly = false }: { readOnly?: boolean }) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Title (optional)"
-            className="w-full rounded-xl px-4 py-2.5 text-sm"
-            style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }}
+            className="input"
           />
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
             rows={3}
             placeholder="What should they know?"
-            className="w-full resize-none rounded-xl px-4 py-3 text-sm"
-            style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }}
+            className="input resize-none"
           />
           <button
             onClick={() => void submit()}
             disabled={!body.trim() || add.isPending}
-            className="flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-40"
-            style={{ background: "var(--c-accent)", color: "#fff" }}
+            className="btn-primary whitespace-nowrap"
           >
             {add.isPending ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
             Save note
@@ -122,8 +119,8 @@ export function ClientNotes({ readOnly = false }: { readOnly?: boolean }) {
       </section>
       )}
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider">Shared notes</h2>
+      <section className="card p-5">
+        <h2 className="mb-3 text-[17px] font-bold">Shared notes</h2>
         {isLoading ? (
           <p className="text-faint text-sm">Loading…</p>
         ) : notes.length === 0 ? (
@@ -137,8 +134,7 @@ export function ClientNotes({ readOnly = false }: { readOnly?: boolean }) {
             {notes.map((n) => (
               <li
                 key={n.id}
-                className="rounded-xl px-4 py-3"
-                style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }}
+                className="rounded-lg bg-surface-2 p-3"
               >
                 <div className="flex items-start gap-3">
                   <StickyNote size={15} className="text-faint mt-0.5 shrink-0" />

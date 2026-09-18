@@ -4,6 +4,7 @@ import {
   AlertTriangle, ArrowRight, CheckCircle2, Loader2, Send, Sparkles, Target,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
 import { dateOnly, dayLabel, localDayKey } from "./format";
 
 /**
@@ -199,7 +200,7 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
       {step === "list" ? (
         <>
           <section>
-            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wider">Hand something over</h2>
+            <h2 className="mb-1 text-[17px] font-bold">Hand something over</h2>
             <p className="text-faint mb-3 text-sm">
               Work through one task at a time: what to let go of, what good looks like, and
               the message that hands it to your assistant. The plan becomes a real task on
@@ -207,21 +208,20 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
             </p>
             <button
               onClick={() => setStep("assess")}
-              className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium"
-              style={{ background: "var(--c-accent)", color: "#fff" }}
+              className="btn-primary whitespace-nowrap"
             >
               <Sparkles size={15} /> Start a delegation plan
             </button>
           </section>
-          <section>
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider">Your plans</h2>
+          <section className="card p-5">
+            <h2 className="mb-3 text-[17px] font-bold">Your plans</h2>
             <PlanList plans={plans} loading={isLoading} />
           </section>
         </>
       ) : null}
 
       {step === "assess" ? (
-        <section className="space-y-3">
+        <section className="card space-y-3 p-5">
           <StepHead n={1} of={3} title="Where is your time going?" />
           <Field label="What is eating your week?" value={assessment.draining_tasks}
                  onChange={(v) => setAssessment((a) => ({ ...a, draining_tasks: v }))}
@@ -245,11 +245,10 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
       ) : null}
 
       {step === "describe" ? (
-        <section className="space-y-3">
+        <section className="card space-y-3 p-5">
           <StepHead n={2} of={3} title="What are you handing over?" />
           {insights ? (
-            <div className="rounded-xl px-4 py-3 text-sm"
-                 style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }}>
+            <div className="rounded-lg bg-surface-2 p-3 text-sm">
               <div className="text-faint mb-1 flex items-center gap-1.5 text-xs uppercase tracking-wider">
                 <Sparkles size={12} /> What stood out
               </div>
@@ -272,12 +271,12 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
                 <button
                   key={a.v}
                   onClick={() => setDraft((d) => ({ ...d, autonomy_level: a.v }))}
-                  className="rounded-xl px-4 py-2.5 text-left text-sm"
-                  style={{
-                    background: draft.autonomy_level === a.v ? "var(--c-accent)" : "var(--glass)",
-                    color: draft.autonomy_level === a.v ? "#fff" : undefined,
-                    border: `1px solid ${draft.autonomy_level === a.v ? "var(--c-accent)" : "var(--c-border)"}`,
-                  }}
+                  className={cn(
+                    "rounded-lg border p-3 text-left text-sm transition-colors",
+                    draft.autonomy_level === a.v
+                      ? "border-accent bg-accent/15 text-accent-soft"
+                      : "border-border bg-surface-2 hover:border-accent/50",
+                  )}
                 >
                   <div className="font-medium">{a.label}</div>
                   <div className="text-xs opacity-75">{a.hint}</div>
@@ -292,8 +291,7 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
             <div className="text-faint mb-1.5 text-xs uppercase tracking-wider">By when (optional)</div>
             <input type="date" value={draft.deadline}
                    onChange={(e) => setDraft((d) => ({ ...d, deadline: e.target.value }))}
-                   className="rounded-xl px-4 py-2.5 text-sm"
-                   style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }} />
+                   className="input sm:w-56" />
           </div>
 
           <Actions busy={busy} onBack={() => setStep("assess")}
@@ -350,8 +348,7 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
               Save as draft
             </button>
             <button onClick={() => void run(() => savePlan.mutateAsync(true))} disabled={busy}
-                    className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium"
-                    style={{ background: "var(--c-accent)", color: "#fff" }}>
+                    className="btn-primary whitespace-nowrap">
               {busy ? <Loader2 size={15} className="animate-spin" /> : <ArrowRight size={15} />}
               Hand it over
             </button>
@@ -376,8 +373,7 @@ function PlanList({ plans, loading }: { plans: Plan[]; loading: boolean }) {
   return (
     <ul className="space-y-2">
       {plans.map((p) => (
-        <li key={p.id} className="rounded-xl px-4 py-3"
-            style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }}>
+        <li key={p.id} className="rounded-lg bg-surface-2 p-3">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3">
             <span className="text-sm font-medium">{p.task_name}</span>
             <span className="text-faint text-xs">
@@ -409,16 +405,15 @@ function Field({
   label: string; value: string; onChange: (v: string) => void;
   placeholder?: string; single?: boolean;
 }) {
-  const style = { background: "var(--glass)", border: "1px solid var(--c-border)" };
   return (
     <div>
-      <div className="text-faint mb-1.5 text-xs uppercase tracking-wider">{label}</div>
+      <div className="field-label mb-1.5">{label}</div>
       {single ? (
         <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-               className="w-full rounded-xl px-4 py-2.5 text-sm" style={style} />
+               className="input" />
       ) : (
         <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-                  rows={2} className="w-full resize-none rounded-xl px-4 py-3 text-sm" style={style} />
+                  rows={2} className="input resize-none" />
       )}
     </div>
   );
@@ -428,8 +423,7 @@ function Block({
   title, icon: Icon, children,
 }: { title: string; icon: typeof Target; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl px-4 py-3"
-         style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }}>
+    <div className="rounded-lg bg-surface-2 p-3">
       <div className="text-faint mb-2 flex items-center gap-1.5 text-xs uppercase tracking-wider">
         <Icon size={12} /> {title}
       </div>
@@ -450,8 +444,7 @@ function Actions({
         Back
       </button>
       <button onClick={onNext} disabled={busy || disabled}
-              className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-40"
-              style={{ background: "var(--c-accent)", color: "#fff" }}>
+              className="btn-primary whitespace-nowrap">
         {busy ? <Loader2 size={15} className="animate-spin" /> : <ArrowRight size={15} />}
         {nextLabel}
       </button>

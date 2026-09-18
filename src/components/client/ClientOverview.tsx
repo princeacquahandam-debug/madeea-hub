@@ -133,7 +133,7 @@ export function ClientOverview({
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-3 sm:grid-cols-3">
+      <section className="grid grid-cols-2 gap-4 md:grid-cols-3">
         <Stat label="Hours, last 7 days" value={hm(totals.last7)} icon={Clock} />
         <Stat label="Open tasks" value={String(totals.open)} icon={Circle} />
         <Stat label="Completed" value={String(totals.done)} icon={CheckCircle2} />
@@ -148,8 +148,8 @@ export function ClientOverview({
       )}
 
       {readOnly ? null : (
-      <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider">Ask for something</h2>
+      <section className="card p-5">
+        <h2 className="mb-3 text-[17px] font-bold">Ask for something</h2>
         <div className="flex flex-col gap-2 sm:flex-row">
           <input
             value={title}
@@ -161,21 +161,18 @@ export function ClientOverview({
               }
             }}
             placeholder="What do you need done?"
-            className="flex-1 rounded-xl px-4 py-2.5 text-sm"
-            style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }}
+            className="input flex-1"
           />
           <input
             value={due}
             onChange={(e) => setDue(e.target.value)}
             placeholder="When? (optional)"
-            className="rounded-xl px-4 py-2.5 text-sm sm:w-48"
-            style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }}
+            className="input sm:w-48"
           />
           <button
             onClick={() => void submit()}
             disabled={!title.trim() || request.isPending}
-            className="flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-40"
-            style={{ background: "var(--c-accent)", color: "#fff" }}
+            className="btn-primary whitespace-nowrap"
           >
             {request.isPending ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} Request
           </button>
@@ -188,8 +185,8 @@ export function ClientOverview({
       </section>
       )}
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider">Your tasks</h2>
+      <section className="card p-5">
+        <h2 className="mb-3 text-[17px] font-bold">Your tasks</h2>
         {tasks.length === 0 ? (
           <p className="text-faint text-sm">Nothing on your account yet.</p>
         ) : (
@@ -197,8 +194,7 @@ export function ClientOverview({
             {tasks.map((t) => (
               <li
                 key={t.id}
-                className="flex items-start gap-3 rounded-xl px-4 py-3"
-                style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }}
+                className="flex items-start gap-3 rounded-lg bg-surface-2 p-3"
               >
                 {t.status === "done" ? (
                   <CheckCircle2 size={16} className="mt-0.5 shrink-0" style={{ color: "var(--c-accent)" }} />
@@ -233,8 +229,7 @@ export function ClientOverview({
       {days.length > 0 ? (
         <button
           onClick={onSeeActivity}
-          className="flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm"
-          style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }}
+          className="card flex w-full items-center justify-between p-4 text-sm transition-colors hover:border-accent/60"
         >
           <span>See what was done, day by day</span>
           <ArrowRight size={15} className="text-faint shrink-0" />
@@ -244,13 +239,18 @@ export function ClientOverview({
   );
 }
 
+/* The agency KPI tile, class for class: .card, the label small-caps and faint
+   on the left with an accent icon opposite, the number 34px and extra-bold
+   beneath. It was a bordered box with a 20px number, which is the difference
+   between "a figure" and "the headline". */
 function Stat({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Clock }) {
   return (
-    <div className="rounded-xl px-4 py-3" style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }}>
-      <div className="text-faint flex items-center gap-2 text-xs uppercase tracking-wider">
-        <Icon size={14} /> {label}
+    <div className="card p-5 transition-transform hover:-translate-y-0.5">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="text-[11.5px] font-bold uppercase tracking-[0.09em] text-faint">{label}</span>
+        <Icon size={18} className="shrink-0 text-accent" />
       </div>
-      <div className="mt-1 text-xl font-semibold">{value}</div>
+      <p className="text-[34px] font-extrabold leading-none tracking-[-0.02em]">{value}</p>
     </div>
   );
 }

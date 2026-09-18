@@ -116,8 +116,8 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
           people.
         </p>
       ) : (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider">
+        <section className="card p-5">
+          <h2 className="mb-3 text-[17px] font-bold">
             Give a colleague access
           </h2>
           <p className="text-faint mb-2 text-sm">
@@ -132,14 +132,12 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void send(); } }}
               placeholder="colleague@yourcompany.com"
               disabled={full}
-              className="flex-1 rounded-xl px-4 py-2.5 text-sm disabled:opacity-40"
-              style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }}
+              className="input flex-1 disabled:opacity-40"
             />
             <button
               onClick={() => void send()}
               disabled={!email.trim() || invite.isPending || full}
-              className="flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-40"
-              style={{ background: "var(--c-accent)", color: "#fff" }}
+              className="btn-primary whitespace-nowrap"
             >
               {invite.isPending ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}
               Invite
@@ -165,8 +163,8 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
         </section>
       )}
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider">
+      <section className="card p-5">
+        <h2 className="mb-3 text-[17px] font-bold">
           Who can see this account
         </h2>
         {isLoading ? (
@@ -176,8 +174,7 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
             {people.map((p, i) => (
               <li
                 key={p.email ?? `${p.role}-${i}`}
-                className="flex items-center gap-3 rounded-xl px-4 py-3"
-                style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }}
+                className="flex items-center gap-3 rounded-lg bg-surface-2 p-3"
               >
                 {p.role === "primary" ? (
                   <ShieldCheck size={16} className="shrink-0" style={{ color: "var(--c-accent)" }} />
