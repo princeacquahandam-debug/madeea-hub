@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
-import { LogOut, Menu, X, Sun, Handshake, MessagesSquare, type LucideIcon } from "lucide-react";
+import { Menu, X, Sun, Handshake, MessagesSquare, Settings, type LucideIcon } from "lucide-react";
+import { AmbientBackground } from "@/components/layout/AmbientBackground";
 import { cn } from "@/lib/utils";
 
 /**
@@ -55,7 +56,8 @@ export function ClientShell({
   isViewer,
   title,
   subtitle,
-  onSignOut,
+  onOpenSettings,
+  settingsActive,
   children,
 }: {
   nav: ClientNavItem[];
@@ -67,7 +69,8 @@ export function ClientShell({
   isViewer: boolean;
   title: string;
   subtitle: string;
-  onSignOut: () => void;
+  onOpenSettings: () => void;
+  settingsActive: boolean;
   children: ReactNode;
 }) {
   const [drawer, setDrawer] = useState(false);
@@ -133,8 +136,18 @@ export function ClientShell({
         })}
       </nav>
 
+      {/* The staff sidebar's footer is a link to Settings. Same here, so the
+          account controls live where a person already looks for them -- and so
+          Sign out stops occupying the most prominent spot on the screen for the
+          action taken least often. */}
       <div className="border-t border-border p-3">
-        <div className="flex items-center gap-3 rounded-xl px-2 py-2">
+        <button
+          onClick={() => { onOpenSettings(); setDrawer(false); }}
+          className={cn(
+            "group flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-[var(--chip-bg)]",
+            settingsActive && "bg-[var(--chip-bg)]",
+          )}
+        >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/20 text-sm font-semibold text-accent-soft">
             {initials}
           </div>
@@ -144,13 +157,19 @@ export function ClientShell({
               {isViewer ? "View only" : "Account owner"}
             </p>
           </div>
-        </div>
+          <Settings size={15} className="shrink-0 text-faint transition-colors group-hover:text-text" />
+        </button>
       </div>
     </aside>
   );
 
   return (
     <div className="relative z-10 flex h-screen overflow-hidden bg-transparent">
+      {/* The six drifting blobs the agency shell renders. body paints
+          --ambient-base for both, but only AppShell was layering this over it,
+          which is the whole of why the two looked like different products even
+          after the tokens matched. */}
+      <AmbientBackground />
       <div className="hidden lg:block">{rail}</div>
 
       {drawer && (
@@ -177,10 +196,6 @@ export function ClientShell({
           {isViewer && (
             <span className="pill bg-accent/15 text-accent-soft whitespace-nowrap text-[10px]">View only</span>
           )}
-
-          <button onClick={onSignOut} className="btn-ghost whitespace-nowrap border border-border">
-            <LogOut size={15} /> Sign out
-          </button>
         </header>
 
         <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6">

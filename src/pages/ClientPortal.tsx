@@ -13,6 +13,7 @@ import { ClientNotes } from "@/components/client/ClientNotes";
 import { ClientPeople } from "@/components/client/ClientPeople";
 import { ClientDelegation } from "@/components/client/ClientDelegation";
 import { ClientShell, type ClientNavItem } from "@/components/client/ClientShell";
+import { ClientSettings } from "@/components/client/ClientSettings";
 
 /**
  * What a client sees. Deliberately not the agency app with things hidden.
@@ -35,7 +36,7 @@ import { ClientShell, type ClientNavItem } from "@/components/client/ClientShell
  */
 
 type Kind = "client_ea" | "escalation";
-type Tab = "overview" | "activity" | "calendar" | "notes" | "delegate" | "people" | Kind;
+type Tab = "overview" | "activity" | "calendar" | "notes" | "delegate" | "people" | "settings" | Kind;
 
 interface Conversation {
   id: string;
@@ -94,10 +95,18 @@ const PANES: Partial<Record<Tab, boolean>> = {
   notes: true,
   delegate: true,
   people: true,
+  settings: true,
+};
+
+/* Reached from the sidebar footer rather than the nav, which is where the staff
+   app keeps it too. It is account housekeeping, not a place you work. */
+const SETTINGS_META = {
+  title: "Settings",
+  subtitle: "Your sign-in, your password, and the way out.",
 };
 
 export default function ClientPortal({ clientId }: { clientId: string }) {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   /* primary is the client. viewer is a colleague they added, who may read the
      account and nothing else (0074). Everything below reads this rather than
      testing the string in six places. */
@@ -207,7 +216,9 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
   }
 
   const channel = PANES[tab] ? null : CHANNEL[tab as Kind];
-  const meta = tabs.find((t) => t.id === tab) ?? tabs[0];
+  const meta = tab === "settings"
+    ? SETTINGS_META
+    : (tabs.find((t) => t.id === tab) ?? tabs[0]);
 
   return (
     <ClientShell
@@ -220,7 +231,8 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
       isViewer={isViewer}
       title={meta.title}
       subtitle={meta.subtitle}
-      onSignOut={() => void signOut()}
+      onOpenSettings={() => setTab("settings")}
+      settingsActive={tab === "settings"}
     >
       {PANES[tab] ? (
         <>
@@ -230,6 +242,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
           {tab === "notes" ? <ClientNotes readOnly={isViewer} /> : null}
           {tab === "delegate" ? <ClientDelegation readOnly={isViewer} /> : null}
           {tab === "people" ? <ClientPeople readOnly={isViewer} /> : null}
+          {tab === "settings" ? <ClientSettings email={user?.email} /> : null}
         </>
       ) : (
         /* A conversation is one object, so it gets one card: the thread scrolls
