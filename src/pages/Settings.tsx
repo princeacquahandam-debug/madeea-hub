@@ -314,9 +314,15 @@ const MIN_LEN = 8;
 
 /**
  * Change your own password from inside the app. No reset email needed, which is
- * what lets a teammate who was set up with a temporary password pick their own.
+ * what lets a teammate who was set up with a starting password pick their own.
  * The current password is required (verified in useAuth) so an unlocked screen
  * can't be used to take the account over.
+ *
+ * That requirement is only fair because every account now HAS a current
+ * password: an admin sets one when they add you (see the invite-member
+ * function). People invited by email before that change never chose one, which
+ * left them typing into a form that could not accept anything -- an admin fixes
+ * those from Admin, Set a password.
  */
 function ChangePassword() {
   const { updatePassword, demo } = useAuth();
@@ -356,7 +362,11 @@ function ChangePassword() {
   return (
     <section className="card p-5">
       <p className="field-label">Password</p>
-      <p className="mb-4 text-sm text-muted">Change the password you use to sign in. You'll need your current one.</p>
+      <p className="mb-4 text-sm text-muted">
+        Change the password you use to sign in. You'll need your current one &mdash; the
+        starting password an admin gave you, unless you've already changed it. If you
+        don't have it, ask an admin to set you a new one.
+      </p>
 
       {demo ? (
         <p className="rounded-lg border border-border bg-surface-2 p-3 text-xs text-faint">

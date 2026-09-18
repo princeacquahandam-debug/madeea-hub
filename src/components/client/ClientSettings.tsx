@@ -16,6 +16,14 @@ import { useAuth } from "@/hooks/useAuth";
  * enough to take the account over. useAuth re-authenticates before it changes
  * anything -- the same function the staff settings page uses, so a fix there is
  * a fix here.
+ *
+ * WHICH ONLY WORKS BECAUSE THEY HAVE ONE. Clients used to arrive through an
+ * invite email: the link signed them in and never asked them to choose a
+ * password, so this form asked them for something that had never existed and
+ * their own account was unchangeable. The agency now sets a starting password
+ * when it creates the login and tells them what it is, so "current" names
+ * something real. The line under the heading says so, because the person
+ * reading it was handed that password in a chat message days ago.
  */
 
 const MIN_LEN = 8;
@@ -71,7 +79,9 @@ export function ClientSettings({ email }: { email?: string }) {
       <section className="card p-5">
         <h2 className="mb-1 text-[17px] font-bold">Password</h2>
         <p className="mb-4 text-sm text-muted">
-          Change the password you use to sign in. You will need your current one.
+          Change the password you use to sign in. You will need your current one &mdash;
+          the password your assistant gave you when they set this account up, unless you
+          have already changed it.
         </p>
 
         {demo ? (

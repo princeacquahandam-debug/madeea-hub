@@ -4,6 +4,52 @@ Non-trivial calls made under the working agreement. Newest first.
 
 ---
 
+## Invites set a password instead of emailing a link
+
+**What I decided.** All three invite functions -- `invite-member`,
+`invite-client`, `invite-client-viewer` -- stop calling `inviteUserByEmail`. The
+person creating the login types a starting password, the account is created with
+it, and the two are passed on by hand. Each function also gains a `mode:
+"reset"` that sets a password for somebody already on the caller's own side of
+the fence, and each of the three screens gains a Set a password tab.
+
+**Why.** An invited person arrived signed in without ever choosing a password.
+The Password form in Settings requires the current one -- it must, because
+`updateUser` does not verify the old one and an unlocked laptop would otherwise
+be enough to take an account over -- so they were asked for something that had
+never existed. Their account could not be changed by them at all. The only way
+out was a recovery email, and the project's built-in SMTP is rate limited across
+the whole project: "Failed to send password recovery: email rate limit exceeded"
+is what that looked like on a working afternoon.
+
+**What I assumed.** That credentials get relayed on a channel the agency already
+trusts with client work. They already are, which is what the Supabase dashboard
+invite dance was doing less legibly. The generated suggestion is built to survive
+that trip: no ambiguous glyphs, hyphenated in fours.
+
+**The ordering in the two client functions is load-bearing.** The account is
+created UNCONFIRMED, the `client_users` row is written, and only then is the
+address confirmed. 0070's `grant_membership_fallback` gives a staff seat in the
+agency workspace to any account that confirms holding no such row, so creating
+it confirmed would turn a client -- or a client's colleague -- into an employee
+of the agency. `supabase/repair-client-got-employee-seat.sql` exists because that
+has happened once already.
+
+**Also load-bearing:** `invite-member` still writes its `invites` row with
+`accepted_at: null`. Marking it accepted looks tidier, and
+`grant_invited_membership` only matches `where accepted_at is null`, so it would
+cost the new member their seat.
+
+**Cost to reverse.** Low. `inviteUserByEmail` is one call, and the password
+fields are additive. The reset mode would be worth keeping either way.
+
+**What would change my mind.** Real SMTP on the project (Resend, Postmark). A
+mailed link stops being rate limited then, though it still has to end on a
+"choose your password" screen rather than the dashboard, or this bug comes
+straight back.
+
+---
+
 ## SLA thresholds move from localStorage to the database
 
 **What I decided.** `sla_settings`, one row per workspace, admin-writable and

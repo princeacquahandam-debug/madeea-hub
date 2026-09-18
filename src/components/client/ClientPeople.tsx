@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Check, Eye, Loader2, ShieldCheck, UserPlus, X } from "lucide-react";
+import { AlertTriangle, Check, Eye, KeyRound, Loader2, ShieldCheck, UserPlus, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { CredentialsHandover, StartingPassword } from "@/components/StartingPassword";
+import { MIN_PASSWORD, suggestPassword } from "@/lib/password";
 import { dateOnly, dayLabel, localDayKey } from "./format";
 
 /**
@@ -22,6 +24,14 @@ import { dateOnly, dayLabel, localDayKey } from "./format";
  * out entirely, to stop a client seating their own staff instead of hiring
  * assistants. Read-only colleagues answer the need behind that without giving
  * the line away — but only while the number stays small.
+ *
+ * THE CLIENT SETS THEIR PASSWORD, exactly as the agency sets the client's. The
+ * invite email this used to send produced people who were signed in but had
+ * never chosen a password, so the Password form — which asks for the current
+ * one, and has to — was a dead end for them, and the way out was a recovery
+ * email the project's rate limit ate. Whoever creates a login now types its
+ * first password and passes it on. "Set a password" on a row is how the client
+ * rescues anybody already stuck that way.
  */
 
 interface Person {
@@ -46,10 +56,15 @@ const ROLE_COPY: Record<string, { label: string; blurb: string }> = {
 
 export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
   const qc = useQueryClient();
+  const [mode, setMode] = useState<"invite" | "reset">("invite");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState(suggestPassword());
   const [role, setRole] = useState("viewer");
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
+  /* Kept apart from the form, so clearing the form after a success cannot take
+     the only copy of the password with it. Nothing else will ever show it. */
+  const [sent, setSent] = useState<{ email: string; password: string } | null>(null);
 
   const { data: people = [], isLoading } = useQuery({
     queryKey: ["client-portal", "people"],
@@ -68,16 +83,16 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
   const full = seated >= CAP[role];
 
   const invite = useMutation({
-    mutationFn: async (addr: string) => {
+    mutationFn: async (input: { email: string; password: string; mode: "invite" | "reset" }) => {
       const { data, error } = await supabase!.functions.invoke("invite-client-viewer", {
-        body: { email: addr, role },
+        body: { email: input.email, password: input.password, role, mode: input.mode },
       });
       if (error) {
         /* The function's own sentence, not "non-2xx status code". It answers
            "they already have access" and "you can give 5 colleagues access"
            with a 409, and both are things the reader can act on. */
         const ctx = (error as { context?: Response }).context;
-        let msg = "Could not send that invitation.";
+        let msg = "Could not set that up.";
         if (ctx?.text) {
           try {
             const raw = await ctx.text();
@@ -87,15 +102,16 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
         }
         throw new Error(msg);
       }
-      return data as { ok: boolean; email?: string; linked?: boolean };
+      return data as { ok: boolean; email?: string; linked?: boolean; reset?: boolean };
     },
     onSuccess: (r) => {
       setDone(
-        r.linked
-          ? `${r.email} already had an account and now has access.`
-          : `Invitation sent to ${r.email}.`,
+        r.reset
+          ? `New password set for ${r.email}. Tell them what it is.`
+          : r.linked
+            ? `${r.email} already had an account and now has access, with this password.`
+            : `${r.email} can sign in now.`,
       );
-      setEmail("");
       qc.invalidateQueries({ queryKey: ["client-portal", "people"] });
     },
   });
@@ -108,15 +124,29 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["client-portal", "people"] }),
   });
 
-  async function send() {
-    const addr = email.trim();
-    if (!addr || invite.isPending) return;
+  /** Aim the form at somebody already on the account, from their own row. The
+   *  alternative is retyping an address that is on screen two inches away. */
+  function resetFor(addr: string) {
+    setMode("reset");
+    setEmail(addr);
+    setPassword(suggestPassword());
     setError("");
     setDone("");
+    setSent(null);
+  }
+
+  async function send() {
+    const addr = email.trim();
+    if (!addr || password.length < MIN_PASSWORD || invite.isPending) return;
+    setError("");
+    setDone("");
+    setSent(null);
     try {
-      await invite.mutateAsync(addr);
+      await invite.mutateAsync({ email: addr, password, mode });
+      setSent({ email: addr, password });
+      setEmail("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send that invitation.");
+      setError(e instanceof Error ? e.message : "Could not set that up.");
     }
   }
 
@@ -130,28 +160,57 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
       ) : (
         <section className="card p-5">
           <h2 className="mb-3 text-[17px] font-bold">
-            Give a colleague access
+            {mode === "reset" ? "Set someone's password" : "Give a colleague access"}
           </h2>
-          <p className="text-faint mb-2 text-sm">
-            Choose what they are here to do. Neither can read your messages with your
-            assistant or with agency leadership.
-          </p>
-          <div className="mb-2 flex flex-col gap-2 sm:flex-row">
-            {Object.entries(ROLE_COPY).map(([k, c]) => (
+
+          <div className="mb-3 flex gap-2">
+            {([
+              ["invite", "Add someone"],
+              ["reset", "Set a password"],
+            ] as const).map(([k, label]) => (
               <button
                 key={k}
-                onClick={() => setRole(k)}
+                onClick={() => { setMode(k); setError(""); setDone(""); setSent(null); }}
                 className={
-                  role === k
-                    ? "flex-1 rounded-lg border border-accent bg-accent/15 p-3 text-left"
-                    : "flex-1 rounded-lg border border-border bg-surface-2 p-3 text-left hover:border-accent/50"
+                  mode === k
+                    ? "flex-1 rounded-lg border border-accent bg-accent/15 p-2 text-sm"
+                    : "flex-1 rounded-lg border border-border bg-surface-2 p-2 text-sm hover:border-accent/50"
                 }
               >
-                <div className="text-sm font-medium">{c.label}</div>
-                <div className="mt-0.5 text-xs text-faint">{c.blurb}</div>
+                {label}
               </button>
             ))}
           </div>
+
+          {mode === "invite" ? (
+            <>
+              <p className="text-faint mb-2 text-sm">
+                Choose what they are here to do. Neither can read your messages with your
+                assistant or with agency leadership.
+              </p>
+              <div className="mb-2 flex flex-col gap-2 sm:flex-row">
+                {Object.entries(ROLE_COPY).map(([k, c]) => (
+                  <button
+                    key={k}
+                    onClick={() => setRole(k)}
+                    className={
+                      role === k
+                        ? "flex-1 rounded-lg border border-accent bg-accent/15 p-3 text-left"
+                        : "flex-1 rounded-lg border border-border bg-surface-2 p-3 text-left hover:border-accent/50"
+                    }
+                  >
+                    <div className="text-sm font-medium">{c.label}</div>
+                    <div className="mt-0.5 text-xs text-faint">{c.blurb}</div>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-faint mb-2 text-sm">
+              For somebody on this account who cannot get in. It changes their password
+              and nothing else about their access.
+            </p>
+          )}
 
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
@@ -159,24 +218,45 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void send(); } }}
               placeholder="colleague@yourcompany.com"
-              disabled={full}
+              disabled={mode === "invite" && full}
               className="input flex-1 disabled:opacity-40"
             />
             <button
               onClick={() => void send()}
-              disabled={!email.trim() || invite.isPending || full}
+              disabled={
+                !email.trim() ||
+                password.length < MIN_PASSWORD ||
+                invite.isPending ||
+                (mode === "invite" && full)
+              }
               className="btn-primary whitespace-nowrap"
             >
               {invite.isPending ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}
-              Invite
+              {mode === "reset" ? "Set password" : "Add them"}
             </button>
           </div>
 
-          <p className="text-faint mt-2 text-xs">
-            {full
-              ? `That is the limit of ${CAP[role]}. Remove one to add another, or talk to us about more seats.`
-              : `${seated} of ${CAP[role]} ${role === "member" ? "team member" : "colleague"} seats used.`}
-          </p>
+          <div className="mt-2">
+            <StartingPassword
+              id="client-people-password"
+              value={password}
+              onChange={setPassword}
+              label={mode === "reset" ? "New password" : "Starting password"}
+              hint={
+                mode === "reset"
+                  ? "Their old password stops working as soon as you set this."
+                  : "Nothing is emailed. Send them the address and this password yourself."
+              }
+            />
+          </div>
+
+          {mode === "invite" ? (
+            <p className="text-faint mt-2 text-xs">
+              {full
+                ? `That is the limit of ${CAP[role]}. Remove one to add another, or talk to us about more seats.`
+                : `${seated} of ${CAP[role]} ${role === "member" ? "team member" : "colleague"} seats used.`}
+            </p>
+          ) : null}
 
           {error ? (
             <p className="mt-2 flex items-start gap-2 text-sm" style={{ color: "var(--c-danger)" }}>
@@ -184,9 +264,12 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
             </p>
           ) : null}
           {done ? (
-            <p className="mt-2 flex items-start gap-2 text-sm" style={{ color: "var(--c-accent)" }}>
-              <Check size={15} className="mt-0.5 shrink-0" /> {done}
-            </p>
+            <div className="mt-2 space-y-2">
+              <p className="flex items-start gap-2 text-sm" style={{ color: "var(--c-accent)" }}>
+                <Check size={15} className="mt-0.5 shrink-0" /> {done}
+              </p>
+              {sent ? <CredentialsHandover email={sent.email} password={sent.password} /> : null}
+            </div>
           ) : null}
         </section>
       )}
@@ -223,15 +306,25 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
                   </div>
                 </div>
                 {!readOnly && p.role !== "primary" && p.email ? (
-                  <button
-                    onClick={() => removePerson.mutate(p.email!)}
-                    disabled={removePerson.isPending}
-                    className="text-faint shrink-0 rounded-md p-1.5 hover:text-red-400"
-                    title={`Remove ${p.email}`}
-                    aria-label={`Remove ${p.email} from this account`}
-                  >
-                    <X size={15} />
-                  </button>
+                  <>
+                    <button
+                      onClick={() => resetFor(p.email!)}
+                      className="text-faint shrink-0 rounded-md p-1.5 hover:text-accent"
+                      title={`Set a new password for ${p.email}`}
+                      aria-label={`Set a new password for ${p.email}`}
+                    >
+                      <KeyRound size={15} />
+                    </button>
+                    <button
+                      onClick={() => removePerson.mutate(p.email!)}
+                      disabled={removePerson.isPending}
+                      className="text-faint shrink-0 rounded-md p-1.5 hover:text-red-400"
+                      title={`Remove ${p.email}`}
+                      aria-label={`Remove ${p.email} from this account`}
+                    >
+                      <X size={15} />
+                    </button>
+                  </>
                 ) : null}
               </li>
             ))}

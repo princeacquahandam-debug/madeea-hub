@@ -4,6 +4,8 @@ import { ShieldCheck, ArrowLeft, UserPlus, Trash2, ArrowUpCircle, ArrowDownCircl
 import { PageHeader } from "@/components/ui";
 import { ROLE_LABEL, ROLE_RANK, ROLE_BLURB, useGrantableRoles, useRoleCapabilities, type MemberRole, useMyRole, useWorkspaceMembers, useMemberMutations, useInviteMember, useTasks } from "@/data/hooks";
 import { AssigneeAvatar } from "@/components/Assignee";
+import { CredentialsHandover, StartingPassword } from "@/components/StartingPassword";
+import { MIN_PASSWORD, suggestPassword } from "@/lib/password";
 import { teamWorkload, unassignedCount } from "@/lib/team";
 
 function fmtDate(s: string) {
@@ -25,6 +27,16 @@ export default function Admin() {
   const unclaimed = unassignedCount(tasks);
 
   const [email, setEmail] = useState("");
+  /* The password the new teammate starts with. Suggested up front rather than
+     left blank: this field is filled in by somebody inventing a password for
+     another person under time pressure, which is how "Welcome123" gets typed
+     eleven times. See src/lib/password.ts. */
+  const [password, setPassword] = useState(suggestPassword());
+  const [mode, setMode] = useState<"invite" | "reset">("invite");
+  /* What actually worked, kept out of the form so that clearing the form on
+     success cannot take the only copy of the password with it. No email is sent
+     any more, so this is the one place it is ever shown. */
+  const [sent, setSent] = useState<{ email: string; password: string } | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   // UI gate only. RLS is the real boundary (admins-only writes, workspace isolation).
@@ -51,20 +63,24 @@ export default function Admin() {
   async function sendInvite(e: React.FormEvent) {
     e.preventDefault();
     const addr = email.trim();
-    if (!addr) return;
+    if (!addr || password.length < MIN_PASSWORD) return;
     setNotice(null);
+    setSent(null);
     try {
-      const res = await invite.mutateAsync({ email: addr, role: inviteRole });
+      const res = await invite.mutateAsync({ email: addr, password, role: inviteRole, mode });
       /* Names the role that was actually chosen. This said "They'll join as an
          EA" regardless, left over from when the function hardcoded that role,
          so choosing Owner and being told EA was the expected outcome. */
       const asRole = ROLE_LABEL[inviteRole] ?? inviteRole;
       setNotice({
         kind: "ok",
-        text: res?.reinstated
-          ? `${addr} already had an account, so they were added straight back as ${asRole}. No email was sent and their existing password still works.`
-          : `Invitation sent to ${addr}. They join as ${asRole} once they accept.`,
+        text: res?.reset
+          ? `New password set for ${addr}. Nothing else about their account changed — tell them what it is.`
+          : res?.reinstated
+            ? `${addr} already had an account, so they were added straight back as ${asRole}, with the password below.`
+            : `${addr} can sign in now, as ${asRole}. Nothing was emailed, so send them the details below.`,
       });
+      setSent({ email: addr, password });
       setEmail("");
     } catch (err) {
       /* Say what went wrong. The previous message was a fixed sentence claiming
@@ -76,7 +92,7 @@ export default function Admin() {
         kind: "err",
         text: e.missing
           ? "The invite function is not deployed. Deploy invite-member, or add the person from Supabase, Authentication."
-          : e.message || "Could not send the invitation.",
+          : e.message || "Could not create that account.",
       });
     }
   }
@@ -172,9 +188,11 @@ export default function Admin() {
       </section>
 
       <section className="card mb-5 p-5">
-        <p className="field-label">Invite a team member</p>
+        <p className="field-label">Add a team member</p>
         <p className="mb-1 text-sm text-muted">
-          They join this workspace at the role you choose. The role decides what they can see and do, and it can be changed later.
+          You set their address and their first password, and they join this workspace
+          at the role you choose. Nothing is emailed: pass the two on yourself, and they
+          can change the password in Settings once they are in.
         </p>
         {/* The owner of the workspace came here looking for the client invite and
             found this one, which creates STAFF. The two are not interchangeable:
@@ -186,11 +204,37 @@ export default function Admin() {
           <Link to="/clients" className="text-accent hover:underline">Client Vault</Link>{" "}
           &mdash; look for <span className="text-text">Give access</span> on their card.
         </p>
+        {/* Two modes, because everybody invited before this change is holding an
+            account they cannot change the password of: they were mailed a link,
+            signed in without ever choosing one, and the Settings form asks for
+            the current password, as it must. "Set a password" is the way out,
+            and it is a mode you pick rather than something re-inviting does
+            behind your back. */}
+        <div className="mb-3 flex max-w-sm gap-2">
+          {([
+            ["invite", "Add someone"],
+            ["reset", "Set a password"],
+          ] as const).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => { setMode(k); setNotice(null); setSent(null); }}
+              className={
+                mode === k
+                  ? "flex-1 rounded-lg border border-accent bg-accent/15 p-2 text-sm"
+                  : "flex-1 rounded-lg border border-border bg-surface-2 p-2 text-sm hover:border-accent/50"
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <form onSubmit={sendInvite} className="flex flex-col gap-2 sm:flex-row">
           <input
             type="email"
             className="input flex-1"
-            aria-label="Email address of the team member to invite"
+            aria-label={mode === "reset" ? "Email address of the team member whose password to set" : "Email address of the team member to invite"}
             placeholder="name@company.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -202,17 +246,45 @@ export default function Admin() {
             id="invite-role"
             className="input w-full sm:w-40"
             value={inviteRole}
+            disabled={mode === "reset"}
+            title={mode === "reset" ? "Setting a password does not change anyone's role" : undefined}
             onChange={(e) => setInviteRole(e.target.value as MemberRole)}
           >
             {grantable.map((r) => (
               <option key={r} value={r}>{ROLE_LABEL[r] ?? r}</option>
             ))}
           </select>
-          <button className="btn-primary" disabled={invite.isPending}>
-            <UserPlus size={15} /> {invite.isPending ? "Sending…" : "Send invite"}
+          <button className="btn-primary" disabled={invite.isPending || password.length < MIN_PASSWORD}>
+            <UserPlus size={15} />
+            {invite.isPending ? "Working…" : mode === "reset" ? "Set password" : "Create account"}
           </button>
         </form>
-        <p className="mt-2 text-xs text-faint">{ROLE_BLURB[inviteRole]}</p>
+
+        <div className="mt-2 max-w-sm">
+          <StartingPassword
+            id="invite-member-password"
+            value={password}
+            onChange={setPassword}
+            label={mode === "reset" ? "New password" : "Starting password"}
+            hint={
+              mode === "reset"
+                ? "Their old password stops working the moment you set this."
+                : "No invite email is sent. Give them the address and this password yourself."
+            }
+          />
+        </div>
+
+        <p className="mt-2 text-xs text-faint">
+          {mode === "reset"
+            ? "Only their password changes. Their role, their seat and their work stay exactly as they are."
+            : ROLE_BLURB[inviteRole]}
+        </p>
+
+        {sent ? (
+          <div className="mt-3 max-w-sm">
+            <CredentialsHandover email={sent.email} password={sent.password} />
+          </div>
+        ) : null}
       </section>
 
       {notice && (

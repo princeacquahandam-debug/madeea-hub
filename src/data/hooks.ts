@@ -1356,28 +1356,39 @@ export function useInviteMember() {
   return useMutation({
     /* Takes a role as well as an address. It used to take only the address,
        which matched a function that hardcoded the role anyway, so the two were
-       consistently wrong together. */
+       consistently wrong together.
+
+       And now a password, because nothing is emailed any more: the account is
+       created with the password typed here and the admin passes it on. An
+       invited person never chose one, so the Settings form -- which asks for
+       the current password, and must -- had nothing they could type. See the
+       header of supabase/functions/invite-member.
+
+       `mode: "reset"` sets a password on somebody already seated, for every
+       account created before this and stuck exactly there. */
     mutationFn: async (
-      input: { email: string; role: MemberRole },
+      input: { email: string; password: string; role: MemberRole; mode?: "invite" | "reset" },
       /* `reinstated` means they already had an account and got their seat back
          without an email. Saying "invitation sent" there would have somebody
          waiting on a message that was deliberately never sent. */
-    ): Promise<{ ok: boolean; email?: string; reinstated?: boolean }> => {
-      const { email, role } = input;
+    ): Promise<{ ok: boolean; email?: string; reinstated?: boolean; reset?: boolean }> => {
+      const { email, password, role, mode } = input;
       if (!supabase) return { ok: true, email };
-      const { data, error } = await supabase.functions.invoke("invite-member", { body: { email, role } });
+      const { data, error } = await supabase.functions.invoke("invite-member", {
+        body: { email, password, role, mode: mode ?? "invite" },
+      });
       if (error) {
         /* The function's own words. It answers "That person is already a
            member." with a 409, and reporting that as a generic failure sent
            somebody looking for a broken deployment instead of reading the
            member list directly below the form. */
-        const f = await edgeFailure(error, "Could not send the invitation.");
+        const f = await edgeFailure(error, "Could not create that account.");
         const err = new Error(f.message) as Error & { status?: number; missing?: boolean };
         err.status = f.status;
         err.missing = f.missing;
         throw err;
       }
-      return data as { ok: boolean; email?: string; reinstated?: boolean };
+      return data as { ok: boolean; email?: string; reinstated?: boolean; reset?: boolean };
     },
   });
 }
@@ -3123,21 +3134,36 @@ export function useAiRatesConfigured() {
  * seat to any confirmed account that holds no such row, so a two-step version
  * has a window where confirming early makes a client into an employee. That
  * window is not theoretical -- it happened during setup.
+ *
+ * THE PASSWORD IS SET HERE, not mailed. A client who arrived through an invite
+ * link never chose one, and their own Password form asks for the current one,
+ * so their account was unchangeable by them and only a recovery email could
+ * move it -- which the project's SMTP rate limit swallowed. The admin sets a
+ * starting password and tells them. `mode: "reset"` sets a new one for a client
+ * who already has a login, which is the way out for every account created
+ * before this.
  */
 export function useInviteClientLogin() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { email: string; client_id: string }) => {
+    mutationFn: async (input: {
+      email: string;
+      password: string;
+      client_id: string;
+      mode?: "invite" | "reset";
+    }) => {
       if (!supabase) return { ok: true, email: input.email };
-      const { data, error } = await supabase.functions.invoke("invite-client", { body: input });
+      const { data, error } = await supabase.functions.invoke("invite-client", {
+        body: { ...input, mode: input.mode ?? "invite" },
+      });
       if (error) {
-        const f = await edgeFailure(error, "Could not send that invitation.");
+        const f = await edgeFailure(error, "Could not set that login up.");
         const err = new Error(f.message) as Error & { status?: number; missing?: boolean };
         err.status = f.status;
         err.missing = f.missing;
         throw err;
       }
-      return data as { ok: boolean; email?: string; client?: string; linked?: boolean };
+      return data as { ok: boolean; email?: string; client?: string; linked?: boolean; reset?: boolean };
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ["client-logins"] }),
   });
