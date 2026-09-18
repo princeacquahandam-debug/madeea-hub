@@ -109,7 +109,7 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
   }
 
   return (
-    <div className="space-y-6 px-6 py-4">
+    <div className="space-y-6">
       {readOnly ? (
         <p className="text-faint text-sm">
           Everyone who can see this account. Only the account owner can add or remove

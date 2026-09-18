@@ -132,7 +132,7 @@ export function ClientOverview({
   }
 
   return (
-    <div className="space-y-6 px-6 py-4">
+    <div className="space-y-6">
       <section className="grid gap-3 sm:grid-cols-3">
         <Stat label="Hours, last 7 days" value={hm(totals.last7)} icon={Clock} />
         <Stat label="Open tasks" value={String(totals.open)} icon={Circle} />

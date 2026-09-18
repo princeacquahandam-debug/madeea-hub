@@ -117,12 +117,12 @@ export function ClientActivity() {
   }, [days, done]);
 
   if (loadingDays || loadingTasks) {
-    return <p className="text-faint px-6 py-4 text-sm">Loading…</p>;
+    return <p className="text-faint text-sm">Loading…</p>;
   }
 
   if (grouped.length === 0) {
     return (
-      <div className="px-6 py-4">
+      <div className="">
         <p className="text-faint text-sm">
           Nothing has been logged against your account yet. Once your assistant starts
           work, each day appears here with what moved and how long it took.
@@ -132,7 +132,7 @@ export function ClientActivity() {
   }
 
   return (
-    <div className="space-y-4 px-6 py-4">
+    <div className="space-y-4">
       <p className="text-faint text-sm">
         Each working day on your account: what your assistant completed, how long they
         were clocked in, and the monitoring captures held on file for that session.

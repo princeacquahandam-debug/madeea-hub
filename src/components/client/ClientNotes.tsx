@@ -80,7 +80,7 @@ export function ClientNotes({ readOnly = false }: { readOnly?: boolean }) {
   }
 
   return (
-    <div className="space-y-6 px-6 py-4">
+    <div className="space-y-6">
       {readOnly ? null : (
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider">Leave a note</h2>

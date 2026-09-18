@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  LogOut, Send, ShieldCheck, MessageSquare, LayoutDashboard,
-  Activity, CalendarDays, StickyNote, Eye, Users, Share2,
+  Send, ShieldCheck, MessageSquare, LayoutDashboard,
+  Activity, CalendarDays, StickyNote, Users, Share2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,6 +12,7 @@ import { ClientCalendar } from "@/components/client/ClientCalendar";
 import { ClientNotes } from "@/components/client/ClientNotes";
 import { ClientPeople } from "@/components/client/ClientPeople";
 import { ClientDelegation } from "@/components/client/ClientDelegation";
+import { ClientShell, type ClientNavItem } from "@/components/client/ClientShell";
 
 /**
  * What a client sees. Deliberately not the agency app with things hidden.
@@ -22,10 +23,15 @@ import { ClientDelegation } from "@/components/client/ClientDelegation";
  * down to — what a client may read is their own row, their two conversations,
  * and the views 0072 and 0073 define.
  *
- * THE TAB ORDER IS THE 14 SEP WALKTHROUGH. Where do I stand, what was done,
+ * THE NAV ORDER IS THE 14 SEP WALKTHROUGH. Where do I stand, what was done,
  * what is booked, what should they know, and then the two ways to talk to
  * somebody. Messaging sits last because it is the thing a client reaches for
  * when the first four have not already answered them.
+ *
+ * The shell around it is ClientShell, which borrows the agency sidebar's own
+ * wordmark, nav-item and card classes rather than restating them. The portal
+ * is the only screen most clients ever see, and it used to be the one screen
+ * in the product with no design on it.
  */
 
 type Kind = "client_ea" | "escalation";
@@ -58,15 +64,26 @@ const CHANNEL: Record<Kind, { label: string; blurb: string; icon: typeof Message
   },
 };
 
-const TABS: { id: Tab; label: string; icon: typeof MessageSquare }[] = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "activity", label: "Activity", icon: Activity },
-  { id: "calendar", label: "Calendar", icon: CalendarDays },
-  { id: "notes", label: "Notes", icon: StickyNote },
-  { id: "delegate", label: "Delegate", icon: Share2 },
-  { id: "people", label: "People", icon: Users },
-  { id: "client_ea", label: CHANNEL.client_ea.label, icon: CHANNEL.client_ea.icon },
-  { id: "escalation", label: CHANNEL.escalation.label, icon: CHANNEL.escalation.icon },
+/* Grouped, because eight destinations in one flat row gave equal weight to
+   "where does my account stand" and "message the agency about a problem". The
+   headings answer three different questions, in the order a client asks them. */
+const TABS: (ClientNavItem & { id: Tab; title: string; subtitle: string })[] = [
+  { id: "overview", label: "Overview", icon: LayoutDashboard, group: "Your account",
+    title: "Overview", subtitle: "Where your account stands right now." },
+  { id: "activity", label: "Activity", icon: Activity, group: "Your account",
+    title: "Activity", subtitle: "What your assistant did, day by day." },
+  { id: "calendar", label: "Calendar", icon: CalendarDays, group: "Your account",
+    title: "Calendar", subtitle: "What is booked on your account." },
+  { id: "notes", label: "Notes", icon: StickyNote, group: "Working together",
+    title: "Notes", subtitle: "Things your assistant should keep to hand." },
+  { id: "delegate", label: "Delegate", icon: Share2, group: "Working together",
+    title: "Delegate", subtitle: "Hand a piece of work over properly." },
+  { id: "people", label: "People", icon: Users, group: "Working together",
+    title: "People", subtitle: "Who can see this account." },
+  { id: "client_ea", label: CHANNEL.client_ea.label, icon: CHANNEL.client_ea.icon, group: "Messages",
+    title: CHANNEL.client_ea.label, subtitle: CHANNEL.client_ea.blurb },
+  { id: "escalation", label: CHANNEL.escalation.label, icon: CHANNEL.escalation.icon, group: "Messages",
+    title: CHANNEL.escalation.label, subtitle: CHANNEL.escalation.blurb },
 ];
 
 /** The panes that are not a conversation, so the message furniture falls away. */
@@ -190,79 +207,42 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
   }
 
   const channel = PANES[tab] ? null : CHANNEL[tab as Kind];
+  const meta = tabs.find((t) => t.id === tab) ?? tabs[0];
 
   return (
-    <div className="flex h-screen flex-col" style={{ background: "var(--c-bg)" }}>
-      <header
-        className="flex items-center justify-between gap-4 px-6 py-4"
-        style={{ borderBottom: "1px solid var(--c-border)" }}
-      >
-        <div className="min-w-0">
-          <div className="text-faint text-xs uppercase tracking-wider">MadeEA Client Portal</div>
-          <h1 className="truncate text-lg font-semibold">
-            {header?.client_name ?? "Your account"}
-            {header?.company ? <span className="text-faint font-normal"> · {header.company}</span> : null}
-          </h1>
-        </div>
-        <div className="flex items-center gap-3">
-          {isViewer ? (
-            <span className="pill bg-accent/15 text-accent-soft flex items-center gap-1.5 text-xs">
-              <Eye size={12} /> View only
-            </span>
-          ) : null}
-          <span className="text-faint hidden text-sm sm:inline">{user?.email}</span>
-          <button
-            onClick={() => void signOut()}
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
-            style={{ border: "1px solid var(--c-border)" }}
-          >
-            <LogOut size={15} /> Sign out
-          </button>
-        </div>
-      </header>
-
-      <nav className="flex flex-wrap gap-2 px-6 pt-4">
-        {tabs.map(({ id, label, icon: Icon }) => {
-          const on = id === tab;
-          return (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
-              style={{
-                background: on ? "var(--c-accent)" : "transparent",
-                color: on ? "#fff" : undefined,
-                border: `1px solid ${on ? "var(--c-accent)" : "var(--c-border)"}`,
-              }}
-            >
-              <Icon size={15} /> {label}
-            </button>
-          );
-        })}
-      </nav>
-
+    <ClientShell
+      nav={tabs}
+      active={tab}
+      onSelect={(id) => setTab(id as Tab)}
+      clientName={header?.client_name ?? "Your account"}
+      company={header?.company ?? null}
+      email={user?.email}
+      isViewer={isViewer}
+      title={meta.title}
+      subtitle={meta.subtitle}
+      onSignOut={() => void signOut()}
+    >
       {PANES[tab] ? (
-        <div className="flex-1 overflow-y-auto">
-          {tab === "overview" ? (
-            <ClientOverview onSeeActivity={() => setTab("activity")} readOnly={isViewer} />
-          ) : null}
+        <>
+          {tab === "overview" ? <ClientOverview onSeeActivity={() => setTab("activity")} readOnly={isViewer} /> : null}
           {tab === "activity" ? <ClientActivity /> : null}
           {tab === "calendar" ? <ClientCalendar /> : null}
           {tab === "notes" ? <ClientNotes readOnly={isViewer} /> : null}
           {tab === "delegate" ? <ClientDelegation readOnly={isViewer} /> : null}
           {tab === "people" ? <ClientPeople readOnly={isViewer} /> : null}
-        </div>
+        </>
       ) : (
-        <>
-          <p className="text-faint px-6 pt-3 text-sm">{channel!.blurb}</p>
-
-          <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-6 py-4">
+        /* A conversation is one object, so it gets one card: the thread scrolls
+           inside it and the composer is pinned to its foot, rather than the
+           whole page scrolling and the box drifting off the bottom. */
+        <div className="card flex h-[calc(100dvh-13rem)] min-h-[22rem] flex-col overflow-hidden">
+          <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
             {!active ? (
-              <p className="text-faint text-sm">This channel has not been opened yet.</p>
+              <p className="text-sm text-faint">This channel has not been opened yet.</p>
             ) : loadingMessages ? (
-              <p className="text-faint text-sm">Loading…</p>
+              <p className="text-sm text-faint">Loading&hellip;</p>
             ) : messages.length === 0 ? (
-              <p className="text-faint text-sm">
+              <p className="text-sm text-faint">
                 No messages yet. Anything you send here starts the thread.
               </p>
             ) : (
@@ -292,12 +272,10 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
           </div>
 
           {sendError ? (
-            <p className="px-6 pb-2 text-sm" style={{ color: "var(--c-danger)" }}>
-              {sendError}
-            </p>
+            <p className="px-4 pb-2 text-sm" style={{ color: "var(--c-danger)" }}>{sendError}</p>
           ) : null}
 
-          <div className="flex items-end gap-2 px-6 pb-6">
+          <div className="flex items-end gap-2 border-t border-border p-3">
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -310,7 +288,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
               rows={2}
               placeholder={`Message ${channel!.label.toLowerCase()}…`}
               disabled={!active}
-              className="flex-1 resize-none rounded-xl px-4 py-3 text-sm"
+              className="min-w-0 flex-1 resize-none rounded-xl px-4 py-3 text-sm"
               style={{ background: "var(--glass)", border: "1px solid var(--c-border)" }}
             />
             <button
@@ -323,8 +301,8 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
               <Send size={17} />
             </button>
           </div>
-        </>
+        </div>
       )}
-    </div>
+    </ClientShell>
   );
 }

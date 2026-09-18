@@ -179,7 +179,7 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
 
   if (readOnly) {
     return (
-      <div className="space-y-4 px-6 py-4">
+      <div className="space-y-4">
         <p className="text-faint text-sm">
           Delegation plans on this account. Only the account owner can create them.
         </p>
@@ -189,7 +189,7 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
   }
 
   return (
-    <div className="space-y-6 px-6 py-4">
+    <div className="space-y-6">
       {error ? (
         <p className="flex items-start gap-2 text-sm" style={{ color: "var(--c-danger)" }}>
           <AlertTriangle size={15} className="mt-0.5 shrink-0" /> {error}

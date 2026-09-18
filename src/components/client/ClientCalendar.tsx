@@ -62,11 +62,11 @@ export function ClientCalendar() {
     return [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key));
   }, [events]);
 
-  if (isLoading) return <p className="text-faint px-6 py-4 text-sm">Loading…</p>;
+  if (isLoading) return <p className="text-faint text-sm">Loading…</p>;
 
   if (days.length === 0) {
     return (
-      <div className="px-6 py-4">
+      <div className="">
         <p className="text-faint text-sm">
           Nothing is booked on your account. Meetings your assistant schedules for you
           appear here.
@@ -82,7 +82,7 @@ export function ClientCalendar() {
   const zone = events.find((e) => e.event_timezone)?.event_timezone ?? null;
 
   return (
-    <div className="space-y-4 px-6 py-4">
+    <div className="space-y-4">
       <p className="text-faint text-sm">
         What is booked on your account.
         {zone ? <> Times are shown in {zone}.</> : null}
