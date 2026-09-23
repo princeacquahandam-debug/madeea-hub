@@ -406,7 +406,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
                 for anybody whose title is not that. Read the real role. */}
             {/* One label source. This tested role === "admin" and said "Elite EA" for
                 everything else, so an owner and a manager both read as an EA. */}
-            <p className="truncate text-xs text-faint">{ROLE_LABEL[role ?? "employee"] ?? "Employee"}</p>
+            <p className="truncate text-xs text-faint">{ROLE_LABEL[role ?? "employee"] ?? "EA"}</p>
           </div>
           <SettingsIcon size={15} className="text-faint transition-colors group-hover:text-text" />
         </NavLink>

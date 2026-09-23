@@ -129,7 +129,7 @@ export default function Admin() {
         {[
           { label: "Team members", value: members.length, icon: Users },
           { label: "Admins & owners", value: adminCount, icon: ShieldCheck },
-          { label: "Employees", value: eaCount, icon: Users },
+          { label: "EAs", value: eaCount, icon: Users },
           { label: "Open tasks", value: openTasks, icon: ArrowUpCircle },
         ].map((s) => (
           <div key={s.label} className="card p-4">

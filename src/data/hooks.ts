@@ -1211,9 +1211,21 @@ export const ROLE_RANK: Record<string, number> = {
 export const atLeast = (role: string | null | undefined, min: MemberRole): boolean =>
   (ROLE_RANK[role ?? ""] ?? 0) >= (ROLE_RANK[min] ?? 0);
 
-/** What to call a role on screen. */
+/**
+ * What to call a role on screen.
+ *
+ * "EA" rather than "Employee", for both spellings of the same rank. This is an
+ * EA agency: the people in it are EAs to their clients, to each other and on
+ * every other screen in the product, and "Employee" was the only place that
+ * called them something else.
+ *
+ * The stored VALUES are untouched — rows still carry "ea" or "employee", and
+ * ROLE_RANK still ranks them identically. Renaming what a role is called is a
+ * label change; renaming what it IS would mean rewriting live rows to no
+ * purpose.
+ */
 export const ROLE_LABEL: Record<string, string> = {
-  owner: "Owner", admin: "Admin", manager: "Manager", employee: "Employee", ea: "Employee",
+  owner: "Owner", admin: "Admin", manager: "Manager", employee: "EA", ea: "EA",
 };
 
 /** One line on what the role is for, shown beside the picker. */
