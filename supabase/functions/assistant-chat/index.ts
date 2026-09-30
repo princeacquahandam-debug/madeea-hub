@@ -207,7 +207,9 @@ const TOOLS = [
           scope: {
             type: "string",
             enum: ["mine", "team", "unassigned"],
-            description: "mine = assigned to the user (default). team = everyone's. unassigned = nobody's yet.",
+            description:
+              "mine = assigned to the user, or created by them with no assignee (default). " +
+              "team = everyone's. unassigned = nobody's yet.",
           },
           when: {
             type: "string",
@@ -400,11 +402,19 @@ async function listTasks(ctx: ToolCtx, a: Record<string, unknown>) {
   const today = localDate(Date.now(), ctx.tz);
 
   let q = ctx.db.from("tasks")
-    .select("title,status,priority,due_at,due_label,blocked,blocker_note,assignee_id,requires_approval,approved_at,clients(name)")
+    .select("title,status,priority,due_at,due_label,blocked,blocker_note,assignee_id,owner_id,requires_approval,approved_at,clients(name)")
     .order("due_at", { ascending: true, nullsFirst: false })
     .limit(limit);
 
-  if (scope === "mine") q = q.eq("assignee_id", ctx.userId);
+  /* OR-groups, ANDed together at the end. Two separate .or() calls would put
+     two `or` params on the URL, and PostgREST does not promise to AND those. */
+  const groups: string[] = [];
+
+  /* "Mine" is what I'm assigned, OR what I created and nobody is assigned.
+     The task form leaves Assignee blank by default, so most tasks someone
+     makes for themselves have assignee_id null. Matching the assignee alone
+     answered "you have no tasks" to people with a full list. */
+  if (scope === "mine") groups.push(`assignee_id.eq.${ctx.userId},and(assignee_id.is.null,owner_id.eq.${ctx.userId})`);
   if (scope === "unassigned") q = q.is("assignee_id", null);
   if (status === "open") q = q.neq("status", "done");
   if (status === "done") q = q.eq("status", "done");
@@ -417,9 +427,11 @@ async function listTasks(ctx: ToolCtx, a: Record<string, unknown>) {
   const endOfToday = startOfDay(addDays(today, 1), ctx.tz);
   if (when === "overdue") q = q.lt("due_at", new Date().toISOString());
   if (when === "today") {
-    q = q.or(`and(due_at.gte."${startOfDay(today, ctx.tz)}",due_at.lt."${endOfToday}"),${saysToday}`);
+    groups.push(`and(due_at.gte."${startOfDay(today, ctx.tz)}",due_at.lt."${endOfToday}"),${saysToday}`);
   }
-  if (when === "due_by_today") q = q.or(`due_at.lt."${endOfToday}",${saysToday}`);
+  if (when === "due_by_today") groups.push(`due_at.lt."${endOfToday}",${saysToday}`);
+  if (groups.length === 1) q = q.or(groups[0]);
+  if (groups.length > 1) q = q.or(`and(${groups.map((g) => `or(${g})`).join(",")})`);
   if (when === "tomorrow") q = q.gte("due_at", startOfDay(addDays(today, 1), ctx.tz)).lt("due_at", startOfDay(addDays(today, 2), ctx.tz));
   if (when === "next_7_days") q = q.gte("due_at", startOfDay(today, ctx.tz)).lt("due_at", startOfDay(addDays(today, 7), ctx.tz));
   if (when === "no_due_date") q = q.is("due_at", null);
@@ -441,7 +453,7 @@ async function listTasks(ctx: ToolCtx, a: Record<string, unknown>) {
       due: localTime(t.due_at, ctx.tz) ?? t.due_label ?? null,
       overdue: !!t.due_at && t.status !== "done" && new Date(t.due_at).getTime() < now,
       client: t.clients?.name ?? null,
-      assigned_to_you: t.assignee_id === ctx.userId,
+      yours: t.assignee_id === ctx.userId || (!t.assignee_id && t.owner_id === ctx.userId),
       unassigned: !t.assignee_id,
       blocked: t.blocked ? (t.blocker_note || true) : false,
       awaiting_approval: !!t.requires_approval && !t.approved_at,
@@ -688,7 +700,9 @@ Deno.serve(async (req) => {
         "I...\"), call the tools and answer from what they return. Never guess or invent a task, meeting, email " +
         "or client. If a tool returns nothing, say so plainly; if it returns an error, say that data could not " +
         "be read. For \"what's on my plate today\", fetch both the user's tasks due by today and today's " +
-        "meetings, then lead with what's overdue or next. Times from the tools are already in the user's " +
+        "meetings, then lead with what's overdue or next. If nothing is due today, don't stop at \"nothing " +
+        "today\": also look at the user's tasks due in the next 7 days and their open tasks with no due date, " +
+        "and tell them what's coming up. Times from the tools are already in the user's " +
         "timezone; repeat them as given. When asked how to do something, find the most relevant SOP and walk " +
         "the user through its steps, referencing its title and success criteria so they know when it's done. " +
         "You can read but not change anything; if asked to create or update something, say where in the app " +
