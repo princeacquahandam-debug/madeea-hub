@@ -121,7 +121,7 @@ export function CommandPalette() {
             onKeyDown={onInputKey}
             placeholder="Search, jump to a page, or ask Madeline…"
             aria-label="Search, jump to a page, or ask Madeline"
-            className="w-full bg-transparent py-3 text-sm outline-none placeholder:text-faint"
+            className="w-full bg-transparent py-3 text-sm outline-none placeholder:text-faint focus-visible:outline-none"
           />
           <kbd className="pill bg-surface-2 text-faint">Esc</kbd>
         </div>

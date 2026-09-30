@@ -7,21 +7,57 @@ import { ResultCard } from "@/components/command-center/ResultCard";
 import { ConfirmDialog } from "@/components/command-center/ConfirmDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useMadelineEngine } from "@/hooks/useMadeline";
-import { useMadeline, ITEM_LABEL, type MadelineItemKind, type MadelineTurn } from "@/store/madeline";
+import { useMadeline, ITEM_LABEL, type MadelineItem, type MadelineItemKind, type MadelineTurn } from "@/store/madeline";
+import { useMeetings, useMessages, useTasks } from "@/data/hooks";
+import { meetingItem } from "@/lib/madelineItems";
 import { renderMarkdown } from "@/lib/sanitize";
 import { cn } from "@/lib/utils";
+import type { Meeting, Message, Task } from "@/types/db";
 
-/** A starter: `send` runs it at once, `fill` puts it in the box to finish. */
-interface Starter { label: string; send?: string; fill?: string }
+/** A starter: `send` runs it at once, `fill` puts it in the box to finish.
+    `item` attaches something as context (the meeting a prep is about). */
+interface Starter { label: string; send?: string; fill?: string; item?: Omit<MadelineItem, "path"> }
 
-const STARTERS: Starter[] = [
-  { label: "What's on my plate?", send: "What's on my plate today?" },
-  { label: "Triage my inbox", send: "Triage my unread inbox: what needs a reply first, and why?" },
-  { label: "Prep my next meeting", send: "Prep me for my next meeting." },
-  { label: "Write an email", fill: "Write an email to " },
-  { label: "Status report", send: "Write a short status report of my tasks this week." },
-  { label: "How do I…", fill: "How do I " },
-];
+const shorten = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/**
+ * Starters built from today's actual work, not generic prompts.
+ *
+ * "Ask me anything" and "Ask AI · Anything at all" read as an open invitation,
+ * and people took it: football history, trivia, homework. A chip that says
+ * "2 overdue tasks: what first?" says what Madeline is for by showing it,
+ * and is one tap from a useful answer. Counts are the same ones the Dashboard
+ * shows (react-query already has the data), so they agree with the page.
+ */
+function todayStarters(tasks: Task[], meetings: Meeting[], messages: Message[]): Starter[] {
+  const now = Date.now();
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const end = new Date(start); end.setDate(end.getDate() + 1);
+  const at = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() : NaN);
+
+  const open = tasks.filter((t) => t.status !== "done");
+  const overdue = open.filter((t) => at(t.due_at) < start.getTime());
+  const dueToday = open.filter((t) => at(t.due_at) >= start.getTime() && at(t.due_at) < end.getTime());
+  const next = meetings
+    .filter((m) => at(m.starts_at) > now && at(m.starts_at) < end.getTime())
+    .sort((a, b) => at(a.starts_at) - at(b.starts_at))[0];
+  const waiting = messages.filter((m) => m.direction !== "outbound" && !m.first_reply_at);
+
+  const out: Starter[] = [];
+  if (next) {
+    const time = new Date(next.starts_at!).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    out.push({ label: `Prep for ${shorten(next.title, 26)} at ${time}`, send: "Prep me for this meeting.", item: meetingItem(next) });
+  }
+  if (overdue.length) out.push({ label: `${plural(overdue.length, "overdue task")}: what first?`, send: "Which overdue tasks should I tackle first, and why?" });
+  if (dueToday.length) out.push({ label: `${plural(dueToday.length, "task")} due today`, send: "Walk me through the tasks due today, most urgent first." });
+  if (waiting.length) out.push({ label: `${plural(waiting.length, "email")} waiting on a reply`, send: "Which emails are waiting on a reply from me, and which is most urgent?" });
+
+  // A quiet day still gets work-shaped starters, never "ask me anything".
+  if (out.length < 2) out.push({ label: "What's on my plate today?", send: "What's on my plate today?" });
+  if (out.length < 2) out.push({ label: "What's coming up this week?", send: "What tasks and meetings do I have coming up this week?" });
+  return out;
+}
 
 /* What people ask about the thing they have open. These are the reason the
    panel knows where you are: one tap instead of retyping the subject. */
@@ -62,6 +98,10 @@ export function MadelinePanel() {
   const { send, running, pendingConfirm, item, pageLabel } = useMadelineEngine();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { data: tasks = [] } = useTasks();
+  const { data: meetings = [] } = useMeetings();
+  const { data: messages = [] } = useMessages();
+  const today = useMemo(() => todayStarters(tasks, meetings, messages), [tasks, meetings, messages]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -100,7 +140,7 @@ export function MadelinePanel() {
   if (!open) return null;
 
   const firstName = user?.name?.split(" ")[0];
-  const starters = item ? FOR_ITEM[item.kind] : STARTERS;
+  const starters = item ? FOR_ITEM[item.kind] : today;
 
   function submit() {
     if (running || !draft.trim()) return;
@@ -108,7 +148,8 @@ export function MadelinePanel() {
   }
 
   function runStarter(s: Starter) {
-    if (s.send) send(s.send);
+    if (s.send && s.item) useMadeline.getState().ask(s.send, { item: s.item, send: true });
+    else if (s.send) send(s.send);
     else if (s.fill) { setDraft(s.fill); inputRef.current?.focus(); }
   }
 
@@ -170,21 +211,24 @@ export function MadelinePanel() {
             <AiBubble>
               {`Hi${firstName ? ` ${firstName}` : ""}, I'm Madeline. I can see your tasks, calendar, inbox, clients and SOPs. ` +
                 (item
-                  ? `You have ${ITEM_LABEL[item.kind].toLowerCase()} "${item.label}" open, so ask me anything about it.`
-                  : "Ask me anything, or pick a starter below.")}
+                  ? `You have ${ITEM_LABEL[item.kind].toLowerCase()} "${item.label}" open. Ask me about it, or pick one below.`
+                  : "Ask about your tasks, clients, meetings or inbox, or start with one of today's below.")}
             </AiBubble>
           )}
           {turns.map((t) => <TurnView key={t.id} turn={t} onNavigate={go} />)}
         </div>
 
-        {/* Starters: about the open item when there is one, general otherwise. */}
-        <div className="flex shrink-0 gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* Starters: about the open item when there is one, today's work otherwise.
+            They wrap. A sideways-scrolling row cut the last chip in half
+            ("Pre…") and hid the rest with no sign there were more. */}
+        <div className="flex shrink-0 flex-wrap gap-1.5 pb-2">
           {starters.map((s) => (
             <button
               key={s.label}
               onClick={() => runStarter(s)}
               disabled={running && !!s.send}
-              className="shrink-0 whitespace-nowrap rounded-full border border-border bg-surface-2 px-3 py-1.5 text-xs font-bold transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+              className="max-w-full truncate rounded-full border border-border bg-surface-2 px-3 py-1.5 text-xs font-bold transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+              title={s.label}
             >
               {s.label}
             </button>
@@ -205,10 +249,13 @@ export function MadelinePanel() {
           </div>
         )}
 
-        {/* Input */}
+        {/* Input. The focus ring belongs to the rounded box, not the textarea.
+            The global :focus-visible outline (index.css) ties with Tailwind's
+            outline-none and wins by coming later, so it drew a square ring
+            2px inside the pill. focus-visible:outline-none outranks it. */}
         <form
           onSubmit={(e) => { e.preventDefault(); submit(); }}
-          className="flex shrink-0 items-end gap-2 rounded-2xl border border-border py-1.5 pl-3.5 pr-1.5"
+          className="flex shrink-0 items-end gap-2 rounded-2xl border border-border py-1.5 pl-3.5 pr-1.5 transition-shadow focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/40"
           style={{ background: "var(--glass-2)" }}
         >
           <textarea
@@ -219,9 +266,9 @@ export function MadelinePanel() {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); }
             }}
-            placeholder={item ? `Ask about this ${ITEM_LABEL[item.kind].toLowerCase()}…` : "Ask Madeline anything…"}
+            placeholder={item ? `Ask about this ${ITEM_LABEL[item.kind].toLowerCase()}…` : "Ask about your tasks, clients, meetings…"}
             aria-label="Message Madeline"
-            className="min-w-0 flex-1 resize-none bg-transparent py-2 text-[13px] leading-snug text-text outline-none placeholder:text-faint"
+            className="min-w-0 flex-1 resize-none bg-transparent py-2 text-[13px] leading-snug text-text outline-none placeholder:text-faint focus-visible:outline-none"
           />
           <button
             type="submit"
@@ -252,8 +299,8 @@ function TurnView({ turn, onNavigate }: { turn: MadelineTurn; onNavigate: (path:
         </div>
       </div>
       {turn.status === "running" && (
-        <div className="flex items-end gap-2 self-start">
-          <span className="madeline-orb h-[22px] w-[22px] shrink-0" aria-hidden="true" />
+        <div className="flex items-start gap-2 self-start">
+          <span className="madeline-orb madeline-orb-still mt-1.5 h-[22px] w-[22px] shrink-0" aria-hidden="true" />
           <div className="rounded-[14px_14px_14px_4px] border border-border bg-surface-2 px-3 py-2.5">
             <span className="cc-typing" aria-label="Madeline is thinking"><span /><span /><span /></span>
           </div>
@@ -271,8 +318,8 @@ function TurnView({ turn, onNavigate }: { turn: MadelineTurn; onNavigate: (path:
 
 function AiBubble({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex max-w-[92%] items-end gap-2 self-start">
-      <span className="madeline-orb h-[22px] w-[22px] shrink-0" aria-hidden="true" />
+    <div className="flex max-w-[92%] items-start gap-2 self-start">
+      <span className="madeline-orb madeline-orb-still mt-1.5 h-[22px] w-[22px] shrink-0" aria-hidden="true" />
       <div className="rounded-[14px_14px_14px_4px] border border-border bg-surface-2 px-3.5 py-2.5 text-[13px] leading-relaxed">
         {children}
       </div>
@@ -291,8 +338,8 @@ function AiMarkdown({ markdown }: { markdown: string }) {
     setTimeout(() => setCopied(false), 1400);
   };
   return (
-    <div className="group flex max-w-[92%] items-end gap-2 self-start">
-      <span className="madeline-orb h-[22px] w-[22px] shrink-0" aria-hidden="true" />
+    <div className="group flex max-w-[92%] items-start gap-2 self-start">
+      <span className="madeline-orb madeline-orb-still mt-1.5 h-[22px] w-[22px] shrink-0" aria-hidden="true" />
       <div className="relative min-w-0 rounded-[14px_14px_14px_4px] border border-border bg-surface-2 px-3.5 py-2.5 text-[13px] leading-relaxed">
         <div className="md-body" dangerouslySetInnerHTML={{ __html: html }} />
         <button

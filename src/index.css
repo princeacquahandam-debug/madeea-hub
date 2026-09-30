@@ -317,6 +317,19 @@
 }
 @keyframes bubbleShimmer { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
+/* The 22px avatar beside a message. The float animation lifts it up to 7px
+   and the ::before glow reaches 20% past its edge, which on a 22px orb read as
+   the avatar drifting loose of the bubble it belongs to. Next to a message it
+   holds still and keeps its glow inside; the big header orb still floats.
+   Two classes, so this outranks .madeline-orb wherever it sits in the file. */
+.madeline-orb.madeline-orb-still {
+  animation: bubbleMorph 8s ease-in-out infinite;
+}
+.madeline-orb.madeline-orb-still::before {
+  inset: 0;
+  border-radius: 50%;
+}
+
 .madeline-orb {
   position: relative;
   border-radius: 50%;
