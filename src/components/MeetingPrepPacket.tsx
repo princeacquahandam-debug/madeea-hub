@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react";
-import { Calendar, CheckSquare, FileText, Mail, RefreshCw, Sparkles, Users } from "lucide-react";
+import { useMemo } from "react";
+import { Calendar, CheckSquare, FileText, Mail, Sparkles, Users } from "lucide-react";
 import { Badge, Modal } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
-import { generateMeetingBrief } from "@/lib/ai";
 import { assemblePrepContext, isThinContext, type PrepContext } from "@/lib/meetingPrep";
+import { meetingItem } from "@/lib/madelineItems";
 import { useClients, useClientDocs, useMeetings, useMessages, useTasks } from "@/data/hooks";
-import { useMeetingPreps } from "@/store/meetingPreps";
+import { useMadelineContext } from "@/hooks/useMadeline";
+import { useMadeline } from "@/store/madeline";
 import type { Meeting } from "@/types/db";
 
 const RECENT_ICONS = { email: Mail, meeting: Calendar, task: CheckSquare } as const;
@@ -62,23 +63,17 @@ export function MeetingPrepPacket({
     [meeting, clients, tasks, messages, meetings, docs],
   );
 
-  const { preps, save } = useMeetingPreps();
-  const cached = meeting ? preps[meeting.id] : undefined;
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  /* While the packet is open, Madeline knows which meeting "this" is. */
+  const item = meeting ? meetingItem(meeting) : null;
+  useMadelineContext(open ? item : null);
 
-  async function run() {
-    if (!meeting || !context) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const brief = await generateMeetingBrief(context);
-      save(meeting.id, { context, brief, generated_at: new Date().toISOString() });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't generate the brief. Try again.");
-    } finally {
-      setBusy(false);
-    }
+  /* The brief used to come from a `meeting-prep` function that was never
+     deployed, so every "AI brief" was the offline fallback. Madeline has the
+     same facts (and reads tasks, emails and the client herself), so the
+     packet hands over to her like every other page button. */
+  function prep() {
+    if (!item) return;
+    useMadeline.getState().ask("Prep me for this meeting.", { item });
   }
 
   if (!meeting || !context) return null;
@@ -99,38 +94,17 @@ export function MeetingPrepPacket({
         </p>
       </div>
 
-      <Section title="AI Brief">
-        {cached ? (
-          <div className="rounded-lg border border-accent/40 bg-accent/10 p-4">
-            <div className="flex items-start gap-3">
-              <Sparkles size={16} className="mt-0.5 shrink-0 text-accent" />
-              <p className="text-sm leading-relaxed text-zinc-100">{cached.brief.summary}</p>
-            </div>
-            <div className="mt-3 flex items-center justify-between border-t border-accent/20 pt-2">
-              <span className="text-[11px] text-faint">
-                Generated {since(cached.generated_at)}
-                {cached.brief.source === "offline" && " · offline summary (AI not yet connected)"}
-              </span>
-              <button className="btn-ghost px-2 py-1 text-xs" onClick={run} disabled={busy}>
-                <RefreshCw size={12} className={busy ? "animate-spin" : undefined} />
-                {busy ? "Regenerating…" : "Regenerate"}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-lg bg-surface-2 p-4">
-            <p className="text-xs text-faint">
-              {thin
-                ? "Little context on file for this meeting, the brief will be thin, but it'll still summarise what's here."
-                : "Synthesise everything below into what you need to know walking in."}
-            </p>
-            <button className="btn-primary mt-3 w-full" onClick={run} disabled={busy}>
-              <Sparkles size={14} className={busy ? "animate-pulse" : undefined} />
-              {busy ? "Generating with AI…" : "Generate Brief"}
-            </button>
-          </div>
-        )}
-        {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+      <Section title="Brief">
+        <div className="rounded-lg bg-surface-2 p-4">
+          <p className="text-xs text-faint">
+            {thin
+              ? "Little is on file for this meeting yet. Madeline will still pull together what there is."
+              : "Madeline reads this meeting, the client, open tasks and recent emails, and tells you what you need to know walking in."}
+          </p>
+          <button className="btn-primary mt-3 w-full" onClick={prep}>
+            <Sparkles size={14} /> Prep me for this meeting
+          </button>
+        </div>
       </Section>
 
       <Section title="Attendees">

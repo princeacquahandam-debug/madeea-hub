@@ -49,6 +49,12 @@ export function GlobalSearch() {
         onChange={(e) => { setQ(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
       />
+      {/* ⌘K opens the full search (pages too, and "Ask Madeline about…"). */}
+      {!q && (
+        <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md border border-border px-1.5 py-0.5 text-[10.5px] font-semibold text-faint">
+          ⌘K
+        </kbd>
+      )}
       {/* Portalled for the same reason the bell is: this sits in the header's
           `overflow-x-auto` row, which was cropping the results to a sliver
           hidden inside the bar. Typing found matches and then showed none of

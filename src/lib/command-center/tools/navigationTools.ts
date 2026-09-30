@@ -37,7 +37,7 @@ const ALIASES: Record<string, string> = {
   changelog: "/changelog",
 };
 
-function resolvePath(target: string): { path: string; label: string } | null {
+export function resolvePath(target: string): { path: string; label: string } | null {
   const t = target.trim().toLowerCase();
   if (!t) return null;
   // Exact NAV label match first, then alias table, then substring on NAV labels.

@@ -19,6 +19,9 @@ import {
 } from "@/components/calendar/views";
 import { NewEventDialog } from "@/components/calendar/NewEventDialog";
 import { cn } from "@/lib/utils";
+import { useMadeline } from "@/store/madeline";
+import { useMadelineContext } from "@/hooks/useMadeline";
+import { calendarEventItem, taskItem } from "@/lib/madelineItems";
 
 /**
  * The calendar, in the shape Google made everyone fluent in.
@@ -242,22 +245,16 @@ export default function Calendar() {
     })}`);
   }
 
+  /* "Prepare" hands the event to Madeline, like every page button. It used to
+     leave the calendar for the Quick Actions page and a form to fill in. */
   function prepare(e: CalendarEvent) {
-    const mins = e.ends_at
-      ? Math.round((new Date(e.ends_at).getTime() - new Date(e.starts_at).getTime()) / 60000)
-      : null;
-    nav(`/quick-actions?${new URLSearchParams({
-      action: "Meeting Preparation",
-      output: "Pre-read brief",
-      meeting: e.title,
-      topics: [
-        e.attendee_emails.length ? `Attendees: ${e.attendee_emails.join(", ")}` : "",
-        e.location ? `Location: ${e.location}` : "",
-        e.description?.trim() ? `From the invite:\n${e.description.trim().slice(0, 800)}` : "",
-      ].filter(Boolean).join("\n\n"),
-      length: mins ? (mins < 60 ? `${mins} minutes` : `${Math.round((mins / 60) * 10) / 10} hours`) : "",
-    })}`);
+    useMadeline.getState().ask("Prep me for this meeting.", { item: calendarEventItem(e) });
   }
+
+  // With an event or task open, Madeline knows which one "this" is.
+  useMadelineContext(
+    detail?.event ? calendarEventItem(detail.event) : detail?.task ? taskItem(detail.task) : null,
+  );
 
   const viewProps = {
     days: visibleDays, itemsByDay, tz, today, selected: anchor,
@@ -503,7 +500,7 @@ function EventDetail({ item, tz, onClose, onPrepare, onPlanDay }: {
         <div className="mt-3 flex flex-wrap gap-1.5">
           {e && (
             <button className="btn-primary px-2.5 py-1.5 text-xs" onClick={() => onPrepare(e)}>
-              <Sparkles size={13} /> Prepare
+              <Sparkles size={13} /> Prep me
             </button>
           )}
           <button className="btn-ghost border border-border px-2.5 py-1.5 text-xs" onClick={onPlanDay}>

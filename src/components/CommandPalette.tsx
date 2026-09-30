@@ -1,14 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { Search, Star, CornerDownLeft } from "lucide-react";
+import { Search, Star, CornerDownLeft, Sparkles } from "lucide-react";
 import { NAV } from "@/lib/constants";
 import { useClients, useTasks, useMessages, useSops } from "@/data/hooks";
 import { useFavorites } from "@/store/favorites";
+import { useMadeline } from "@/store/madeline";
 import { cn } from "@/lib/utils";
 
-interface Item { id: string; label: string; sub?: string; path: string; favable?: boolean }
+interface Item { id: string; label: string; sub?: string; path: string; favable?: boolean; ask?: boolean }
 
-// Global ⌘/Ctrl-K command palette: jump to any page, find any record, pin favorites.
+/**
+ * ⌘/Ctrl-K is search: jump to any page, find any record, pin favorites. The
+ * last option always hands the words to Madeline ("Ask Madeline about …").
+ *
+ * It used to open the AI Command Center, a second assistant with its own
+ * history. Now there is one assistant, reached from the top bar, and this is
+ * the keyboard door into both finding things and asking her.
+ */
 export function CommandPalette() {
   const nav = useNavigate();
   const [open, setOpen] = useState(false);
@@ -45,12 +54,21 @@ export function CommandPalette() {
   const term = q.trim().toLowerCase();
   const pages: Item[] = NAV.map((n) => ({ id: `page:${n.to}`, label: n.label, sub: n.group, path: n.to, favable: true }));
 
+  const askItem: Item = {
+    id: "ask-madeline",
+    label: term ? `Ask Madeline about "${q.trim()}"` : "Ask Madeline",
+    sub: "AI assistant",
+    path: "",
+    ask: true,
+  };
+
   const sections = useMemo(() => {
     if (!term) {
       const favItems: Item[] = favorites.map((f) => ({ id: f.id, label: f.label, sub: "Favorite", path: f.path, favable: true }));
       return [
         ...(favItems.length ? [{ title: "Favorites", items: favItems }] : []),
         { title: "Jump to", items: pages },
+        { title: "Madeline", items: [askItem] },
       ];
     }
     const filteredPages = pages.filter((p) => p.label.toLowerCase().includes(term));
@@ -63,14 +81,22 @@ export function CommandPalette() {
     return [
       ...(filteredPages.length ? [{ title: "Pages", items: filteredPages }] : []),
       ...(records.length ? [{ title: "Records", items: records }] : []),
+      // Always last, always there: nothing matching is when asking helps most.
+      { title: "Madeline", items: [askItem] },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [term, favorites, clients, tasks, messages, sops]);
+  }, [term, q, favorites, clients, tasks, messages, sops]);
 
   const flat = sections.flatMap((s) => s.items);
   useEffect(() => { setSel(0); }, [term]);
 
-  function activate(item: Item) { nav(item.path); setOpen(false); }
+  function activate(item: Item) {
+    setOpen(false);
+    if (!item.ask) { nav(item.path); return; }
+    const words = q.trim();
+    if (words) useMadeline.getState().ask(words, { send: true });
+    else useMadeline.getState().ask("");
+  }
 
   function onInputKey(e: React.KeyboardEvent) {
     if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(s + 1, flat.length - 1)); }
@@ -81,8 +107,10 @@ export function CommandPalette() {
   if (!open) return null;
 
   let idx = -1;
-  return (
-    <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-4 pt-[12vh]" onClick={() => setOpen(false)}>
+  // Portalled for the same reason as MadelinePanel: above modals, not trapped
+  // in AppShell's z-10 stacking context.
+  return createPortal(
+    <div className="fixed inset-0 z-[95] flex items-start justify-center overflow-y-auto bg-black/70 p-4 pt-[12vh]" onClick={() => setOpen(false)}>
       <div className="card w-full max-w-lg overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-border px-4">
           <Search size={16} className="text-faint" />
@@ -91,7 +119,8 @@ export function CommandPalette() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={onInputKey}
-            placeholder="Search or jump to…"
+            placeholder="Search, jump to a page, or ask Madeline…"
+            aria-label="Search, jump to a page, or ask Madeline"
             className="w-full bg-transparent py-3 text-sm outline-none placeholder:text-faint"
           />
           <kbd className="pill bg-surface-2 text-faint">Esc</kbd>
@@ -114,7 +143,8 @@ export function CommandPalette() {
                       className={cn("flex items-center gap-2 rounded-md px-2 py-2", active && "bg-surface-2")}
                     >
                       <button className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => activate(item)}>
-                        <span className="truncate text-sm">{item.label}</span>
+                        {item.ask && <Sparkles size={14} className="shrink-0 text-accent" />}
+                        <span className={cn("truncate text-sm", item.ask && "font-semibold text-accent")}>{item.label}</span>
                         {item.sub && <span className="ml-auto truncate text-xs text-faint">{item.sub}</span>}
                       </button>
                       {item.favable && (
@@ -131,6 +161,7 @@ export function CommandPalette() {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   CheckSquare,
   Mail,
-  Zap,
   Users,
   Workflow,
   Plug,
@@ -81,7 +80,9 @@ export const NAV: NavItem[] = [
   { to: "/inbox", label: "Communication Center", icon: Mail, group: "My Day" },
   { to: "/calendar", label: "Calendar", icon: CalendarDays, group: "My Day" },
   { to: "/tasks", label: "Task Manager", icon: CheckSquare, group: "My Day" },
-  { to: "/quick-actions", label: "AI Quick Actions", icon: Zap, group: "My Day" },
+  /* AI Quick Actions left the sidebar: it was a fifth place to meet the AI.
+     Its starters live in Madeline now. The route stays for Calendar's
+     "Plan this day", which books the slots it proposes. */
   // The day closes here: what you did, and that you were there to do it.
   { to: "/eod", label: "EOD Reports", icon: ClipboardList, group: "My Day" },
   { to: "/time", label: "Time Tracker", icon: Clock, group: "My Day" },

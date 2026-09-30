@@ -13,6 +13,8 @@ import { useClientLogins, useClients, useTasks, useMeetings, useMessages, useCli
 import { useSlaSettings } from "@/store/slaSettings";
 import { clientSla, dayLength, formatDuration } from "@/lib/sla";
 import { supabase } from "@/lib/supabase";
+import { useMadelineContext } from "@/hooks/useMadeline";
+import { clientItem } from "@/lib/madelineItems";
 
 const BLANK = { name: "", title: "", company: "", preferred_channel: "Email", tone: "Formal", tags: "", bio: "", preferences_notes: "", image: "" };
 
@@ -34,6 +36,8 @@ export default function ClientVault() {
   const [form, setForm] = useState(BLANK);
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState("");
+  // With a client's card open, Madeline knows who "this client" is.
+  useMadelineContext(open ? clientItem(open) : null);
 
   function startCreate() {
     setForm(BLANK); setEditingId(null); setUploadErr(""); setAdding(true);

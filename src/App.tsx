@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { useClientUser } from "@/hooks/useClientUser";
-import { CommandCenterProvider } from "@/hooks/useCommandCenter";
+import { MadelineProvider } from "@/hooks/useMadeline";
 import { AppShell } from "@/components/layout/AppShell";
 // Login and Dashboard are eager: Login is the gate before the shell, and
 // Dashboard is the "/" landing route. Keeping it eager means the first paint
@@ -152,11 +152,11 @@ export default function App() {
           basename={import.meta.env.BASE_URL}
           future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
         >
-          {/* CommandCenterProvider needs the router (navigation) + query client
+          {/* MadelineProvider needs the router (navigation) + query client
               (data), so it sits inside BrowserRouter and wraps the app. */}
-          <CommandCenterProvider>
+          <MadelineProvider>
             <Gate />
-          </CommandCenterProvider>
+          </MadelineProvider>
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>

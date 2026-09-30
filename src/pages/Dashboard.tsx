@@ -4,6 +4,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
 import { MeetingPrepPacket } from "@/components/MeetingPrepPacket";
+import { useMadeline } from "@/store/madeline";
+import { meetingItem } from "@/lib/madelineItems";
 import { useAuth } from "@/hooks/useAuth";
 import { useTasks, useMeetings, useClients, useMessages, useAutomations } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
@@ -242,13 +244,21 @@ export default function Dashboard() {
                   <p className="truncate text-xs text-faint">{m.with}</p>
                 </div>
                 <Badge tone={m.status}>{meetingLabel[m.status]}</Badge>
+                {/* Was an unlabelled ✨ that opened a packet. Now it says what it
+                    does, and does it where every other AI request goes. */}
                 <button
-                  className="shrink-0 rounded-md p-1.5 text-faint transition-colors hover:bg-accent/10 hover:text-accent"
-                  onClick={() => setPrepFor(m)}
-                  title="Prep packet"
-                  aria-label={`Open prep packet for ${m.title}`}
+                  className="flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-accent"
+                  onClick={() => useMadeline.getState().ask("Prep me for this meeting.", { item: meetingItem(m) })}
+                  aria-label={`Ask Madeline to prep you for ${m.title}`}
                 >
-                  <Sparkles size={15} />
+                  <Sparkles size={13} /> Prep me
+                </button>
+                <button
+                  className="shrink-0 rounded-md px-2 py-1 text-xs text-faint transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
+                  onClick={() => setPrepFor(m)}
+                  aria-label={`Open details for ${m.title}`}
+                >
+                  Details
                 </button>
               </div>
             ))}

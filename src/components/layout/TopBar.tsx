@@ -3,7 +3,7 @@ import { Menu, HelpCircle, Mic, Sun, Moon } from "lucide-react";
 import { todayLabel } from "@/lib/utils";
 import { GlobalSearch } from "./GlobalSearch";
 import { Notifications } from "./Notifications";
-import { CommandCenterButton } from "@/components/command-center";
+import { AskMadelineButton } from "@/components/madeline/AskMadelineButton";
 import { VoiceCapture } from "@/components/VoiceCapture";
 import { ClockControl } from "@/components/ClockControl";
 import { useTour } from "@/store/tour";
@@ -48,8 +48,8 @@ export function TopBar({ onMenu }: { onMenu?: () => void }) {
         </div>
         {/* Clock in / out, deliberately on every page. See ClockControl. */}
         <ClockControl />
-        {/* Quick capture, the bottom corners are already taken by the Assistant
-            and SOP widgets, so this lives in the header where it's reachable from
+        {/* Quick capture. The bottom-left corner is taken by the SOP widget,
+            so this lives in the header where it's reachable from
             every page on both desktop and mobile. */}
         <button
           className="flex h-10 items-center gap-1.5 rounded-xl border border-accent/70 px-3 text-sm font-bold text-accent transition-colors hover:bg-accent/10"
@@ -60,7 +60,7 @@ export function TopBar({ onMenu }: { onMenu?: () => void }) {
           <Mic size={16} />
           <span className="hidden md:inline">Capture</span>
         </button>
-        <CommandCenterButton />
+        <AskMadelineButton />
         <button
           className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
           onClick={toggle}

@@ -6,19 +6,20 @@ import { AmbientBackground } from "./AmbientBackground";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { Footer } from "./Footer";
-import { MadelineRail } from "./MadelineRail";
-import { AssistantWidget } from "@/components/AssistantWidget";
+import { MadelinePanel } from "@/components/madeline/MadelinePanel";
+import { CommandPalette } from "@/components/CommandPalette";
 import { FloatingSop } from "@/components/FloatingSop";
 import { GuideCard } from "@/components/GuideCard";
 import { MonitoringProvider } from "@/store/monitoringContext";
-import { CommandCenter } from "@/components/command-center";
 import { GuidedTour } from "@/components/GuidedTour";
 import { useUI } from "@/store/ui";
+import { useMadeline } from "@/store/madeline";
 import { useSlaSettings } from "@/store/slaSettings";
 import { useRoutineRunner } from "@/hooks/useRoutineRunner";
 
 export function AppShell() {
   const { navOpen, setNavOpen } = useUI();
+  const madelineOpen = useMadeline((s) => s.open);
   const location = useLocation();
   /* SLA thresholds moved from localStorage to the sla_settings table (0036).
      Pulled once here, at the first screen behind the login gate, rather than in
@@ -70,17 +71,18 @@ export function AppShell() {
                 scrolls. */}
             <Footer />
           </main>
-          <MadelineRail />
+          {/* Holds the page clear of Madeline when she's docked on xl. The panel
+              itself is fixed, so it can sit above page modals. See MadelinePanel. */}
+          {madelineOpen && <div className="hidden w-[340px] shrink-0 xl:block" aria-hidden="true" />}
         </div>
       </div>
 
-      {/* The Madeline rail is the docked assistant on xl+, so the floating
-          launcher only needs to appear on narrower screens. */}
-      <div className="xl:hidden">
-        <AssistantWidget />
-      </div>
+      {/* One assistant, one panel, every page: the rail, the floating bubble and
+          the Command Center modal it replaces were three assistants with three
+          histories. ⌘K is now search, with "Ask Madeline about…" as its last row. */}
+      <MadelinePanel />
+      <CommandPalette />
       <FloatingSop />
-      <CommandCenter />
       <GuidedTour />
     </div>
     </MonitoringProvider>

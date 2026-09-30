@@ -21,6 +21,8 @@ import { useWorkspaceMembers } from "@/data/hooks";
 import { FollowUpRow } from "@/components/FollowUpRow";
 import { TASK_TEMPLATES, type TaskTemplate } from "@/lib/taskTemplates";
 import { cn } from "@/lib/utils";
+import { useMadelineContext } from "@/hooks/useMadeline";
+import { taskItem } from "@/lib/madelineItems";
 
 /* Each column is colour-washed, the way Wing's board is: To Do, In Progress and
    Done read as three different places at a glance rather than three identical
@@ -619,6 +621,12 @@ export default function Tasks() {
     return (Object.keys(board) as TaskStatus[]).find((k) => board[k].some((t) => t.id === id)) ?? null;
   };
   const activeTask = activeId ? Object.values(board).flat().find((t) => t.id === activeId) ?? null : null;
+
+  // With a task open, Madeline knows which one "this task" is.
+  const openTask = modal && editingId ? tasks.find((t) => t.id === editingId) ?? null : null;
+  useMadelineContext(
+    openTask ? taskItem(openTask, members.find((m) => m.user_id === openTask.assignee_id)?.name) : null,
+  );
 
   function onDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id));

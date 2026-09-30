@@ -25,6 +25,8 @@ import { clientForMessage, messageInClient } from "@/lib/clientMatch";
 import { groupThreads, decodeEntities } from "@/lib/threads";
 import { useInboxKeys, INBOX_SHORTCUTS } from "@/hooks/useInboxKeys";
 import { ClientScopeBanner } from "@/components/ClientSwitcher";
+import { useMadelineContext } from "@/hooks/useMadeline";
+import { emailItem } from "@/lib/madelineItems";
 
 /* The only navigation inside the inbox. A view is a saved question about what
    needs you; it is not a place messages live. Source used to be a second
@@ -184,6 +186,8 @@ export default function Communication() {
      client's mail from a screen headed "Showing Acme only", which is the kind
      of mistake you cannot take back. */
   const selected = list.find((m) => m.id === selectedId) ?? list[0] ?? null;
+  // The email on screen is the one "draft a reply to this" means.
+  useMadelineContext(selected ? emailItem(selected) : null);
 
 
   /* Result counts, spoken. A search that narrows 89 conversations to 2 is a

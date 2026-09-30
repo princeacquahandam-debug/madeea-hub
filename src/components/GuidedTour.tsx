@@ -13,7 +13,7 @@ const STEPS: Step[] = [
   { selector: '[data-tour="nav"]', needsNav: true, title: "My Day", body: "Top to bottom is the order you work: inbox, then the board, then the EOD that closes the day. Start here every morning." },
   { selector: '[data-tour="playbook"]', needsNav: true, title: "Playbook", body: "How the work is done, defined once and reused. Record a Video Instruction, write it up as a workflow, put it on a schedule, and learn it in the Training Center." },
   { selector: '[data-tour="insights"]', needsNav: true, title: "Insights", body: "Meeting Intelligence turns a call into tasks and notes. The Client Scoreboard shows what actually moved this week, counted from your work rather than claimed." },
-  { selector: '[data-tour="command-center"]', title: "AI Command Center. ⌘K", body: "Press Ctrl/⌘-K (or click Ask AI) to run anything in plain language: create tasks, draft emails, summarize documents, or search your whole workspace." },
+  { selector: '[data-tour="madeline"]', title: "Ask Madeline", body: "Your assistant, on every page. She sees what you have open (a task, meeting, client or email), and the conversation follows you from page to page. Ctrl/⌘-K searches and jumps anywhere." },
   { title: "You're all set", body: "Each page has a collapsible 'How this works' guide, and you can replay this tour any time from Settings." },
 ];
 

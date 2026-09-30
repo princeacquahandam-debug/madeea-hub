@@ -181,15 +181,21 @@ export interface ChatMessage {
   content: string;
 }
 
-export async function assistantChat(messages: ChatMessage[]): Promise<string> {
+/** Where the user is when they ask: the page, and the item they have open. */
+export interface ChatContext {
+  page?: string;
+  item?: { kind: "task" | "meeting" | "client" | "email"; label: string; details: string };
+}
+
+export async function assistantChat(messages: ChatMessage[], context?: ChatContext): Promise<string> {
   if (isSupabaseConfigured && supabase) {
     // The server can't know the user's "today" on its own: its clock is UTC, and
     // "what's on my plate today" at 8am in Manila is still yesterday there.
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const { data, error } = await supabase.functions.invoke("assistant-chat", { body: { messages, timezone } });
-    if (error) throw await aiError(error, "The assistant is unavailable right now.");
+    const { data, error } = await supabase.functions.invoke("assistant-chat", { body: { messages, timezone, context } });
+    if (error) throw await aiError(error, "Madeline is unavailable right now.");
     return (data as { reply: string }).reply;
   }
   await new Promise((r) => setTimeout(r, 600));
-  return "[DEMO] I'm the MadeEA assistant. Connect Supabase + OpenAI to enable live, context-aware replies that know Sarah's tasks and clients.";
+  return "[DEMO] I'm Madeline. Connect Supabase + OpenAI to enable live, context-aware replies that know your tasks, meetings and clients.";
 }
