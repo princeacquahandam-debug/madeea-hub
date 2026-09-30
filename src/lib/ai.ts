@@ -183,7 +183,10 @@ export interface ChatMessage {
 
 export async function assistantChat(messages: ChatMessage[]): Promise<string> {
   if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase.functions.invoke("assistant-chat", { body: { messages } });
+    // The server can't know the user's "today" on its own: its clock is UTC, and
+    // "what's on my plate today" at 8am in Manila is still yesterday there.
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const { data, error } = await supabase.functions.invoke("assistant-chat", { body: { messages, timezone } });
     if (error) throw await aiError(error, "The assistant is unavailable right now.");
     return (data as { reply: string }).reply;
   }
