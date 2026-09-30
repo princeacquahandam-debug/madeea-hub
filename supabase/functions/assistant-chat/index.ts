@@ -394,17 +394,22 @@ async function clientIds(ctx: ToolCtx, q: unknown): Promise<string[] | null> {
   return (data ?? []).map((r: { id: string }) => r.id);
 }
 
-async function listTasks(ctx: ToolCtx, a: Record<string, unknown>) {
-  const scope = a.scope === "team" || a.scope === "unassigned" ? a.scope : "mine";
-  const when = String(a.when ?? "any");
-  const status = a.status === "done" || a.status === "any" ? a.status : "open";
-  const limit = cap(a.limit, 25, 50);
-  const today = localDate(Date.now(), ctx.tz);
+const TASK_COLUMNS =
+  "title,status,priority,due_at,due_label,blocked,blocker_note,assignee_id,owner_id,requires_approval,approved_at,clients(name)";
 
-  let q = ctx.db.from("tasks")
-    .select("title,status,priority,due_at,due_label,blocked,blocker_note,assignee_id,owner_id,requires_approval,approved_at,clients(name)")
-    .order("due_at", { ascending: true, nullsFirst: false })
-    .limit(limit);
+type TaskScope = "mine" | "team" | "unassigned" | "others";
+
+interface TaskFilter { scope: TaskScope; when: string; status: string; ids: string[] | null }
+
+/* One place that turns a filter into a query, so the fallbacks below ask
+   exactly the same question as the main lookup, only about other people.
+   `count` makes it a head-only count: no rows come back, just the number. */
+function taskQuery(ctx: ToolCtx, f: TaskFilter, count = false) {
+  // deno-lint-ignore no-explicit-any
+  let q: any = count
+    ? ctx.db.from("tasks").select("id", { count: "exact", head: true })
+    : ctx.db.from("tasks").select(TASK_COLUMNS).order("due_at", { ascending: true, nullsFirst: false });
+  const today = localDate(Date.now(), ctx.tz);
 
   /* OR-groups, ANDed together at the end. Two separate .or() calls would put
      two `or` params on the URL, and PostgREST does not promise to AND those. */
@@ -414,10 +419,11 @@ async function listTasks(ctx: ToolCtx, a: Record<string, unknown>) {
      The task form leaves Assignee blank by default, so most tasks someone
      makes for themselves have assignee_id null. Matching the assignee alone
      answered "you have no tasks" to people with a full list. */
-  if (scope === "mine") groups.push(`assignee_id.eq.${ctx.userId},and(assignee_id.is.null,owner_id.eq.${ctx.userId})`);
-  if (scope === "unassigned") q = q.is("assignee_id", null);
-  if (status === "open") q = q.neq("status", "done");
-  if (status === "done") q = q.eq("status", "done");
+  if (f.scope === "mine") groups.push(`assignee_id.eq.${ctx.userId},and(assignee_id.is.null,owner_id.eq.${ctx.userId})`);
+  if (f.scope === "unassigned") q = q.is("assignee_id", null);
+  if (f.scope === "others") q = q.not("assignee_id", "is", null).neq("assignee_id", ctx.userId);
+  if (f.status === "open") q = q.neq("status", "done");
+  if (f.status === "done") q = q.eq("status", "done");
 
   /* Client-portal requests (0072) can carry only a free-text due_label, no
      due_at, and a date window never matches a null. So "today" also takes
@@ -425,40 +431,104 @@ async function listTasks(ctx: ToolCtx, a: Record<string, unknown>) {
      their colons and dots would otherwise read as syntax. */
   const saysToday = "and(due_at.is.null,or(due_label.ilike.*today*,due_label.ilike.*asap*,due_label.ilike.*eod*))";
   const endOfToday = startOfDay(addDays(today, 1), ctx.tz);
-  if (when === "overdue") q = q.lt("due_at", new Date().toISOString());
-  if (when === "today") {
+  if (f.when === "overdue") q = q.lt("due_at", new Date().toISOString());
+  if (f.when === "today") {
     groups.push(`and(due_at.gte."${startOfDay(today, ctx.tz)}",due_at.lt."${endOfToday}"),${saysToday}`);
   }
-  if (when === "due_by_today") groups.push(`due_at.lt."${endOfToday}",${saysToday}`);
+  if (f.when === "due_by_today") groups.push(`due_at.lt."${endOfToday}",${saysToday}`);
   if (groups.length === 1) q = q.or(groups[0]);
   if (groups.length > 1) q = q.or(`and(${groups.map((g) => `or(${g})`).join(",")})`);
-  if (when === "tomorrow") q = q.gte("due_at", startOfDay(addDays(today, 1), ctx.tz)).lt("due_at", startOfDay(addDays(today, 2), ctx.tz));
-  if (when === "next_7_days") q = q.gte("due_at", startOfDay(today, ctx.tz)).lt("due_at", startOfDay(addDays(today, 7), ctx.tz));
-  if (when === "no_due_date") q = q.is("due_at", null);
+  if (f.when === "tomorrow") q = q.gte("due_at", endOfToday).lt("due_at", startOfDay(addDays(today, 2), ctx.tz));
+  if (f.when === "next_7_days") q = q.gte("due_at", startOfDay(today, ctx.tz)).lt("due_at", startOfDay(addDays(today, 7), ctx.tz));
+  if (f.when === "no_due_date") q = q.is("due_at", null);
 
-  const ids = await clientIds(ctx, a.client);
-  if (ids) {
-    if (!ids.length) return { tasks: [], note: `No client matches "${term(a.client)}".` };
-    q = q.in("client_id", ids);
-  }
+  if (f.ids) q = q.in("client_id", f.ids);
+  return q;
+}
 
+function shapeTask(ctx: ToolCtx, t: any, now: number) {
+  return {
+    title: t.title,
+    status: t.status,
+    priority: t.priority,
+    due: localTime(t.due_at, ctx.tz) ?? t.due_label ?? null,
+    overdue: !!t.due_at && t.status !== "done" && new Date(t.due_at).getTime() < now,
+    client: t.clients?.name ?? null,
+    yours: t.assignee_id === ctx.userId || (!t.assignee_id && t.owner_id === ctx.userId),
+    unassigned: !t.assignee_id,
+    blocked: t.blocked ? (t.blocker_note || true) : false,
+    awaiting_approval: !!t.requires_approval && !t.approved_at,
+  };
+}
+
+async function rows(q: any): Promise<any[]> {
   const { data, error } = await q;
   if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+async function count(q: any): Promise<number> {
+  const { count: n, error } = await q;
+  if (error) throw new Error(error.message);
+  return n ?? 0;
+}
+
+async function listTasks(ctx: ToolCtx, a: Record<string, unknown>) {
+  const scope: TaskScope = a.scope === "team" || a.scope === "unassigned" ? a.scope : "mine";
+  const when = String(a.when ?? "any");
+  const status = a.status === "done" || a.status === "any" ? String(a.status) : "open";
+  const limit = cap(a.limit, 25, 50);
+
+  const ids = await clientIds(ctx, a.client);
+  if (ids && !ids.length) return { tasks: [], note: `No client matches "${term(a.client)}".` };
+
+  const f: TaskFilter = { scope, when, status, ids };
+  const data = await rows(taskQuery(ctx, f).limit(limit));
   const now = Date.now();
+  const tasks = data.map((t) => shapeTask(ctx, t, now));
+
+  /* NEVER A BARE "NOTHING TODAY".
+     A team with two tasks sixteen days overdue got "you have no tasks today",
+     because neither was assigned to the person asking. True, and useless. So
+     when the user's own window comes back empty, the rest of the picture comes
+     back with it: unassigned work in the same window, how much sits with other
+     people, and what is next for the user. Done here rather than left to the
+     prompt, because the model asked "would you like to see…?" instead. */
+  const nearTerm = ["overdue", "today", "due_by_today"].includes(when);
+  if (scope === "mine" && status === "open" && nearTerm && !tasks.length) {
+    const [unassigned, withOthers, othersTotal, upcoming, undated] = await Promise.all([
+      rows(taskQuery(ctx, { ...f, scope: "unassigned" }).limit(10)),
+      rows(taskQuery(ctx, { ...f, scope: "others" }).limit(10)),
+      count(taskQuery(ctx, { ...f, scope: "others" }, true)),
+      rows(taskQuery(ctx, { ...f, when: "next_7_days" }).limit(5)),
+      rows(taskQuery(ctx, { ...f, when: "no_due_date" }).limit(5)),
+    ]);
+    // Workspace profiles are readable to members (0003), the same names the
+    // Tasks page shows. If that read fails, the task still goes out, unnamed.
+    const who = new Map<string, string>();
+    const assignees = [...new Set(withOthers.map((t) => t.assignee_id))];
+    if (assignees.length) {
+      const { data: people } = await ctx.db.from("profiles").select("id,full_name").in("id", assignees);
+      for (const p of people ?? []) who.set(p.id, p.full_name);
+    }
+    return {
+      tasks: [],
+      note: "Nothing assigned to or created by the user falls in this window. Say so in one line, then give " +
+        "the rest below: overdue team work first, then what's next for the user.",
+      unassigned_team_tasks_in_window: unassigned.map((t) => shapeTask(ctx, t, now)),
+      other_peoples_tasks_in_window: withOthers.map((t) => ({
+        ...shapeTask(ctx, t, now),
+        assigned_to: who.get(t.assignee_id) ?? "a teammate",
+      })),
+      other_peoples_tasks_total: othersTotal,
+      your_next_7_days: upcoming.map((t) => shapeTask(ctx, t, now)),
+      your_open_tasks_without_a_date: undated.map((t) => shapeTask(ctx, t, now)),
+    };
+  }
+
   return {
-    tasks: (data ?? []).map((t: any) => ({
-      title: t.title,
-      status: t.status,
-      priority: t.priority,
-      due: localTime(t.due_at, ctx.tz) ?? t.due_label ?? null,
-      overdue: !!t.due_at && t.status !== "done" && new Date(t.due_at).getTime() < now,
-      client: t.clients?.name ?? null,
-      yours: t.assignee_id === ctx.userId || (!t.assignee_id && t.owner_id === ctx.userId),
-      unassigned: !t.assignee_id,
-      blocked: t.blocked ? (t.blocker_note || true) : false,
-      awaiting_approval: !!t.requires_approval && !t.approved_at,
-    })),
-    ...(data?.length === limit ? { note: `Showing the first ${limit}; there may be more.` } : {}),
+    tasks,
+    ...(data.length === limit ? { note: `Showing the first ${limit}; there may be more.` } : {}),
   };
 }
 
@@ -493,8 +563,30 @@ async function listMeetings(ctx: ToolCtx, a: Record<string, unknown>) {
 
   const { data, error } = await q;
   if (error) throw new Error(error.message);
+
+  /* An empty calendar and a calendar that never synced both read as "no
+     meetings". Only one of them is true, and the other is a setup problem the
+     user can fix in a minute, so tell them which. */
+  let emptyNote: Record<string, unknown> = {};
+  if (scope === "mine" && !data?.length) {
+    const [ever, team] = await Promise.all([
+      count(ctx.db.from("meetings").select("id", { count: "exact", head: true }).eq("owner_id", ctx.userId)),
+      count(ctx.db.from("meetings").select("id", { count: "exact", head: true })
+        .gte("starts_at", startOfDay(from, ctx.tz)).lt("starts_at", startOfDay(addDays(from, days), ctx.tz))),
+    ]);
+    emptyNote = {
+      your_calendar_has_synced: ever > 0,
+      teammates_meetings_in_range: team,
+      note: ever > 0
+        ? "Nothing on the user's own calendar in this range."
+        : "No events from the user's calendar have ever reached the app. Their calendar is probably not " +
+          "connected: suggest connecting Google Calendar on the Integrations page.",
+    };
+  }
+
   return {
     range: days === 1 ? from : `${from} to ${addDays(from, days - 1)}`,
+    ...emptyNote,
     meetings: (data ?? []).map((m: any) => ({
       title: m.title,
       starts: localTime(m.starts_at, ctx.tz, m.all_day),
