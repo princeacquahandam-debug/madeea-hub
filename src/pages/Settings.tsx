@@ -8,6 +8,7 @@ import { atLeast, useMyRole } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { useAlertRoutes, useAlertRouteMutations, type AlertRoute } from "@/data/hooks";
 import { AiSpendPanel } from "@/components/AiSpendPanel";
+import { DoNotContactPanel } from "@/components/DoNotContactPanel";
 import { useFollowUpSettings } from "@/store/followupSettings";
 import { useUI } from "@/store/ui";
 import { APP_VERSION } from "@/lib/changelog";
@@ -142,6 +143,8 @@ export default function Settings() {
         <AiSpendPanel />
 
         <AlertRouting />
+
+        <DoNotContactPanel />
 
         <section className="card p-5">
           <p className="field-label">Response-time SLA</p>

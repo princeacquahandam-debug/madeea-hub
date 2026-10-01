@@ -543,6 +543,151 @@
         }
       },
       "onError": "continueRegularOutput"
+    },
+    {
+      "id": "53657926-25e9-44ca-ad51-8daffefec213",
+      "name": "DNC: Mark Nudged (blocked)",
+      "position": [
+        2768,
+        720
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "// Blocked by the do-not-contact list: record it as handled so this thread\n// isn't reconsidered every 30 minutes.\nconst sd = $getWorkflowStaticData('global'); sd.nudged = sd.nudged || {};\nfor (const it of $input.all()) sd.nudged[it.json.conversationId] = it.json.lastInboundMs;\nreturn $input.all();"
+      }
+    },
+    {
+      "id": "7aa466d6-072e-4875-90ad-f2d8e7aa5578",
+      "name": "DNC: Get Contact",
+      "position": [
+        1968,
+        720
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "GHL MadeEA (IG)"
+        }
+      },
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $json.contactId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "8546cc1b-212b-401e-9ca2-a5a42dfb18ea",
+      "name": "DNC: Check List",
+      "position": [
+        2168,
+        720
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "MadeEA n8n secret"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://bglduxferbjmoeqzyypx.supabase.co/functions/v1/do-not-contact",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'check', ghl_contact_id: ($json.contact || {}).id, email: ($json.contact || {}).email || undefined, phone: ($json.contact || {}).phone || undefined }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "5fac09fc-8be2-4a32-9c18-4eb99f83051e",
+      "name": "DNC: Decide",
+      "position": [
+        2368,
+        720
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "// THE LAST CHECK BEFORE ANYTHING IS SENT: the shared do-not-contact list\n// (MadeEA Hub). Blocked if the person is on it, on Do-Not-Disturb or tagged\n// do-not-contact in GHL, or if either lookup failed. A missed follow-up costs\n// a day; a message to someone who said stop is the one mistake here with a\n// legal edge.\nconst origs = $('Confirm Quiet').all();\nconst contacts = $('DNC: Get Contact').all();\nconst checks = $input.all();\nconst STOP_TAGS = ['do-not-contact', 'sms-opted-out', 'email-opted-out', 'madeea-setter-opted-out'];\nreturn checks.map((chk, i) => {\n  const orig = (origs[i] && origs[i].json) || {};\n  const c = ((contacts[i] && contacts[i].json) || {}).contact || null;\n  const res = chk.json || {};\n  const tags = ((c && c.tags) || []).map((t) => String(t).toLowerCase());\n  const dndOn = c && Object.values(c.dndSettings || {}).some((d) => String((d || {}).status).toLowerCase() === 'active');\n  let reason = null;\n  if (typeof res.blocked !== 'boolean') reason = 'the do-not-contact list could not be checked';\n  else if (res.blocked) reason = 'on the do-not-contact list';\n  else if (!c) reason = 'the GHL contact could not be read';\n  else if (c.dnd === true || dndOn) reason = 'on Do-Not-Disturb in GHL';\n  else if (tags.some((t) => STOP_TAGS.includes(t))) reason = 'tagged do-not-contact in GHL';\n  return { json: { ...orig, dncAllowed: !reason, dncReason: reason }, pairedItem: { item: i } };\n});"
+      }
+    },
+    {
+      "id": "09518301-dfc8-4640-84d3-828f5f5d78fc",
+      "name": "DNC: OK to send?",
+      "position": [
+        2568,
+        720
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "96f29641-27ce-498c-b0f1-d5dcfa2469c1",
+              "leftValue": "={{ $json.dncAllowed }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6b45ece5-d1cd-4df6-89e8-7bc7019f0c4b",
+      "name": "Note: Do Not Contact",
+      "position": [
+        1968,
+        900
+      ],
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "parameters": {
+        "content": "## Do not contact (shared list)\nBefore a nudge is sent, the MadeEA Hub's shared list and the GHL contact are checked. Anyone opted out anywhere, on Do-Not-Disturb or tagged `do-not-contact` is skipped. If the check fails, nothing is sent.",
+        "width": 520,
+        "height": 170,
+        "color": 3
+      }
     }
   ],
   "connections": {
@@ -703,7 +848,7 @@
       "main": [
         [
           {
-            "node": "Mark Nudged",
+            "node": "DNC: Get Contact",
             "type": "main",
             "index": 0
           }
@@ -737,6 +882,57 @@
         [
           {
             "node": "Extract Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DNC: Get Contact": {
+      "main": [
+        [
+          {
+            "node": "DNC: Check List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DNC: Check List": {
+      "main": [
+        [
+          {
+            "node": "DNC: Decide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DNC: Decide": {
+      "main": [
+        [
+          {
+            "node": "DNC: OK to send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DNC: OK to send?": {
+      "main": [
+        [
+          {
+            "node": "Mark Nudged",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "DNC: Mark Nudged (blocked)",
             "type": "main",
             "index": 0
           }

@@ -210,6 +210,28 @@ deliberately:
   particularly carefully before enabling it, and check it against however you
   handle consent in the lead's jurisdiction.
 
+### Opt-outs: the shared do-not-contact list
+
+Every workflow here checks the MadeEA Hub's **do-not-contact list** (migration
+0079) immediately before it sends, and skips anyone on it. The same list is
+checked by the SMS nurture and by every send from the Hub's inbox, so an
+opt-out given anywhere is honoured everywhere: a lead who replied STOP to a text
+is never emailed by the day 3/7 follow-up.
+
+- **The setter catches opt-outs itself.** A reply that is only an opt-out phrase
+  ("stop", "unsubscribe", "remove me", "don't message me"…) never reaches the
+  model. The person goes on the list, the contact gets the `do-not-contact` tag
+  and Do-Not-Disturb on every channel, and nobody replies.
+- **Before every send** (Send Bubbles, Send Nudge, Send Email) the GHL contact
+  and the list are read. On the list, on any Do-Not-Disturb, or tagged
+  `do-not-contact` / `sms-opted-out` means skip. **If either read fails, nothing
+  is sent.**
+- **The team sees and manages it** in the Hub under Settings → Do not contact.
+  Only an admin can lift an opt-out, with a reason; the record is kept.
+
+The Hub nodes use the Header Auth credential **MadeEA n8n secret** (header
+`x-n8n-secret`), the same one the email organizer uses.
+
 Gone Cold sends nothing at all. It is a state change, not a message — a fourth
 touch to someone who ignored three is how a sender reputation gets burned.
 

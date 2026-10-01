@@ -99,6 +99,44 @@ async function integration(admin: ReturnType<typeof createClient>, userId: strin
     details: (data.metadata ?? {}) as Record<string, string | null>,
   };
 }
+/* DO NOT CONTACT (migration 0079). Checked before anything leaves.
+   An opt-out used to live only where it was said, so a person who replied STOP
+   to a text could still be messaged from here. Fails CLOSED: if the list can't
+   be read, nothing is sent. A delayed reply costs minutes; a message to
+   someone who said stop is the one mistake here with a legal edge.
+   Inlined rather than shared because each function here deploys standalone. */
+async function optedOut(
+  // deno-lint-ignore no-explicit-any
+  db: any,
+  ids: { emails?: string[]; phones?: string[]; instagram?: string[] },
+): Promise<string | null> {
+  const { data, error } = await db.rpc("do_not_contact_match", {
+    p_emails: ids.emails ?? [],
+    p_phones: ids.phones ?? [],
+    p_instagram: ids.instagram ?? [],
+    p_ghl: [],
+  });
+  if (error) {
+    console.error("do-not-contact check failed", error.message);
+    return "Not sent: the do-not-contact list couldn't be checked just now. Try again in a moment.";
+  }
+  const m = (data as { created_at?: string; source?: string }[] | null)?.[0];
+  if (!m) return null;
+  const when = m.created_at
+    ? new Date(m.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    : "earlier";
+  const via: Record<string, string> = {
+    sms: "by text", instagram: "on Instagram", whatsapp: "on WhatsApp", email: "by email", manual: "via the team",
+  };
+  return `Not sent: this person asked not to be contacted (${when}, ${via[m.source ?? ""] ?? ""}). ` +
+    "If they've opted back in, an admin can lift it in Settings → Do not contact.";
+}
+
+/** Every address in a To/Cc/Bcc string ("Ann <ann@x.com>, bob@y.com"). */
+const addressesIn = (...fields: unknown[]) =>
+  fields.flatMap((f) => String(f ?? "").match(/[^\s<>,;"'()]+@[^\s<>,;"'()]+/g) ?? []);
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
@@ -136,6 +174,10 @@ Deno.serve(async (req) => {
         failure: "not_in_channel",
       }, 400);
     }
+    const blocked = await optedOut(supa, { phones: [to] });
+    if (blocked) return json({ error: blocked, failure: "opted_out" }, 409);
+
+
     if (text.length > MAX_CHARS) {
       return json({
         error: `WhatsApp caps a message at ${MAX_CHARS} characters and this is ${text.length}.`,

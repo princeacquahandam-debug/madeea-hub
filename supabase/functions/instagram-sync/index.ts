@@ -127,6 +127,43 @@ async function integration(admin: ReturnType<typeof createClient>, userId: strin
     details: (data.metadata ?? {}) as Record<string, string | null>,
   };
 }
+/* OPT-OUT REPLIES (migration 0079). A reply that is only an opt-out phrase
+   puts the sender on the shared do-not-contact list, so every other route
+   (n8n's SMS, email and Instagram follow-ups, and every send from the Hub)
+   stops reaching for them too. The standard list, as SMS carriers use it,
+   matched against the WHOLE message: "stop" is an opt-out, "can we stop the
+   Friday call?" is not. */
+const OPT_OUT =
+  /^(please )?(stop( all)?|stopall|unsubscribe|cancel|end|quit|opt[ -]?out|remove me|(don't|do not) (message|contact|text|email) me( again)?)$/;
+
+function isOptOut(text: string): boolean {
+  const t = text.toLowerCase().replace(/[‘’]/g, "'").replace(/^[\s"'*]+|[\s"'*.!?]+$/g, "").replace(/\s+/g, " ");
+  return t.length > 0 && t.length <= 40 && OPT_OUT.test(t);
+}
+
+/** Record it. Never throws: losing the inbox write over this would be worse.
+    evidence_id makes it once per message, so a re-sync can't re-add someone an
+    admin deliberately lifted. */
+async function recordOptOut(
+  // deno-lint-ignore no-explicit-any
+  db: any,
+  kind: "email" | "phone" | "instagram",
+  value: string,
+  source: "email" | "whatsapp" | "instagram",
+  message: string,
+  evidence: string,
+) {
+  try {
+    const { error } = await db.from("do_not_contact").insert({
+      kind, value, source, message: message.slice(0, 500), evidence_id: evidence, created_by: null,
+    });
+    if (error && error.code !== "23505") console.error("do-not-contact add failed", error.message);
+  } catch (e) {
+    console.error("do-not-contact add threw", e);
+  }
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
@@ -231,6 +268,9 @@ Deno.serve(async (req) => {
         );
         if (error) errors.push(`${handle}: ${error.message}`);
         else synced++;
+        if (!outbound && other?.id && isOptOut(text)) {
+          await recordOptOut(admin, "instagram", other.id, "instagram", text, `instagram:${m.id}`);
+        }
       }
     }
 

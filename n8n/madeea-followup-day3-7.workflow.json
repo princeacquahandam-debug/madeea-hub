@@ -460,6 +460,138 @@
         460
       ],
       "notes": "Cold still advances the ladder, so it is recorded too."
+    },
+    {
+      "id": "43948da7-4784-4750-b8d8-e4f5de341598",
+      "name": "DNC: Get Contact",
+      "position": [
+        1620,
+        420
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "GHL MadeEA (IG)"
+        }
+      },
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $json.contactId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b7fd7b25-fe12-4a04-9ee1-3474f2708fbf",
+      "name": "DNC: Check List",
+      "position": [
+        1820,
+        420
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "MadeEA n8n secret"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://bglduxferbjmoeqzyypx.supabase.co/functions/v1/do-not-contact",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'check', ghl_contact_id: ($json.contact || {}).id, email: ($json.contact || {}).email || undefined, phone: ($json.contact || {}).phone || undefined }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f05e7621-5275-43cc-991e-1fbb7a5128f0",
+      "name": "DNC: Decide",
+      "position": [
+        2020,
+        420
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "// THE LAST CHECK BEFORE ANYTHING IS SENT: the shared do-not-contact list\n// (MadeEA Hub). Blocked if the person is on it, on Do-Not-Disturb or tagged\n// do-not-contact in GHL, or if either lookup failed. A missed follow-up costs\n// a day; a message to someone who said stop is the one mistake here with a\n// legal edge.\nconst origs = $('Dry run?').all(1);\nconst contacts = $('DNC: Get Contact').all();\nconst checks = $input.all();\nconst STOP_TAGS = ['do-not-contact', 'sms-opted-out', 'email-opted-out', 'madeea-setter-opted-out'];\nreturn checks.map((chk, i) => {\n  const orig = (origs[i] && origs[i].json) || {};\n  const c = ((contacts[i] && contacts[i].json) || {}).contact || null;\n  const res = chk.json || {};\n  const tags = ((c && c.tags) || []).map((t) => String(t).toLowerCase());\n  const dndOn = c && Object.values(c.dndSettings || {}).some((d) => String((d || {}).status).toLowerCase() === 'active');\n  let reason = null;\n  if (typeof res.blocked !== 'boolean') reason = 'the do-not-contact list could not be checked';\n  else if (res.blocked) reason = 'on the do-not-contact list';\n  else if (!c) reason = 'the GHL contact could not be read';\n  else if (c.dnd === true || dndOn) reason = 'on Do-Not-Disturb in GHL';\n  else if (tags.some((t) => STOP_TAGS.includes(t))) reason = 'tagged do-not-contact in GHL';\n  return { json: { ...orig, dncAllowed: !reason, dncReason: reason }, pairedItem: { item: i } };\n});"
+      }
+    },
+    {
+      "id": "e86292c6-12ce-49c3-af86-099edc336d82",
+      "name": "DNC: OK to send?",
+      "position": [
+        2220,
+        420
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0f835cec-9bbb-4c7b-adab-c7a4802f2364",
+              "leftValue": "={{ $json.dncAllowed }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "fd3c3edc-1cbf-4248-9fdd-45e169d0dec3",
+      "name": "Note: Do Not Contact",
+      "position": [
+        1620,
+        600
+      ],
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "parameters": {
+        "content": "## Do not contact (shared list)\nThis follow-up switches to **email**, so it must respect an opt-out given anywhere. Before **Send Email**, the MadeEA Hub's shared list and the GHL contact are checked; anyone opted out (SMS STOP included), on Do-Not-Disturb or tagged `do-not-contact` is skipped and the rung is recorded so it isn't retried. If the check fails, nothing is sent.",
+        "width": 560,
+        "height": 190,
+        "color": 3
+      }
     }
   ],
   "connections": {
@@ -598,7 +730,7 @@
         ],
         [
           {
-            "node": "Send Email",
+            "node": "DNC: Get Contact",
             "type": "main",
             "index": 0
           }
@@ -629,6 +761,57 @@
     },
     "Tag: no send": {
       "main": [
+        [
+          {
+            "node": "Mark Rung (no send)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DNC: Get Contact": {
+      "main": [
+        [
+          {
+            "node": "DNC: Check List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DNC: Check List": {
+      "main": [
+        [
+          {
+            "node": "DNC: Decide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DNC: Decide": {
+      "main": [
+        [
+          {
+            "node": "DNC: OK to send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DNC: OK to send?": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Mark Rung (no send)",

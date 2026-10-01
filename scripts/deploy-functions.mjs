@@ -58,6 +58,16 @@ const NO_JWT = new Set([
   "invite-client-viewer",
   // Called from the client portal, so the same preflight problem applies.
   "delegation-coach",
+  /* Called from the browser, and each checks the caller's token in its own
+     code. They were deployed by hand with the toggle off; leaving them out of
+     this list meant a plain `npm run deploy:functions` turned verification
+     back on and broke Madeline and every generator with CORS errors. */
+  "assistant-chat",
+  "generate",
+  // Live with verification off (checked 1 Oct 2026); checks the caller itself.
+  "gmail-send",
+  // Called by n8n with the shared secret, which holds no Supabase key at all.
+  "do-not-contact",
 ]);
 
 if (!process.env.SUPABASE_ACCESS_TOKEN) {

@@ -10,9 +10,13 @@ This file is only about standing it up.
 
 ## What you are deploying
 
-An n8n instance running two scheduled workflows. That's it — no Vercel changes,
-no Hub changes, no Supabase changes. The setter talks to GoHighLevel and
-Anthropic and nothing else.
+An n8n instance running two scheduled workflows. No Vercel changes. The setter
+talks to GoHighLevel, Anthropic and one Hub endpoint: the shared
+do-not-contact list (`do-not-contact` function, migration 0079), which every
+workflow checks before it sends. That endpoint needs the Header Auth credential
+**MadeEA n8n secret** (header `x-n8n-secret`, value = the Hub's
+`N8N_SHARED_SECRET`), the same one the email organizer uses; select it on every
+node named `DNC: Check List`, `Opt-out: Add to List` and `Hub: …` after import.
 
 **Neither workflow has a webhook trigger.** Both are on timers, so n8n only ever
 makes *outbound* calls. That means:
