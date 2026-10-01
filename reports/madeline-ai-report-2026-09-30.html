@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>Madeline AI Report</title>
+<meta name="description" content="Work report for the MadeEA Hub AI assistant review, 30 September 2026.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --ink: #151821;
+    --muted: #5a6172;
+    --line: #e0e3e9;
+    --accent: #d84e0f;
+    --accent-soft: #fdeee6;
+    --live: #17804f;
+    --live-soft: #e3f4ec;
+    --critical: #b42318;
+    --critical-soft: #fde8e6;
+    --high: #c2540a;
+    --high-soft: #fdeedd;
+    --medium: #946200;
+    --medium-soft: #fbf1d6;
+    --low: #2f6f4e;
+    --low-soft: #e5f2ea;
+    --shadow: 0 1px 2px rgba(21, 24, 33, 0.05), 0 8px 24px rgba(21, 24, 33, 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0f1218;
+      --surface: #171b24;
+      --ink: #eceef3;
+      --muted: #9ba3b4;
+      --line: #2a303d;
+      --accent: #ff7036;
+      --accent-soft: #3a2116;
+      --live: #4cc98d;
+      --live-soft: #143024;
+      --critical: #ff8a80;
+      --critical-soft: #3b1a18;
+      --high: #ffa15c;
+      --high-soft: #3a2513;
+      --medium: #e8c25a;
+      --medium-soft: #332a12;
+      --low: #7fd1a3;
+      --low-soft: #16301f;
+      --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f1218;
+    --surface: #171b24;
+    --ink: #eceef3;
+    --muted: #9ba3b4;
+    --line: #2a303d;
+    --accent: #ff7036;
+    --accent-soft: #3a2116;
+    --live: #4cc98d;
+    --live-soft: #143024;
+    --critical: #ff8a80;
+    --critical-soft: #3b1a18;
+    --high: #ffa15c;
+    --high-soft: #3a2513;
+    --medium: #e8c25a;
+    --medium-soft: #332a12;
+    --low: #7fd1a3;
+    --low-soft: #16301f;
+    --shadow: none;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 820px;
+    margin: 0 auto;
+    padding-inline: 20px;
+    padding-block: 48px 72px;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }
+  h1, h2, h3 { text-wrap: balance; line-height: 1.2; margin: 0; }
+  p { margin: 0; }
+  a { color: var(--accent); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.86em; }
+
+  /* ---------- header ---------- */
+  header { display: flex; flex-direction: column; gap: 14px; }
+  .eyebrow {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent);
+  }
+  h1 { font-size: clamp(30px, 5vw, 42px); font-weight: 800; letter-spacing: -0.02em; }
+  .lede { font-size: 18px; color: var(--muted); max-width: 62ch; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 14px; color: var(--muted); }
+  .meta strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- summary ---------- */
+  .summary {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
+    padding: 24px; display: flex; flex-direction: column; gap: 18px;
+  }
+  .summary h2 { font-size: 20px; font-weight: 700; }
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .stat { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
+  .stat b { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .stat span { font-size: 13px; color: var(--muted); }
+  .summary p { max-width: 65ch; }
+
+  /* ---------- review table ---------- */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 560px; }
+  th { text-align: left; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 700; padding: 0 12px 10px 0; border-bottom: 1px solid var(--line); }
+  td { padding: 12px 12px 12px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td.num { font-variant-numeric: tabular-nums; color: var(--muted); width: 28px; }
+  td a { color: inherit; text-decoration: none; font-weight: 600; }
+  td a:hover { color: var(--accent); }
+
+  .pill {
+    display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+  }
+  .p-critical { color: var(--critical); background: var(--critical-soft); }
+  .p-high { color: var(--high); background: var(--high-soft); }
+  .p-medium { color: var(--medium); background: var(--medium-soft); }
+  .p-low { color: var(--low); background: var(--low-soft); }
+  .p-live { color: var(--live); background: var(--live-soft); }
+  .p-live::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 6px; vertical-align: 1px; }
+
+  /* ---------- item sections ---------- */
+  section.item { display: flex; flex-direction: column; gap: 16px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .item-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 24px; }
+  .item-head .num { font-size: 14px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .item h2 { font-size: 24px; font-weight: 800; letter-spacing: -0.01em; width: 100%; }
+  .item h3 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .block { display: flex; flex-direction: column; gap: 8px; }
+  .block p, .block li { max-width: 66ch; }
+  ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+  li::marker { color: var(--accent); }
+
+  .notice {
+    background: var(--accent-soft); border-radius: 10px; padding: 14px 16px; font-size: 15px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .notice b { font-weight: 700; }
+
+  /* before / after for item 3 */
+  .compare { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  .compare > div { border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: var(--surface); display: flex; flex-direction: column; gap: 10px; }
+  .compare h4 { margin: 0; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .compare .before h4 { color: var(--muted); }
+  .compare .after { border-color: var(--accent); }
+  .compare .after h4 { color: var(--accent); }
+  .compare ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
+  .compare .before li { color: var(--muted); }
+
+  /* quote of real assistant behaviour */
+  .chat { display: flex; flex-direction: column; gap: 8px; font-size: 15px; }
+  .bubble { padding: 10px 14px; border-radius: 14px; max-width: 520px; }
+  .bubble.you { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .bubble.her { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .chat-label { font-size: 12px; color: var(--muted); }
+
+  /* ---------- extras / next / log ---------- */
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+  .panel h2 { font-size: 20px; font-weight: 700; }
+  .steps { counter-reset: s; list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .steps li { counter-increment: s; display: grid; grid-template-columns: 28px 1fr; gap: 10px; }
+  .steps li::before { content: counter(s); font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+  td.hash { white-space: nowrap; }
+  td.hash a { font-weight: 500; color: var(--accent); }
+  footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 20px; }
+
+  @media (max-width: 560px) {
+    .page { padding-block: 32px 56px; gap: 32px; }
+    .stats { grid-template-columns: 1fr; }
+    .compare { grid-template-columns: 1fr; }
+    .summary, .panel { padding: 18px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="page">
+
+  <header>
+    <span class="eyebrow">MadeEA Hub · Work report</span>
+    <h1>Madeline, the AI assistant: review fixes</h1>
+    <p class="lede">All five issues from the AI review are fixed and live in the Hub. Madeline now sticks to your work, answers from your real tasks, meetings, inbox, clients and SOPs, and is one assistant in one place on every page.</p>
+    <div class="meta">
+      <span>Work done <strong>30 September 2026</strong></span>
+      <span>Report <strong>1 October 2026</strong></span>
+      <span>Status <span class="pill p-live">Live</span></span>
+    </div>
+  </header>
+
+  <section class="summary" aria-labelledby="sum-h">
+    <h2 id="sum-h">At a glance</h2>
+    <div class="stats">
+      <div class="stat"><b>5 of 5</b><span>review items fixed</span></div>
+      <div class="stat"><b>5 → 1</b><span>AI entry points, now one Madeline</span></div>
+      <div class="stat"><b>4</b><span>extra problems found and fixed</span></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Priority</th><th>Problem</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="num">1</td><td><span class="pill p-critical">Critical</span></td><td><a href="#item-1">It answered anything, even off-topic</a></td><td><span class="pill p-live">Live</span></td></tr>
+          <tr><td class="num">2</td><td><span class="pill p-critical">Critical</span></td><td><a href="#item-2">It didn't use your business data</a></td><td><span class="pill p-live">Live</span></td></tr>
+          <tr><td class="num">3</td><td><span class="pill p-high">High</span></td><td><a href="#item-3">Five separate AI entry points</a></td><td><span class="pill p-live">Live</span></td></tr>
+          <tr><td class="num">4</td><td><span class="pill p-medium">Medium</span></td><td><a href="#item-4">The wording invited off-topic questions</a></td><td><span class="pill p-live">Live</span></td></tr>
+          <tr><td class="num">5</td><td><span class="pill p-low">Low</span></td><td><a href="#item-5">Visual bugs in the AI panels</a></td><td><span class="pill p-live">Live</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 1 -->
+  <section class="item" id="item-1" aria-labelledby="h1-1">
+    <div class="item-head"><span class="num">1</span><span class="pill p-critical">Critical</span><span class="pill p-live">Live</span>
+      <h2 id="h1-1">It answered anything, even off-topic</h2>
+    </div>
+    <div class="block">
+      <h3>The problem</h3>
+      <p>Asked "messi 2007", the assistant wrote a football history. Every answer like that costs money on the AI account and makes a work tool look unprofessional.</p>
+    </div>
+    <div class="block">
+      <h3>What changed</h3>
+      <ul>
+        <li><b>Written instructions on every AI request.</b> Madeline helps only with executive-assistant and business work: email, calendar, tasks, clients, SOPs, documents, writing, bookkeeping, research for a work task and translation.</li>
+        <li><b>A quick off-topic check before every answer.</b> A small, low-cost check reads the question first. If it's off-topic, the person gets a friendly redirect, and the more expensive model is never called.</li>
+        <li><b>Short follow-ups still work.</b> "Make it shorter", "yes" or "why?" are read with the previous reply, so they aren't mistaken for off-topic questions.</li>
+      </ul>
+    </div>
+    <div class="chat" aria-label="Example">
+      <span class="chat-label">What a person now sees</span>
+      <div class="bubble you">messi 2007</div>
+      <div class="bubble her">I can only help with work here: emails, calendar, tasks, clients, SOPs and documents. Try something like "What's due today?" or "Draft a follow-up to my last client meeting".</div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="item" id="item-2" aria-labelledby="h1-2">
+    <div class="item-head"><span class="num">2</span><span class="pill p-critical">Critical</span><span class="pill p-live">Live</span>
+      <h2 id="h1-2">It didn't use your business data</h2>
+    </div>
+    <div class="block">
+      <h3>The problem</h3>
+      <p>It couldn't answer "What's on my plate today?" with real tasks or meetings. It was given the same 20 tasks for every question, with no due dates, no meetings and no emails.</p>
+    </div>
+    <div class="block">
+      <h3>What changed</h3>
+      <ul>
+        <li><b>Madeline looks up what each question needs:</b> tasks, calendar meetings, inbox messages, clients and SOPs, the moment she's asked.</li>
+        <li><b>She only sees what that person may see.</b> Every lookup runs under the account of the person asking, so the Hub's existing permissions apply. Private emails stay private, and client portal accounts see nothing.</li>
+        <li><b>"Today" means the person's own today.</b> Times are shown in their timezone, so an EA in Manila at 8am gets today's list, not yesterday's.</li>
+        <li><b>"My tasks" includes tasks you created and didn't assign.</b> The task form leaves the assignee blank by default, so these were being missed.</li>
+        <li><b>No more empty "nothing today" answers.</b> If nothing is yours today, Madeline also shows overdue team work, who has it, and what's coming up for you this week.</li>
+        <li><b>She tells you when your calendar isn't connected,</b> instead of saying you have no meetings, and points you to the Integrations page.</li>
+        <li><b>Read-only by design.</b> Madeline can find and explain work, but changes are still made in the app.</li>
+      </ul>
+    </div>
+    <div class="chat" aria-label="Example">
+      <span class="chat-label">Illustration, based on the task board it was tested against</span>
+      <div class="bubble you">What's on my plate today?</div>
+      <div class="bubble her">Nothing is assigned to you today, but two team tasks are overdue: "Discovery call preparation" (with Rio, urgent, needs approval) and "Have a meeting" for Bryan Sumait (unassigned). Your calendar hasn't synced yet. Connect Google Calendar on the Integrations page to see your meetings here.</div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="item" id="item-3" aria-labelledby="h1-3">
+    <div class="item-head"><span class="num">3</span><span class="pill p-high">High</span><span class="pill p-live">Live</span>
+      <h2 id="h1-3">Five separate AI entry points, now one Madeline</h2>
+    </div>
+    <div class="block">
+      <h3>The problem</h3>
+      <p>Users met the AI in five places that each behaved differently, with different names, greetings and histories. Two of them were loaded on every page at once and switched over as the window was resized, losing the conversation.</p>
+    </div>
+    <div class="compare">
+      <div class="before">
+        <h4>Before</h4>
+        <ol>
+          <li>"Ask AI" button and ⌘K opened an "AI Command Center" pop-up</li>
+          <li>Madeline side panel with its own history</li>
+          <li>Floating "Hi! How can I help" bubble with another history</li>
+          <li>AI Quick Actions page in the sidebar</li>
+          <li>Unlabelled ✨ icons on meetings</li>
+        </ol>
+      </div>
+      <div class="after">
+        <h4>Now</h4>
+        <ol>
+          <li><b>One button.</b> "Ask Madeline" in the top bar opens the same panel on every page.</li>
+          <li><b>She knows where you are.</b> With a task, meeting, client or email open, Madeline already has it as context.</li>
+          <li><b>One conversation</b> that carries on across pages instead of starting over.</li>
+          <li><b>Page buttons feed the panel.</b> "Prep me" on a meeting opens Madeline with the request filled in.</li>
+          <li><b>⌘K is search.</b> Jump to any page or record; the last option is "Ask Madeline about …".</li>
+        </ol>
+      </div>
+    </div>
+    <div class="block">
+      <h3>Also in this change</h3>
+      <ul>
+        <li>Typed commands still work in Madeline's box: "Create a task to…", "Remind me to…" and "Go to calendar".</li>
+        <li>Madeline stays usable while a task or client window is open, which is when she has it as context.</li>
+        <li>On phones she opens as a full-screen panel and closes with a tap outside or Esc.</li>
+        <li>The guided tour now points at "Ask Madeline".</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="item" id="item-4" aria-labelledby="h1-4">
+    <div class="item-head"><span class="num">4</span><span class="pill p-medium">Medium</span><span class="pill p-live">Live</span>
+      <h2 id="h1-4">The wording invited off-topic questions</h2>
+    </div>
+    <div class="block">
+      <h3>What changed</h3>
+      <ul>
+        <li>The text box now reads <b>"Ask about your tasks, clients, meetings…"</b> instead of "Ask Madeline anything".</li>
+        <li>The greeting no longer says "Ask me anything". "Ask AI · Anything at all" went away with the old pop-up.</li>
+        <li><b>Suggestions come from today's work</b> instead of generic prompts: "Prep for [your next meeting] at 10:00", "2 overdue tasks: what first?", "3 tasks due today", "1 email waiting on a reply". The numbers match the Dashboard.</li>
+        <li>On a quiet day she offers "What's on my plate today?" and "What's coming up this week?". She never says "ask me anything".</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="item" id="item-5" aria-labelledby="h1-5">
+    <div class="item-head"><span class="num">5</span><span class="pill p-low">Low</span><span class="pill p-live">Live</span>
+      <h2 id="h1-5">Visual bugs in the AI panels</h2>
+    </div>
+    <div class="block">
+      <h3>What changed</h3>
+      <ul>
+        <li><b>Focus outline:</b> the highlight now follows the rounded input box, instead of a square drawn inside it. The same fix went into the ⌘K search box.</li>
+        <li><b>Quick actions cut off:</b> suggestion chips now wrap onto a second line, so none are sliced in half.</li>
+        <li><b>Avatar outside its message:</b> Madeline's small icon now lines up with the top of each reply and holds still, instead of bobbing loose of the bubble.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="extra-h">
+    <h2 id="extra-h">Other problems found and fixed along the way</h2>
+    <ul>
+      <li><b>Messages sent twice.</b> The old "Ask AI" pop-up sent every question to the AI twice, doubling its cost. Madeline sends it once.</li>
+      <li><b>Silent failures.</b> The floating bubble and the Quick Actions page showed nothing when something went wrong. Errors now appear with a clear message.</li>
+      <li><b>Meeting brief that never worked.</b> The meeting prep packet's "AI brief" relied on a server feature that was never switched on, so it always fell back to a basic offline summary. It now uses Madeline.</li>
+      <li><b>A failing check on every update.</b> GitHub's page-publishing check had failed on every update since 20 August. It is fixed and passing.</li>
+    </ul>
+  </section>
+
+  <section class="panel" aria-labelledby="try-h">
+    <h2 id="try-h">How to see it</h2>
+    <p>Reload the Hub once (Ctrl + Shift + R) to get the latest version, then:</p>
+    <ol class="steps">
+      <li><span>Click <b>Ask Madeline</b> in the top bar and ask "What's on my plate today?"</span></li>
+      <li><span>Open a task, then ask Madeline "What's the next step?" without naming the task.</span></li>
+      <li><span>On the Dashboard, click <b>Prep me</b> next to a meeting and press Enter.</span></li>
+      <li><span>Press <b>Ctrl + K</b>, type a client's name, and choose "Ask Madeline about …".</span></li>
+      <li><span>Ask something off-topic, such as a sports question, to see the friendly redirect.</span></li>
+    </ol>
+  </section>
+
+  <section class="panel" aria-labelledby="test-h">
+    <h2 id="test-h">How it was checked</h2>
+    <ul>
+      <li>Each change was built and type-checked, and the Hub's own consistency checks passed.</li>
+      <li>The assistant's server logic was tested against simulated data. That covered timezones (including clock-change days), permissions, overdue work and unassigned tasks, plus attempts to slip instructions in through an email's text.</li>
+      <li>The new panel was clicked through automatically in a browser, on desktop and phone sizes: the button, context, history, "Prep me", ⌘K search, wording and the visual fixes. Every check passed with no errors.</li>
+      <li>Every update was deployed and confirmed live, with all publishing checks passing.</li>
+    </ul>
+  </section>
+
+  <section class="panel" aria-labelledby="next-h">
+    <h2 id="next-h">Suggested next steps</h2>
+    <ul>
+      <li><b>Calendar "Plan this day"</b> still opens the old Quick Actions screen, because that screen books the time slots it suggests. Moving it into Madeline is a small follow-up.</li>
+      <li><b>✨ buttons that write into a text box</b> (Inbox "AI draft", "Write it for me", SOP "Run AI") work as before, but don't use Madeline's work-only rules and wording yet.</li>
+      <li><b>Connect Google Calendar</b> for each team member on the Integrations page, so Madeline can see everyone's meetings.</li>
+      <li><b>Turn off GitHub Pages</b> for the repository. The Hub runs on Vercel, and the Pages copy is an old blank page that isn't used.</li>
+    </ul>
+  </section>
+
+  <section class="panel" aria-labelledby="log-h">
+    <h2 id="log-h">Change log</h2>
+    <p>Each update, in the order it went live on 30 September 2026.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Update</th><th>Item</th><th>What it did</th></tr></thead>
+        <tbody>
+          <tr><td class="hash mono"><a href="https://github.com/princeacquahandam-debug/madeea-hub/commit/b48fe3d">b48fe3d</a></td><td>1</td><td>Keep the AI to work: instructions plus the off-topic check</td></tr>
+          <tr><td class="hash mono"><a href="https://github.com/princeacquahandam-debug/madeea-hub/commit/eeffde8">eeffde8</a></td><td>Extra</td><td>Fix the page-publishing check that failed on every update</td></tr>
+          <tr><td class="hash mono"><a href="https://github.com/princeacquahandam-debug/madeea-hub/commit/5f65784">5f65784</a></td><td>2</td><td>Let Madeline read tasks, meetings, emails, clients and SOPs</td></tr>
+          <tr><td class="hash mono"><a href="https://github.com/princeacquahandam-debug/madeea-hub/commit/6090298">6090298</a></td><td>2</td><td>Count unassigned tasks you created as yours</td></tr>
+          <tr><td class="hash mono"><a href="https://github.com/princeacquahandam-debug/madeea-hub/commit/1b64b1d">1b64b1d</a></td><td>2</td><td>Never answer "nothing today" while the team has overdue work</td></tr>
+          <tr><td class="hash mono"><a href="https://github.com/princeacquahandam-debug/madeea-hub/commit/f18389d">f18389d</a></td><td>3</td><td>One Madeline instead of five AI entry points</td></tr>
+          <tr><td class="hash mono"><a href="https://github.com/princeacquahandam-debug/madeea-hub/commit/4861783">4861783</a></td><td>4, 5</td><td>Work-focused wording and the panel's visual fixes</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>MadeEA Hub · Madeline AI review · Work completed 30 September 2026</footer>
+</div>
+
+</body>
+</html>
