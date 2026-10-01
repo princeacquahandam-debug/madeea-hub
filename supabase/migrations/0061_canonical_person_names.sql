@@ -167,19 +167,39 @@ where u.id = p.id
 -- one person on one day are the same day's work filed twice, and the newer
 -- submission is the one they meant. Done BEFORE the update, so the update
 -- cannot collide with the (workspace_id, person_name, report_date) index.
+--
+-- The newer one wins WHICHEVER NAME IT WAS FILED UNDER. The first version kept
+-- a row only if it already carried the right name and was the newer. When the
+-- newer row was the one under the email-made name (Bryan: renamed by hand in
+-- July, re-invited, then reported again), nothing was deleted, the update
+-- below then produced two "Bryan Sumait" rows for one day, and the unique
+-- index rejected the whole migration. Reproduced on seeded data before fixing.
 delete from eod_reports old
-using eod_reports keep, profiles pr
+using eod_reports newer, profiles pr
 where old.owner_id = pr.id
-  and old.person_name <> pr.full_name
-  and keep.person_name = pr.full_name
-  and keep.report_date = old.report_date
-  and keep.workspace_id is not distinct from old.workspace_id
-  and keep.id <> old.id
-  and coalesce(keep.submitted_at, 'epoch'::timestamptz) >= coalesce(old.submitted_at, 'epoch'::timestamptz);
+  and coalesce(trim(pr.full_name), '') <> ''
+  and newer.owner_id = old.owner_id
+  and newer.report_date = old.report_date
+  and newer.workspace_id is not distinct from old.workspace_id
+  and newer.id <> old.id
+  and (old.person_name <> pr.full_name or newer.person_name <> pr.full_name)
+  and (newer.submitted_at > old.submitted_at
+       or (newer.submitted_at = old.submitted_at and newer.id > old.id));
 
+-- Never rename onto a row that already holds that name and day. The one case
+-- left after the delete is a row with no owner: the imported July sheet. That
+-- is the person's history, and choosing between it and their own report is a
+-- human call, so the report keeps its old name and verify-0061.sql lists it.
 update eod_reports e
 set person_name = pr.full_name
 from profiles pr
 where e.owner_id = pr.id
   and coalesce(trim(pr.full_name), '') <> ''
-  and e.person_name <> pr.full_name;
+  and e.person_name <> pr.full_name
+  and not exists (
+    select 1 from eod_reports x
+    where x.person_name = pr.full_name
+      and x.report_date = e.report_date
+      and x.workspace_id is not distinct from e.workspace_id
+      and x.id <> e.id
+  );
