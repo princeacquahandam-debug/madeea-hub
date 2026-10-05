@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckSquare, Calendar, Mail, Workflow, Sparkles, AlertTriangle, Timer, BellRing } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
 import { MeetingPrepPacket } from "@/components/MeetingPrepPacket";
 import { useMadeline } from "@/store/madeline";
 import { meetingItem } from "@/lib/madelineItems";
 import { useAuth } from "@/hooks/useAuth";
-import { useTasks, useMeetings, useClients, useMessages, useAutomations } from "@/data/hooks";
+import { useTasks, useMeetings, useClients, useMessages, useAutomations, useGoogleConnection } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { emitOnce } from "@/lib/alerts";
 import { EodCard } from "@/components/EodCard";
@@ -30,7 +30,8 @@ export default function Dashboard() {
   const { user } = useAuth();
   const nav = useNavigate();
   const { data: tasks = [] } = useTasks();
-  const { data: meetings = [] } = useMeetings();
+  const { data: meetings = [] } = useMeetings({ mine: true });
+  const { data: google } = useGoogleConnection();
   const { data: clients = [] } = useClients();
   const { data: messages = [] } = useMessages();
   const { data: automations = [] } = useAutomations();
@@ -126,8 +127,11 @@ export default function Dashboard() {
   const shownQueue = queue.slice(0, Math.max(0, PANEL_LIMIT - shownBreached.length));
   const queueHidden = breachedMail.length + queue.length - shownBreached.length - shownQueue.length;
 
-  const shownMeetings = meetings.slice(0, PANEL_LIMIT);
-  const meetingsHidden = meetings.length - shownMeetings.length;
+  /* Upcoming means from now on. It listed the first four meetings on file,
+     past ones included, under a "+N more today" that wasn't about today. */
+  const upcoming = meetings.filter((m) => m.starts_at && new Date(m.starts_at).getTime() >= Date.now() - 30 * 60_000);
+  const shownMeetings = upcoming.slice(0, PANEL_LIMIT);
+  const meetingsHidden = upcoming.length - shownMeetings.length;
 
   const firstName = user?.name?.split(" ")[0] ?? "there";
   const hour = new Date().getHours();
@@ -271,10 +275,16 @@ export default function Dashboard() {
                 </button>
               </div>
             ))}
-            {meetings.length === 0 && <p className="py-4 text-center text-xs text-faint">No meetings</p>}
+            {upcoming.length === 0 && (
+              <p className="py-4 text-center text-xs text-faint">
+                {google && !google.connected ? (
+                  <>Connect Google Calendar to see your meetings here. <Link to="/integrations" className="text-accent-soft hover:underline">Connect</Link></>
+                ) : "No upcoming meetings"}
+              </p>
+            )}
             {meetingsHidden > 0 && (
               <p className="py-1.5 text-center text-xs text-faint">
-                +{meetingsHidden} more today · open the calendar to see them all
+                +{meetingsHidden} more coming up · open the calendar to see them all
               </p>
             )}
           </div>

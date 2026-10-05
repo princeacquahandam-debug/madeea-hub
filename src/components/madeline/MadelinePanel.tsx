@@ -126,7 +126,7 @@ export function MadelinePanel() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { data: tasks = [] } = useTasks();
-  const { data: meetings = [] } = useMeetings();
+  const { data: meetings = [] } = useMeetings({ mine: true });
   const { data: messages = [] } = useMessages();
   const { data: notes = [] } = useMeetingNotes();
   const { flags } = useFollowUps();

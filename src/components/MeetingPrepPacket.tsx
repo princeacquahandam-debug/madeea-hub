@@ -45,7 +45,7 @@ export function MeetingPrepPacket({
   const { data: clients = [] } = useClients();
   const { data: tasks = [] } = useTasks();
   const { data: messages = [] } = useMessages();
-  const { data: meetings = [] } = useMeetings();
+  const { data: meetings = [] } = useMeetings({ mine: true });
 
   // Resolve the client first so docs can be fetched for just this one.
   const client = useMemo(() => {

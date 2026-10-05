@@ -394,16 +394,32 @@ export function useClientMutations() {
 }
 
 // ---------------- meetings ----------------
-export function useMeetings() {
+/**
+ * Meetings. `mine` limits them to the signed-in person's own calendar.
+ *
+ * Synced events are readable across the workspace (a client's schedule in
+ * Client Vault is everyone's business), so without `mine` somebody who never
+ * connected Google saw a colleague's "Miracle Morning" on their own Dashboard
+ * and Calendar. Personal views pass mine: true; client and team views don't.
+ * A meeting belongs to whoever's calendar it was synced from (owner_id).
+ */
+export function useMeetings({ mine = false }: { mine?: boolean } = {}) {
   return useQuery<Meeting[]>({
-    queryKey: ["meetings"],
+    queryKey: ["meetings", mine ? "mine" : "all"],
     queryFn: async () => {
       if (!supabase) return seed.MEETINGS;
-      const { data, error } = await supabase
+      let q = supabase
         .from("meetings")
         // `*` so attendee_emails (migration 0014) flows through on migration.
         .select("*,clients(name)")
         .order("starts_at", { ascending: true });
+      if (mine) {
+        const { data: s } = await supabase.auth.getSession();
+        const uid = s.session?.user.id;
+        if (!uid) return [];
+        q = q.eq("owner_id", uid);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return (data as any[]).map((m) => ({
         id: m.id, title: m.title, status: m.status,
@@ -449,9 +465,15 @@ export function useCalendarEvents(from: string, to: string) {
     queryKey: ["calendar", from, to],
     queryFn: async () => {
       if (!supabase) return [];
+      /* Your own calendar only (see useMeetings). Not connected or not
+         synced means nothing of yours exists yet, so it stays empty. */
+      const { data: s } = await supabase.auth.getSession();
+      const uid = s.session?.user.id;
+      if (!uid) return [];
       const { data, error } = await supabase
         .from("meetings")
         .select("id,title,starts_at,ends_at,all_day,location,html_link,organizer_email,description,attendee_emails,source,response_status,event_timezone,clients(name)")
+        .eq("owner_id", uid)
         .gte("starts_at", from)
         .lte("starts_at", to)
         .order("starts_at", { ascending: true });
