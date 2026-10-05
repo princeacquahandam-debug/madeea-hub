@@ -91,56 +91,22 @@ async function decrypt(payload: string): Promise<string> {
 }
 
 // ── what comes back to the browser ───────────────────────────────────────
-function popupPage(origin: string, payload: Record<string, unknown>) {
-  const ok = Boolean(payload.ok);
-  const message = ok
-    ? (payload.account ? `Connected as ${payload.account}.` : "Connected.")
-    /* The reason, when there is one worth reading. A blank "that did not
-       complete" sends somebody back to press the same button again, which is
-       the one thing guaranteed not to help. */
-    : String(payload.detail ?? "That did not complete. Nothing was saved, so it is safe to try again.");
-  const body = JSON.stringify({ source: "madeea-oauth", ...payload });
-
-  /* Branded, because this page appears mid-flow in a window the person did not
-     open themselves, next to a Google screen that has just warned them about
-     trusting an app. A bare unstyled page at that exact moment looks like the
-     thing the warning was about. */
-  return new Response(
-    `<!doctype html><html><head><meta charset="utf-8"><title>MadeEA OS</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-  :root{color-scheme:dark}
-  body{margin:0;height:100vh;display:grid;place-items:center;background:#0b0f17;
-       color:#e5e7eb;font:15px/1.5 system-ui,"Segoe UI",Roboto,sans-serif}
-  .card{max-width:340px;padding:28px;text-align:center}
-  .mark{font:700 15px/1 system-ui;letter-spacing:.14em;color:#f97316}
-  h1{margin:18px 0 6px;font-size:18px;font-weight:600}
-  p{margin:0;color:#9ca3af;font-size:13.5px}
-  .tick{width:44px;height:44px;margin:0 auto;border-radius:50%;display:grid;place-items:center;
-        background:${ok ? "rgba(16,185,129,.15)" : "rgba(245,158,11,.15)"};
-        color:${ok ? "#34d399" : "#fbbf24"};font-size:22px}
-</style></head><body>
-  <div class="card">
-    <div class="mark">MADEEA OS</div>
-    <div class="tick" style="margin-top:20px">${ok ? "&#10003;" : "!"}</div>
-    <h1>${ok ? "Account connected" : "Not connected"}</h1>
-    <p>${message}</p>
-    <p style="margin-top:14px">This window closes by itself.</p>
-  </div>
-<script>
-  try { window.opener && window.opener.postMessage(${body}, ${JSON.stringify(origin)}); } catch (e) {}
-  setTimeout(function () { try { window.close(); } catch (e) {} }, 1200);
-</script></body></html>`,
-    { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } },
-  );
-}
 function finish(
   st: { redirect_to?: string | null; popup?: boolean; redirect_after?: string | null },
   payload: Record<string, unknown>,
 ) {
   const dest = APP_ORIGINS.includes(st.redirect_to ?? "") ? st.redirect_to! : APP_ORIGINS[0];
   if (!dest) return new Response("APP_ORIGINS is not configured", { status: 500 });
-  if (st.popup) return popupPage(dest, payload);
+  /* The popup ends on the app's own oauth-done page, not one served from
+     here: Supabase serves HTML from its own domain as text/plain, so people
+     saw raw source, and a message posted from this origin fails the app's
+     origin check. */
+  if (st.popup) {
+    const q = new URLSearchParams({ ok: payload.ok ? "1" : "0", provider: String(payload.provider ?? "") });
+    if (payload.account) q.set("account", String(payload.account));
+    if (!payload.ok && payload.detail) q.set("detail", String(payload.detail).slice(0, 300));
+    return new Response(null, { status: 302, headers: { Location: `${dest}/oauth-done.html?${q}` } });
+  }
   /* A code, never a provider error string: the page can phrase a code for a
      human, and invalid_grant in an address bar helps nobody. */
   const page = st.redirect_after || "/integrations";

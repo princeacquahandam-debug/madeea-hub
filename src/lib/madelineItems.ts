@@ -21,7 +21,7 @@ const lines = (pairs: [string, string | null | undefined | false][]) =>
   pairs.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join("\n");
 
 const when = (iso: string | null | undefined) =>
-  iso ? new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : null;
+  iso ? new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true }) : null;
 
 export function taskItem(t: Task, assigneeName?: string | null): Item {
   return {
@@ -94,7 +94,11 @@ export function clientItem(c: Client): Item {
   };
 }
 
-export function emailItem(m: Message): Item {
+/** `thread` is the whole conversation, newest first. The rest of it goes in
+    oldest first and shorter, so "Summarize thread" reads it in order and the
+    open email keeps most of the room. */
+export function emailItem(m: Message, thread?: Message[]): Item {
+  const earlier = (thread ?? []).filter((x) => x.id !== m.id).slice(0, 5).reverse();
   return {
     kind: "email",
     id: m.id,
@@ -105,7 +109,10 @@ export function emailItem(m: Message): Item {
       ["Received", when(m.received_at) ?? m.time],
       ["Client", m.client_name],
       ["Direction", m.direction === "outbound" ? "sent by us" : "received"],
-      ["Body", clip(m.body || m.preview, 1500)],
+      ["Body", clip(m.body || m.preview, earlier.length ? 900 : 1500)],
+      ["Earlier in this thread", earlier.length
+        ? earlier.map((x) => `\n- ${when(x.received_at) ?? x.time}, ${x.direction === "outbound" ? "us" : x.sender_name}: ${clip(x.body || x.preview, 200)}`).join("")
+        : null],
     ]),
   };
 }

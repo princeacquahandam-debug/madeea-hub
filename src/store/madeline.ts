@@ -31,6 +31,12 @@ export interface MadelineTurn {
   about?: string;
   status: "running" | "done" | "error";
   result?: ToolResult;
+  /** Set once the user confirmed a task Madeline proposed ("Turn into task"). */
+  createdTaskId?: string;
+  /** What the answer was built from, as counts ("4 meetings · 2 tasks"). */
+  sources?: { kind: string; count: number }[];
+  /** 👍 = 1, 👎 = -1. */
+  rating?: 1 | -1;
 }
 
 interface AskOptions {
@@ -41,6 +47,8 @@ interface AskOptions {
 }
 
 interface MadelineState {
+  /** Replace the whole thread (loading it from another device). */
+  setTurns: (turns: MadelineTurn[]) => void;
   /** The router's path (no basename), kept current by MadelineProvider.
       window.location.pathname would carry the /madeea-hub/ prefix on Pages. */
   routePath: string;
@@ -137,6 +145,7 @@ export const useMadeline = create<MadelineState>((set, get) => ({
   addTurn: (t) => set({ turns: [...get().turns, t].slice(-MAX_TURNS) }),
   patchTurn: (id, patch) => set({ turns: get().turns.map((t) => (t.id === id ? { ...t, ...patch } : t)) }),
   clearTurns: () => set({ turns: [] }),
+  setTurns: (turns) => set({ turns: turns.slice(-MAX_TURNS) }),
 }));
 
 useMadeline.subscribe((s, prev) => {

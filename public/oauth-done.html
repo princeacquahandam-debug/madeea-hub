@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MadeEA OS</title>
+<!--
+  Where the "Connect Google / Microsoft / …" popup lands when it's done.
+
+  It used to be a page served by the Supabase function itself. Supabase serves
+  HTML from its own domain as plain text, so people saw raw source code, and
+  the "connected" message it sent came from the wrong origin for the app to
+  accept. Served from the app's own domain, both work. The script is a file,
+  not inline, because the app's security policy only runs its own scripts.
+-->
+<style>
+  :root { color-scheme: dark }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0b0f17;
+         color: #e5e7eb; font: 15px/1.5 system-ui, "Segoe UI", Roboto, sans-serif }
+  .card { max-width: 340px; padding: 28px; text-align: center }
+  .mark { font: 700 15px/1 system-ui; letter-spacing: .14em; color: #f97316 }
+  h1 { margin: 18px 0 6px; font-size: 18px; font-weight: 600 }
+  p { margin: 0; color: #9ca3af; font-size: 13.5px }
+  .tick { width: 44px; height: 44px; margin: 20px auto 0; border-radius: 50%; display: grid; place-items: center;
+          font-size: 22px; background: rgba(16,185,129,.15); color: #34d399 }
+  .tick.bad { background: rgba(245,158,11,.15); color: #fbbf24 }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="mark">MADEEA OS</div>
+    <div class="tick" id="tick">&#10003;</div>
+    <h1 id="title">Account connected</h1>
+    <p id="message"></p>
+    <p style="margin-top:14px" id="closing">This window closes by itself.</p>
+  </div>
+  <script src="oauth-done.js"></script>
+</body>
+</html>

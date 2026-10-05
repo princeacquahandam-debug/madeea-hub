@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import { useTour } from "@/store/tour";
 import { useAuth } from "@/hooks/useAuth";
 import { useUI } from "@/store/ui";
+import { supabase } from "@/lib/supabase";
 
 interface Step { selector?: string; title: string; body: string; needsNav?: boolean }
 
@@ -37,9 +38,11 @@ export function GuidedTour() {
   const [step, setStep] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
 
-  // first-login auto-start
+  /* First-login auto-start. "Done" lives on the account as well as in this
+     browser: signing out wipes every madeea- key (lib/localData.ts), so a
+     browser-only flag brought the tour back on every single login. */
   useEffect(() => {
-    if (user && !localStorage.getItem(DONE_KEY)) {
+    if (user && !user.tourDone && !localStorage.getItem(DONE_KEY)) {
       const t = setTimeout(() => { setStep(0); start(); }, 900);
       return () => clearTimeout(t);
     }
@@ -73,7 +76,12 @@ export function GuidedTour() {
 
   if (!open) return null;
   const s = STEPS[step];
-  const finish = () => { localStorage.setItem(DONE_KEY, "1"); setNavOpen(false); stop(); setStep(0); };
+  const finish = () => {
+    localStorage.setItem(DONE_KEY, "1");
+    // Best effort: if it fails, the browser flag still holds until sign-out.
+    if (supabase && !user?.tourDone) void supabase.auth.updateUser({ data: { tour_done_at: new Date().toISOString() } });
+    setNavOpen(false); stop(); setStep(0);
+  };
   const next = () => (step < STEPS.length - 1 ? setStep(step + 1) : finish());
   const back = () => setStep(Math.max(0, step - 1));
 

@@ -129,16 +129,20 @@ const SCOPE =
   "partly. Reply with one short, friendly sentence saying you can only help with work, and suggest one " +
   "thing you can do instead.";
 
+/* Friendly first, then useful: a one-line "no" read as a scolding in review.
+   It still names what Madeline is for and hands over a next question. */
 const OFF_TOPIC_REPLY =
-  "I can only help with work here: emails, calendar, tasks, clients, SOPs and documents. " +
-  "Try something like \"What's due today?\" or \"Draft a follow-up to my last client meeting\".";
+  "Ha, that one's outside my lane! I'm here for your work: tasks, meetings, emails, clients and SOPs. " +
+  "Want me to check what's due today, or draft a follow-up?";
 
 const TOPIC_CHECK =
   "You are a filter for an executive-assistant work app. Decide whether the user's latest message is " +
   "something an executive assistant could reasonably ask at work.\n" +
   "Answer ON when it is, or could be, work: emails, messages, calendar, meetings, tasks, clients, SOPs, " +
   "documents, writing, rewriting, summarising, translating, finance or bookkeeping, business research, " +
-  "work travel, formulas or code for work tools, questions about this app, greetings, thanks, and short " +
+  "work travel, formulas or code for work tools, questions about this app or about the assistant itself " +
+  "(who or what it is, what it can do), passwords, logins and access to client accounts, research on a " +
+  "company or person ahead of a meeting, greetings, thanks, and short " +
   "follow-ups to the conversation (\"make it shorter\", \"yes\", \"why?\").\n" +
   "Answer OFF only when it is clearly unrelated to work: sport, celebrities, entertainment, trivia, " +
   "general knowledge, history, recipes, personal life advice, school homework, jokes, games.\n" +
@@ -222,6 +226,13 @@ const TOOLS = [
             description: "open = not done (default).",
           },
           client: { type: "string", description: "Only tasks for clients whose name or company contains this." },
+          person: {
+            type: "string",
+            description:
+              "A person's name: tasks assigned to that teammate OR for that client. Use it for \"follow up with " +
+              "Bryan\" or \"what's Sarah waiting on\". Searches the whole team, so leave scope unset.",
+          },
+          query: { type: "string", description: "Words from the task title." },
           limit: { type: "integer", minimum: 1, maximum: 50 },
         },
       },
@@ -301,6 +312,22 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "list_meeting_notes",
+      description:
+        "Notes from recorded meetings (Fathom): title, when, attendees, summary, decisions and action items. " +
+        "Newest first. Use it to summarise a past meeting or recall what was agreed with someone.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Words from the meeting title. Omit for the latest meetings." },
+          limit: { type: "integer", minimum: 1, maximum: 10 },
+        },
+      },
+    },
+  },
 ];
 
 /* Tool rounds per question. Each round is a paid gpt-4o call; four covers
@@ -359,7 +386,7 @@ function localTime(iso: string | null, tz: string, allDay = false): string | nul
   if (!iso) return null;
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: tz, weekday: "short", day: "numeric", month: "short",
-    ...(allDay ? {} : { hour: "2-digit", minute: "2-digit" }),
+    ...(allDay ? {} : { hour: "numeric", minute: "2-digit", hour12: true }),
   }).format(new Date(iso));
 }
 
@@ -395,11 +422,17 @@ async function clientIds(ctx: ToolCtx, q: unknown): Promise<string[] | null> {
 }
 
 const TASK_COLUMNS =
-  "title,status,priority,due_at,due_label,blocked,blocker_note,assignee_id,owner_id,requires_approval,approved_at,clients(name)";
+  "title,status,priority,due_at,due_label,blocked,blocker_note,assignee_id,owner_id,requires_approval,approved_at," +
+  "updated_at,notes,clients(name)";
 
 type TaskScope = "mine" | "team" | "unassigned" | "others";
 
-interface TaskFilter { scope: TaskScope; when: string; status: string; ids: string[] | null }
+interface TaskFilter {
+  scope: TaskScope; when: string; status: string; ids: string[] | null;
+  /** A person: these teammates' tasks OR these clients' tasks. */
+  person?: { assignees: string[]; clients: string[] } | null;
+  text?: string;
+}
 
 /* One place that turns a filter into a query, so the fallbacks below ask
    exactly the same question as the main lookup, only about other people.
@@ -436,6 +469,13 @@ function taskQuery(ctx: ToolCtx, f: TaskFilter, count = false) {
     groups.push(`and(due_at.gte."${startOfDay(today, ctx.tz)}",due_at.lt."${endOfToday}"),${saysToday}`);
   }
   if (f.when === "due_by_today") groups.push(`due_at.lt."${endOfToday}",${saysToday}`);
+  if (f.person) {
+    const p: string[] = [];
+    if (f.person.assignees.length) p.push(`assignee_id.in.(${f.person.assignees.join(",")})`);
+    if (f.person.clients.length) p.push(`client_id.in.(${f.person.clients.join(",")})`);
+    groups.push(p.join(","));
+  }
+  if (f.text) q = q.ilike("title", `%${f.text}%`);
   if (groups.length === 1) q = q.or(groups[0]);
   if (groups.length > 1) q = q.or(`and(${groups.map((g) => `or(${g})`).join(",")})`);
   if (f.when === "tomorrow") q = q.gte("due_at", endOfToday).lt("due_at", startOfDay(addDays(today, 2), ctx.tz));
@@ -458,7 +498,20 @@ function shapeTask(ctx: ToolCtx, t: any, now: number) {
     unassigned: !t.assignee_id,
     blocked: t.blocked ? (t.blocker_note || true) : false,
     awaiting_approval: !!t.requires_approval && !t.approved_at,
+    // "No update in 9 days" is what a follow-up is about, so say it.
+    days_since_update: t.updated_at ? Math.floor((now - new Date(t.updated_at).getTime()) / 86_400_000) : null,
+    notes: clip(t.notes, 300),
   };
+}
+
+/** Teammates whose name contains this (workspace profiles are readable to members, 0003). */
+async function peopleIds(ctx: ToolCtx, q: unknown): Promise<{ ids: string[]; names: Map<string, string> }> {
+  const s = term(q);
+  const names = new Map<string, string>();
+  if (!s) return { ids: [], names };
+  const { data } = await ctx.db.from("profiles").select("id,full_name").ilike("full_name", `%${s}%`).limit(10);
+  for (const p of data ?? []) names.set(p.id, p.full_name);
+  return { ids: [...names.keys()], names };
 }
 
 async function rows(q: any): Promise<any[]> {
@@ -482,10 +535,27 @@ async function listTasks(ctx: ToolCtx, a: Record<string, unknown>) {
   const ids = await clientIds(ctx, a.client);
   if (ids && !ids.length) return { tasks: [], note: `No client matches "${term(a.client)}".` };
 
-  const f: TaskFilter = { scope, when, status, ids };
+  /* A person searches the whole team: "follow up with Bryan" is about
+     Bryan's work, which by definition isn't assigned to the user. */
+  let person: TaskFilter["person"] = null;
+  let names = new Map<string, string>();
+  if (term(a.person)) {
+    const [people, cids] = await Promise.all([peopleIds(ctx, a.person), clientIds(ctx, a.person)]);
+    names = people.names;
+    if (!people.ids.length && !cids?.length) {
+      return { tasks: [], note: `Nobody on the team or in the client list matches "${term(a.person)}".` };
+    }
+    person = { assignees: people.ids, clients: cids ?? [] };
+  }
+  const f: TaskFilter = {
+    scope: person && a.scope !== "mine" ? "team" : scope, when, status, ids, person, text: term(a.query) || undefined,
+  };
   const data = await rows(taskQuery(ctx, f).limit(limit));
   const now = Date.now();
-  const tasks = data.map((t) => shapeTask(ctx, t, now));
+  const tasks = data.map((t) => ({
+    ...shapeTask(ctx, t, now),
+    ...(person ? { assigned_to: names.get(t.assignee_id) ?? (t.assignee_id ? "a teammate" : "nobody") } : {}),
+  }));
 
   /* NEVER A BARE "NOTHING TODAY".
      A team with two tasks sixteen days overdue got "you have no tasks today",
@@ -495,7 +565,7 @@ async function listTasks(ctx: ToolCtx, a: Record<string, unknown>) {
      people, and what is next for the user. Done here rather than left to the
      prompt, because the model asked "would you like to see…?" instead. */
   const nearTerm = ["overdue", "today", "due_by_today"].includes(when);
-  if (scope === "mine" && status === "open" && nearTerm && !tasks.length) {
+  if (scope === "mine" && !person && status === "open" && nearTerm && !tasks.length) {
     const [unassigned, withOthers, othersTotal, upcoming, undated] = await Promise.all([
       rows(taskQuery(ctx, { ...f, scope: "unassigned" }).limit(10)),
       rows(taskQuery(ctx, { ...f, scope: "others" }).limit(10)),
@@ -668,18 +738,39 @@ async function findClients(ctx: ToolCtx, a: Record<string, unknown>) {
   };
 }
 
+const STOP = new Set(["the", "and", "for", "how", "what", "with", "our", "your", "you", "can", "does", "do",
+  "client", "clients", "someone", "about", "when", "who", "why", "should", "need", "this", "that", "from",
+  "new", "get", "make", "set", "steps", "process", "way"]);
+
+/** The words worth searching on, with a crude stem: "booking" finds "book". */
+function sopWords(q: unknown): string[] {
+  const words = term(q).toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(" ")
+    .filter((w) => w.length >= 3 && !STOP.has(w))
+    .map((w) => w.replace(/(ing|ed|es|s)$/, ""))
+    .filter((w) => w.length >= 3);
+  return [...new Set(words)].slice(0, 6);
+}
+
 async function searchSops(ctx: ToolCtx, a: Record<string, unknown>) {
   const limit = cap(a.limit, 5, 20);
+  const words = sopWords(a.query);
   let q = ctx.db.from("sops")
     .select("title,description,category,steps,success_criteria")
     .eq("is_active", true)
-    .limit(limit);
-  const s = term(a.query);
-  if (s) q = q.or(`title.ilike.%${s}%,description.ilike.%${s}%,category.ilike.%${s}%`);
+    .limit(words.length ? 40 : limit);
+  if (words.length) {
+    q = q.or(words.flatMap((w) => [`title.ilike.%${w}%`, `description.ilike.%${w}%`, `category.ilike.%${w}%`]).join(","));
+  }
   const { data, error } = await q;
   if (error) throw new Error(error.message);
+  // Best match first: title hits count double.
+  const score = (sop: any) => words.reduce((n, w) =>
+    n + (String(sop.title).toLowerCase().includes(w) ? 2 : 0) +
+    (String(sop.description ?? "").toLowerCase().includes(w) || String(sop.category ?? "").toLowerCase().includes(w) ? 1 : 0), 0);
+  const ranked = [...(data ?? [])].sort((x, y) => score(y) - score(x)).slice(0, limit);
   return {
-    sops: (data ?? []).map((sop: any) => ({
+    ...(words.length && !ranked.length ? { note: "No SOP matches. Say so plainly before anything else." } : {}),
+    sops: ranked.map((sop: any) => ({
       title: sop.title,
       description: clip(sop.description, 400),
       category: sop.category ?? null,
@@ -693,12 +784,44 @@ async function searchSops(ctx: ToolCtx, a: Record<string, unknown>) {
   };
 }
 
+async function listMeetingNotes(ctx: ToolCtx, a: Record<string, unknown>) {
+  const limit = cap(a.limit, 3, 10);
+  let q = ctx.db.from("meeting_notes")
+    .select("title,recorded_at,attendees,summary,extracted")
+    .neq("status", "failed")
+    .order("recorded_at", { ascending: false, nullsFirst: false })
+    .limit(limit);
+  const s = term(a.query);
+  if (s) q = q.ilike("title", `%${s}%`);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  // Extracted items are objects ({text, owner, due…}); keep them as short lines.
+  const items = (v: unknown) =>
+    Array.isArray(v)
+      ? v.slice(0, 12).map((x: any) => clip(typeof x === "string" ? x : x?.text ?? x?.title ?? x?.decision ?? JSON.stringify(x), 240))
+      : [];
+  return {
+    meeting_notes: (data ?? []).map((n: any) => ({
+      title: n.title,
+      recorded: localTime(n.recorded_at, ctx.tz),
+      attendees: n.attendees ?? [],
+      summary: clip(n.summary ?? n.extracted?.summary, 1500),
+      decisions: items(n.extracted?.decisions),
+      action_items: items(n.extracted?.action_items),
+      open_questions: items(n.extracted?.open_questions),
+    })),
+  };
+}
+
+const SOURCE_KINDS = ["tasks", "meetings", "emails", "clients", "sops", "meeting_notes"];
+
 const RUNNERS: Record<string, (ctx: ToolCtx, a: Record<string, unknown>) => Promise<unknown>> = {
   list_tasks: listTasks,
   list_meetings: listMeetings,
   list_emails: listEmails,
   find_clients: findClients,
   search_sops: searchSops,
+  list_meeting_notes: listMeetingNotes,
 };
 
 /* Never throws: a failed lookup goes back to the model as an error it can
@@ -818,8 +941,33 @@ Deno.serve(async (req) => {
     const system: LlmMessage = {
       role: "system",
       content:
-        "You are the MadeEA AI Assistant for an elite executive assistant. Be concise, proactive and " +
-        "British-English.\n\n" +
+        "You are Madeline, MadeEA's assistant for executive assistants. Be concise, proactive and " +
+        "British-English. If asked who or what you are, or which model you run on, say you're Madeline, " +
+        "MadeEA's assistant, and say what you can help with. Don't name a model or AI provider.\n\n" +
+        "SHAPE OF EVERY ANSWER. Answer first: one summary sentence, then 2 to 4 short bullets if they help. " +
+        "No long essays, no preamble, no \"let me know if you need anything else\". Drafts are the " +
+        "exception: give the draft in full, ready to send.\n\n" +
+        "NEXT STEPS. When there's an obvious next action, end the reply with a fenced code block whose " +
+        "language is next, holding a JSON array of at most 2 objects: {\"label\": 2 to 5 words, like " +
+        "\"Draft follow-up to Bruce\", \"prompt\": the full request to send you if clicked} or {\"label\": " +
+        "\"Open tasks\", \"open\": one of tasks, calendar, inbox, clients, sops}. Put the most useful one " +
+        "first. Leave the block out when there's nothing to do next. Never put both a next block and a task " +
+        "block in one reply.\n\n" +
+        "DRAFTING TO OR ABOUT A PERSON (\"draft a follow-up to Bryan\"). Don't ask for details first. Look " +
+        "them up: list_tasks with person, list_emails with query, and find_clients. Draft from the most " +
+        "relevant real item and name it (for example a task with no update in 9 days). Only if nothing is " +
+        "found, say so in one line and give a short draft they can adapt.\n\n" +
+        "RESEARCH ON A COMPANY OR PERSON before a meeting is work: help. Check the team's data first " +
+        "(clients, meetings, emails, tasks). Then give a short brief from what you know in general, clearly " +
+        "marked as general knowledge to verify, and the 3 to 5 things worth checking or asking. You can't " +
+        "browse the web, so don't pretend to, and don't stop at \"there's nothing in the database\".\n\n" +
+        "PASSWORDS AND LOGINS. You can never see or show a password: they are encrypted and only open in " +
+        "the Password Manager. Each person sees only the logins an admin has shared with them. If asked for " +
+        "a password or login, say so kindly, point to the Password Manager, and say an admin can grant " +
+        "access if the one they need isn't there.\n\n" +
+        "HOW-TO QUESTIONS. Search the SOPs with the key words (\"travel\", \"invoice\"), not the whole " +
+        "sentence. If one matches, answer from it and name it. If none does, say first that there's no SOP " +
+        "for it yet, then give brief general steps labelled as general guidance, and suggest adding an SOP.\n\n" +
         `You are talking to ${profile?.full_name ?? "a team member"}. ` +
         `It is ${localTime(new Date(now).toISOString(), tz)} (${localDate(now, tz)}) in their timezone, ${tz}.\n\n` +
         "You can read this team's real data with tools: tasks, meetings, emails, clients and SOPs. Whenever a " +
@@ -830,10 +978,17 @@ Deno.serve(async (req) => {
         "meetings, then lead with what's overdue or next. If nothing is due today, don't stop at \"nothing " +
         "today\": also look at the user's tasks due in the next 7 days and their open tasks with no due date, " +
         "and tell them what's coming up. Times from the tools are already in the user's " +
-        "timezone; repeat them as given. When asked how to do something, find the most relevant SOP and walk " +
-        "the user through its steps, referencing its title and success criteria so they know when it's done. " +
+        "timezone; repeat them as given. " +
         "You can read but not change anything; if asked to create or update something, say where in the app " +
         "to do it.\n\n" +
+        // The panel turns this block into a "Create task" button. Nothing is
+        // saved until the user presses it, so proposing is safe.
+        "When asked to turn something into a task, propose exactly one task and end your reply with it in a " +
+        "fenced code block whose language is task, holding one JSON object: {\"title\": a short imperative " +
+        "title, \"priority\": \"low\"|\"normal\"|\"high\"|\"urgent\", \"due\": \"YYYY-MM-DD\" or null}. Tell the user " +
+        "they can create it with the button below. Never say it has been created.\n\n" +
+        "Write drafts (replies, follow-ups) ready to send, but never say they were sent: the user sends them. " +
+        "To summarise a past meeting, use list_meeting_notes.\n\n" +
         SCOPE + "\n\n" +
         // Tool results are row data, including synced email and Slack text that
         // an outsider can influence. Treat it as data, never as instructions.
@@ -846,13 +1001,28 @@ Deno.serve(async (req) => {
     const convo: ChatTurn[] = [system, ...history];
     const onUsage = (s: Spend) => void recordSpend(authHeader, "assistant-chat", "openai", s);
 
-    // The tool loop. The last round offers no tools, so it has to answer.
+    /* The tool loop. The last round offers no tools, so it has to answer.
+       `sources` counts what came back, by kind, so the panel can show
+       "4 meetings · 2 tasks": proof the answer came from real data. The
+       biggest count per kind, since a fallback lookup repeats rows. */
+    const sources = new Map<string, number>();
     for (let round = 0; ; round++) {
       const msg = await complete(convo, round < MAX_TOOL_ROUNDS ? TOOLS : undefined, onUsage);
-      if (!msg.tool_calls?.length) return json({ reply: msg.content ?? "" });
+      if (!msg.tool_calls?.length) {
+        return json({ reply: msg.content ?? "", sources: [...sources].map(([kind, count]) => ({ kind, count })) });
+      }
       convo.push({ role: "assistant", content: msg.content, tool_calls: msg.tool_calls });
       const results = await Promise.all(msg.tool_calls.map((call) => runTool(ctx, call)));
       msg.tool_calls.forEach((call, i) => convo.push({ role: "tool", tool_call_id: call.id, content: results[i] }));
+      for (const r of results) {
+        try {
+          const o = JSON.parse(r);
+          for (const kind of SOURCE_KINDS) {
+            const n = Array.isArray(o?.[kind]) ? o[kind].length : 0;
+            if (n) sources.set(kind, Math.max(sources.get(kind) ?? 0, n));
+          }
+        } catch { /* clipped at 12k, so not always parseable; it just goes uncounted */ }
+      }
     }
   } catch (e) {
     console.error("assistant-chat failed", e);

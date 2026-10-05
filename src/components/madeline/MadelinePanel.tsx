@@ -1,84 +1,108 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { ArrowUp, Check, Copy, PanelRightClose, Paperclip, RotateCcw, X } from "lucide-react";
+import { ArrowUp, Check, CheckSquare, Copy, PanelRightClose, Paperclip, RotateCcw, Sparkles, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import { Orb } from "@/components/layout/Orb";
 import { ResultCard } from "@/components/command-center/ResultCard";
 import { ConfirmDialog } from "@/components/command-center/ConfirmDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useMadelineEngine } from "@/hooks/useMadeline";
 import { useMadeline, ITEM_LABEL, type MadelineItem, type MadelineItemKind, type MadelineTurn } from "@/store/madeline";
-import { useMeetings, useMessages, useTasks } from "@/data/hooks";
-import { meetingItem } from "@/lib/madelineItems";
+import { useMeetingNotes, useMeetings, useMessages, useTaskMutations, useTasks } from "@/data/hooks";
+import { emailItem, meetingItem, taskItem } from "@/lib/madelineItems";
+import { useFollowUps } from "@/hooks/useFollowUps";
+import { supabase } from "@/lib/supabase";
+import type { Flag } from "@/lib/followups";
 import { renderMarkdown } from "@/lib/sanitize";
 import { cn } from "@/lib/utils";
-import type { Meeting, Message, Task } from "@/types/db";
+import type { Meeting, MeetingNote, Message, Priority, Task } from "@/types/db";
 
-/** A starter: `send` runs it at once, `fill` puts it in the box to finish.
-    `item` attaches something as context (the meeting a prep is about). */
-interface Starter { label: string; send?: string; fill?: string; item?: Omit<MadelineItem, "path"> }
+/** An AI action: one click opens Madeline and sends `prompt`. `item` attaches
+    something as context (the meeting a prep is about). `hint` is the hover
+    text when the label alone doesn't say which thing it means. */
+interface Action { label: string; prompt: string; item?: Omit<MadelineItem, "path">; hint?: string }
 
 const shorten = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const at = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() : NaN);
+
+/* What each kind of open thing can be asked for. The labels are the client's
+   spec, word for word: a label, never an icon alone, and the same on every page. */
+const FOR_ITEM: Record<MadelineItemKind, Action[]> = {
+  task: [
+    { label: "Break into steps", prompt: "Break this task into 3 to 7 concrete steps I can tick off, in order." },
+    { label: "Draft follow-up", prompt: "Draft a short follow-up message about this task for the person waiting on it (the client, if there is one). Make it ready to send, but don't send it." },
+    { label: "Suggest priority", prompt: "Suggest a priority for this task (low, normal, high or urgent), weighing its due date against my other open tasks. Say why in one or two lines." },
+  ],
+  meeting: [
+    { label: "Prep me for this meeting", prompt: "Prep me for this meeting: who's attending, what it's about, related open tasks and recent emails, and what I should have ready." },
+    { label: "Summarize last meeting", prompt: "Summarise the last recorded meeting related to this one (same title, client or attendees): decisions, action items and anything still open." },
+  ],
+  email: [
+    { label: "Summarize thread", prompt: "Summarise this email thread: what's been said, what's being asked of me, and any deadlines." },
+    { label: "Draft reply", prompt: "Draft a reply to this email in my voice, ready for me to review. Don't send anything." },
+    { label: "Turn into task", prompt: "Turn this email into a task for me to review: propose a title, priority and due date." },
+  ],
+  client: [
+    { label: "Client brief", prompt: "Give me a brief on this client: who they are, how they like to work, and what's going on with them right now." },
+    { label: "What's pending for them?", prompt: "What's pending for this client? Their open and overdue tasks, emails waiting on a reply, and upcoming meetings." },
+  ],
+};
 
 /**
- * Starters built from today's actual work, not generic prompts.
+ * The AI actions for where the user is. The open thing (a task, meeting,
+ * email or client) decides first, wherever it was opened; otherwise the page
+ * does, from the same data the page shows.
  *
- * "Ask me anything" and "Ask AI · Anything at all" read as an open invitation,
- * and people took it: football history, trivia, homework. A chip that says
- * "2 overdue tasks: what first?" says what Madeline is for by showing it,
- * and is one tap from a useful answer. Counts are the same ones the Dashboard
- * shows (react-query already has the data), so they agree with the page.
+ * Only where there's something to work on: an empty day has no "Plan my day",
+ * a calendar with no recordings has no "Summarize last meeting". A chip that
+ * leads to "you have nothing" teaches people to ignore the chips.
  */
-function todayStarters(tasks: Task[], meetings: Meeting[], messages: Message[]): Starter[] {
+function pageActions(
+  path: string,
+  item: MadelineItem | null,
+  tasks: Task[], meetings: Meeting[], messages: Message[], notes: MeetingNote[],
+): Action[] {
+  if (item) return FOR_ITEM[item.kind];
+
   const now = Date.now();
   const start = new Date(); start.setHours(0, 0, 0, 0);
   const end = new Date(start); end.setDate(end.getDate() + 1);
-  const at = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() : NaN);
-
   const open = tasks.filter((t) => t.status !== "done");
   const overdue = open.filter((t) => at(t.due_at) < start.getTime());
   const dueToday = open.filter((t) => at(t.due_at) >= start.getTime() && at(t.due_at) < end.getTime());
-  const next = meetings
-    .filter((m) => at(m.starts_at) > now && at(m.starts_at) < end.getTime())
-    .sort((a, b) => at(a.starts_at) - at(b.starts_at))[0];
+  const meetingsToday = meetings.filter((m) => at(m.starts_at) >= start.getTime() && at(m.starts_at) < end.getTime());
   const waiting = messages.filter((m) => m.direction !== "outbound" && !m.first_reply_at);
+  const blocked = open.filter((t) => t.blocked);
 
-  const out: Starter[] = [];
-  if (next) {
-    const time = new Date(next.starts_at!).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    out.push({ label: `Prep for ${shorten(next.title, 26)} at ${time}`, send: "Prep me for this meeting.", item: meetingItem(next) });
+  const out: Action[] = [];
+  if (path === "/") {
+    if (meetingsToday.length || dueToday.length || overdue.length) {
+      out.push({ label: "Plan my day", prompt: "Plan my day: put today's meetings and my tasks due today or overdue into a realistic order with times, and flag anything that won't fit." });
+    }
+    if (overdue.length || waiting.length || blocked.length) {
+      out.push({ label: "What needs attention?", prompt: "What needs my attention right now? Check overdue and blocked tasks, emails waiting on a reply and today's meetings. Most urgent first." });
+    }
+  } else if (path.startsWith("/tasks")) {
+    if (open.length) {
+      out.push({ label: "Suggest priority", prompt: "Look at my open tasks and suggest what to prioritise: the three to do next, and any whose priority looks wrong." });
+    }
+  } else if (path.startsWith("/calendar")) {
+    // Nothing open: "this meeting" is the next one, named on hover and
+    // attached as context so the answer is about it.
+    const next = meetings
+      .filter((m) => at(m.starts_at) > now)
+      .sort((a, b) => at(a.starts_at) - at(b.starts_at))[0];
+    if (next) {
+      const time = new Date(next.starts_at!).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit", hour12: true });
+      out.push({ ...FOR_ITEM.meeting[0], item: meetingItem(next), hint: `Next: ${next.title}, ${time}` });
+    }
+    if (notes.length) {
+      out.push({ label: "Summarize last meeting", prompt: "Summarise my most recent recorded meeting: decisions, action items and anything still open.", hint: `Last: ${notes[0].title}` });
+    }
   }
-  if (overdue.length) out.push({ label: `${plural(overdue.length, "overdue task")}: what first?`, send: "Which overdue tasks should I tackle first, and why?" });
-  if (dueToday.length) out.push({ label: `${plural(dueToday.length, "task")} due today`, send: "Walk me through the tasks due today, most urgent first." });
-  if (waiting.length) out.push({ label: `${plural(waiting.length, "email")} waiting on a reply`, send: "Which emails are waiting on a reply from me, and which is most urgent?" });
-
-  // A quiet day still gets work-shaped starters, never "ask me anything".
-  if (out.length < 2) out.push({ label: "What's on my plate today?", send: "What's on my plate today?" });
-  if (out.length < 2) out.push({ label: "What's coming up this week?", send: "What tasks and meetings do I have coming up this week?" });
   return out;
 }
-
-/* What people ask about the thing they have open. These are the reason the
-   panel knows where you are: one tap instead of retyping the subject. */
-const FOR_ITEM: Record<MadelineItemKind, Starter[]> = {
-  task: [
-    { label: "What's the next step?", send: "What's the next step on this task?" },
-    { label: "Draft a client update", send: "Draft a short update for the client on this task." },
-  ],
-  meeting: [
-    { label: "Prep me for this meeting", send: "Prep me for this meeting." },
-    { label: "Draft a follow-up", send: "Draft a follow-up email for this meeting." },
-  ],
-  client: [
-    { label: "Brief me on this client", send: "Brief me on this client: open tasks, recent emails and anything overdue." },
-    { label: "Draft a check-in", send: "Draft a short check-in email to this client." },
-  ],
-  email: [
-    { label: "Draft a reply", send: "Draft a reply to this email." },
-    { label: "What does it need from me?", send: "Summarise this email and tell me what it needs from me." },
-  ],
-};
 
 /**
  * The one Madeline panel. Docked beside the page on wide screens, sliding over
@@ -101,7 +125,13 @@ export function MadelinePanel() {
   const { data: tasks = [] } = useTasks();
   const { data: meetings = [] } = useMeetings();
   const { data: messages = [] } = useMessages();
-  const today = useMemo(() => todayStarters(tasks, meetings, messages), [tasks, meetings, messages]);
+  const { data: notes = [] } = useMeetingNotes();
+  const { flags } = useFollowUps();
+  const routePath = useMadeline((s) => s.routePath);
+  const actions = useMemo(
+    () => pageActions(routePath, item, tasks, meetings, messages, notes),
+    [routePath, item, tasks, meetings, messages, notes],
+  );
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -140,17 +170,15 @@ export function MadelinePanel() {
   if (!open) return null;
 
   const firstName = user?.name?.split(" ")[0];
-  const starters = item ? FOR_ITEM[item.kind] : today;
 
   function submit() {
     if (running || !draft.trim()) return;
     send(draft);
   }
 
-  function runStarter(s: Starter) {
-    if (s.send && s.item) useMadeline.getState().ask(s.send, { item: s.item, send: true });
-    else if (s.send) send(s.send);
-    else if (s.fill) { setDraft(s.fill); inputRef.current?.focus(); }
+  function runAction(a: Action) {
+    if (a.item) useMadeline.getState().ask(a.prompt, { item: a.item, send: true });
+    else send(a.prompt);
   }
 
   const go = (path: string) => navigate(path);
@@ -208,32 +236,39 @@ export function MadelinePanel() {
         {/* Conversation */}
         <div ref={scrollRef} className="flex flex-1 flex-col gap-3 overflow-y-auto py-3 pr-1" aria-live="polite">
           {turns.length === 0 && (
-            <AiBubble>
-              {`Hi${firstName ? ` ${firstName}` : ""}, I'm Madeline. I can see your tasks, calendar, inbox, clients and SOPs. ` +
-                (item
-                  ? `You have ${ITEM_LABEL[item.kind].toLowerCase()} "${item.label}" open. Ask me about it, or pick one below.`
-                  : "Ask about your tasks, clients, meetings or inbox, or start with one of today's below.")}
-            </AiBubble>
+            <Welcome
+              firstName={firstName}
+              item={item}
+              tasks={tasks}
+              meetings={meetings}
+              messages={messages}
+              flags={flags}
+              disabled={running}
+              onPick={(sg) => (sg.item ? useMadeline.getState().ask(sg.prompt, { item: sg.item, send: true }) : send(sg.prompt))}
+            />
           )}
           {turns.map((t) => <TurnView key={t.id} turn={t} onNavigate={go} />)}
         </div>
 
-        {/* Starters: about the open item when there is one, today's work otherwise.
-            They wrap. A sideways-scrolling row cut the last chip in half
+        {/* AI actions for this page or the open item. Always a word label.
+            They wrap: a sideways-scrolling row cut the last chip in half
             ("Pre…") and hid the rest with no sign there were more. */}
-        <div className="flex shrink-0 flex-wrap gap-1.5 pb-2">
-          {starters.map((s) => (
-            <button
-              key={s.label}
-              onClick={() => runStarter(s)}
-              disabled={running && !!s.send}
-              className="max-w-full truncate rounded-full border border-border bg-surface-2 px-3 py-1.5 text-xs font-bold transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
-              title={s.label}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
+        {actions.length > 0 && (
+          <div className="flex shrink-0 flex-wrap gap-1.5 pb-2" role="group" aria-label="AI actions">
+            {actions.map((a) => (
+              <button
+                key={a.label}
+                onClick={() => runAction(a)}
+                disabled={running}
+                className="flex max-w-full items-center gap-1.5 rounded-full border border-border bg-surface-2 px-3 py-1.5 text-xs font-bold transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+                title={a.hint ?? a.label}
+              >
+                <Sparkles size={12} className="shrink-0 text-accent" aria-hidden="true" />
+                <span className="truncate">{a.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* What Madeline is looking at. Removable: sometimes you want to ask
             about something else without closing the task first. */}
@@ -306,7 +341,7 @@ function TurnView({ turn, onNavigate }: { turn: MadelineTurn; onNavigate: (path:
           </div>
         </div>
       )}
-      {turn.result?.kind === "text" && <AiMarkdown markdown={turn.result.markdown} />}
+      {turn.result?.kind === "text" && <AiReply turn={turn} />}
       {turn.result && turn.result.kind !== "text" && (
         <div className="max-w-[92%] self-start">
           <ResultCard result={turn.result} onNavigate={onNavigate} />
@@ -316,14 +351,283 @@ function TurnView({ turn, onNavigate }: { turn: MadelineTurn; onNavigate: (path:
   );
 }
 
-function AiBubble({ children }: { children: React.ReactNode }) {
+/* ── Madeline's first screen ───────────────────────────────────────────────
+   Instead of an empty chat, what she can do today from the user's real work:
+   a greeting with a one-line summary, up to three suggestions built from
+   today's meetings, follow-ups and deadlines, and one quiet line of examples
+   so a non-technical user knows what to ask. */
+
+interface Suggestion { label: string; prompt: string; item?: Omit<MadelineItem, "path"> }
+
+function greetingWord(): string {
+  const h = new Date().getHours();
+  return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+}
+
+function Welcome({
+  firstName, item, tasks, meetings, messages, flags, onPick, disabled,
+}: {
+  firstName?: string;
+  item: MadelineItem | null;
+  tasks: Task[]; meetings: Meeting[]; messages: Message[]; flags: Flag[];
+  onPick: (s: Suggestion) => void;
+  disabled: boolean;
+}) {
+  const { summary, suggestions } = useMemo(() => {
+    const now = Date.now();
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const end = new Date(start); end.setDate(end.getDate() + 1);
+    const open = tasks.filter((t) => t.status !== "done");
+    const dueToday = open.filter((t) => at(t.due_at) >= start.getTime() && at(t.due_at) < end.getTime());
+    const overdue = open.filter((t) => at(t.due_at) < start.getTime());
+    const today = meetings.filter((m) => at(m.starts_at) >= start.getTime() && at(m.starts_at) < end.getTime());
+
+    const parts = [`${plural(dueToday.length, "task")}`, `${plural(today.length, "meeting")}`];
+    const summary = dueToday.length || today.length || overdue.length
+      ? `You have ${parts.join(" and ")} today${overdue.length ? `, plus ${overdue.length} overdue` : ""}. Want a hand?`
+      : "Nothing's due today. Want to look at what's coming up?";
+
+    const out: Suggestion[] = [];
+    const next = meetings
+      .filter((m) => at(m.starts_at) > now && at(m.starts_at) < now + 24 * 3_600_000)
+      .sort((a, b) => at(a.starts_at) - at(b.starts_at))[0];
+    if (next) {
+      const time = new Date(next.starts_at!).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+      out.push({
+        label: next.with && next.with !== "Internal" ? `Prep me for the ${time} with ${shorten(next.with, 22)}` : `Prep me for ${shorten(next.title, 24)} at ${time}`,
+        prompt: "Prep me for this meeting.",
+        item: meetingItem(next),
+      });
+    }
+    const flag = flags[0];
+    if (flag) {
+      const who = flag.subtitle && flag.subtitle !== "No client" ? flag.subtitle : shorten(flag.title, 26);
+      const task = flag.itemType === "task" ? tasks.find((t) => t.id === flag.itemId) : undefined;
+      const msg = flag.itemType === "message" ? messages.find((m) => m.id === flag.itemId) : undefined;
+      out.push({
+        label: `Draft a follow-up to ${shorten(who, 26)} (${plural(flag.days, "day")})`,
+        prompt: `Draft a short follow-up about this. ${flag.reason}, so acknowledge that and ask for an update. Ready to send, but don't send it.`,
+        item: task ? taskItem(task) : msg ? emailItem(msg) : undefined,
+      });
+    }
+    const day = new Date().getDay(); // 0 Sun … 6 Sat
+    if (open.some((t) => t.due_at)) {
+      out.push(day >= 1 && day <= 4
+        ? { label: "What's due before Friday?", prompt: "What's due before the end of Friday? My tasks due by then, most urgent first." }
+        : { label: "What's due next week?", prompt: "What's due next week? My tasks due in the next 7 days, most urgent first." });
+    }
+    if (!out.length) out.push({ label: "What's on my plate today?", prompt: "What's on my plate today?" });
+    return { summary, suggestions: out.slice(0, 3) };
+  }, [tasks, meetings, messages, flags]);
+
   return (
-    <div className="flex max-w-[92%] items-start gap-2 self-start">
-      <span className="madeline-orb madeline-orb-still mt-1.5 h-[22px] w-[22px] shrink-0" aria-hidden="true" />
-      <div className="rounded-[14px_14px_14px_4px] border border-border bg-surface-2 px-3.5 py-2.5 text-[13px] leading-relaxed">
-        {children}
+    <div className="flex flex-col gap-3 px-1 pt-1">
+      <div>
+        <p className="text-lg font-extrabold tracking-tight">{greetingWord()}{firstName ? `, ${firstName}` : ""}.</p>
+        <p className="mt-0.5 text-[13px] text-muted">
+          {item ? `You have ${ITEM_LABEL[item.kind].toLowerCase()} "${shorten(item.label, 60)}" open. Pick an action below or ask about it.` : summary}
+        </p>
       </div>
+      {!item && (
+        <div>
+          <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wider text-faint">Suggested for today</p>
+          <div className="flex flex-col gap-1.5">
+            {suggestions.map((s) => (
+              <button
+                key={s.label}
+                onClick={() => onPick(s)}
+                disabled={disabled}
+                className="rounded-xl border border-border bg-surface-2 px-3 py-2 text-left text-[13px] font-semibold transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <p className="text-xs text-faint">I can also help with emails, meeting prep, client briefs and SOPs.</p>
     </div>
+  );
+}
+
+/* ── An answer ─────────────────────────────────────────────────────────────
+   Short text first (the server asks for one sentence and a few bullets),
+   then: the sources it read ("4 meetings · 2 tasks", each opens its page),
+   the next step as a button, and 👍/👎.
+
+   Two kinds of fenced block can ride at the end of a reply and are turned
+   into UI instead of shown as code:
+     ```task  {title, priority, due}   → "Create task" card (nothing is saved
+                                          until the user presses it)
+     ```next  [{label, prompt|open}]   → next-step buttons */
+
+interface ProposedTask { title: string; priority: Priority; due: string | null }
+interface NextStep { label: string; prompt?: string; open?: string }
+
+const PRIORITIES: Priority[] = ["low", "normal", "high", "urgent"];
+const OPEN_PATHS: Record<string, string> = {
+  tasks: "/tasks", calendar: "/calendar", inbox: "/inbox", clients: "/clients", sops: "/sops",
+};
+const SOURCE_LABEL: Record<string, [string, string]> = {
+  tasks: ["task", "/tasks"],
+  meetings: ["meeting", "/calendar"],
+  emails: ["email", "/inbox"],
+  clients: ["client", "/clients"],
+  sops: ["SOP", "/sops"],
+  meeting_notes: ["meeting note", "/meeting-intelligence"],
+};
+
+function takeBlock(markdown: string, lang: string): { text: string; json: unknown } {
+  const m = new RegExp("```" + lang + "\\s*\\n([\\s\\S]*?)```").exec(markdown);
+  if (!m) return { text: markdown, json: undefined };
+  try {
+    return { text: markdown.replace(m[0], "").trim(), json: JSON.parse(m[1]) };
+  } catch {
+    return { text: markdown.replace(m[0], "").trim(), json: undefined };
+  }
+}
+
+function parseReply(markdown: string): { text: string; task: ProposedTask | null; next: NextStep[] } {
+  const t = takeBlock(markdown, "task");
+  const n = takeBlock(t.text, "next");
+  let task: ProposedTask | null = null;
+  const raw = t.json as { title?: unknown; priority?: unknown; due?: unknown } | undefined;
+  if (raw && typeof raw.title === "string" && raw.title.trim()) {
+    task = {
+      title: raw.title.trim().slice(0, 200),
+      priority: PRIORITIES.includes(raw.priority as Priority) ? (raw.priority as Priority) : "normal",
+      due: typeof raw.due === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.due) ? raw.due : null,
+    };
+  }
+  const next = (Array.isArray(n.json) ? n.json : [])
+    .filter((x): x is NextStep =>
+      !!x && typeof x.label === "string" && x.label.trim().length > 0 &&
+      ((typeof x.prompt === "string" && x.prompt.trim().length > 0) || (typeof x.open === "string" && x.open in OPEN_PATHS)))
+    .slice(0, 2)
+    .map((x) => ({ label: x.label.trim().slice(0, 40), prompt: x.prompt?.slice(0, 600), open: x.open }));
+  return { text: n.text, task, next };
+}
+
+function AiReply({ turn }: { turn: MadelineTurn }) {
+  const markdown = turn.result?.kind === "text" ? turn.result.markdown : "";
+  const { text, task, next } = useMemo(() => parseReply(markdown), [markdown]);
+  const { create } = useTaskMutations();
+  const { send, running } = useMadelineEngine();
+  const { user, demo } = useAuth();
+  const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirm() {
+    if (!task) return;
+    setError(null);
+    try {
+      const res = await create.mutateAsync({ title: task.title, priority: task.priority, due_at: task.due });
+      useMadeline.getState().patchTurn(turn.id, { createdTaskId: res?.id ?? "created" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The task couldn't be created.");
+    }
+  }
+
+  function rate(r: 1 | -1) {
+    const rating = turn.rating === r ? undefined : r;
+    useMadeline.getState().patchTurn(turn.id, { rating });
+    if (!supabase || demo || !user || !rating) return;
+    void supabase.from("madeline_feedback").upsert({
+      user_id: user.id,
+      turn_id: turn.id,
+      rating,
+      prompt: turn.prompt.slice(0, 4000),
+      reply: markdown.slice(0, 12000),
+      page: useMadeline.getState().routePath,
+    }, { onConflict: "user_id,turn_id" }).then(() => undefined, () => undefined);
+  }
+
+  const due = task?.due ? new Date(`${task.due}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) : "No due date";
+  const sources = (turn.sources ?? []).filter((s) => SOURCE_LABEL[s.kind]);
+
+  return (
+    <>
+      {text && <AiMarkdown markdown={text} />}
+      {task && (
+        <div className="ml-[30px] max-w-[85%] self-start rounded-xl border border-accent/40 bg-accent/5 p-3 text-[13px]">
+          <p className="text-[10.5px] font-bold uppercase tracking-wide text-faint">Proposed task</p>
+          <p className="mt-1 font-bold leading-snug">{task.title}</p>
+          <p className="mt-0.5 text-xs text-muted">Priority {task.priority} · {due}</p>
+          {turn.createdTaskId ? (
+            <button onClick={() => navigate("/tasks")} className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-accent hover:underline">
+              <Check size={13} /> Created. Open Task Manager
+            </button>
+          ) : (
+            <button
+              onClick={confirm}
+              disabled={create.isPending}
+              className="mt-2.5 flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-white transition-transform hover:scale-[1.02] disabled:opacity-50"
+            >
+              <CheckSquare size={13} /> {create.isPending ? "Creating…" : "Create task"}
+            </button>
+          )}
+          {error && <p className="mt-1.5 text-xs text-red-400">{error}</p>}
+        </div>
+      )}
+
+      <div className="ml-[30px] flex max-w-[88%] flex-col gap-2 self-start">
+        {sources.length > 0 && (
+          <div className="flex flex-wrap gap-1.5" aria-label="What this answer used">
+            {sources.map((s) => {
+              const [word, path] = SOURCE_LABEL[s.kind];
+              return (
+                <button
+                  key={s.kind}
+                  onClick={() => navigate(path)}
+                  title={`Open ${path.slice(1).replace(/-/g, " ")}`}
+                  className="rounded-full border border-border px-2 py-0.5 text-[11px] font-semibold text-muted transition-colors hover:border-accent hover:text-accent"
+                >
+                  {plural(s.count, word)}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {next.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {next.map((n, i) => (
+              <button
+                key={n.label}
+                disabled={running && !!n.prompt}
+                onClick={() => (n.prompt ? send(n.prompt) : navigate(OPEN_PATHS[n.open!]))}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-xs font-bold transition-colors disabled:opacity-40",
+                  i === 0 ? "bg-accent text-white hover:brightness-110" : "border border-accent text-accent hover:bg-accent/10",
+                )}
+              >
+                {n.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => rate(1)}
+            aria-label="Good answer"
+            aria-pressed={turn.rating === 1}
+            title="Good answer"
+            className={cn("rounded-md p-1 transition-colors hover:text-text", turn.rating === 1 ? "text-accent" : "text-faint")}
+          >
+            <ThumbsUp size={13} fill={turn.rating === 1 ? "currentColor" : "none"} />
+          </button>
+          <button
+            onClick={() => rate(-1)}
+            aria-label="Bad answer"
+            aria-pressed={turn.rating === -1}
+            title="Bad answer"
+            className={cn("rounded-md p-1 transition-colors hover:text-text", turn.rating === -1 ? "text-accent" : "text-faint")}
+          >
+            <ThumbsDown size={13} fill={turn.rating === -1 ? "currentColor" : "none"} />
+          </button>
+          {turn.rating && <span className="text-[10.5px] text-faint">Thanks, noted.</span>}
+        </div>
+      </div>
+    </>
   );
 }
 

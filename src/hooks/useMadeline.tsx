@@ -23,7 +23,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { useTaskMutations, useReminderMutations } from "@/data/hooks";
 import { NAV } from "@/lib/constants";
-import { assistantChat, generate, type ChatMessage } from "@/lib/ai";
+import { assistantChat, assistantChatReply, generate, type ChatMessage } from "@/lib/ai";
+import { useMadelineSync } from "@/hooks/useMadelineSync";
 import { useWorkspace, uid } from "@/store/workspace";
 import { useMadeline, currentItem, ITEM_LABEL, type MadelineItem, type MadelineTurn } from "@/store/madeline";
 
@@ -106,6 +107,7 @@ export function MadelineProvider({ children }: { children: ReactNode }) {
   const pageLabel = pageLabelFor(pathname);
 
   useEffect(() => { useMadeline.setState({ routePath: pathname }); }, [pathname]);
+  useMadelineSync();
 
   const workspace = useMemo<WorkspaceApi>(() => ({
     createProject: (title, description) => ws.addProject(title, description),
@@ -186,11 +188,14 @@ export function MadelineProvider({ children }: { children: ReactNode }) {
     }
     messages.push({ role: "user", content: raw });
 
-    assistantChat(messages, {
+    assistantChatReply(messages, {
       page,
       item: here ? { kind: here.kind, label: here.label, details: here.details } : undefined,
     })
-      .then((reply) => done({ kind: "text", markdown: reply || "I couldn't come up with an answer to that. Try rephrasing it." }))
+      .then(({ reply, sources }) => {
+        if (sources.length) useMadeline.getState().patchTurn(turnId, { sources });
+        done({ kind: "text", markdown: reply || "I couldn't come up with an answer to that. Try rephrasing it." });
+      })
       .catch((e) => done({ kind: "error", message: e instanceof Error ? e.message : String(e) }));
   }, [navigate, workspace]);
 

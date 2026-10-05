@@ -128,9 +128,12 @@ export function zoneLabel(tz: string, on: DayKey): string {
   return parts.find((p) => p.type === "timeZoneName")?.value ?? tz;
 }
 
+/* Always 12-hour with AM/PM. The browser's own locale decided before, so the
+   same meeting read "15:00" on one laptop and "3:00 PM" on another, beside an
+   hour grid labelled "3pm". */
 export function timeLabel(iso: string, tz: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    timeZone: tz, hour: "numeric", minute: "2-digit",
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true,
   }).format(new Date(iso));
 }
 

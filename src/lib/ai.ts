@@ -187,15 +187,31 @@ export interface ChatContext {
   item?: { kind: "task" | "meeting" | "client" | "email"; label: string; details: string };
 }
 
-export async function assistantChat(messages: ChatMessage[], context?: ChatContext): Promise<string> {
+/** What an answer was built from: "4 meetings", "2 tasks". */
+export interface ChatSource {
+  kind: "tasks" | "meetings" | "emails" | "clients" | "sops" | "meeting_notes";
+  count: number;
+}
+
+export interface ChatReply { reply: string; sources: ChatSource[] }
+
+export async function assistantChatReply(messages: ChatMessage[], context?: ChatContext): Promise<ChatReply> {
   if (isSupabaseConfigured && supabase) {
     // The server can't know the user's "today" on its own: its clock is UTC, and
     // "what's on my plate today" at 8am in Manila is still yesterday there.
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const { data, error } = await supabase.functions.invoke("assistant-chat", { body: { messages, timezone, context } });
     if (error) throw await aiError(error, "Madeline is unavailable right now.");
-    return (data as { reply: string }).reply;
+    const d = data as { reply: string; sources?: ChatSource[] };
+    return { reply: d.reply, sources: Array.isArray(d.sources) ? d.sources : [] };
   }
   await new Promise((r) => setTimeout(r, 600));
-  return "[DEMO] I'm Madeline. Connect Supabase + OpenAI to enable live, context-aware replies that know your tasks, meetings and clients.";
+  return {
+    reply: "[DEMO] I'm Madeline. Connect Supabase + OpenAI to enable live, context-aware replies that know your tasks, meetings and clients.",
+    sources: [],
+  };
+}
+
+export async function assistantChat(messages: ChatMessage[], context?: ChatContext): Promise<string> {
+  return (await assistantChatReply(messages, context)).reply;
 }

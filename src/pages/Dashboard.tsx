@@ -91,9 +91,18 @@ export default function Dashboard() {
     }
   }, [breachedMail, cfg]);
 
+  /* Today only. It counted every meeting on file, so a synced calendar read
+     "Meetings today: 40" and disagreed with Madeline, who counts today. */
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = dayStart.getTime() + 86_400_000;
+  const meetingsToday = meetings.filter((m) => {
+    const t = m.starts_at ? new Date(m.starts_at).getTime() : NaN;
+    return t >= dayStart.getTime() && t < dayEnd;
+  }).length;
+
   const kpis = [
     { label: "Tasks Active", value: tasks.filter((t) => t.status !== "done").length },
-    { label: "Meetings Today", value: meetings.length },
+    { label: "Meetings Today", value: meetingsToday },
     { label: "Emails Pending", value: messages.filter((m) => m.direction !== "outbound" && !m.first_reply_at).length },
     { label: "Clients At Risk", value: atRisk.length, onClick: () => nav("/clients") },
     { label: "Needs Follow-up", value: flags.length },

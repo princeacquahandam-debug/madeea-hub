@@ -98,7 +98,7 @@ const SCOPE =
   "thing you can do instead.";
 
 const OFF_TOPIC_REPLY =
-  "I can only help with work here: emails, calendar, tasks, clients, SOPs and documents. " +
+  "Ha, that one's outside my lane! I'm here for your work: emails, tasks, clients, SOPs and documents. " +
   "Try something like \"Draft a follow-up to my last client meeting\" or \"Summarise this contract\".";
 
 const TOPIC_CHECK =

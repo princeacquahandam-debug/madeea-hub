@@ -187,7 +187,9 @@ export default function Communication() {
      of mistake you cannot take back. */
   const selected = list.find((m) => m.id === selectedId) ?? list[0] ?? null;
   // The email on screen is the one "draft a reply to this" means.
-  useMadelineContext(selected ? emailItem(selected) : null);
+  // With the rest of its thread, so "Summarize thread" reads the conversation.
+  const selectedThread = selected ? threads.find((t) => t.messages.some((m) => m.id === selected.id))?.messages : undefined;
+  useMadelineContext(selected ? emailItem(selected, selectedThread) : null);
 
 
   /* Result counts, spoken. A search that narrows 89 conversations to 2 is a

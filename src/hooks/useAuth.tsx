@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { clearLocalWorkspaceData } from "@/lib/localData";
 import { USER } from "@/data/seed";
+import { useMadeline } from "@/store/madeline";
 
 interface SessionUser {
   /* Needed to tell "sent by me" from "sent by the agency" in the client
@@ -12,6 +13,8 @@ interface SessionUser {
   email: string;
   name: string;
   initials: string;
+  /** Finished or skipped the guided tour (user metadata, so every device knows). */
+  tourDone: boolean;
 }
 
 interface AuthState {
@@ -38,7 +41,7 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-const DEMO_USER: SessionUser = { id: "demo-user", email: "rio@madeea.com", name: USER.name, initials: USER.initials };
+const DEMO_USER: SessionUser = { id: "demo-user", email: "rio@madeea.com", name: USER.name, initials: USER.initials, tourDone: false };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -155,6 +158,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // transcripts, prep packets and cached rows. Clear both, and do it even if
       // signOut() above threw, so a failed network call can't leave data behind.
       clearLocalWorkspaceData();
+      // Madeline's thread too. It's saved on the account (0080) and comes back
+      // at the next sign-in; the session is already gone, so this can't
+      // overwrite the saved copy.
+      useMadeline.getState().clearTurns();
       queryClient.clear();
       setUser(null);
     },
@@ -170,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 function sameUser(a: SessionUser | null, b: SessionUser | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
-  return a.id === b.id && a.email === b.email && a.name === b.name && a.initials === b.initials;
+  return a.id === b.id && a.email === b.email && a.name === b.name && a.initials === b.initials && a.tourDone === b.tourDone;
 }
 
 /** Title-case an email local part: "rio.castillo" becomes "Rio Castillo". */
@@ -184,7 +191,7 @@ function nameFromEmail(email: string): string {
 }
 
 function toUser(
-  u: { id?: string; email?: string; user_metadata?: { full_name?: string; name?: string } } | undefined | null,
+  u: { id?: string; email?: string; user_metadata?: { full_name?: string; name?: string; tour_done_at?: string } } | undefined | null,
 ): SessionUser | null {
   if (!u?.email) return null;
   /* The greeting used the raw email local part, so the first thing on screen
@@ -193,7 +200,7 @@ function toUser(
      firstname.lastname addresses this workspace uses. */
   const name = u.user_metadata?.full_name?.trim() || u.user_metadata?.name?.trim() || nameFromEmail(u.email);
   const initials = name.split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
-  return { id: u.id ?? "", email: u.email, name, initials };
+  return { id: u.id ?? "", email: u.email, name, initials, tourDone: !!u.user_metadata?.tour_done_at };
 }
 
 export function useAuth() {
