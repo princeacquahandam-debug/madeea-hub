@@ -79,7 +79,13 @@ const PROVIDERS: Record<Provider, {
     scopes: [
       "https://www.googleapis.com/auth/gmail.readonly",
       "https://www.googleapis.com/auth/gmail.send",
-      "https://www.googleapis.com/auth/calendar.readonly",
+      /* calendar.events, not calendar.readonly: it reads AND adds events on the
+         calendars the person has, which is all calendar-sync (events.list) and
+         calendar-create-event (events.insert) touch. readonly was asked for
+         alone, so "New event" and booking a planned block could never work:
+         every token lacked the scope those check for. One scope for both is
+         also the narrower ask Google's app review wants. */
+      "https://www.googleapis.com/auth/calendar.events",
       "openid", "email", "profile",
     ].join(" "),
     scopeSeparator: " ",
