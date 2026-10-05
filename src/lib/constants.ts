@@ -19,6 +19,7 @@ import {
   GraduationCap,
   StickyNote,
   CalendarDays,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -43,7 +44,16 @@ import {
    that opens onto nothing is worse than no group. "Second Brain" is gone
    because §7 removes it by name (8:39).
    --------------------------------------------------------------------------- */
-export const NAV_GROUPS = ["My Day", "Clients & Files", "Playbook", "Insights", "Setup"] as const;
+/* 28 Sep audit (Abder): the sidebar was taller than the page, and closed
+   groups hid what was in them. Pages that are two halves of one job became
+   tabs of one page (Calendar + Meeting Intelligence, Task Manager + Routines,
+   Time Tracker + Screenshots, Notes + Uploads + Saved), which emptied Insights:
+   Meeting Intelligence went to Calendar and the Scoreboard to Client Vault.
+   Video Instruction is a tab of SOP and Automation of Integrations, and the
+   Admin Panel moved into Setup instead of a heading of its own.
+   Twenty-one links became thirteen for an admin and twelve for an EA, and
+   both fit on a laptop screen with every group open. */
+export const NAV_GROUPS = ["My Day", "Clients & Files", "Playbook", "Setup"] as const;
 export type NavGroup = (typeof NAV_GROUPS)[number];
 
 export interface NavItem {
@@ -60,6 +70,14 @@ export interface NavItem {
    * enforced in Postgres, not here.
    */
   minRole?: "owner" | "admin" | "manager" | "employee";
+  /**
+   * A TAB, not a sidebar link: the path of the page it sits beside. It keeps
+   * its own route (old links and bookmarks still work), shows as a tab at the
+   * top of that page, and lights up the parent's sidebar link.
+   */
+  parent?: string;
+  /** The tab's name when it isn't the label ("Tasks" inside Task Manager). */
+  tab?: string;
 }
 
 export const NAV: NavItem[] = [
@@ -79,26 +97,34 @@ export const NAV: NavItem[] = [
      round of dead links. /communication already redirects here. */
   { to: "/inbox", label: "Communication Center", icon: Mail, group: "My Day" },
   { to: "/calendar", label: "Calendar", icon: CalendarDays, group: "My Day" },
-  { to: "/tasks", label: "Task Manager", icon: CheckSquare, group: "My Day" },
+  // What a meeting produced belongs beside when it happened.
+  { to: "/meeting-intelligence", label: "Meeting Intelligence", icon: Brain, group: "My Day", parent: "/calendar" },
+  { to: "/tasks", label: "Task Manager", icon: CheckSquare, group: "My Day", tab: "Tasks" },
+  /* Routines make tasks, so they sit with them. Beta, because it was called
+     beta on the 14 Sep walkthrough and labelled nowhere. */
+  { to: "/routines", label: "Routines", icon: Repeat, group: "My Day", parent: "/tasks", badge: "Beta" },
   /* AI Quick Actions left the sidebar: it was a fifth place to meet the AI.
      Its starters live in Madeline now. The route stays for Calendar's
      "Plan this day", which books the slots it proposes. */
   // The day closes here: what you did, and that you were there to do it.
   { to: "/eod", label: "EOD Reports", icon: ClipboardList, group: "My Day" },
-  { to: "/time", label: "Time Tracker", icon: Clock, group: "My Day" },
+  { to: "/time", label: "Time Tracker", icon: Clock, group: "My Day", tab: "Time" },
   // Beside the tracker, because a screenshot only means anything next to the
   // session that produced it.
-  { to: "/screenshots", label: "Screenshots", icon: Camera, group: "My Day" },
+  { to: "/screenshots", label: "Screenshots", icon: Camera, group: "My Day", parent: "/time" },
 
   /* ---- Clients & Files ----------------------------------------------------
      Everything you go looking FOR rather than work you do. The client record
      and their logins sit together because that is how you arrive at them: you
      open the client, then you need to get into their tools. */
-  { to: "/clients", label: "Client Vault", icon: Users, group: "Clients & Files" },
+  { to: "/clients", label: "Client Vault", icon: Users, group: "Clients & Files", tab: "Clients" },
   { to: "/credentials", label: "Password Manager", icon: KeyRound, group: "Clients & Files" },
-  { to: "/notes", label: "Notes", icon: StickyNote, group: "Clients & Files" },
-  { to: "/uploads", label: "Uploads", icon: Upload, group: "Clients & Files" },
-  { to: "/saved", label: "Saved", icon: Bookmark, group: "Clients & Files" },
+  { to: "/notes", label: "Notes & Files", icon: StickyNote, group: "Clients & Files", tab: "Notes" },
+  { to: "/uploads", label: "Uploads", icon: Upload, group: "Clients & Files", parent: "/notes" },
+  { to: "/saved", label: "Saved", icon: Bookmark, group: "Clients & Files", parent: "/notes" },
+  /* How each client's work is going, computed from tasks and EOD data. A
+     manager's view of the team, so managers and up; a tab of the client list. */
+  { to: "/scoreboard", label: "Client Scoreboard", icon: Trophy, group: "Clients & Files", minRole: "manager", parent: "/clients", tab: "Scoreboard" },
 
   /* ---- Playbook -----------------------------------------------------------
      Work defined once and reused, which is the whole point of R-4.6.6: the SOP
@@ -114,7 +140,7 @@ export const NAV: NavItem[] = [
      standard, and the product should say what the pitch says.
 
      The route stays /sops, which it never stopped being. */
-  { to: "/sops", label: "SOP", icon: ClipboardCheck, group: "Playbook" },
+  { to: "/sops", label: "SOP", icon: ClipboardCheck, group: "Playbook", tab: "SOPs" },
   /* ADMINS ONLY, AND THIS IS A COST CONTROL, NOT A PERMISSION.
      Rowena, 14 Sep (24:06): "huwag mong ipapakita yan" — video capture is the
      most expensive thing in the app by a wide margin, and the team watched a
@@ -124,11 +150,11 @@ export const NAV: NavItem[] = [
      Agreed on the call as a future upsell, so the page stays and the route
      stays mounted; only the door narrows.
      The page repeats the check. Hiding a link does not unbookmark it. */
-  { to: "/videos", label: "Video Instruction", icon: Video, group: "Playbook", minRole: "admin" },
+  // A tab of SOP: record it, then write it up.
+  { to: "/videos", label: "Video Instruction", icon: Video, group: "Playbook", minRole: "admin", parent: "/sops" },
   /* Called beta out loud on the 14 Sep walkthrough and labelled nowhere. An EA
      clicking into something half-built with no warning is a support ticket; a
      client watching it happen in a demo is worse. */
-  { to: "/routines", label: "Routines", icon: Repeat, group: "Playbook", badge: "Beta" },
   /* The Academy was routed but never in the nav. The only way in was a promo
      card in the sidebar footer, which is dismissible, so dismissing it hid the
      training entirely. "Training Center" is what the team calls it. */
@@ -137,8 +163,11 @@ export const NAV: NavItem[] = [
   /* ---- Setup --------------------------------------------------------------
      Configured once, then forgotten. Bottom of the list, away from daily work
      (nav-hierarchy: primary and secondary navigation stay separated). */
-  { to: "/automation", label: "Automation", icon: Workflow, group: "Setup" },
+  // Everyone connects their own Gmail/Outlook here, so everyone sees it.
   { to: "/integrations", label: "Integrations", icon: Plug, group: "Setup" },
+  // Workspace-wide rules: configured by an admin, not by each EA.
+  { to: "/automation", label: "Automation", icon: Workflow, group: "Setup", minRole: "admin", parent: "/integrations" },
+  { to: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "Setup", minRole: "admin", badge: "Admin" },
   /* Cut by the 09 Aug product direction, which judged every feature on two
      questions: does it prove the EA's work, and does it make the EA replaceable
      without pain. These answered neither, and each loses to a free tool:
@@ -170,7 +199,6 @@ export const NAV: NavItem[] = [
        Client Scoreboard     shows a client what their EA moved this week,
                              computed from tasks and EOD data rather than
                              claimed                                          */
-  { to: "/meeting-intelligence", label: "Meeting Intelligence", icon: Brain, group: "Insights" },
   /* Removed by the 10 Aug product audit (§7). The pages stay on disk and the
      routes are unmounted in App.tsx, so any of them returns by restoring one
      line here and one there. §6 asks for deferred work to be grayed out, not
@@ -187,8 +215,22 @@ export const NAV: NavItem[] = [
   // Not "Helper" any more. It computes real numbers out of tasks, messages and
   // meetings (lib/scoreboard.ts); the AI only writes a narrative over the top.
   // "Helper" was the naming family the audit emptied, and this is not one.
-  { to: "/scoreboard", label: "Client Scoreboard", icon: Trophy, group: "Insights" },
 ];
+
+/** The sidebar's own links: everything that isn't a tab of another page. */
+export const SIDEBAR_NAV = NAV.filter((n) => !n.parent);
+
+/** A page and its tabs, for the page at `pathname`; null when it has none. */
+export function tabsFor(pathname: string): { parent: NavItem; tabs: NavItem[] } | null {
+  const here = NAV.filter((n) => n.to !== "/" && pathname.startsWith(n.to))
+    .sort((a, b) => b.to.length - a.to.length)[0];
+  if (!here) return null;
+  const parentPath = here.parent ?? here.to;
+  const parent = NAV.find((n) => n.to === parentPath);
+  const children = NAV.filter((n) => n.parent === parentPath);
+  if (!parent || !children.length) return null;
+  return { parent, tabs: [parent, ...children] };
+}
 
 // The scrolling rail in the assistant panel. These have to be labels that exist
 // in QUICK_ACTION_GROUPS, otherwise the rail offers actions the menu cannot

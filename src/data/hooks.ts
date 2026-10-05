@@ -1279,7 +1279,12 @@ export function useMyRole() {
     staleTime: 15_000,
     refetchOnWindowFocus: true,
     queryFn: async () => {
-      if (!supabase) return "admin"; // demo mode previews the admin UI
+      // Demo mode previews the admin UI. madeea-demo-role (demo only) previews
+      // another role, so the EA sidebar can be checked without an account.
+      if (!supabase) {
+        try { const r = localStorage.getItem("madeea-demo-role"); if (r && r in ROLE_RANK) return r as MemberRole; } catch { /* storage blocked */ }
+        return "admin";
+      }
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
       if (!uid) return "ea";

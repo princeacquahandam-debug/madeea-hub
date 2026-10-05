@@ -10,6 +10,7 @@ import { MadelinePanel } from "@/components/madeline/MadelinePanel";
 import { CommandPalette } from "@/components/CommandPalette";
 import { FloatingSop } from "@/components/FloatingSop";
 import { GuideCard } from "@/components/GuideCard";
+import { RoleBlocked, SectionTabs, useRoleBlocked } from "@/components/layout/SectionTabs";
 import { MonitoringProvider } from "@/store/monitoringContext";
 import { GuidedTour } from "@/components/GuidedTour";
 import { useUI } from "@/store/ui";
@@ -21,6 +22,7 @@ export function AppShell() {
   const { navOpen, setNavOpen } = useUI();
   const madelineOpen = useMadeline((s) => s.open);
   const location = useLocation();
+  const blocked = useRoleBlocked();
   /* SLA thresholds moved from localStorage to the sla_settings table (0036).
      Pulled once here, at the first screen behind the login gate, rather than in
      each of the nine pages that read them. */
@@ -58,12 +60,13 @@ export function AppShell() {
               which is indistinguishable from an empty database until something
               says otherwise. */}
           <WorkspaceGate />
-            <GuideCard />
+            <SectionTabs />
+            {!blocked && <GuideCard />}
             {/* Keyed by path so page content fades up on every route change.
                 Suspense shows the shimmer skeleton while a lazy page chunk loads. */}
             <div key={location.pathname} className="page-enter">
               <Suspense fallback={<PageSkeleton />}>
-                <Outlet />
+                {blocked ? <RoleBlocked label={blocked} /> : <Outlet />}
               </Suspense>
             </div>
             {/* Outside the keyed wrapper, so it does not re-animate on every

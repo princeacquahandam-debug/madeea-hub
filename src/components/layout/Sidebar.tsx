@@ -5,13 +5,11 @@ import { ClientSwitcher } from "@/components/ClientSwitcher";
 import { atLeast, ROLE_LABEL } from "@/data/hooks";
 import {
   Settings as SettingsIcon,
-  ShieldCheck,
   ChevronLeft,
   ChevronDown,
   Sun,
   FolderOpen,
   BookMarked,
-  Brain,
   SlidersHorizontal,
 } from "lucide-react";
 
@@ -19,14 +17,14 @@ const GROUP_ICON: Record<NavGroup, LucideIcon> = {
   "My Day": Sun,
   "Clients & Files": FolderOpen,
   Playbook: BookMarked,
-  Insights: Brain,
   Setup: SlidersHorizontal,
 };
 
-// Only My Day is open on a first visit. Everything else starts closed, so the
-// sidebar opens as five headings and six links instead of a 21-item wall. The
-// group holding the current page is force-opened below regardless.
-const DEFAULT_OPEN: Record<string, boolean> = { "My Day": true };
+/* Every group open on a first visit. When the sidebar was 21 links, only My
+   Day started open; the audit found that closed groups hid what was in them
+   ("you have to open them and find them"). At 10 to 13 links it fits open. A
+   group someone closes stays closed. */
+const DEFAULT_OPEN: Record<string, boolean> = { "My Day": true, "Clients & Files": true, Playbook: true, Setup: true };
 const OPEN_KEY = "madeea-nav-open";
 
 // Slugs the guided tour targets. Kept beside the group list so renaming a group
@@ -36,7 +34,6 @@ const TOUR_ANCHOR: Record<NavGroup, string> = {
   "My Day": "nav",
   "Clients & Files": "clients-files",
   Playbook: "playbook",
-  Insights: "insights",
   Setup: "setup",
 };
 
@@ -79,7 +76,7 @@ function NavScroller({ className, children }: { className?: string; children: Re
     </div>
   );
 }
-import { NAV, NAV_GROUPS, type NavGroup } from "@/lib/constants";
+import { NAV, NAV_GROUPS, SIDEBAR_NAV, type NavGroup, type NavItem } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyRole } from "@/data/hooks";
 import { useUI } from "@/store/ui";
@@ -98,9 +95,15 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
      the sidebar, which is the version of this bug nobody would think to test
      for. */
   const nav = useMemo(
-    () => NAV.filter((n) => !n.minRole || atLeast(role, n.minRole)),
+    () => SIDEBAR_NAV.filter((n) => !n.minRole || atLeast(role, n.minRole)),
     [role],
   );
+  /* A link is "here" on its own page AND on its tabs: on /routines the Task
+     Manager link is the one lit, since that's the page you're in. */
+  const isHere = (item: NavItem) => {
+    const paths = [item.to, ...NAV.filter((n) => n.parent === item.to).map((n) => n.to)];
+    return paths.some((p) => (p === "/" ? pathname === "/" : pathname.startsWith(p)));
+  };
   // Intersected with the nav rather than taken from it, so the declared order in
   // NAV_GROUPS decides the sidebar order while an empty group still cannot
   // render. That last part matters: "AI Suite" sat here for weeks after the
@@ -128,7 +131,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
      about where you were. */
   const activeGroup = useMemo(
     () =>
-      nav.filter((n) => (n.to === "/" ? pathname === "/" : pathname.startsWith(n.to)))
+      NAV.filter((n) => (n.to === "/" ? pathname === "/" : pathname.startsWith(n.to)))
         // Longest match wins, so /saved does not lose to /.
         .sort((a, b) => b.to.length - a.to.length)[0]?.group,
     [nav, pathname],
@@ -224,10 +227,10 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
                       onClick={onNavigate}
                       title={item.label}
                       aria-label={item.label}
-                      className={({ isActive }) =>
+                      className={() =>
                         cn(
                           "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text",
-                          isActive && "bg-[var(--nav-active-bg)] text-[color:var(--nav-active-text)]",
+                          isHere(item) && "bg-[var(--nav-active-bg)] text-[color:var(--nav-active-text)]",
                         )
                       }
                     >
@@ -237,22 +240,6 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
               </div>
             );
           })}
-          {atLeast(role, "admin") && (
-            <NavLink
-              to="/admin"
-              onClick={onNavigate}
-              title="Admin Panel"
-              aria-label="Admin Panel"
-              className={({ isActive }) =>
-                cn(
-                  "mt-1 flex h-10 w-10 items-center justify-center rounded-xl text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text",
-                  isActive && "bg-[var(--nav-active-bg)] text-[color:var(--nav-active-text)]",
-                )
-              }
-            >
-              <ShieldCheck size={19} className="shrink-0" />
-            </NavLink>
-          )}
         </NavScroller>
 
         {/* Avatar + gear, the same pair the expanded sidebar shows. This slot
@@ -317,7 +304,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
           because a filtered view that looks unfiltered reads as an empty one. */}
       <ClientSwitcher />
 
-      <NavScroller className="px-3 space-y-5 pb-2">
+      <NavScroller className="px-3 space-y-4 pb-2">
         {/* Distinct tour anchors per group. Two groups sharing one data-tour value
             would make the guided tour highlight whichever it found first. */}
         {groups.map((group) => {
@@ -345,7 +332,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
                       to={item.to}
                       end={item.to === "/"}
                       onClick={onNavigate}
-                      className={({ isActive }) => cn("nav-item", isActive && "active")}
+                      className={() => cn("nav-item", isHere(item) && "active")}
                     >
                       <item.icon size={17} className="shrink-0" />
                       <span className="flex-1 truncate">{item.label}</span>
@@ -360,22 +347,6 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
           );
         })}
 
-        {atLeast(role, "admin") && (
-          <div data-tour="admin">
-            <p className="eyebrow px-3 mb-2">Administration</p>
-            <div className="space-y-0.5">
-              <NavLink
-                to="/admin"
-                onClick={onNavigate}
-                className={({ isActive }) => cn("nav-item", isActive && "active")}
-              >
-                <ShieldCheck size={17} className="shrink-0" />
-                <span className="flex-1 truncate">Admin Panel</span>
-                <span className="pill bg-accent/15 text-accent-soft text-[10px]">Admin</span>
-              </NavLink>
-            </div>
-          </div>
-        )}
       </NavScroller>
 
       {/* The Academy promo card used to sit here: a 150px orange block pinned
