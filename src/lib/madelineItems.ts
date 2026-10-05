@@ -20,6 +20,19 @@ const clip = (s: string | null | undefined, n: number) => {
 const lines = (pairs: [string, string | null | undefined | false][]) =>
   pairs.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join("\n");
 
+/** HTML (Google event descriptions) to plain lines: list items keep a dash. */
+const htmlToText = (html: string | null | undefined) => {
+  const s = (html ?? "")
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\s*li[^>]*>/gi, "\n- ")
+    .replace(/<\s*\/\s*(p|div|li|ul|ol|h\d)\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, "");
+  if (typeof document === "undefined") return s;
+  const el = document.createElement("textarea");
+  el.innerHTML = s;
+  return el.value.replace(/\n{3,}/g, "\n\n").trim();
+};
+
 const when = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true }) : null;
 
@@ -71,7 +84,7 @@ export function calendarEventItem(e: CalendarEvent): Item {
       ["Organiser", e.organizer_email],
       ["Attendees", e.attendee_emails.length ? e.attendee_emails.join(", ") : null],
       ["Your response", e.response_status],
-      ["From the invite", clip(e.description, 800)],
+      ["From the invite", clip(htmlToText(e.description), 800)],
     ]),
   };
 }

@@ -142,7 +142,8 @@ const TOPIC_CHECK =
   "documents, writing, rewriting, summarising, translating, finance or bookkeeping, business research, " +
   "work travel, formulas or code for work tools, questions about this app or about the assistant itself " +
   "(who or what it is, what it can do), passwords, logins and access to client accounts, research on a " +
-  "company or person ahead of a meeting, greetings, thanks, and short " +
+  "company or person ahead of a meeting, planning the user's day or calendar (even when it holds personal " +
+  "events like exercise, prayer or family time), greetings, thanks, and short " +
   "follow-ups to the conversation (\"make it shorter\", \"yes\", \"why?\").\n" +
   "Answer OFF only when it is clearly unrelated to work: sport, celebrities, entertainment, trivia, " +
   "general knowledge, history, recipes, personal life advice, school homework, jokes, games.\n" +
@@ -155,6 +156,13 @@ const TOPIC_CHECK =
    where they live. Questions about Madeline herself are the same. */
 const ALWAYS_ON =
   /\b(passwords?|passcodes?|log-?ins?|credentials?|vault|password manager)\b|\bwho are you\b|\bwhat (model|ai|llm|are you)\b|\bare you (an? )?(ai|bot|robot|human|chatgpt|gpt)\b/i;
+
+/* The app's own AI buttons, by how their requests begin. "Plan this day" on a
+   calendar holding "Miracle Morning" and "Bible Study" was filed as personal
+   and got the off-topic reply. These are requests the app wrote, about the
+   user's own work data, so the filter has nothing to decide. */
+const APP_ACTION =
+  /^(plan (my|this) day|prep me for|summari[sz]e (this|my most recent|the last)|draft (a short follow-up|a reply)|break this task|suggest a priority|look at my open tasks|turn this email into a task|give me a brief on this client|what's pending for this client|what needs my attention|what's due|what's on my plate|which (overdue tasks|emails))/i;
 
 async function isOnTopic(text: string, onUsage?: (s: Spend) => void): Promise<boolean> {
   if (!OPENAI_API_KEY || !text.trim()) return true;
@@ -938,7 +946,7 @@ Deno.serve(async (req) => {
     const topicText =
       (prior ? `Previous assistant reply (context only): ${prior.content.slice(0, 500)}\n\n` : "") +
       `Latest user message: ${latest.content}`;
-    if (latest.role === "user" && !ALWAYS_ON.test(latest.content) && !(await isOnTopic(topicText, (s) => void recordSpend(authHeader, "topic-check", "openai", s)))) {
+    if (latest.role === "user" && !ALWAYS_ON.test(latest.content) && !APP_ACTION.test(latest.content.trim()) && !(await isOnTopic(topicText, (s) => void recordSpend(authHeader, "topic-check", "openai", s)))) {
       return json({ reply: OFF_TOPIC_REPLY });
     }
 

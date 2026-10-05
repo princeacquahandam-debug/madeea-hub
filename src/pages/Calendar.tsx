@@ -20,6 +20,8 @@ import {
 import { NewEventDialog } from "@/components/calendar/NewEventDialog";
 import { cn } from "@/lib/utils";
 import { useMadeline } from "@/store/madeline";
+import { sanitizeHtml } from "@/lib/sanitize";
+import { decodeEntities } from "@/lib/threads";
 import { useMadelineContext } from "@/hooks/useMadeline";
 import { calendarEventItem, taskItem } from "@/lib/madelineItems";
 
@@ -492,10 +494,20 @@ function EventDetail({ item, tz, onClose, onPrepare, onPlanDay }: {
             <span className="break-words">{e.attendee_emails.join(", ")}</span>
           </p>
         ) : null}
+        {/* Google sends descriptions as HTML ("<ul><li>7:10–8:00: Prayer &amp;
+            Meditation</li>…"), which printed as raw code. Rendered through the
+            app's sanitiser instead; plain-text descriptions keep their lines. */}
         {e?.description && (
-          <p className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap rounded-lg bg-surface-2 p-2 text-[12.5px] leading-relaxed text-muted">
-            {e.description.slice(0, 600)}
-          </p>
+          /<[a-z][^>]*>/i.test(e.description) ? (
+            <div
+              className="md-body mt-2 max-h-40 overflow-y-auto rounded-lg bg-surface-2 p-2 text-[12.5px] leading-relaxed text-muted"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(e.description) }}
+            />
+          ) : (
+            <p className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg bg-surface-2 p-2 text-[12.5px] leading-relaxed text-muted">
+              {decodeEntities(e.description)}
+            </p>
+          )
         )}
 
         <div className="mt-3 flex flex-wrap gap-1.5">
