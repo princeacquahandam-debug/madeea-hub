@@ -35,6 +35,21 @@ const APP_ORIGINS = (Deno.env.get("APP_ORIGINS") ?? "")
 
 type Provider = "google" | "microsoft" | "slack" | "discord" | "meta" | "linkedin";
 
+/* WHERE GOOGLE SENDS PEOPLE BACK.
+   Google's app review only accepts a return address on a domain we own, and
+   this function lives on supabase.co. So for Google the address can be the
+   Hub's own (https://hub.madeeas.com/oauth/callback), which Vercel passes
+   straight through to this function (vercel.json). Set GOOGLE_REDIRECT_URI to
+   switch; unset, nothing changes. It must match the Google Cloud client's
+   authorised redirect URI exactly, and both functions must agree on it, since
+   the token exchange repeats it. Other providers keep the Supabase address. */
+function callbackUrl(provider: string, supabaseUrl: string): string {
+  const google = Deno.env.get("GOOGLE_REDIRECT_URI")?.trim();
+  if (provider === "google" && google) return google;
+  return `${supabaseUrl}/functions/v1/integration-oauth-callback`;
+}
+
+
 const TENANT = Deno.env.get("MICROSOFT_TENANT") ?? "common";
 
 /**
@@ -266,7 +281,7 @@ Deno.serve(async (req) => {
 
     const params = new URLSearchParams({
       client_id: clientId,
-      redirect_uri: `${SUPABASE_URL}/functions/v1/integration-oauth-callback`,
+      redirect_uri: callbackUrl(provider, SUPABASE_URL),
       response_type: "code",
       scope: spec.scopes,
       state,

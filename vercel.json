@@ -5,6 +5,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/oauth/callback",
+      "destination": "https://bglduxferbjmoeqzyypx.supabase.co/functions/v1/integration-oauth-callback"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

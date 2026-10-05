@@ -90,6 +90,21 @@ async function decrypt(payload: string): Promise<string> {
   return new TextDecoder().decode(plain);
 }
 
+
+/* WHERE GOOGLE SENDS PEOPLE BACK.
+   Google's app review only accepts a return address on a domain we own, and
+   this function lives on supabase.co. So for Google the address can be the
+   Hub's own (https://hub.madeeas.com/oauth/callback), which Vercel passes
+   straight through to this function (vercel.json). Set GOOGLE_REDIRECT_URI to
+   switch; unset, nothing changes. It must match the Google Cloud client's
+   authorised redirect URI exactly, and both functions must agree on it, since
+   the token exchange repeats it. Other providers keep the Supabase address. */
+function callbackUrl(provider: string, supabaseUrl: string): string {
+  const google = Deno.env.get("GOOGLE_REDIRECT_URI")?.trim();
+  if (provider === "google" && google) return google;
+  return `${supabaseUrl}/functions/v1/integration-oauth-callback`;
+}
+
 // ── what comes back to the browser ───────────────────────────────────────
 function finish(
   st: { redirect_to?: string | null; popup?: boolean; redirect_after?: string | null },
@@ -418,7 +433,7 @@ Deno.serve(async (req) => {
     return finish(st, { ok: false, provider, code: "forbidden", detail: "You are no longer a member of that workspace." });
   }
 
-  const redirectUri = `${SUPABASE_URL}/functions/v1/integration-oauth-callback`;
+  const redirectUri = callbackUrl(provider, SUPABASE_URL);
 
   try {
     const verifier = st.code_verifier_encrypted ? await decrypt(st.code_verifier_encrypted) : null;
