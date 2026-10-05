@@ -126,7 +126,7 @@ interface ChannelState {
  * answers, and a card that fetched its own would put four spinners in a grid
  * whose whole job is to be compared at a glance.
  */
-function useChannelStates(): Record<ChannelId, ChannelState> {
+export function useChannelStates(): Record<ChannelId, ChannelState> {
   const { data: mail } = useMailConnections();
   const { data: installs } = useMyIntegrations();
   const myEmail = useMyEmail();

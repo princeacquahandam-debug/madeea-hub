@@ -95,7 +95,7 @@ export function ClockControl() {
         aria-label={running ? "Clock out" : "Clock in"}
       >
         {running ? <Square size={15} /> : <Play size={15} />}
-        <span className="tabular-nums">{label}</span>
+        <span className={cn("whitespace-nowrap tabular-nums", !running && "hidden sm:inline")}>{label}</span>
       </button>
 
       {notCapturing && (

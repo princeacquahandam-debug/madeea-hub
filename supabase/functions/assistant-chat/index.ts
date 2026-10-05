@@ -997,6 +997,14 @@ Deno.serve(async (req) => {
         "fenced code block whose language is task, holding one JSON object: {\"title\": a short imperative " +
         "title, \"priority\": \"low\"|\"normal\"|\"high\"|\"urgent\", \"due\": \"YYYY-MM-DD\" or null}. Tell the user " +
         "they can create it with the button below. Never say it has been created.\n\n" +
+        // The panel turns this into "Book" buttons, one per block. Nothing goes
+        // on the calendar until the user presses one.
+        "PLANNING A DAY (\"plan my day\", \"plan this day\"). Look at that day's meetings and the user's open " +
+        "tasks (overdue and due soon first). Give one short line on the shape of the day, then end with a fenced " +
+        "code block whose language is plan, holding one JSON object: {\"date\": \"YYYY-MM-DD\", \"blocks\": [{\"title\": " +
+        "what to work on, \"start\": \"HH:MM\", \"end\": \"HH:MM\", \"why\": a few words}]}. At most 6 blocks, 24-hour " +
+        "times in the user's timezone, only in free time between meetings, never overlapping them. Say they can " +
+        "book each block with its button. Never say anything was booked. No next block in the same reply.\n\n" +
         "Write drafts (replies, follow-ups) ready to send, but never say they were sent: the user sends them. " +
         "To summarise a past meeting, use list_meeting_notes.\n\n" +
         SCOPE + "\n\n" +

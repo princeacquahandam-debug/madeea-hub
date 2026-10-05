@@ -235,14 +235,15 @@ export default function Calendar() {
   function planThisDay(day: DayKey) {
     const list = itemsByDay.get(day) ?? [];
     const lines = list.map((i) => `${i.allDay ? "All day" : timeLabel(i.at, tz)} ${i.title}`);
-    nav(`/quick-actions?${new URLSearchParams({
-      action: "Plan the Calendar",
-      output: "Reorder today",
-      date: day,
-      constraints: lines.length
-        ? `On ${dayLabel(day, { weekday: "long", day: "numeric", month: "long" })} I already have:\n${lines.join("\n")}`
-        : `${dayLabel(day, { weekday: "long", day: "numeric", month: "long" })} is currently clear.`,
-    })}`);
+    /* To Madeline, like every other AI action. It used to open the hidden
+       Quick Actions page and a form; she now replies with blocks that book
+       on their own buttons, the same cards that page showed. */
+    const when = dayLabel(day, { weekday: "long", day: "numeric", month: "long" });
+    useMadeline.getState().ask(
+      `Plan this day: ${when} (${day}). ` +
+        (lines.length ? `I already have:\n${lines.join("\n")}` : "It's currently clear."),
+      { send: true },
+    );
   }
 
   /* "Prepare" hands the event to Madeline, like every page button. It used to

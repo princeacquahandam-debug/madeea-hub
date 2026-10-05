@@ -13,6 +13,9 @@ import { emailItem, meetingItem, taskItem } from "@/lib/madelineItems";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { supabase } from "@/lib/supabase";
 import type { Flag } from "@/lib/followups";
+import { PlanProposals } from "@/components/calendar/PlanProposals";
+import { useCalendarTimezone } from "@/data/hooks";
+import type { Proposal } from "@/lib/planProposals";
 import { renderMarkdown } from "@/lib/sanitize";
 import { cn } from "@/lib/utils";
 import type { Meeting, MeetingNote, Message, Priority, Task } from "@/types/db";
@@ -487,9 +490,26 @@ function takeBlock(markdown: string, lang: string): { text: string; json: unknow
   }
 }
 
-function parseReply(markdown: string): { text: string; task: ProposedTask | null; next: NextStep[] } {
+interface DayPlan { date: string; blocks: Proposal[] }
+
+function parseReply(markdown: string): { text: string; task: ProposedTask | null; next: NextStep[]; plan: DayPlan | null } {
   const t = takeBlock(markdown, "task");
-  const n = takeBlock(t.text, "next");
+  const pl = takeBlock(t.text, "plan");
+  const n = takeBlock(pl.text, "next");
+  /* Same checks the old planner made (lib/planProposals): HH:MM times, ends
+     after it starts, at most six. A malformed block means no buttons. */
+  const hhmm = /^([01]?\d|2[0-3]):[0-5]\d$/;
+  const rawPlan = pl.json as { date?: unknown; blocks?: unknown } | undefined;
+  const blocks = (Array.isArray(rawPlan?.blocks) ? rawPlan!.blocks : [])
+    .filter((b): b is Proposal => {
+      const o = b as Proposal;
+      return Boolean(o && typeof o.title === "string" && o.title.trim() && typeof o.start === "string" && hhmm.test(o.start)
+        && typeof o.end === "string" && hhmm.test(o.end) && o.end > o.start);
+    })
+    .slice(0, 6);
+  const plan = typeof rawPlan?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawPlan.date) && blocks.length
+    ? { date: rawPlan.date, blocks }
+    : null;
   let task: ProposedTask | null = null;
   const raw = t.json as { title?: unknown; priority?: unknown; due?: unknown } | undefined;
   if (raw && typeof raw.title === "string" && raw.title.trim()) {
@@ -505,12 +525,13 @@ function parseReply(markdown: string): { text: string; task: ProposedTask | null
       ((typeof x.prompt === "string" && x.prompt.trim().length > 0) || (typeof x.open === "string" && x.open in OPEN_PATHS)))
     .slice(0, 2)
     .map((x) => ({ label: x.label.trim().slice(0, 40), prompt: x.prompt?.slice(0, 600), open: x.open }));
-  return { text: n.text, task, next };
+  return { text: n.text, task, next, plan };
 }
 
 function AiReply({ turn }: { turn: MadelineTurn }) {
   const markdown = turn.result?.kind === "text" ? turn.result.markdown : "";
-  const { text, task, next } = useMemo(() => parseReply(markdown), [markdown]);
+  const { text, task, next, plan } = useMemo(() => parseReply(markdown), [markdown]);
+  const { data: calendarTz } = useCalendarTimezone();
   const { create } = useTaskMutations();
   const { send, running } = useMadelineEngine();
   const { user, demo } = useAuth();
@@ -567,6 +588,14 @@ function AiReply({ turn }: { turn: MadelineTurn }) {
             </button>
           )}
           {error && <p className="mt-1.5 text-xs text-red-400">{error}</p>}
+        </div>
+      )}
+
+      {/* "Plan this day": each block books on its own button, so nothing
+          lands on the calendar until it's pressed. */}
+      {plan && (
+        <div className="ml-[30px] max-w-[88%] self-start">
+          <PlanProposals proposals={plan.blocks} date={plan.date} tz={calendarTz ?? Intl.DateTimeFormat().resolvedOptions().timeZone} />
         </div>
       )}
 

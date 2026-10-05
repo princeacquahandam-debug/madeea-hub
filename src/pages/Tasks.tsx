@@ -8,7 +8,7 @@ import {
   SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus, Trash2, GripVertical, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2, Columns3, List as ListIcon, Search, MessageSquare, Send, ShieldCheck, Bookmark } from "lucide-react";
+import { Plus, Trash2, GripVertical, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2, List as ListIcon, Search, MessageSquare, Send, ShieldCheck, Bookmark } from "lucide-react";
 import type { Task, TaskStatus, Priority, Subtask, Recurrence, TaskProgress, TaskAttachment, TaskActivity } from "@/types/db";
 import { Badge, PageHeader, Modal } from "@/components/ui";
 import { useClientContext } from "@/store/clientContext";
@@ -345,8 +345,6 @@ function ProgressField({ items, onAdd }: { items: TaskProgress[]; onAdd: (body: 
   );
 }
 
-const VIEW_KEY = "madeea-tasks-view";
-
 /** "3m" / "2h" / "5d", a thread is read by recency, not by date. */
 function ago(iso: string): string {
   const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
@@ -443,83 +441,6 @@ function TaskThread({ taskId }: { taskId: string }) {
   );
 }
 
-/**
- * Every task in one column, soonest due first.
- *
- * The board answers "what is moving"; this answers "where is that one thing".
- * Status is a dropdown here rather than a drag, because dragging a row up a
- * flat list to change its state is a gesture nobody guesses.
- */
-function TaskList({
-  tasks, blockedIds, onEdit, onDelete, onStatus, focusId,
-}: {
-  tasks: Task[];
-  blockedIds: Set<string>;
-  onEdit: (t: Task) => void;
-  onDelete: (id: string) => void;
-  onStatus: (id: string, status: TaskStatus) => void;
-  focusId?: string | null;
-}) {
-  const rows = [...tasks].sort((a, b) => {
-    // Undated tasks last: a task with a date is a commitment, one without is a
-    // wish, and sorting empty strings first would bury the commitments.
-    if (!a.due_at && !b.due_at) return 0;
-    if (!a.due_at) return 1;
-    if (!b.due_at) return -1;
-    return a.due_at.localeCompare(b.due_at);
-  });
-
-  if (rows.length === 0) return <p className="card p-6 text-center text-sm text-faint">Nothing here yet.</p>;
-
-  return (
-    <div className="card divide-y divide-border">
-      {rows.map((t) => (
-        <div
-          key={t.id}
-          data-task-id={t.id}
-          className={cn(
-            "group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-surface-2/60",
-            focusId === t.id && "bg-accent/5",
-          )}
-        >
-          <select
-            className="shrink-0 rounded-md border border-border bg-surface-2 px-1.5 py-1 text-xs"
-            value={t.status}
-            onChange={(e) => onStatus(t.id, e.target.value as TaskStatus)}
-            aria-label={`Status of ${t.title}`}
-          >
-            {COLUMNS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-          </select>
-
-          <button className="min-w-0 flex-1 text-left" onClick={() => onEdit(t)}>
-            <span className={cn("block truncate text-sm font-medium", t.status === "done" && "text-faint line-through")}>
-              {t.title}
-            </span>
-            <span className="block truncate text-xs text-faint">
-              {t.client_name}
-              {t.due_at && <> · {dueDisplay(t)}</>}
-              {t.notes?.trim() && <> · has notes</>}
-              {(t.attachments?.length ?? 0) > 0 && <> · {t.attachments!.length} link{t.attachments!.length === 1 ? "" : "s"}</>}
-            </span>
-          </button>
-
-          {blockedIds.has(t.id) && <span className="pill shrink-0 bg-amber-500/15 text-amber-400"><Lock size={10} /> Blocked</span>}
-          {t.blocked && <span className="pill shrink-0 bg-red-500/15 text-red-400"><Lock size={10} /> Blocked</span>}
-          <Badge tone={t.priority}>{priorityLabel[t.priority]}</Badge>
-
-          <button
-            className="shrink-0 icon-btn reveal-on-hover text-faint hover:text-red-400"
-            onClick={() => onDelete(t.id)}
-            aria-label={`Delete ${t.title}`}
-          >
-            <Trash2 size={13} />
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 const BLANK = {
   title: "", priority: "normal" as Priority, due: "", subtasks: [] as Subtask[],
   recurrence: "none" as Recurrence, dependsOn: "", clientId: "", assigneeId: "", blockerNote: "", clientBlocker: "",
@@ -547,9 +468,6 @@ export default function Tasks() {
   const [activeId, setActiveId] = useState<string | null>(null);
   // Which column the card would land in right now. Drives the drop highlight.
   const [overCol, setOverCol] = useState<TaskStatus | null>(null);
-  /* Board vs list. Read from localStorage on first render rather than in an
-     effect, so the preferred view is the first thing painted instead of the
-     board flashing for a frame on every load. */
   const { data: commentCounts = {} } = useCommentCounts();
   const { data: savedRows = [] } = useSaved();
   const { toggle: saveToggle } = useSavedMutations();
@@ -557,10 +475,6 @@ export default function Tasks() {
   const { data: myRole } = useMyRole();
   const isAdmin = myRole === "admin";
   const [q, setQ] = useState("");
-  const [view, setView] = useState<"board" | "list">(() => {
-    try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "board"; } catch { return "board"; }
-  });
-  useEffect(() => { try { localStorage.setItem(VIEW_KEY, view); } catch { /* storage blocked */ } }, [view]);
   // Drives the drop-bounce animation on the card that was just released.
   const [justDroppedId, setJustDroppedId] = useState<string | null>(null);
   const [modal, setModal] = useState(false);
@@ -720,9 +634,7 @@ export default function Tasks() {
       <ClientScopeBanner note="Tasks with no client attached are hidden." />
       <PageHeader
         title="Task Manager"
-        // The instruction has to match the view you are actually looking at,
-        // there is nothing to drag in the list.
-        subtitle={view === "list" ? "Every task, soonest first. Change status from the dropdown." : "Drag cards between columns to update status"}
+        subtitle="Drag cards between columns to update status"
         action={
           <div className="flex gap-2">
             <button className="btn-ghost border border-border" onClick={() => setTemplates(true)}><Copy size={15} /> Templates</button>
@@ -746,80 +658,46 @@ export default function Tasks() {
         </section>
       )}
 
-      {/* Find the one you half-remember. Above the filters because it beats all
-          of them: on a board of forty, typing three letters is faster than
-          working out whose it was. */}
-      <div className="relative mb-3">
-        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-        <input
-          className="input pl-9"
-          placeholder="Search tasks. Title, client, notes, or reference…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          aria-label="Search tasks"
-        />
-        {q && (
-          <button
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-faint hover:text-zinc-100"
-            onClick={() => setQ("")}
-            aria-label="Clear search"
-          >
-            <X size={14} />
-          </button>
-        )}
-      </div>
-
-      {/* Who am I looking at? */}
-      <div className="mb-4 flex flex-wrap items-center gap-1.5">
-        {[
-          { id: "all", label: "All Tasks" },
-          { id: "mine", label: "My Tasks" },
-          { id: "unassigned", label: "Unassigned" },
-        ].map((f) => (
-          <button
-            key={f.id}
-            onClick={() => setWho(f.id)}
-            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
-              who === f.id ? "bg-accent text-white" : "bg-surface-2 text-muted hover:text-zinc-100"
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-        <span className="mx-1 h-4 w-px bg-border" />
-        {members.map((m) => (
-          <button
-            key={m.user_id}
-            onClick={() => setWho(who === m.user_id ? "all" : m.user_id)}
-            title={m.name}
-            className={`flex items-center gap-1.5 rounded-lg py-1 pl-1 pr-2 text-xs font-medium transition-colors ${
-              who === m.user_id ? "bg-accent text-white" : "bg-surface-2 text-muted hover:text-zinc-100"
-            }`}
-          >
-            <AssigneeAvatar member={m} />
-            {m.name.split(" ")[0]}
-          </button>
-        ))}
-        {/* Board or list. A kanban is the right shape for moving work along and
-            the wrong one for scanning forty tasks for the one you half-remember
-            the list sorts by due date and shows every task in one column.
-            Stored, because whichever you prefer you prefer every day. */}
-        <span className="ml-auto flex items-center gap-1 rounded-lg bg-surface-2 p-0.5">
-          {([["board", "Board", Columns3], ["list", "List", ListIcon]] as const).map(([id, label, Icon]) => (
+      {/* One row of filters (28 Sep audit: the old two rows, three chips plus one
+          per teammate plus a view switch, read as clutter). Search first,
+          because on a board of forty typing three letters beats working out
+          whose it was; then whose tasks, as one dropdown that holds everyone. */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[12rem] flex-1">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+          <input
+            className="input pl-9"
+            placeholder="Search tasks. Title, client, notes, or reference…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            aria-label="Search tasks"
+          />
+          {q && (
             <button
-              key={id}
-              onClick={() => setView(id)}
-              title={`${label} view`}
-              aria-pressed={view === id}
-              className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-                view === id ? "bg-accent text-white" : "text-muted hover:text-zinc-100"
-              }`}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-faint hover:text-zinc-100"
+              onClick={() => setQ("")}
+              aria-label="Clear search"
             >
-              <Icon size={13} /> {label}
+              <X size={14} />
             </button>
-          ))}
-        </span>
-        <span className="text-xs text-faint">
+          )}
+        </div>
+        <select
+          className="input w-auto"
+          value={who}
+          onChange={(e) => setWho(e.target.value)}
+          aria-label="Whose tasks"
+        >
+          <option value="all">All tasks</option>
+          <option value="mine">My tasks</option>
+          <option value="unassigned">Unassigned</option>
+          {members.length > 0 && (
+            <optgroup label="Assigned to">
+              {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}
+            </optgroup>
+          )}
+        </select>
+        <span className="text-xs text-faint tabular-nums">
           {visible.length} of {tasks.length} task{tasks.length === 1 ? "" : "s"}
         </span>
       </div>
@@ -833,15 +711,6 @@ export default function Tasks() {
             </div>
           ))}
         </div>
-      ) : view === "list" ? (
-        <TaskList
-          tasks={visible}
-          blockedIds={blockedIds}
-          onEdit={startEdit}
-          onDelete={(id) => remove.mutate(id)}
-          onStatus={(id, status) => setStatus.mutate({ id, status })}
-          focusId={focusId}
-        />
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setActiveId(null); setOverCol(null); }}>
           <div className="grid gap-4 lg:grid-cols-3">

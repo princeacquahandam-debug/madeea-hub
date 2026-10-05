@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Lock, Plus } from "lucide-react";
 import { REAL_CHANNELS, isUsable, type ChannelId } from "@/lib/channels";
+import { useChannelStates } from "@/components/ChannelConnections";
 import { cn } from "@/lib/utils";
 
 /**
@@ -42,8 +43,17 @@ export function SourceChips({
   counts: Record<string, number>;
   onToggle: (id: ChannelId) => void;
 }) {
-  const live = REAL_CHANNELS.filter(isUsable);
-  const locked = REAL_CHANNELS.filter((c) => !isUsable(c));
+  /* LIVE STATE, NOT THE CATALOGUE. isUsable() says the Hub supports a
+     channel, which read as "connected" for Slack and Instagram on accounts
+     that had never connected either (28 Sep audit). A chip is a filter when
+     this person has the channel connected, or messages from it are already
+     here (a workspace Slack someone else installed). Anything else is shown
+     locked, as not connected, and leads to Integrations. While the check is
+     still loading nothing is locked, so the chips don't flicker. */
+  const states = useChannelStates();
+  const works = (id: ChannelId) => Boolean(states[id]?.loading || states[id]?.connected || (counts[id] ?? 0) > 0);
+  const live = REAL_CHANNELS.filter((c) => isUsable(c) && works(c.id));
+  const locked = REAL_CHANNELS.filter((c) => !isUsable(c) || !works(c.id));
   const all = active.size === 0;
 
   return (
@@ -82,7 +92,7 @@ export function SourceChips({
       {locked.length > 0 && (
         /* Structural, not decorative. It is what stops the eye reading the
            locked chips as more of the same row. */
-        <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-border" />
+        <span aria-hidden="true" className="mx-1 hidden h-4 w-px shrink-0 bg-border sm:block" />
       )}
 
       {locked.map((c) => (
@@ -92,9 +102,9 @@ export function SourceChips({
           /* The logo keeps its real colours: it is the fastest way to find the
              channel you are looking for, and greying it out would cost that for
              no gain. The lock and the muted label carry the state instead. */
-          title={c.note ?? `${c.label} is not connected yet.`}
+          title={isUsable(c) ? `${c.label} isn't connected on your account. Connect it in Integrations.` : c.note ?? `${c.label} isn't available yet.`}
           aria-label={`${c.label}: not connected. See what it needs.`}
-          className="flex min-h-[30px] items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 text-xs font-medium text-faint transition-colors hover:border-[var(--border-strong)] hover:text-text"
+          className="hidden min-h-[30px] items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 text-xs font-medium text-faint transition-colors hover:border-[var(--border-strong)] hover:text-text sm:flex"
         >
           <c.icon size={13} className="opacity-70" />
           {c.label}

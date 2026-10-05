@@ -9,7 +9,6 @@ import { Footer } from "./Footer";
 import { MadelinePanel } from "@/components/madeline/MadelinePanel";
 import { CommandPalette } from "@/components/CommandPalette";
 import { FloatingSop } from "@/components/FloatingSop";
-import { GuideCard } from "@/components/GuideCard";
 import { RoleBlocked, SectionTabs, useRoleBlocked } from "@/components/layout/SectionTabs";
 import { MonitoringProvider } from "@/store/monitoringContext";
 import { GuidedTour } from "@/components/GuidedTour";
@@ -61,7 +60,6 @@ export function AppShell() {
               says otherwise. */}
           <WorkspaceGate />
             <SectionTabs />
-            {!blocked && <GuideCard />}
             {/* Keyed by path so page content fades up on every route change.
                 Suspense shows the shimmer skeleton while a lazy page chunk loads. */}
             <div key={location.pathname} className="page-enter">

@@ -47,8 +47,9 @@ export function FollowUpRow({ flag, onAction }: { flag: Flag; onAction?: () => v
           onClick={doSnooze}
           disabled={snooze.isPending}
           title={`Hide for ${snoozeDays} days`}
+          aria-label={`Snooze for ${snoozeDays} days`}
         >
-          <BellOff size={13} /> Snooze
+          <BellOff size={13} /> <span className="hidden sm:inline">Snooze</span>
         </button>
         <button
           className="btn-primary shrink-0 px-2.5 py-1 text-xs"

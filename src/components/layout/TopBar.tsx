@@ -1,17 +1,15 @@
 import { useState } from "react";
-import { Menu, HelpCircle, Mic, Sun, Moon } from "lucide-react";
+import { Menu, Mic } from "lucide-react";
 import { todayLabel } from "@/lib/utils";
 import { GlobalSearch } from "./GlobalSearch";
 import { Notifications } from "./Notifications";
 import { AskMadelineButton } from "@/components/madeline/AskMadelineButton";
 import { VoiceCapture } from "@/components/VoiceCapture";
 import { ClockControl } from "@/components/ClockControl";
-import { useTour } from "@/store/tour";
-import { useTheme } from "@/store/theme";
+import { HeaderMenu } from "./HeaderMenu";
+import { GuideButton } from "@/components/GuideCard";
 
 export function TopBar({ onMenu }: { onMenu?: () => void }) {
-  const startTour = useTour((s) => s.start);
-  const { theme, toggle } = useTheme();
   const [capturing, setCapturing] = useState(false);
   return (
     <>
@@ -30,6 +28,8 @@ export function TopBar({ onMenu }: { onMenu?: () => void }) {
         <img src="/icon.png" alt="MadeEA" className="h-7 w-7 shrink-0 object-contain" />
       </div>
       <span className="hidden sm:block text-sm font-medium text-muted">{todayLabel()}</span>
+      {/* "How this page works", as an icon instead of a bar on every page. */}
+      <GuideButton />
       {/* min-w-0 + shrink lets this row give ground instead of overflowing.
           It was `ml-auto flex` with no wrap and no scroll inside an
           `overflow-hidden` ancestor, so at 1024px it ran 101px past the edge
@@ -43,7 +43,7 @@ export function TopBar({ onMenu }: { onMenu?: () => void }) {
             notification. It is also half of the "two search bars" problem, since
             the inbox has its own scoped field. Below xl it collapses into the
             command palette, which is the same search with a keyboard door. */}
-        <div className="hidden items-center gap-2 xl:flex" data-tour="search">
+        <div className="hidden items-center gap-2 sm:flex" data-tour="search">
           <GlobalSearch />
         </div>
         {/* Clock in / out, deliberately on every page. See ClockControl. */}
@@ -61,22 +61,9 @@ export function TopBar({ onMenu }: { onMenu?: () => void }) {
           <span className="hidden md:inline">Capture</span>
         </button>
         <AskMadelineButton />
-        <button
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
-          onClick={toggle}
-          aria-label="Toggle light / dark theme"
-          title={theme === "dark" ? "Switch to light" : "Switch to dark"}
-        >
-          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
-        <button
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
-          onClick={startTour}
-          aria-label="Replay guided tour"
-          title="Replay tour"
-        >
-          <HelpCircle size={18} />
-        </button>
+        {/* Theme and the tour replay, once two buttons of their own: things
+            you set once or need rarely don't need a place in the header. */}
+        <HeaderMenu />
         <Notifications />
       </div>
     </header>

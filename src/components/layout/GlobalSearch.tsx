@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Search, Users, CheckSquare, Mail, ClipboardCheck, StickyNote } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -12,6 +12,12 @@ export function GlobalSearch() {
      results panel is portalled out of the header, which was clipping it. */
   const { anchorRef, panelRef, open, setOpen, pos } = useAnchoredPanel<HTMLDivElement>();
   const [q, setQ] = useState("");
+  /* An icon until it's wanted (28 Sep audit: the header was crowded, and a
+     288px field was the widest thing in it). Opens on click, closes again
+     when it loses focus with nothing typed, or on Escape. */
+  const [expanded, setExpanded] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (expanded) inputRef.current?.focus(); }, [expanded]);
   const { data: clients = [] } = useClients();
   const { data: tasks = [] } = useTasks();
   const { data: messages = [] } = useMessages();
@@ -36,10 +42,28 @@ export function GlobalSearch() {
     setQ("");
   }
 
+  if (!expanded) {
+    return (
+      <div ref={anchorRef}>
+        <button
+          onClick={() => setExpanded(true)}
+          aria-label="Search clients, tasks and emails"
+          title="Search (Ctrl/⌘K for everything)"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
+        >
+          <Search size={18} />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="relative" ref={anchorRef}>
       <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
       <input
+        ref={inputRef}
+        onBlur={() => { if (!q.trim()) { setExpanded(false); setOpen(false); } }}
+        onKeyDown={(e) => { if (e.key === "Escape") { setQ(""); setOpen(false); setExpanded(false); } }}
         className="input w-56 pl-9 lg:w-72"
         // The placeholder is not an accessible name: it isn't reliably announced
         // and it disappears as soon as anything is typed.

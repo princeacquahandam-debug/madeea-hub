@@ -15,6 +15,8 @@ import { SourceChips } from "@/components/SourceChips";
 import { ThreadList } from "@/components/ThreadList";
 import { REAL_CHANNELS, channelById, type ChannelId } from "@/lib/channels";
 import { ComposeWindow, type ComposeSeed } from "@/components/ComposeWindow";
+import { ComposeMenu } from "@/components/ComposeMenu";
+import { useChannelStates } from "@/components/ChannelConnections";
 import { InlineReply } from "@/components/InlineReply";
 import { InlineChatReply } from "@/components/InlineChatReply";
 import { isChatSource } from "@/lib/chat";
@@ -171,6 +173,7 @@ export default function Communication() {
   /* Per-channel counts for the rail. Counted off the unfiltered set so the
      number does not change as you move between views, which would make it
      read as a filter result rather than a channel size. */
+  const channelStates = useChannelStates();
   const counts = useMemo(() => {
     const out: Record<string, number> = { all: messages.length };
     for (const c of REAL_CHANNELS) {
@@ -178,6 +181,8 @@ export default function Communication() {
     }
     return out;
   }, [messages]);
+  // Slack can be written to when this person connected it, or its messages are already here.
+  const slackAvailable = Boolean(channelStates.slack?.connected || (counts.slack ?? 0) > 0);
   /* Resolved against the FILTERED list, never the whole mailbox.
      This searched `messages`, so the reader kept displaying a message the
      active filters excluded: search for nonsense and the header said "0 found"
@@ -467,12 +472,12 @@ export default function Communication() {
           )}
         </div>
 
-        <button
-          className="btn-primary h-10 shrink-0"
-          onClick={() => { setSeed({ title: "Write an email" }); setComposing(true); }}
-        >
-          <Wand2 size={15} /> Compose
-        </button>
+        <ComposeMenu
+          sole={soleSource}
+          slackAvailable={slackAvailable}
+          onEmail={(provider) => { setSeed({ title: "Write an email", provider }); setComposing(true); }}
+          onSlack={() => setSlackOpen(true)}
+        />
         {/* A visible way into the shortcuts, because a keyboard feature nobody
             can find is not a feature. Hidden below sm on purpose rather than by
             accident: a phone has no physical keyboard, so the sheet would list

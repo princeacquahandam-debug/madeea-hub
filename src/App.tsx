@@ -19,7 +19,6 @@ const Tasks = lazy(() => import("@/pages/Tasks"));
 const EodReports = lazy(() => import("@/pages/EodReports"));
 const Inbox = lazy(() => import("@/pages/Inbox"));
 const Screenshots = lazy(() => import("@/pages/Screenshots"));
-const QuickActions = lazy(() => import("@/pages/QuickActions"));
 const ClientVault = lazy(() => import("@/pages/ClientVault"));
 const Sops = lazy(() => import("@/pages/Sops"));
 const AutomationPage = lazy(() => import("@/pages/Automation"));
@@ -113,7 +112,6 @@ function Gate() {
             it is a break. */}
         <Route path="/communication" element={<Navigate to="/inbox" replace />} />
         <Route path="/meeting-intelligence" element={<MeetingIntelligence />} />
-        <Route path="/quick-actions" element={<QuickActions />} />
         <Route path="/clients" element={<ClientVault />} />
         <Route path="/notes" element={<Notes />} />
         <Route path="/sops" element={<Sops />} />
