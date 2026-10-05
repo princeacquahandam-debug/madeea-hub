@@ -77,6 +77,10 @@ function LegalPage({ icon, title, lede, children }: {
   );
 }
 
+/* Where people write to about their data, including Google data deletion.
+   Named in the Google section below and on Google's consent screen. */
+const SUPPORT_EMAIL = "princeacquahandam@gmail.com";
+
 function S({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
@@ -167,6 +171,49 @@ export function Privacy() {
           <strong className="text-zinc-200">Blur is one-way.</strong> Where blurring is enabled, it is
           applied before the image is uploaded and no unblurred copy is kept. It cannot be reversed by
           anybody, including an administrator.
+        </p>
+      </S>
+
+      {/* Required for Google's app review: what Google data is accessed, how it
+          is used, stored, shared and deleted, and the Limited Use statement,
+          whose wording is Google's and must stay verbatim. Approved by MadeEA
+          on 5 Oct 2026. */}
+      <S title="Google account data">
+        <p>
+          <strong className="text-zinc-200">What we access.</strong> When you connect your Google account,
+          MadeEA Hub reads your Gmail messages (sender, recipients, subject and body), sends emails you write
+          and send from inside the Hub, reads your Google Calendar events, and adds events you create in the
+          Hub. It also reads your name and email address to identify the connection.
+        </p>
+        <p>
+          <strong className="text-zinc-200">How we use it.</strong> Only to show your mail and calendar inside
+          the Hub, sort your mail into Urgent, Reply, Delegate and Archive, send replies you write, and answer
+          the requests you make to Madeline, the Hub's AI assistant, about your own work.
+        </p>
+        <p>
+          <strong className="text-zinc-200">AI processing.</strong> To sort mail and answer your requests, the
+          relevant message text is sent to OpenAI's API for processing. Google data is never used to train AI
+          models.
+        </p>
+        <p>
+          <strong className="text-zinc-200">What we never do.</strong> We don't sell Google data, use it for
+          advertising, or share it with anyone except as described here. Nobody at MadeEA reads your mail unless
+          you ask us to, or the law requires it.
+        </p>
+        <p>
+          <strong className="text-zinc-200">Storage and deletion.</strong> Synced mail and events are stored in
+          our database and are readable only by the account that connected them. Disconnect at any time from
+          Integrations, or at{" "}
+          <a href="https://myaccount.google.com/permissions" className="underline underline-offset-2 hover:text-zinc-200" target="_blank" rel="noopener noreferrer">myaccount.google.com/permissions</a>.
+          To have synced Google data deleted, email{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline underline-offset-2 hover:text-zinc-200">{SUPPORT_EMAIL}</a>{" "}
+          and we will delete it within 30 days.
+        </p>
+        <p>
+          MadeEA Hub's use and transfer of information received from Google APIs to any other app will adhere
+          to the{" "}
+          <a href="https://developers.google.com/terms/api-services-user-data-policy" className="underline underline-offset-2 hover:text-zinc-200" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>,
+          including the Limited Use requirements.
         </p>
       </S>
 

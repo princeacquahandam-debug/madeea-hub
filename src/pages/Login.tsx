@@ -112,6 +112,24 @@ export default function Login() {
           Access is invite-only. Need an account? Contact your MadeEA admin.
         </p>
 
+        {/* What this is, for anyone who lands here without an account. Google's
+            app review reads this page as the app's homepage, and rejects one
+            that doesn't say what the app does or why it asks for Gmail and
+            Calendar. */}
+        <section aria-label="About MadeEA Hub" className="mt-6 border-t border-border pt-4 text-[12px] leading-relaxed text-faint">
+          <p>
+            <strong className="text-muted">MadeEA Hub</strong> is the private workspace MadeEA's executive
+            assistants use to run their clients' day: one inbox for email and chat, tasks, calendar, end-of-day
+            reports and an AI assistant.
+          </p>
+          <p className="mt-2">
+            When an assistant connects their Google account, the Hub reads and sends their Gmail and reads and adds
+            Google Calendar events, so their client work happens in one place. The{" "}
+            <Link to="/privacy" className="underline underline-offset-2 hover:text-muted">Privacy Policy</Link>{" "}
+            explains how that data is used.
+          </p>
+        </section>
+
         {/* Before the password field, not buried in Settings. This is a
             monitoring product, and the page where somebody signs into one is
             the page where they should be able to read what it records. */}
