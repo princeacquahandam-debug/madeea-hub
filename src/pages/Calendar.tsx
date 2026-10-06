@@ -24,6 +24,7 @@ import { sanitizeHtml } from "@/lib/sanitize";
 import { decodeEntities } from "@/lib/threads";
 import { useMadelineContext } from "@/hooks/useMadeline";
 import { calendarEventItem, taskItem } from "@/lib/madelineItems";
+import { PREP_MEETING } from "@/lib/madelineActions";
 
 /**
  * The calendar, in the shape Google made everyone fluent in.
@@ -244,14 +245,14 @@ export default function Calendar() {
     useMadeline.getState().ask(
       `Plan this day: ${when} (${day}). ` +
         (lines.length ? `I already have:\n${lines.join("\n")}` : "It's currently clear."),
-      { send: true },
+      { display: "modal", title: `Plan ${when}` },
     );
   }
 
   /* "Prepare" hands the event to Madeline, like every page button. It used to
      leave the calendar for the Quick Actions page and a form to fill in. */
   function prepare(e: CalendarEvent) {
-    useMadeline.getState().ask("Prep me for this meeting.", { item: calendarEventItem(e) });
+    useMadeline.getState().ask(PREP_MEETING.prompt, { item: calendarEventItem(e), display: "modal", title: PREP_MEETING.title });
   }
 
   // With an event or task open, Madeline knows which one "this" is.

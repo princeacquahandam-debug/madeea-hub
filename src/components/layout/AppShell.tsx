@@ -7,6 +7,7 @@ import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { Footer } from "./Footer";
 import { MadelinePanel } from "@/components/madeline/MadelinePanel";
+import { InsightModal } from "@/components/madeline/InsightModal";
 import { CommandPalette } from "@/components/CommandPalette";
 import { FloatingSop } from "@/components/FloatingSop";
 import { RoleBlocked, SectionTabs, useRoleBlocked } from "@/components/layout/SectionTabs";
@@ -82,6 +83,7 @@ export function AppShell() {
           the Command Center modal it replaces were three assistants with three
           histories. ⌘K is now search, with "Ask Madeline about…" as its last row. */}
       <MadelinePanel />
+      <InsightModal />
       <CommandPalette />
       <FloatingSop />
       <GuidedTour />

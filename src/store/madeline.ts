@@ -39,12 +39,26 @@ export interface MadelineTurn {
   rating?: 1 | -1;
 }
 
+/** Where an answer shows: the sidebar chat, or a pop-up over the page. */
+export type MadelineDisplay = "panel" | "modal";
+
 interface AskOptions {
   /** Attach this item as context (a page button knows what it's about). */
   item?: Omit<MadelineItem, "path">;
   /** Send straight away instead of leaving it in the box to edit. */
   send?: boolean;
+  /** "modal" runs it now and shows the answer in a pop-up over the page,
+      without opening the sidebar. Implies send. */
+  display?: MadelineDisplay;
+  /** The pop-up's heading ("Prep me for this meeting"). */
+  title?: string;
 }
+
+/** A request a page button queued for MadelineProvider to send. */
+export interface QueuedAsk { prompt: string; display: MadelineDisplay; title?: string }
+
+/** The answer showing in the pop-up: which turn, under what heading. */
+export interface MadelineInsight { turnId: string; title: string }
 
 interface MadelineState {
   /** Replace the whole thread (loading it from another device). */
@@ -65,8 +79,12 @@ interface MadelineState {
   focusToken: number;
 
   /** A request queued by a page button, for MadelineProvider to send. */
-  queued: string | null;
-  takeQueued: () => string | null;
+  queued: QueuedAsk | null;
+  takeQueued: () => QueuedAsk | null;
+
+  /** The one-click answer showing in the pop-up, if any. */
+  insight: MadelineInsight | null;
+  setInsight: (v: MadelineInsight | null) => void;
   /** Open Madeline with a request: filled into the box, or sent. */
   ask: (prompt: string, opts?: AskOptions) => void;
 
@@ -134,10 +152,19 @@ export const useMadeline = create<MadelineState>((set, get) => ({
     if (q !== null) set({ queued: null });
     return q;
   },
+  insight: null,
+  setInsight: (v) => set({ insight: v }),
   ask: (prompt, opts = {}) => {
     if (opts.item) set({ item: { ...opts.item, path: get().routePath } });
+    /* One-click actions (client review, 6 Oct): run now, answer in a pop-up
+       on the page you're on. Nothing is left in the box to send by hand, and
+       the sidebar stays as it was. */
+    if (opts.display === "modal") {
+      set({ queued: { prompt, display: "modal", title: opts.title } });
+      return;
+    }
     get().setOpen(true);
-    if (opts.send) set({ queued: prompt });
+    if (opts.send) set({ queued: { prompt, display: "panel" } });
     else set({ draft: prompt, focusToken: get().focusToken + 1 });
   },
 

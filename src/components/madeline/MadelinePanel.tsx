@@ -10,6 +10,7 @@ import { useMadelineEngine } from "@/hooks/useMadeline";
 import { useMadeline, ITEM_LABEL, type MadelineItem, type MadelineItemKind, type MadelineTurn } from "@/store/madeline";
 import { useMeetingNotes, useMeetings, useMessages, useTaskMutations, useTasks } from "@/data/hooks";
 import { emailItem, meetingItem, taskItem } from "@/lib/madelineItems";
+import { PREP_MEETING } from "@/lib/madelineActions";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { supabase } from "@/lib/supabase";
 import type { Flag } from "@/lib/followups";
@@ -38,7 +39,7 @@ const FOR_ITEM: Record<MadelineItemKind, Action[]> = {
     { label: "Suggest priority", prompt: "Suggest a priority for this task (low, normal, high or urgent), weighing its due date against my other open tasks. Say why in one or two lines." },
   ],
   meeting: [
-    { label: "Prep me for this meeting", prompt: "Prep me for this meeting: who's attending, what it's about, related open tasks and recent emails, and what I should have ready." },
+    { label: PREP_MEETING.title, prompt: PREP_MEETING.prompt },
     { label: "Summarize last meeting", prompt: "Summarise the last recorded meeting related to this one (same title, client or attendees): decisions, action items and anything still open." },
   ],
   email: [
@@ -180,8 +181,8 @@ export function MadelinePanel() {
   }
 
   function runAction(a: Action) {
-    if (a.item) useMadeline.getState().ask(a.prompt, { item: a.item, send: true });
-    else send(a.prompt);
+    // One click: runs now and answers in the pop-up over the page.
+    useMadeline.getState().ask(a.prompt, { item: a.item, display: "modal", title: a.label });
   }
 
   const go = (path: string) => navigate(path);
@@ -247,7 +248,7 @@ export function MadelinePanel() {
               messages={messages}
               flags={flags}
               disabled={running}
-              onPick={(sg) => (sg.item ? useMadeline.getState().ask(sg.prompt, { item: sg.item, send: true }) : send(sg.prompt))}
+              onPick={(sg) => useMadeline.getState().ask(sg.prompt, { item: sg.item, display: "modal", title: sg.label })}
             />
           )}
           {turns.map((t) => <TurnView key={t.id} turn={t} onNavigate={go} />)}
@@ -398,7 +399,7 @@ function Welcome({
       const time = new Date(next.starts_at!).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
       out.push({
         label: next.with && next.with !== "Internal" ? `Prep me for the ${time} with ${shorten(next.with, 22)}` : `Prep me for ${shorten(next.title, 24)} at ${time}`,
-        prompt: "Prep me for this meeting.",
+        prompt: PREP_MEETING.prompt,
         item: meetingItem(next),
       });
     }
@@ -528,7 +529,9 @@ function parseReply(markdown: string): { text: string; task: ProposedTask | null
   return { text: n.text, task, next, plan };
 }
 
-function AiReply({ turn }: { turn: MadelineTurn }) {
+/** One answer. `bare` is the pop-up's version: no chat bubble or avatar,
+    full width, and next steps that open in the pop-up too. */
+export function AiReply({ turn, bare = false }: { turn: MadelineTurn; bare?: boolean }) {
   const markdown = turn.result?.kind === "text" ? turn.result.markdown : "";
   const { text, task, next, plan } = useMemo(() => parseReply(markdown), [markdown]);
   const { data: calendarTz } = useCalendarTimezone();
@@ -568,9 +571,9 @@ function AiReply({ turn }: { turn: MadelineTurn }) {
 
   return (
     <>
-      {text && <AiMarkdown markdown={text} />}
+      {text && (bare ? <BareMarkdown markdown={text} /> : <AiMarkdown markdown={text} />)}
       {task && (
-        <div className="ml-[30px] max-w-[85%] self-start rounded-xl border border-accent/40 bg-accent/5 p-3 text-[13px]">
+        <div className={`${bare ? "" : "ml-[30px] max-w-[85%] self-start"} rounded-xl border border-accent/40 bg-accent/5 p-3 text-[13px]`}>
           <p className="text-[10.5px] font-bold uppercase tracking-wide text-faint">Proposed task</p>
           <p className="mt-1 font-bold leading-snug">{task.title}</p>
           <p className="mt-0.5 text-xs text-muted">Priority {task.priority} · {due}</p>
@@ -594,12 +597,12 @@ function AiReply({ turn }: { turn: MadelineTurn }) {
       {/* "Plan this day": each block books on its own button, so nothing
           lands on the calendar until it's pressed. */}
       {plan && (
-        <div className="ml-[30px] max-w-[88%] self-start">
+        <div className={bare ? "" : "ml-[30px] max-w-[88%] self-start"}>
           <PlanProposals proposals={plan.blocks} date={plan.date} tz={calendarTz ?? Intl.DateTimeFormat().resolvedOptions().timeZone} />
         </div>
       )}
 
-      <div className="ml-[30px] flex max-w-[88%] flex-col gap-2 self-start">
+      <div className={cn("flex flex-col gap-2", bare ? "pt-1" : "ml-[30px] max-w-[88%] self-start")}>
         {sources.length > 0 && (
           <div className="flex flex-wrap gap-1.5" aria-label="What this answer used">
             {sources.map((s) => {
@@ -623,7 +626,7 @@ function AiReply({ turn }: { turn: MadelineTurn }) {
               <button
                 key={n.label}
                 disabled={running && !!n.prompt}
-                onClick={() => (n.prompt ? send(n.prompt) : navigate(OPEN_PATHS[n.open!]))}
+                onClick={() => (n.prompt ? send(n.prompt, bare ? { display: "modal", title: n.label } : undefined) : navigate(OPEN_PATHS[n.open!]))}
                 className={cn(
                   "rounded-lg px-3 py-1.5 text-xs font-bold transition-colors disabled:opacity-40",
                   i === 0 ? "bg-accent text-white hover:brightness-110" : "border border-accent text-accent hover:bg-accent/10",
@@ -662,6 +665,23 @@ function AiReply({ turn }: { turn: MadelineTurn }) {
 
 /* Replies are markdown (lists, bold, the odd table), rendered through the
    app's sanitising pipeline. The rail showed them as raw text, asterisks and all. */
+function BareMarkdown({ markdown }: { markdown: string }) {
+  const html = useMemo(() => renderMarkdown(markdown), [markdown]);
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="md-body text-[14px] leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />
+      <button
+        onClick={() => { navigator.clipboard?.writeText(markdown); setCopied(true); setTimeout(() => setCopied(false), 1400); }}
+        className="flex w-fit items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] text-faint hover:text-text"
+        aria-label="Copy answer"
+      >
+        {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? "Copied" : "Copy"}
+      </button>
+    </div>
+  );
+}
+
 function AiMarkdown({ markdown }: { markdown: string }) {
   const html = useMemo(() => renderMarkdown(markdown), [markdown]);
   const [copied, setCopied] = useState(false);

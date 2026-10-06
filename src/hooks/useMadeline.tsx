@@ -26,7 +26,7 @@ import { NAV } from "@/lib/constants";
 import { assistantChat, assistantChatReply, generate, type ChatMessage } from "@/lib/ai";
 import { useMadelineSync } from "@/hooks/useMadelineSync";
 import { useWorkspace, uid } from "@/store/workspace";
-import { useMadeline, currentItem, ITEM_LABEL, type MadelineItem, type MadelineTurn } from "@/store/madeline";
+import { useMadeline, currentItem, ITEM_LABEL, type MadelineDisplay, type MadelineItem, type MadelineTurn } from "@/store/madeline";
 
 import { parseIntent } from "@/lib/command-center/intentParser";
 import { route, runTool } from "@/lib/command-center/commandRouter";
@@ -42,8 +42,14 @@ interface PendingConfirm {
   onCancel: () => void;
 }
 
+interface SendOptions {
+  /** Show the answer in the pop-up instead of the sidebar. */
+  display?: MadelineDisplay;
+  title?: string;
+}
+
 interface MadelineEngine {
-  send: (prompt: string) => void;
+  send: (prompt: string, opts?: SendOptions) => void;
   running: boolean;
   pendingConfirm: PendingConfirm | null;
   /** The item the user has open on THIS page, if any. */
@@ -125,7 +131,7 @@ export function MadelineProvider({ children }: { children: ReactNode }) {
     searchIndex: () => [],
   }), [ws, taskMutations, reminderMutations]);
 
-  const send = useCallback((prompt: string) => {
+  const send = useCallback((prompt: string, opts: SendOptions = {}) => {
     const raw = prompt.trim();
     if (!raw) return;
     const store = useMadeline.getState();
@@ -141,7 +147,10 @@ export function MadelineProvider({ children }: { children: ReactNode }) {
       status: "running",
     };
     store.addTurn(turn);
-    store.setDraft("");
+    // A one-click action: its answer opens in the pop-up. It is still a turn
+    // in the thread, so "Continue in Madeline" picks up right after it.
+    if (opts.display === "modal") store.setInsight({ turnId, title: opts.title ?? raw });
+    else store.setDraft("");
     setRunning(true);
 
     const done = (result: ToolResult) => {
@@ -203,7 +212,7 @@ export function MadelineProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (queued === null) return;
     const q = useMadeline.getState().takeQueued();
-    if (q) send(q);
+    if (q) send(q.prompt, { display: q.display, title: q.title });
   }, [queued, send]);
 
   const value: MadelineEngine = { send, running, pendingConfirm, item, pageLabel };

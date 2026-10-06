@@ -4,6 +4,7 @@ import { Badge, Modal } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
 import { assemblePrepContext, isThinContext, type PrepContext } from "@/lib/meetingPrep";
 import { meetingItem } from "@/lib/madelineItems";
+import { PREP_MEETING } from "@/lib/madelineActions";
 import { useClients, useClientDocs, useMeetings, useMessages, useTasks } from "@/data/hooks";
 import { useMadelineContext } from "@/hooks/useMadeline";
 import { useMadeline } from "@/store/madeline";
@@ -73,7 +74,7 @@ export function MeetingPrepPacket({
      packet hands over to her like every other page button. */
   function prep() {
     if (!item) return;
-    useMadeline.getState().ask("Prep me for this meeting.", { item });
+    useMadeline.getState().ask(PREP_MEETING.prompt, { item, display: "modal", title: PREP_MEETING.title });
   }
 
   if (!meeting || !context) return null;

@@ -6,6 +6,7 @@ import { Avatar } from "@/components/Avatar";
 import { MeetingPrepPacket } from "@/components/MeetingPrepPacket";
 import { useMadeline } from "@/store/madeline";
 import { meetingItem } from "@/lib/madelineItems";
+import { PREP_MEETING } from "@/lib/madelineActions";
 import { useAuth } from "@/hooks/useAuth";
 import { useTasks, useMeetings, useClients, useMessages, useAutomations, useGoogleConnection } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
@@ -261,7 +262,7 @@ export default function Dashboard() {
                     does, and does it where every other AI request goes. */}
                 <button
                   className="flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-accent"
-                  onClick={() => useMadeline.getState().ask("Prep me for this meeting.", { item: meetingItem(m) })}
+                  onClick={() => useMadeline.getState().ask(PREP_MEETING.prompt, { item: meetingItem(m), display: "modal", title: PREP_MEETING.title })}
                   aria-label={`Ask Madeline to prep you for ${m.title}`}
                 >
                   <Sparkles size={13} /> Prep me

@@ -291,7 +291,15 @@ const TOOLS = [
           category: { type: "string", enum: ["urgent", "reply", "delegate", "archive"] },
           client: { type: "string", description: "Only messages linked to clients whose name or company contains this." },
           query: { type: "string", description: "Text to find in the sender, subject or preview." },
-          days: { type: "integer", minimum: 1, maximum: 60, description: "How far back to look. Default 7." },
+          people: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Email addresses or names, e.g. a meeting's attendees. Returns mail from any of them. " +
+              "Use it for meeting prep and \"what has X sent us\".",
+          },
+          with_body: { type: "boolean", description: "Include up to 1,200 characters of each message body. Use it when you'll summarise or brief from the mail." },
+          days: { type: "integer", minimum: 1, maximum: 60, description: "How far back to look. Default 7; 30 when people is given." },
           limit: { type: "integer", minimum: 1, maximum: 30 },
         },
       },
@@ -338,6 +346,11 @@ const TOOLS = [
         type: "object",
         properties: {
           query: { type: "string", description: "Words from the meeting title. Omit for the latest meetings." },
+          people: {
+            type: "array",
+            items: { type: "string" },
+            description: "Attendee emails or names. Returns past meetings any of them attended: use it to find past decisions and open items for a meeting prep.",
+          },
           limit: { type: "integer", minimum: 1, maximum: 10 },
         },
       },
@@ -689,12 +702,15 @@ async function listMeetings(ctx: ToolCtx, a: Record<string, unknown>) {
 }
 
 async function listEmails(ctx: ToolCtx, a: Record<string, unknown>) {
-  const limit = cap(a.limit, 15, 30);
-  const days = cap(a.days, 7, 60);
+  const withBody = a.with_body === true;
+  // Bodies are long: 8 of them fit the 12k cap on a tool result, 15 did not.
+  const limit = cap(a.limit, withBody ? 8 : 15, withBody ? 12 : 30);
+  const people = (Array.isArray(a.people) ? a.people : []).map(term).filter(Boolean).slice(0, 10);
+  const days = cap(a.days, people.length ? 30 : 7, 60);
   // No owner filter: RLS already limits this to what the caller may read
   // (their own, plus anything shared with the team under 0051).
   let q = ctx.db.from("messages")
-    .select("sender_name,sender_email,subject,preview,received_at,category,is_read,source,direction,clients(name)")
+    .select(`sender_name,sender_email,subject,preview,${withBody ? "body," : ""}received_at,category,is_read,source,direction,thread_id,clients(name)`)
     .gte("received_at", new Date(Date.now() - days * 86_400_000).toISOString())
     .order("received_at", { ascending: false })
     .limit(limit);
@@ -704,6 +720,12 @@ async function listEmails(ctx: ToolCtx, a: Record<string, unknown>) {
   }
   const s = term(a.query);
   if (s) q = q.or(`subject.ilike.%${s}%,preview.ilike.%${s}%,sender_name.ilike.%${s}%,sender_email.ilike.%${s}%`);
+  /* People: an address matches the sender exactly; a name matches loosely.
+     Separate .or() calls would not AND reliably with the query above, so
+     people is only combined with it when there is no query. */
+  if (people.length && !s) {
+    q = q.or(people.map((p) => (p.includes("@") ? `sender_email.ilike.${p}` : `sender_name.ilike.%${p}%`)).join(","));
+  }
 
   const ids = await clientIds(ctx, a.client);
   if (ids) {
@@ -724,6 +746,8 @@ async function listEmails(ctx: ToolCtx, a: Record<string, unknown>) {
       channel: m.source,
       direction: m.direction ?? "inbound",
       client: m.clients?.name ?? null,
+      thread: m.thread_id ?? null,
+      ...(withBody ? { body: clip(m.body, 1200) } : {}),
     })),
   };
 }
@@ -801,15 +825,22 @@ async function searchSops(ctx: ToolCtx, a: Record<string, unknown>) {
 
 async function listMeetingNotes(ctx: ToolCtx, a: Record<string, unknown>) {
   const limit = cap(a.limit, 3, 10);
+  const people = (Array.isArray(a.people) ? a.people : []).map((p) => term(p).toLowerCase()).filter(Boolean).slice(0, 10);
   let q = ctx.db.from("meeting_notes")
     .select("title,recorded_at,attendees,summary,extracted")
     .neq("status", "failed")
     .order("recorded_at", { ascending: false, nullsFirst: false })
-    .limit(limit);
+    // Attendees are matched here rather than in SQL (a text[] of names and
+    // addresses in whatever form Fathom gave), so look back further first.
+    .limit(people.length ? 40 : limit);
   const s = term(a.query);
   if (s) q = q.ilike("title", `%${s}%`);
-  const { data, error } = await q;
+  const { data: rowsIn, error } = await q;
   if (error) throw new Error(error.message);
+  const data = people.length
+    ? (rowsIn ?? []).filter((n: any) =>
+        (n.attendees ?? []).some((x: string) => people.some((p) => String(x).toLowerCase().includes(p)))).slice(0, limit)
+    : rowsIn;
   // Extracted items are objects ({text, owner, due…}); keep them as short lines.
   const items = (v: unknown) =>
     Array.isArray(v)
@@ -968,6 +999,19 @@ Deno.serve(async (req) => {
         "\"Open tasks\", \"open\": one of tasks, calendar, inbox, clients, sops}. Put the most useful one " +
         "first. Leave the block out when there's nothing to do next. Never put both a next block and a task " +
         "block in one reply.\n\n" +
+        "BRIEFS, NOT INSTRUCTIONS. You have the user's mail, calendar, meeting notes, tasks, clients and SOPs. " +
+        "Never tell the user to check their email, calendar or notes themselves: look it up and give them the " +
+        "result. If something can't be found, say in one line what you looked for and didn't find.\n\n" +
+        "MEETING PREP (\"prep me for this meeting\"). Before answering, call in one round: list_emails with " +
+        "people = the attendees' addresses (with_body true), list_meeting_notes with people = the attendees, " +
+        "list_tasks with the client or person, find_clients for the client, and search_sops if the meeting has a " +
+        "clear topic. Then write the brief under these short headings, skipping any with nothing real in it: " +
+        "Who's attending (each person, their role or company, and anything notable from their recent mail); Last " +
+        "time (decisions and commitments from past meetings, with the date); Still open (unresolved questions, " +
+        "overdue tasks, emails waiting on a reply); Recent mail (2 to 4 lines, newest first); Bring or decide " +
+        "(what the user should have ready). Quote dates and names exactly as the tools return them.\n\n" +
+        "PLAN MY DAY and WHAT NEEDS ATTENTION. Read today's meetings, the user's overdue and due-today tasks, " +
+        "and emails waiting on a reply, then give the answer directly, most urgent first, naming each item.\n\n" +
         "DRAFTING TO OR ABOUT A PERSON (\"draft a follow-up to Bryan\"). Don't ask for details first. Look " +
         "them up: list_tasks with person, list_emails with query, and find_clients. Draft from the most " +
         "relevant real item and name it (for example a task with no update in 9 days). Only if nothing is " +
