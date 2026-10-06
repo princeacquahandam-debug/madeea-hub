@@ -1,6 +1,7 @@
 export type Priority = "urgent" | "high" | "normal" | "low";
 /** `review` (migration 0030) is where work that needs sign-off waits. */
-export type TaskStatus = "todo" | "in_progress" | "review" | "done";
+/** follow_up (migration 0081): waiting on someone else. Still open work. */
+export type TaskStatus = "todo" | "in_progress" | "follow_up" | "review" | "done";
 export type MessageCategory = "urgent" | "reply" | "delegate" | "archive";
 export type MeetingStatus = "prepared" | "needs_prep" | "pending";
 export type AutomationStatus = "active" | "paused";

@@ -37,7 +37,7 @@ interface DayRow {
 interface TaskRow {
   id: string;
   title: string;
-  status: "todo" | "in_progress" | "done";
+  status: "todo" | "in_progress" | "follow_up" | "review" | "done";
   priority: string;
   due_label: string | null;
   blocked: boolean;
@@ -198,7 +198,7 @@ export function ClientOverview({
               >
                 {t.status === "done" ? (
                   <CheckCircle2 size={16} className="mt-0.5 shrink-0" style={{ color: "var(--c-accent)" }} />
-                ) : t.status === "in_progress" ? (
+                ) : t.status !== "todo" ? (
                   <Loader2 size={16} className="mt-0.5 shrink-0" />
                 ) : (
                   <Circle size={16} className="text-faint mt-0.5 shrink-0" />
@@ -206,7 +206,7 @@ export function ClientOverview({
                 <div className="min-w-0 flex-1">
                   <div className="text-sm">{t.title}</div>
                   <div className="text-faint mt-0.5 flex flex-wrap gap-x-3 text-xs">
-                    <span>{t.status === "in_progress" ? "In progress" : t.status === "done" ? "Done" : "To do"}</span>
+                    <span>{t.status === "done" ? "Done" : t.status === "todo" ? "To do" : "In progress"}</span>
                     {t.due_label ? <span>Due {t.due_label}</span> : null}
                     {t.blocked ? <span style={{ color: "var(--c-danger)" }}>Blocked</span> : null}
                     {t.requested_by_client ? <span>Requested by you</span> : null}

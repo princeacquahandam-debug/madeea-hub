@@ -14,7 +14,7 @@ import { Badge, PageHeader, Modal } from "@/components/ui";
 import { useClientContext } from "@/store/clientContext";
 import { ClientScopeBanner } from "@/components/ClientSwitcher";
 import { SkeletonCard } from "@/components/Skeleton";
-import { useTasks, useTaskMutations, useClients, useTaskComments, useTaskActivity, useCommentMutations, useCommentCounts, useMyRole, useSaved, useSavedMutations } from "@/data/hooks";
+import { atLeast, useTasks, useTaskMutations, useClients, useTaskComments, useTaskActivity, useCommentMutations, useCommentCounts, useMyRole, useSaved, useSavedMutations } from "@/data/hooks";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { AssigneePicker, AssigneeAvatar } from "@/components/Assignee";
 import { useWorkspaceMembers } from "@/data/hooks";
@@ -35,6 +35,8 @@ import { taskItem } from "@/lib/madelineItems";
 const COLUMNS: { key: TaskStatus; label: string; dot: string; wash: string; edge: string }[] = [
   { key: "todo",        label: "To Do",       dot: "bg-sky-400",     wash: "bg-sky-500/[0.06]",     edge: "border-sky-500/25" },
   { key: "in_progress", label: "In Progress", dot: "bg-amber-400",   wash: "bg-amber-500/[0.06]",   edge: "border-amber-500/25" },
+  // Waiting on someone else: a reply, a file, a decision (28 Sep audit, 0081).
+  { key: "follow_up",   label: "Follow-up",   dot: "bg-rose-400",    wash: "bg-rose-500/[0.06]",    edge: "border-rose-500/25" },
   // Where work that needs sign-off waits (migration 0030, PROJECT_PLAN §5.3).
   { key: "review",      label: "Review",      dot: "bg-violet-400",  wash: "bg-violet-500/[0.06]",  edge: "border-violet-500/25" },
   { key: "done",        label: "Done",        dot: "bg-emerald-400", wash: "bg-emerald-500/[0.06]", edge: "border-emerald-500/25" },
@@ -90,6 +92,7 @@ type Board = Record<TaskStatus, Task[]>;
 const group = (tasks: Task[]): Board => ({
   todo: tasks.filter((t) => t.status === "todo"),
   in_progress: tasks.filter((t) => t.status === "in_progress"),
+  follow_up: tasks.filter((t) => t.status === "follow_up"),
   review: tasks.filter((t) => t.status === "review"),
   done: tasks.filter((t) => t.status === "done"),
 });
@@ -473,7 +476,7 @@ export default function Tasks() {
   const { toggle: saveToggle } = useSavedMutations();
   const savedIds = new Set(savedRows.filter((s) => s.kind === "task").map((s) => s.target_id));
   const { data: myRole } = useMyRole();
-  const isAdmin = myRole === "admin";
+  const isAdmin = atLeast(myRole, "admin");
   const [q, setQ] = useState("");
   // Drives the drop-bounce animation on the card that was just released.
   const [justDroppedId, setJustDroppedId] = useState<string | null>(null);

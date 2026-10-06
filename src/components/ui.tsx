@@ -14,6 +14,7 @@ const PILL_STYLES: Record<string, string> = {
   archive: "bg-zinc-500/10 text-zinc-400",
   done: "bg-emerald-500/15 text-emerald-400",
   in_progress: "bg-blue-500/15 text-blue-400",
+  follow_up: "bg-rose-500/15 text-rose-400",
   pending: "bg-zinc-500/15 text-zinc-300",
   prepared: "bg-emerald-500/15 text-emerald-400",
   needs_prep: "bg-amber-500/15 text-amber-400",

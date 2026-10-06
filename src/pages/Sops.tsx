@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { ClipboardCheck, CheckCircle2, Circle, Sparkles, Play, Target, ArrowLeft, MessageSquare, Pin, Video, Trash2, Plus, Pencil, GripVertical, X } from "lucide-react";
 import type { Sop, SopStep, SopRun } from "@/types/db";
 import { PageHeader, Modal } from "@/components/ui";
+import { useAuth } from "@/hooks/useAuth";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { atLeast, useSops, useSopRuns, useSopMutations, useClients, useRecordings, useRecordingMutations, recordingUrl, useTasks, useTaskMutations, useMyRole, DEMO_ME } from "@/data/hooks";
 import { ScreenRecorder } from "@/components/ScreenRecorder";
 import { generate } from "@/lib/ai";
@@ -69,7 +71,12 @@ export default function Sops() {
   const [aiOutput, setAiOutput] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
 
-  const myId = DEMO_ME;
+  /* The signed-in person. This was DEMO_ME ("demo-1") everywhere, so a task
+     created by "Create one for me" was assigned to the demo seed user, which
+     isn't a valid user id in the live database. Demo mode keeps DEMO_ME so
+     seeded tasks still read as "mine". */
+  const { user } = useAuth();
+  const myId = isSupabaseConfigured && user?.id ? user.id : DEMO_ME;
   const client = clients.find((c) => c.id === clientId) ?? null;
   // Tasks worth attaching a run to: yours, still open. A done task is not what
   // you are about to spend an hour on.

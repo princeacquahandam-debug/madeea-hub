@@ -27,7 +27,7 @@ import { clockTime, dateOnly, dayLabel, hm } from "./format";
 interface Task {
   id: string;
   title: string;
-  status: "todo" | "in_progress" | "done";
+  status: "todo" | "in_progress" | "follow_up" | "review" | "done";
   due_label: string | null;
   blocked: boolean;
   client_visible_blocker: string | null;
@@ -225,16 +225,16 @@ export function ClientMyWork({ clientId }: { clientId: string }) {
                 <button
                   onClick={() => setStatus.mutate({
                     id: t.id,
-                    status: t.status === "in_progress" ? "todo" : "in_progress",
+                    status: t.status === "todo" ? "in_progress" : "todo",
                   })}
                   className={cn(
                     "pill shrink-0 whitespace-nowrap",
-                    t.status === "in_progress"
+                    t.status !== "todo"
                       ? "bg-accent/15 text-accent-soft"
                       : "border border-border text-faint hover:text-text",
                   )}
                 >
-                  {t.status === "in_progress" ? "In progress" : "Start"}
+                  {t.status !== "todo" ? "In progress" : "Start"}
                 </button>
               </div>
             ))}
