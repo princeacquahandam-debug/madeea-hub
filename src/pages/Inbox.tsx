@@ -49,9 +49,13 @@ const TAB_FILTER: Record<(typeof TABS)[number], (m: Message) => boolean> = {
   Done: (m) => m.category === "archive",
 };
 
-/** How many conversations the list shows before it asks. Four is enough to see
- *  what has arrived without the column becoming the whole page. */
-const THREAD_PREVIEW = 4;
+/** How many conversations the list shows, and adds per "Show more".
+ *  It was four, which left most of the column empty beside the reader (client
+ *  review, 6 Oct: "eliminate unused vertical space"). The list now fills the
+ *  screen's height and scrolls inside itself on laptops, so a longer first
+ *  page costs nothing; phones start shorter. */
+const THREAD_PAGE = 25;
+const THREAD_PAGE_PHONE = 15;
 
 export default function Communication() {
   const [composing, setComposing] = useState(false);
@@ -154,10 +158,11 @@ export default function Communication() {
      Collapsed is per view rather than sticky, so switching channel or tab
      starts short again: expanding "All" to 89 rows and then filtering to Slack
      should not leave Slack expanded to nothing in particular. */
-  const [showAllThreads, setShowAllThreads] = useState(false);
-  useEffect(() => { setShowAllThreads(false); }, [tab, sources, q]);
+  const firstPage = typeof window !== "undefined" && window.innerWidth < 1024 ? THREAD_PAGE_PHONE : THREAD_PAGE;
+  const [visibleThreads, setVisibleThreads] = useState(firstPage);
+  useEffect(() => { setVisibleThreads(firstPage); }, [tab, sources, q, firstPage]);
 
-  const shownThreads = showAllThreads ? threads : threads.slice(0, THREAD_PREVIEW);
+  const shownThreads = threads.slice(0, visibleThreads);
   const hiddenThreads = threads.length - shownThreads.length;
 
   /* Keyed off what is actually on screen, not off the filter.
@@ -392,10 +397,10 @@ export default function Communication() {
     const i = threads.findIndex((t) => t.head.id === selected?.id);
     const target = Math.min(Math.max((i < 0 ? 0 : i) + delta, 0), threads.length - 1);
     /* j past the last visible row opens the rest rather than stopping dead.
-       Keyboard navigation that halts at an arbitrary fourth row would read as
+       Keyboard navigation that halts at the end of a page would read as
        the list being broken, and "press j, nothing happens" is not a state
        anybody can diagnose from the outside. */
-    if (target >= shownThreads.length) setShowAllThreads(true);
+    if (target >= shownThreads.length) setVisibleThreads((n) => Math.max(n + firstPage, target + 1));
     const next = threads[target];
     if (!next) return;
     setSelectedId(next.head.id);
@@ -628,7 +633,9 @@ export default function Communication() {
         <div className="card p-10 text-center text-sm text-faint">No messages yet. Connect Gmail from Integrations to populate your inbox.</div>
       ) : (
         <div className="grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)] xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-          <div className="min-w-0">
+          {/* Full height on laptops: the list scrolls inside itself beside the
+              reader instead of stopping after a few rows. */}
+          <div className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-7rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
             {soleSource?.note && (
               <div className="mb-2">
                 <ChannelNotice channel={soleSource} />
@@ -669,23 +676,14 @@ export default function Communication() {
               }
             />
 
-            {/* Directly under the list, where the fifth row would have been.
-                Counted, because "See more" alone does not say whether that is
-                one more message or eighty-five. */}
+            {/* At the end of the list, counted, because "Show more" alone does
+                not say whether that is one more message or eighty-five. */}
             {hiddenThreads > 0 && (
               <button
                 className="mt-2 flex w-full items-center justify-center rounded-xl border border-border py-2 text-xs text-accent-soft transition-colors hover:bg-[var(--chip-bg)]"
-                onClick={() => setShowAllThreads(true)}
+                onClick={() => setVisibleThreads((n) => n + firstPage)}
               >
-                See more · {hiddenThreads} more conversation{hiddenThreads === 1 ? "" : "s"}
-              </button>
-            )}
-            {showAllThreads && threads.length > THREAD_PREVIEW && (
-              <button
-                className="mt-2 flex w-full items-center justify-center rounded-xl border border-border py-2 text-xs text-faint transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
-                onClick={() => setShowAllThreads(false)}
-              >
-                Show fewer
+                Show more · {hiddenThreads} more conversation{hiddenThreads === 1 ? "" : "s"}
               </button>
             )}
           </div>

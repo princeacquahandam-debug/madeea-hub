@@ -53,7 +53,9 @@ export function SourceChips({
   const states = useChannelStates();
   const works = (id: ChannelId) => Boolean(states[id]?.loading || states[id]?.connected || (counts[id] ?? 0) > 0);
   const live = REAL_CHANNELS.filter((c) => isUsable(c) && works(c.id));
-  const locked = REAL_CHANNELS.filter((c) => !isUsable(c) || !works(c.id));
+  /* Not shown at all any more (client review, 6 Oct: locked chips were
+     clutter). "+ Connect" leads to the rest. */
+  const locked: typeof REAL_CHANNELS = [];
   const all = active.size === 0;
 
   return (
@@ -117,7 +119,7 @@ export function SourceChips({
         className="flex min-h-[30px] items-center gap-1 rounded-full border border-dashed border-border px-2.5 text-xs font-medium text-faint transition-colors hover:border-[var(--border-strong)] hover:text-text"
         title="Manage connections and see what each channel needs"
       >
-        <Plus size={12} /> Connect
+        <Plus size={12} /> Connect{live.length === 0 ? " a channel" : ""}
       </Link>
     </div>
   );
