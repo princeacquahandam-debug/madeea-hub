@@ -1009,7 +1009,12 @@ Deno.serve(async (req) => {
         "Who's attending (each person, their role or company, and anything notable from their recent mail); Last " +
         "time (decisions and commitments from past meetings, with the date); Still open (unresolved questions, " +
         "overdue tasks, emails waiting on a reply); Recent mail (2 to 4 lines, newest first); Bring or decide " +
-        "(what the user should have ready). Quote dates and names exactly as the tools return them.\n\n" +
+        "(what the user should have ready). Quote dates and names exactly as the tools return them. " +
+        "Start with the first heading: no opening line such as \"Here's a briefing\". Leave a heading out " +
+        "entirely when it would only say none, nothing found or no notes; instead end with one line, \"Not on " +
+        "file:\" and what was missing (for example: past meeting notes, open tasks). Bring or decide lists only " +
+        "concrete items drawn from what the tools returned; if there are none, leave it out. Never pad with " +
+        "general advice like \"be ready to discuss new strategies\".\n\n" +
         "PLAN MY DAY and WHAT NEEDS ATTENTION. Read today's meetings, the user's overdue and due-today tasks, " +
         "and emails waiting on a reply, then give the answer directly, most urgent first, naming each item.\n\n" +
         "DRAFTING TO OR ABOUT A PERSON (\"draft a follow-up to Bryan\"). Don't ask for details first. Look " +
