@@ -60,7 +60,7 @@ export default function Scoreboard() {
   return (
     <div>
       <PageHeader
-        title="Scoreboard Helper"
+        title="Client Scoreboard"
         subtitle="How the desk actually performed. Measured, not estimated."
         action={
           <button className="btn-primary" onClick={writeNarrative} disabled={busy}>

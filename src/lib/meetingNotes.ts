@@ -135,7 +135,7 @@ export function extractActions(
 export function extractionSummary(notes: string, items: ActionItem[]): string {
   if (!notes.trim()) return "Paste your notes above and the action items will appear here.";
   if (!items.length) {
-    return "No commitments found. Extraction looks for lines with an action in them. Try phrasing as “Bryan to send the deck by Friday”.";
+    return "No commitments found. Extraction looks for lines with an action in them. Try phrasing as “Send the revised deck by Friday”.";
   }
   const dated = items.filter((i) => i.due).length;
   return `${items.length} action${items.length === 1 ? "" : "s"} found${dated ? `, ${dated} with a date read from your wording` : ", none with a date in the wording"}. Untick anything that isn't real.`;

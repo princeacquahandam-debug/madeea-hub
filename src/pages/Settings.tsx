@@ -59,15 +59,15 @@ export default function Settings() {
         {atLeast(role, "admin") && (
           <section className="card p-5">
             <p className="field-label">Administration</p>
-            <p className="mb-3 text-sm text-muted">Manage team accounts, roles and invites. You can use the app normally and switch to the Admin panel any time.</p>
+            <p className="mb-3 text-sm text-muted">Manage team accounts, roles and invites. You can use the app normally and switch to the Admin Panel any time.</p>
             <button className="btn-ghost border border-border" onClick={() => nav("/admin")}>
-              <ShieldCheck size={15} /> Open Admin panel
+              <ShieldCheck size={15} /> Open Admin Panel
             </button>
           </section>
         )}
 
         <section className="card p-5">
-          <p className="field-label">Follow-up nudges</p>
+          <p className="field-label">Gone-quiet nudges</p>
           <p className="mb-4 text-sm text-muted">
             How long something can go quiet before it's flagged. A nudge surfaces once and then
             stays out of your way. Snoozing it buys another {fu.snoozeDays} days.
@@ -147,9 +147,9 @@ export default function Settings() {
         <DoNotContactPanel />
 
         <section className="card p-5">
-          <p className="field-label">Response-time SLA</p>
+          <p className="field-label">Response-time targets</p>
           <p className="mb-4 text-sm text-muted">
-            Thresholds for the On&nbsp;Track / At&nbsp;Risk / Breached flags on each client. Response time is
+            Thresholds for the On&nbsp;track / At&nbsp;risk / Overdue flags on each client. Response time is
             measured to the <span className="text-zinc-200">first reply</span> on a thread.
             {" "}Shared by the whole workspace. Individual clients can override these on their record.
           </p>
@@ -161,8 +161,8 @@ export default function Settings() {
             <p className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-[12.5px] leading-relaxed text-amber-200">
               <AlertTriangle size={14} className="mt-0.5 shrink-0" />
               <span>
-                Saved in this browser only. Run migration 0036 to share these across the workspace,
-                otherwise everyone carries their own definition of late.
+                Saved in this browser only, so everyone carries their own definition of late. Sharing these
+                across the workspace isn't switched on yet. Ask your admin.
               </span>
             </p>
           )}
@@ -183,7 +183,7 @@ export default function Settings() {
               </div>
             </div>
             <div>
-              <label className="field-label" htmlFor="sla-risk">Breached. Beyond</label>
+              <label className="field-label" htmlFor="sla-risk">Overdue. Beyond</label>
               <div className="flex items-center gap-2">
                 <input
                   id="sla-risk"
@@ -265,7 +265,7 @@ export default function Settings() {
               </div>
               {config.endHour <= config.startHour && (
                 <p className="text-xs text-amber-400">
-                  The working day ends before it starts. Falling back to calendar time until this is fixed.
+                  The working day ends before it starts. Until this is fixed, every hour counts, not just working hours.
                 </p>
               )}
             </div>
@@ -286,24 +286,24 @@ export default function Settings() {
 
         <section className="card p-5">
           <p className="field-label">Onboarding</p>
-          <p className="mb-3 text-sm text-muted">Replay the guided walkthrough of the Command Center any time.</p>
+          <p className="mb-3 text-sm text-muted">Replay the guided walkthrough of the Hub any time.</p>
           <div className="flex flex-wrap gap-2">
             <button className="btn-ghost border border-border" onClick={replay}>
               <PlayCircle size={15} /> Replay tutorial
             </button>
             {academyPromoDismissed && (
               <button className="btn-ghost border border-border" onClick={restoreAcademyPromo}>
-                <GraduationCap size={15} /> Show Academy tip
+                <GraduationCap size={15} /> Show Training Center tip
               </button>
             )}
           </div>
           {academyPromoDismissed && (
-            <p className="mt-2 text-xs text-faint">The Academy card is hidden in your sidebar. This browser only.</p>
+            <p className="mt-2 text-xs text-faint">The Training Center tip is hidden in your sidebar. This browser only.</p>
           )}
         </section>
 
         <section className="card p-5">
-          <p className="field-label">Session</p>
+          <p className="field-label">Account</p>
           <button className="btn-ghost border border-border text-red-400 hover:bg-red-500/10" onClick={() => signOut()}>
             <LogOut size={15} /> Sign out
           </button>
@@ -453,9 +453,8 @@ function AlertRouting() {
     <section className="card p-5">
       <p className="field-label">Alerts</p>
       <p className="mb-4 text-sm text-muted">
-        Where the app reaches out when something happens. Each one is off and pointing nowhere
-        until an admin chooses a destination, and the webhook base and key stay on the server —
-        never in the browser.
+        Where the app reaches out when something happens. Each one is off until an admin chooses
+        where it goes.
       </p>
 
       {isLoading ? (
@@ -463,13 +462,13 @@ function AlertRouting() {
       ) : !sla ? (
         <p className="flex items-start gap-2 rounded-lg border border-border bg-surface-2/50 p-3 text-[12.5px] text-muted">
           <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-400" />
-          Run migration 0036 to enable alert routing.
+          Alerts aren't switched on yet. Ask your admin.
         </p>
       ) : (
         <div className="space-y-3">
           <RouteCard
             route={sla}
-            label="SLA breach"
+            label="Late reply"
             who="to the EA and admins"
             placeholder="sla-breach"
             isAdmin={isAdmin}
@@ -482,7 +481,7 @@ function AlertRouting() {
           {timedIn ? (
             <RouteCard
               route={timedIn}
-              label="EA timed in"
+              label="EA clocked in"
               who="to the client, once a day"
               placeholder="ea-timed-in"
               isAdmin={isAdmin}
@@ -491,7 +490,7 @@ function AlertRouting() {
           ) : (
             <p className="flex items-start gap-2 rounded-lg border border-border bg-surface-2/50 p-3 text-[12.5px] text-muted">
               <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-400" />
-              Run migration 0064 to let clients be told when their EA starts the day.
+              Telling clients when their EA clocks in isn't switched on yet. Ask your admin.
             </p>
           )}
         </div>
@@ -549,11 +548,11 @@ function RouteCard({
             onChange={(e) => onChange({ channel: e.target.value as "none" | "n8n" })}
           >
             <option value="none">Not connected</option>
-            <option value="n8n">n8n webhook</option>
+            <option value="n8n">Automation (n8n)</option>
           </select>
         </div>
         <div>
-          <label className="field-label" htmlFor={`${id}-target`}>Webhook path</label>
+          <label className="field-label" htmlFor={`${id}-target`}>Automation address</label>
           <input
             id={`${id}-target`}
             className="input"
@@ -576,8 +575,7 @@ function RouteCard({
         <span>
           Send these
           <span className="block text-xs text-faint">
-            The path is appended to the server's N8N_BASE_URL. The base URL and key are env vars,
-            never in the browser. With no base URL set, alerts are recorded as skipped rather than sent.
+            Sent through MadeEA's automation service. Leave it empty to keep this alert off.
           </span>
         </span>
       </label>

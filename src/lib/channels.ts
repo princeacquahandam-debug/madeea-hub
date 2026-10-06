@@ -117,7 +117,7 @@ export const CHANNELS: Channel[] = [
     requires: [
       "An Instagram Professional account linked to a Facebook Page",
       "A Meta app with instagram_manage_messages, and App Review to go live",
-      "The Page token stored as META_PAGE_ACCESS_TOKEN",
+      "Your admin connects that Facebook Page to MadeEA",
     ],
   },
   {
@@ -132,7 +132,7 @@ export const CHANNELS: Channel[] = [
        access, which is invite-only and routinely refused. Recorded plainly
        because "coming later" would imply a queue this is not actually in, and
        somebody would go on waiting for it. */
-    note: "LinkedIn publishes no public messaging API. Access needs LinkedIn Partner Program approval, which is invite-only, so this may never be connectable. Treat it as a placeholder, not a queue.",
+    note: "LinkedIn publishes no public messaging API. Access needs LinkedIn Partner Program approval, which is invite-only, so this may never be connectable. Not available yet.",
     tint: "#0A66C2",
     requires: [
       "LinkedIn Partner Program approval (invite-only, often refused)",
@@ -151,13 +151,13 @@ export const CHANNELS: Channel[] = [
        set rather than when it last ran. */
     status: "connected",
     compose: "message",
-    note: "Arrives by webhook only: there is no history to pull, so nothing appears until someone messages the number. Replies are freeform for 24 hours after their last message; after that Meta accepts only a pre-approved template.",
+    note: "Messages arrive as they're sent; there's no history to pull, so nothing appears until someone messages the number. Replies are freeform for 24 hours after their last message; after that Meta accepts only a pre-approved template.",
     tint: "#25D366",
     settingsPath: "/integrations",
     requires: [
       "A verified Meta Business with a number on the Cloud API",
-      "WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_TOKEN set",
-      "The webhook pointed at whatsapp-webhook, with META_VERIFY_TOKEN and META_APP_SECRET",
+      "Your admin connects the Meta Business account and its WhatsApp number",
+      "Your admin switches on incoming messages for that number",
     ],
   },
   {
@@ -219,7 +219,7 @@ export const CHANNELS: Channel[] = [
     settingsPath: "/integrations",
     requires: [
       "A Discord application with a bot user",
-      "Its token stored as DISCORD_BOT_TOKEN",
+      "Your admin connects the bot to MadeEA",
       "The bot invited, with Read Message History in each channel you want pulled",
       "Message Content intent switched on in the Developer Portal",
     ],

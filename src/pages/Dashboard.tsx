@@ -20,7 +20,7 @@ import type { Meeting } from "@/types/db";
 
 const KPI_ICONS = [CheckSquare, Calendar, Mail, Timer, BellRing, Workflow];
 const KPI_ICON_COLORS = ["text-accent", "text-sky-400", "text-amber-400", "text-red-400", "text-amber-400", "text-emerald-400"];
-const priorityLabel: Record<string, string> = { urgent: "Urgent", high: "In Progress", normal: "Pending", low: "Done" };
+const priorityLabel: Record<string, string> = { urgent: "Urgent", high: "High", normal: "Normal", low: "Low" };
 const meetingLabel: Record<string, string> = { prepared: "Prepared", needs_prep: "Needs Prep", pending: "Pending" };
 
 /** How many rows a dashboard panel shows. It is a glance, and the header of
@@ -107,7 +107,7 @@ export default function Dashboard() {
     { label: "Meetings Today", value: meetingsToday },
     { label: "Emails Pending", value: messages.filter((m) => m.direction !== "outbound" && !m.first_reply_at).length },
     { label: "Clients At Risk", value: atRisk.length, onClick: () => nav("/clients") },
-    { label: "Needs Follow-up", value: flags.length },
+    { label: "Gone quiet", value: flags.length },
     { label: "Automations Running", value: automations.filter((a) => a.status === "active").length },
   ];
 
@@ -142,13 +142,13 @@ export default function Dashboard() {
     <div>
       <div className="mb-7">
         <h1 className="greeting-title">{timeOfDay}, {firstName}.</h1>
-        <p className="mt-1.5 text-[15px] text-muted">Here's your command center.</p>
+        <p className="mt-1.5 text-[15px] text-muted">Here's your day at a glance.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         {kpis.map((kpi, i) => {
           const Icon = KPI_ICONS[i];
-          const alert = (kpi.label === "Clients At Risk" || kpi.label === "Needs Follow-up") && kpi.value > 0;
+          const alert = (kpi.label === "Clients At Risk" || kpi.label === "Gone quiet") && kpi.value > 0;
           return (
             <div
               key={kpi.label}
@@ -168,7 +168,7 @@ export default function Dashboard() {
       {flags.length > 0 && (
         <section className="card mt-5 p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-[17px] font-bold">Needs Follow-up</h2>
+            <h2 className="text-[17px] font-bold">Gone quiet</h2>
             <span className="text-xs text-faint">Nothing has come back on these</span>
           </div>
           <div className="space-y-2">
@@ -190,7 +190,7 @@ export default function Dashboard() {
             <button className="text-xs text-accent-soft hover:underline" onClick={() => nav("/tasks")}>View all</button>
           </div>
           <div className="space-y-2">
-            {/* Breached SLAs jump the queue, they're the most time-sensitive thing here. */}
+            {/* Overdue replies jump the queue, they're the most time-sensitive thing here. */}
             {shownBreached.map(({ m, client, label }) => (
               <button
                 key={m.id}
@@ -204,7 +204,7 @@ export default function Dashboard() {
                     {client?.name ?? m.sender_name} · waiting {label}
                   </p>
                 </div>
-                <Badge tone="urgent">SLA Breached</Badge>
+                <Badge tone="urgent">Reply overdue</Badge>
               </button>
             ))}
             {shownQueue.map((t) => (

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Check, KeyRound, ChevronRight, ChevronDown, Copy } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { atLeast, useMyRole } from "@/data/hooks";
 
 /**
  * Which channels can be connected at all, and what each one still needs.
@@ -45,9 +46,14 @@ interface Readiness {
 export function IntegrationReadiness() {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  /* A setup checklist of environment values: for the people who can set
+     them. Everyone else sees the cards, which explain themselves. */
+  const { data: role } = useMyRole();
+  const isAdmin = atLeast(role, "admin");
 
   const { data, isLoading } = useQuery<Readiness | null>({
     queryKey: ["integration-readiness"],
+    enabled: isAdmin,
     queryFn: async () => {
       if (!supabase) return null;
       const { data, error } = await supabase.functions.invoke("integration-readiness", { body: {} });
@@ -61,7 +67,7 @@ export function IntegrationReadiness() {
   });
 
   const providers = (data?.providers ?? []).filter((p) => OFFERED.includes(p.provider));
-  if (isLoading || !data || !providers.length) return null;
+  if (!isAdmin || isLoading || !data || !providers.length) return null;
 
   const waiting = providers.filter((p) => !p.ready);
   const ready = providers.length - waiting.length;

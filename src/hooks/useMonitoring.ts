@@ -343,7 +343,7 @@ export function useMonitoring(opts: {
     }
 
     const blob = await toJpegBlob(canvas, 0.6);
-    if (!blob) { setError("Could not encode the screenshot."); return; }
+    if (!blob) { setError("Couldn't save the screenshot."); return; }
 
     const { data: u } = await supabase.auth.getUser();
     const uid = u.user?.id;
@@ -368,7 +368,7 @@ export function useMonitoring(opts: {
     });
     // The image is already in storage, so a failed row is a real inconsistency
     // and is surfaced rather than swallowed.
-    if (rowErr) { setError(`Stored the image but not its record: ${rowErr.message}`); return; }
+    if (rowErr) { setError(`Saved the screenshot but couldn't record it: ${rowErr.message}`); return; }
 
     setShots((n) => n + 1);
     setLastCaptureAt(now);
@@ -427,7 +427,7 @@ export function useMonitoring(opts: {
        somebody relies on it. */
     if (!settingsRef.current.screenshotsEnabled) {
       setState("off");
-      setError("Screenshots are switched off for this account, so there is nothing to capture.");
+      setError("Screenshots are switched off for this account, so no screenshots are taken.");
       return;
     }
     if (!navigator.mediaDevices?.getDisplayMedia) { setState("unsupported"); return; }
@@ -462,7 +462,7 @@ export function useMonitoring(opts: {
         setState("off");
         setError(
           chosen === "browser"
-            ? "You shared a browser tab. Screenshots would show only that tab, so this would monitor one page rather than your work. Choose Entire Screen instead."
+            ? "You shared a browser tab. Screenshots would show only that tab, not the rest of your work. Choose Entire Screen instead."
             : "You shared a single window. Screenshots would show only that app. Choose Entire Screen instead.",
         );
         return;
@@ -608,7 +608,7 @@ export function useMonitoring(opts: {
   const stop = useCallback(() => {
     teardown();
     setState("off");
-    setStoppedReason("You turned capture off.");
+    setStoppedReason("You turned screen sharing off.");
   }, [teardown]);
 
   // Capture belongs to a running session and cannot outlive it.
@@ -616,7 +616,7 @@ export function useMonitoring(opts: {
     if (!running && streamRef.current) {
       teardown();
       setState("off");
-      setStoppedReason("The tracked session ended, so capture stopped with it.");
+      setStoppedReason("Your shift ended, so screen sharing stopped.");
     }
   }, [running, teardown]);
 

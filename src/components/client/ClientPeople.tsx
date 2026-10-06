@@ -49,8 +49,8 @@ const ROLE_COPY: Record<string, { label: string; blurb: string }> = {
     blurb: "Sees the work, the calendar and shared notes. Cannot request work, and cannot read your messages with your assistant or with agency leadership.",
   },
   member: {
-    label: "Team member, does the work",
-    blurb: "Gets their own clock, their own task list, and screen capture while they work. You see their hours and screenshots. They cannot read your messages or see the rest of the account.",
+    label: "Staff member, does the work",
+    blurb: "Gets their own clock, their own task list, and screenshots while they work. You see their hours and screenshots. They cannot read your messages or see the rest of the account.",
   },
 };
 
@@ -154,7 +154,7 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
     <div className="space-y-6">
       {readOnly ? (
         <p className="text-faint text-sm">
-          Everyone who can see this account. Only the account owner can add or remove
+          Everyone who can see this account. Only the primary contact can add or remove
           people.
         </p>
       ) : (
@@ -254,7 +254,7 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
             <p className="text-faint mt-2 text-xs">
               {full
                 ? `That is the limit of ${CAP[role]}. Remove one to add another, or talk to us about more seats.`
-                : `${seated} of ${CAP[role]} ${role === "member" ? "team member" : "colleague"} seats used.`}
+                : `${seated} of ${CAP[role]} ${role === "member" ? "staff" : "colleague"} seats used.`}
             </p>
           ) : null}
 
@@ -296,11 +296,11 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
                   <div className="truncate text-sm">
                     {/* A viewer is not shown colleague addresses (0074), so the
                         row still has to read as somebody without one. */}
-                    {p.email ?? (p.role === "primary" ? "Account owner" : p.role === "member" ? "Team member" : "Colleague")}
+                    {p.email ?? (p.role === "primary" ? "Primary contact" : p.role === "member" ? "Staff member" : "Colleague")}
                     {p.is_you ? <span className="text-faint"> · you</span> : null}
                   </div>
                   <div className="text-faint mt-0.5 text-xs">
-                    {p.role === "primary" ? "Full access" : p.role === "member" ? "Team member" : "View only"}
+                    {p.role === "primary" ? "Full access" : p.role === "member" ? "Staff" : "View only"}
                     {" · added "}
                     {dayLabel(dateOnly(localDayKey(p.created_at)))}
                   </div>

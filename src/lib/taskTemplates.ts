@@ -19,7 +19,7 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
     name: "Weekly report",
     title: "Prepare weekly report",
     priority: "normal",
-    subtasks: ["Gather highlights", "Pull KPIs", "Draft summary", "Send to executive"],
+    subtasks: ["Gather highlights", "Pull KPIs", "Draft summary", "Send to client"],
   },
   {
     name: "Prepare for meeting",

@@ -86,7 +86,7 @@ export function Notifications() {
       out.push({
         id: f.id,
         icon: f.kind === "dead_thread" ? MailQuestion : Clock3,
-        title: f.kind === "dead_thread" ? "No reply" : "Stale task",
+        title: f.kind === "dead_thread" ? "No reply" : "No update",
         desc: `${f.title} · ${f.reason}`,
         path: f.path,
         snooze: { item_type: f.itemType, item_id: f.itemId },

@@ -273,7 +273,7 @@ export default function Academy() {
               <BookOpen size={24} className="mx-auto mb-3 text-faint" />
               <p className="font-medium">No course published</p>
               <p className="mx-auto mt-1 max-w-md text-sm text-faint">
-                Run migration 0034 to load the Made Ready outline.
+                The course isn't set up yet. Ask your admin.
               </p>
             </div>
           )}

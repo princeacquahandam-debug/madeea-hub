@@ -264,7 +264,7 @@ export function IntegrationDialog({
             most pull on a schedule, WhatsApp only ever receives. */}
         <p className="mt-3 text-[11.5px] leading-relaxed text-faint">
           {provider === "meta"
-            ? "One Meta sign-in covers Instagram and WhatsApp. Instagram pulls its recent messages; WhatsApp receives by webhook only, so nothing appears until somebody messages the number."
+            ? "One Meta sign-in covers Instagram and WhatsApp. Instagram pulls its recent messages. WhatsApp has no history to pull; new messages arrive as they're sent, so nothing appears until somebody messages the number."
             : "New messages arrive on the next sync, or straight away from the Sync now option on the card."}
         </p>
 

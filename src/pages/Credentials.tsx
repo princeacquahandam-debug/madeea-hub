@@ -258,7 +258,7 @@ export default function Credentials() {
           </div>
           <div>
             <label className="field-label" htmlFor="c-notes">Notes (not encrypted)</label>
-            <input id="c-notes" className="input" placeholder="e.g. 2FA goes to Priya's phone" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+            <input id="c-notes" className="input" placeholder="e.g. 2FA codes go to the client's phone" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
           </div>
           <button className={cn("btn-primary w-full")} onClick={() => void addCredential()} disabled={!form.label.trim() || !form.secret || save.isPending}>
             {save.isPending ? "Saving…" : "Save login"}

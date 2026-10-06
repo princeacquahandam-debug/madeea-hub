@@ -103,11 +103,11 @@ export function useClientCapture(entryId: string | null, clientId: string | null
       });
       /* The image is already in storage, so a failed row is a real
          inconsistency rather than a retryable hiccup, and is surfaced. */
-      if (rowErr) { setState((s) => ({ ...s, error: `Stored the image but not its record: ${rowErr.message}` })); return; }
+      if (rowErr) { setState((s) => ({ ...s, error: `Saved the screenshot but couldn't record it: ${rowErr.message}` })); return; }
 
       setState((s) => ({ ...s, error: "", lastAt: now, count: s.count + 1, surface }));
     } catch (e) {
-      setState((s) => ({ ...s, error: e instanceof Error ? e.message : "Capture failed." }));
+      setState((s) => ({ ...s, error: e instanceof Error ? e.message : "Couldn't take the screenshot." }));
     }
   }, [entryId, clientId, stop]);
 

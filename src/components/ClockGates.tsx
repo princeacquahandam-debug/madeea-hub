@@ -113,7 +113,7 @@ function FocusGate({
         <div className="min-w-0">
           <h2 className="display text-xl">What is today for?</h2>
           <p className="mt-1 text-sm text-muted">
-            One line, before the clock starts. Asked once a day rather than once a session, and it is
+            One line, before the clock starts. Asked once a day rather than once a shift, and it is
             what tonight&apos;s EOD gets read against.
           </p>
         </div>
@@ -125,13 +125,13 @@ function FocusGate({
           id="clock-focus"
           className="input"
           autoFocus
-          placeholder="Clear Rowena's inbox and get the Q3 deck to first draft"
+          placeholder="Clear the inbox and get the Q3 deck to first draft"
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <button type="submit" className="btn-primary" disabled={!ready}>
-            Start the day
+            Clock in
           </button>
           <button type="button" className="btn-ghost border border-border" onClick={onClose}>
             Not yet
@@ -209,20 +209,20 @@ function EodGate({
         <div className="min-w-0">
           <h2 className="display text-xl">Your EOD, before you clock out</h2>
           <p className="mt-1 text-sm text-muted">
-            Drafted from your board for {day}. Edit anything, add what the board never saw, then file it
-            and the clock stops.
+            Drafted from your task board for {day}. Edit anything, add what the task board never saw, then
+            submit it and the clock stops.
           </p>
         </div>
       </div>
 
-      {tasksLoading && <p className="mt-4 text-xs text-faint">Pulling your board…</p>}
+      {tasksLoading && <p className="mt-4 text-xs text-faint">Loading your task board…</p>}
 
       <div className="mt-5 space-y-4">
         <DraftList
-          title="Completed"
+          title="Done today"
           items={current.done}
           dot="bg-emerald-400"
-          empty="Nothing marked done on the board. Add what you did."
+          empty="Nothing marked done on the task board. Add what you did."
           onChange={(done) => setDraft({ ...current, done })}
         />
         <DraftList
@@ -233,7 +233,7 @@ function EodGate({
           onChange={(blockers) => setDraft({ ...current, blockers })}
         />
         <DraftList
-          title="Plan for next day"
+          title="Plan for tomorrow"
           items={current.plans}
           dot="bg-amber-400"
           empty="No open tasks assigned to you."
@@ -245,7 +245,7 @@ function EodGate({
           <textarea
             id="gate-eod-notes"
             className="input min-h-[70px]"
-            placeholder="Attended the Monday meeting, OLJ subscription still down…"
+            placeholder="e.g. Attended the Monday meeting; the client's subscription is still down"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
@@ -261,14 +261,14 @@ function EodGate({
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <button className="btn-primary" onClick={() => void fileIt()} disabled={submit.isPending || total === 0}>
           <Send size={14} />
-          {submit.isPending ? "Filing…" : "File EOD and clock out"}
+          {submit.isPending ? "Submitting…" : "Submit EOD and clock out"}
         </button>
         <button className="btn-ghost border border-border" onClick={onClose}>
           Keep working
         </button>
         {total === 0 && (
           <span className="text-xs text-faint">
-            Add at least one line, or say below why there is nothing to file.
+            Add at least one line, or say below why there is nothing to submit.
           </span>
         )}
       </div>
@@ -286,7 +286,7 @@ function EodGate({
             className="text-xs text-faint underline-offset-2 hover:text-muted hover:underline"
             onClick={() => setSkipping(true)}
           >
-            I can&apos;t file it right now
+            I can&apos;t submit it right now
           </button>
         ) : (
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
@@ -299,7 +299,7 @@ function EodGate({
             <textarea
               className="input mt-2 min-h-[56px] text-sm"
               autoFocus
-              placeholder="Why the report can't be filed now, and when it will be"
+              placeholder="Why the report can't be submitted now, and when it will be"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
             />

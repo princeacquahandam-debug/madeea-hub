@@ -99,7 +99,7 @@ export function ClockWatch() {
       ) : (
         <>
           <p className="mb-2 text-sm text-muted">
-            {missing.length} {missing.length === 1 ? "person has" : "people have"} not started today
+            {missing.length} {missing.length === 1 ? "person has" : "people have"} not clocked in today
             {late ? "." : ", though it is still early."}
           </p>
           <ul className="space-y-1.5">
@@ -128,7 +128,7 @@ export function ClockWatch() {
       {rows.some((r) => r.clocked_in_today && !r.filed_eod_today) ? (
         <p className="mt-3 text-xs text-faint">
           {rows.filter((r) => r.clocked_in_today && !r.filed_eod_today).length} clocked in and have not
-          filed an EOD yet. They cannot clock out until they do.
+          submitted an EOD yet. They cannot clock out until they do.
         </p>
       ) : null}
     </div>

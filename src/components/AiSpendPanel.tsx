@@ -54,9 +54,8 @@ export function AiSpendPanel() {
     <section className="card p-5">
       <p className="field-label flex items-center gap-2"><Cpu size={14} /> AI usage</p>
       <p className="mb-4 text-sm text-muted">
-        Tokens spent this calendar month by the writing engine, the assistant, meeting extraction,
-        automations and voice notes. Remaining is measured against the monthly allowance, not against
-        a balance at the provider &mdash; neither of them publishes one.
+        AI usage this month from Madeline, meeting notes, automations and voice notes. Remaining is
+        measured against the monthly allowance, not against a balance with the AI provider.
       </p>
 
       {isLoading ? (
@@ -64,8 +63,8 @@ export function AiSpendPanel() {
       ) : named.length === 0 ? (
         <p className="flex items-start gap-2 rounded-lg border border-border bg-surface-2/50 p-3 text-[12.5px] text-muted">
           <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-400" />
-          Run migration 0069 to start recording AI usage. Nothing is lost in the meantime except the
-          record: the features themselves work either way.
+          AI usage isn't being recorded. This isn't switched on yet. Ask your admin. The AI features
+          themselves work either way.
         </p>
       ) : (
         <>
@@ -107,7 +106,7 @@ export function AiSpendPanel() {
 
           <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border pt-3 text-sm">
             <span className="text-muted">
-              Workspace total <span className="ml-1 tabular-nums text-zinc-200">{compact(totalTokens)}</span> tokens
+              Workspace usage <span className="ml-1 tabular-nums text-zinc-200">{compact(totalTokens)}</span>
             </span>
             <span className="text-muted">
               Estimated cost{" "}
@@ -121,10 +120,9 @@ export function AiSpendPanel() {
 
           {!priced && (
             <p className="mt-2 text-xs text-faint">
-              No model has a rate against it yet, so cost cannot be worked out. Tokens above are exact.
-              An admin sets rates per million tokens in <code className="text-[11px]">ai_rates</code>;
-              anything recorded before that stays unpriced, because a call is costed at the rate in
-              force when it was made.
+              No price has been set yet, so cost cannot be worked out. The usage above is exact.
+              An admin sets the price per unit of AI usage; anything recorded before that stays unpriced,
+              because usage is costed at the price in force at the time.
             </p>
           )}
         </>

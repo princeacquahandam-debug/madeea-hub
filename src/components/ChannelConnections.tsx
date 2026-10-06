@@ -290,7 +290,7 @@ function CardMenu({ channel, state, onNote }: {
         disabled={busy || !state.connected || channel.id === "whatsapp"}
         /* WhatsApp has no sync and cannot have one: Meta keeps no history to
            fetch, so inbound exists only as a webhook delivery. */
-        title={channel.id === "whatsapp" ? "WhatsApp has no history to pull; messages arrive by webhook" : undefined}
+        title={channel.id === "whatsapp" ? "WhatsApp has no history to pull; new messages arrive as they're sent" : undefined}
       >
         {busy ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Sync now
       </button>

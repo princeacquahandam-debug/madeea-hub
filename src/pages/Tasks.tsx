@@ -169,7 +169,7 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, onSave, isSaved
           </span>
         )}
         {/* Waiting on a dependency (derived from depends_on). */}
-        {blocked && <span className="pill bg-amber-500/15 text-amber-400"><Lock size={10} /> Blocked</span>}
+        {blocked && <span className="pill bg-amber-500/15 text-amber-400"><Lock size={10} /> Waiting on task</span>}
         {/* Someone said this is blocked and why. Feeds their EOD report. */}
         {task.blocked && (
           <span className="pill bg-red-500/15 text-red-400" title={task.blocker_note ?? undefined}>
@@ -357,9 +357,11 @@ function ago(iso: string): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
+const columnLabel = (key: string | null | undefined) => (key ? COLUMNS.find((c) => c.key === key)?.label ?? key : "?");
+
 const VERB_TEXT: Record<string, (a: TaskActivity) => string> = {
   created: () => "created this task",
-  status: (a) => `moved it from ${a.from_value ?? "?"} to ${a.to_value ?? "?"}`,
+  status: (a) => `moved it from ${columnLabel(a.from_value)} to ${columnLabel(a.to_value)}`,
   priority: (a) => `changed priority to ${a.to_value ?? "?"}`,
   due: (a) => (a.to_value ? `set the due date to ${a.to_value.slice(0, 10)}` : "cleared the due date"),
   blocked: (a) => (a.to_value ? `flagged it blocked: ${a.to_value}` : "flagged it blocked"),
@@ -637,7 +639,7 @@ export default function Tasks() {
       <ClientScopeBanner note="Tasks with no client attached are hidden." />
       <PageHeader
         title="Task Manager"
-        subtitle="Drag cards between columns to update status"
+        subtitle="Drag tasks between columns to update their status"
         action={
           <div className="flex gap-2">
             <button className="btn-ghost border border-border" onClick={() => setTemplates(true)}><Copy size={15} /> Templates</button>
@@ -651,9 +653,9 @@ export default function Tasks() {
       {staleTasks.length > 0 && (
         <section className="card mb-4 p-4">
           <div className="mb-2.5 flex items-center gap-2">
-            <h2 className="text-sm font-semibold">Needs Follow-up</h2>
+            <h2 className="text-sm font-semibold">Gone quiet</h2>
             <span className="pill bg-amber-500/15 text-amber-400">{staleTasks.length}</span>
-            <span className="ml-auto text-xs text-faint">Untouched long enough to be forgotten</span>
+            <span className="ml-auto text-xs text-faint">No update in a while</span>
           </div>
           <div className="space-y-2">
             {staleTasks.map((f) => <FollowUpRow key={f.id} flag={f} />)}
@@ -782,7 +784,7 @@ export default function Tasks() {
               </select>
             </div>
             <div>
-              <label className="field-label">Blocked by</label>
+              <label className="field-label">Waiting on task</label>
               <select className="input" value={form.dependsOn} onChange={(e) => setForm((f) => ({ ...f, dependsOn: e.target.value }))}>
                 <option value="">None</option>
                 {tasks.filter((t) => t.id !== editingId).map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
@@ -814,7 +816,7 @@ export default function Tasks() {
             <input
               id="task-blocker"
               className="input"
-              placeholder="e.g. Waiting on Jordan's copy and enriched list"
+              placeholder="e.g. Waiting on the client's signed contract"
               value={form.blockerNote}
               onChange={(e) => setForm((f) => ({ ...f, blockerNote: e.target.value }))}
             />
@@ -923,7 +925,7 @@ export default function Tasks() {
       {/* Templates */}
       <Modal open={templates} onClose={() => setTemplates(false)}>
         <h2 className="mb-1 text-lg font-semibold">Start from a template</h2>
-        <p className="mb-4 text-sm text-muted">Common EA workflows. Creates a task with its checklist ready to tweak.</p>
+        <p className="mb-4 text-sm text-muted">Common EA tasks. Creates a task with its checklist ready to tweak.</p>
         <div className="space-y-2">
           {TASK_TEMPLATES.map((t) => (
             <button key={t.name} onClick={() => fromTemplate(t)} className="flex w-full flex-col rounded-lg border border-border p-3 text-left transition-colors hover:border-accent/40">

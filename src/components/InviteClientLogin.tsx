@@ -95,7 +95,7 @@ export function InviteClientLogin({
       const err = e as Error & { missing?: boolean };
       setError(
         err.missing
-          ? "The invite-client function is not deployed yet. Run: npm run deploy:functions invite-client"
+          ? "Client logins aren't set up yet. Ask your admin."
           : err.message,
       );
     }

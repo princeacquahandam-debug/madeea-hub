@@ -32,7 +32,7 @@ const TOUR_KEY = "madeea-tour-eod";
 const TOUR_STEPS: TourStep[] = [
   {
     title: "This is your EOD, done for you",
-    body: "No more retyping into a sheet. Your end-of-day report is drafted from the work you already track on the board. Here's the 30-second tour.",
+    body: "No more retyping. Your end-of-day report is drafted from the work you already track on the board. Here's the 30-second tour.",
   },
   {
     selector: '[data-tour="eod-today"]',
@@ -57,7 +57,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     selector: '[data-tour="eod-reports"]',
     title: "Every report, searchable",
-    body: "Filter by member, by date, or just the ones with blockers. Nothing gets lost in a spreadsheet tab.",
+    body: "Filter by EA, by date, or just the ones with blockers.",
   },
   {
     selector: '[data-tour="eod-tour-btn"]',
@@ -107,8 +107,8 @@ const CELL_STYLES: Record<CellStatus, string> = {
 };
 const CELL_LABELS: Record<CellStatus, string> = {
   submitted: "submitted a report",
-  template: "blank template, never filled in",
-  empty: "empty cell",
+  template: "not submitted",
+  empty: "no report",
 };
 
 export default function EodReports() {
@@ -352,9 +352,9 @@ export default function EodReports() {
   // and a bare division would print NaN.
   const avg = (n: number) => (stats.totalSubs ? (n / stats.totalSubs).toFixed(1) : "0");
   const kpis = [
-    { label: "Submissions", value: stats.totalSubs, foot: `across ${people.length} members` },
+    { label: "Submissions", value: stats.totalSubs, foot: `across ${people.length} EAs` },
     { label: "Team Completion", value: pct(teamCompletion), foot: `${stats.totalSubs} of ${people.length * meta.denominator} possible` },
-    { label: "Days With Reports", value: activeDates.length, foot: `of ${dates.length} dated rows` },
+    { label: "Days With Reports", value: activeDates.length, foot: `of ${dates.length} days` },
     { label: "Tasks Completed", value: stats.totalDone, foot: `${avg(stats.totalDone)} avg per report` },
     { label: "Blockers Raised", value: stats.totalBlockers, foot: `${stats.withBlockers} of ${stats.totalSubs} reports` },
     { label: "Planned Items", value: stats.totalPlans, foot: `${avg(stats.totalPlans)} avg per report` },
@@ -423,8 +423,8 @@ export default function EodReports() {
         <div className="card mb-3 flex flex-wrap items-center gap-2 border-amber-500/40 bg-amber-500/5 p-2.5 text-[12.5px] text-amber-200">
           <AlertTriangle size={14} className="shrink-0" />
           <span className="min-w-0 flex-1">
-            Could not load reports, so the figures below are not your team's. This is a read failure,
-            not an empty week. {(eodErr as Error)?.message}
+            Couldn't load reports, so the figures below are not your team's. Try again in a moment.{" "}
+            {(eodErr as Error)?.message}
           </span>
           <button className="btn-ghost border border-amber-500/40 px-2 py-1 text-[11.5px]" onClick={() => void refetchEod()}>
             Try again
@@ -437,7 +437,7 @@ export default function EodReports() {
         title="EOD Reports"
         subtitle={`Daily end-of-day reporting, submission compliance and blockers · ${fmtDate(dates[0])} – ${fmtDate(
           dates[dates.length - 1],
-        )} 2026`}
+        )} ${(dates[dates.length - 1] ?? today).slice(0, 4)}`}
         action={
           <div className="flex shrink-0 items-center gap-2">
             {myReportForDate && (
@@ -499,22 +499,7 @@ export default function EodReports() {
       {activeDates.length > 0 && (
         <div className="card mt-5 border-accent/40 bg-accent/5 p-4">
           <p className="text-sm text-muted">
-            <span className="font-semibold text-accent-soft">Reading completion:</span> reports so far run{" "}
-            <strong className="text-zinc-100">
-              {fmtDate(activeDates[0])} – {fmtDate(activeDates[activeDates.length - 1])}
-            </strong>
-            , but completion divides each member by a fixed <strong className="text-zinc-100">{meta.denominator}</strong> days, the way the
-            sheet always has. It therefore tops out at <strong className="text-zinc-100">{pct(ceiling)}</strong> even for someone who reported
-            every active day.{" "}
-            {fullTurnoutDays > 0 && (
-              <>
-                Turnout itself was strong:{" "}
-                <strong className="text-zinc-100">
-                  {fullTurnoutDays} of {activeDates.length}
-                </strong>{" "}
-                active days saw every member report.
-              </>
-            )}
+            Completion counts the days each EA submitted an EOD report this month.
           </p>
         </div>
       )}
@@ -551,7 +536,7 @@ export default function EodReports() {
           <table className="w-full min-w-[46rem] text-sm">
             <thead>
               <tr className="border-b border-border text-left">
-                <th className="eyebrow py-2 pr-3 font-semibold">Team member</th>
+                <th className="eyebrow py-2 pr-3 font-semibold">EA</th>
                 <th className="eyebrow py-2 px-3 text-right font-semibold">Submissions</th>
                 <th className="eyebrow py-2 px-3 text-right font-semibold">Completion</th>
                 <th className="eyebrow py-2 px-3 text-right font-semibold">Tasks done</th>
@@ -634,7 +619,7 @@ export default function EodReports() {
         <section className="card p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="font-semibold">Coverage</h2>
-            <span className="text-xs text-faint">Every cell in the sheet</span>
+            <span className="text-xs text-faint">Every day this month</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[34rem] border-separate border-spacing-[2px]">
@@ -675,7 +660,7 @@ export default function EodReports() {
             </span>
             <span className="flex items-center gap-1.5">
               <span className="h-3 w-3 rounded-sm border border-amber-500/40 bg-amber-500/20" />
-              Blank template ({counts.template})
+              Not submitted ({counts.template})
             </span>
             <span className="flex items-center gap-1.5">
               <span className="h-3 w-3 rounded-sm border border-border bg-surface-2" />
@@ -705,7 +690,7 @@ export default function EodReports() {
         <div className="space-y-3 border-b border-border pb-4">
           <div className="flex flex-wrap gap-1.5">
             <FilterChip active={person === "all"} onClick={() => setPerson("all")}>
-              All members
+              All EAs
             </FilterChip>
             {reportedPeople.map((p) => (
               <FilterChip key={p} active={person === p} onClick={() => setPerson(p)}>
@@ -714,7 +699,7 @@ export default function EodReports() {
             ))}
             {reportedPeople.length === 0 && (
               <span className="self-center text-xs text-faint">
-                Nobody has filed a report yet. Names appear here as reports come in.
+                Nobody has submitted a report yet. Names appear here as reports come in.
               </span>
             )}
           </div>
@@ -729,7 +714,7 @@ export default function EodReports() {
             ))}
             {personDates.length === 0 && (
               <span className="text-xs text-faint">
-                {person === "all" ? "No reports yet" : `${person.split(" ")[0]} has not filed a report yet`}
+                {person === "all" ? "No reports yet" : `${person.split(" ")[0]} has not submitted a report yet`}
               </span>
             )}
             <span className="mx-1 h-4 w-px bg-border" />
@@ -766,7 +751,7 @@ export default function EodReports() {
         </div>
       </section>
 
-      {/* ---------------- Kanban metrics (live, replaces the sheet's tab) ---------------- */}
+      {/* ---------------- Kanban metrics (live) ---------------- */}
       <section className="card mt-5 p-5">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="font-semibold">Task Metrics</h2>
@@ -794,20 +779,12 @@ export default function EodReports() {
           <div className="py-8 text-center">
             <p className="text-sm text-muted">No tasks on the board yet</p>
             <p className="mx-auto mt-1 max-w-md text-xs text-faint">
-              These metrics come live from the Task Manager, which replaces the sheet's old Task Tracker tab. Add a task and it counts here,
+              These figures come live from the Task Manager. Add a task and it counts here,
               and lands in your EOD draft by itself.
             </p>
           </div>
         )}
       </section>
-
-      <p className="mt-5 text-xs leading-relaxed text-faint">
-        Figures for July reproduce the old sheet's own <code className="rounded bg-surface-2 px-1 py-0.5">COUNTIFS</code> and{" "}
-        <code className="rounded bg-surface-2 px-1 py-0.5">=B4/31</code> formulas and match it cell-for-cell; a cell counted only when it was
-        filled in and not the untouched blank template ({counts.template} cells still hold it). Those {IMPORTED_COUNT} reports are imported
-        history. Everything from {fmtDate(dates[dates.length - 1])} on is submitted here, drafted from the Task Manager. Completion keeps the
-        sheet's 31-day denominator so the numbers still line up with what the team knows.
-      </p>
     </div>
   );
 }
@@ -876,7 +853,7 @@ function TodayEod({
             : isToday ? "Draft today's EOD" : `Draft EOD for ${fmtDate(reportDate)}`}
         </span>
         <span className="pill bg-surface-2 text-faint">
-          {total} {total === 1 ? "item" : "items"} from your board
+          {total} {total === 1 ? "task" : "tasks"} from your board
         </span>
         {existing && <Badge tone="done">Submitted</Badge>}
         {!isToday && !existing && <Badge tone="high">Catching up</Badge>}
@@ -925,23 +902,23 @@ function TodayEod({
             </div>
             <p className="ml-auto max-w-xs text-[11px] text-faint">
               {existing
-                ? "You already filed this day. Submitting again updates it."
+                ? "You already submitted this day. Submitting again updates it."
                 : isToday
-                  ? "Filing for today."
+                  ? "Submitting for today."
                   : "Catching up on a missed day. Future dates aren't allowed."}
             </p>
           </div>
 
           <p className="text-xs text-faint">
-            Pulled from your tasks: {isToday ? "completed today" : `completed on ${fmtDate(reportDate)}`}, blocked, and
+            Pulled from your tasks: {isToday ? "done today" : `done on ${fmtDate(reportDate)}`}, blocked, and
             still open. Edit anything, then submit.
           </p>
 
           <DraftList
-            title={isToday ? "Completed today" : `Completed on ${fmtDate(reportDate)}`}
+            title={isToday ? "Done today" : `Done on ${fmtDate(reportDate)}`}
             items={draft.done}
             dot="bg-emerald-400"
-            empty={isToday ? "Nothing marked done today. Move cards to Done on the board, or add a line." : "Nothing marked done on this date. Add what you did."}
+            empty={isToday ? "Nothing marked done today. Move tasks to Done on the board, or add a line." : "Nothing marked done on this date. Add what you did."}
             onChange={(done) => onChange({ ...draft, done })}
           />
           <DraftList
@@ -952,7 +929,7 @@ function TodayEod({
             onChange={(blockers) => onChange({ ...draft, blockers })}
           />
           <DraftList
-            title="Plan for next day"
+            title="Plan for tomorrow"
             items={draft.plans}
             dot="bg-amber-400"
             empty="No open tasks assigned to you."
@@ -968,7 +945,7 @@ function TodayEod({
             <textarea
               id="eod-notes"
               className="input min-h-[70px]"
-              placeholder="Attended the Monday meeting, OLJ subscription still down…"
+              placeholder="e.g. Attended the Monday meeting; the client's subscription is still down"
               value={notes}
               onChange={(e) => onNotes(e.target.value)}
             />
@@ -980,7 +957,7 @@ function TodayEod({
               {saving ? "Submitting…" : existing ? "Update this report" : "Submit EOD"}
             </button>
             {existing && <span className="text-xs text-faint">Submitting again corrects this report.</span>}
-            {total === 0 && !existing && <span className="text-xs text-faint">Add at least one item to submit.</span>}
+            {total === 0 && !existing && <span className="text-xs text-faint">Add at least one line to submit.</span>}
           </div>
         </div>
       )}
@@ -1116,9 +1093,9 @@ function ReportCard({
       </div>
 
       <div className="space-y-4 px-4 py-3">
-        <Section title="Completed" items={entry.done} dot="bg-emerald-400" collapsed={!full} />
+        <Section title="Done today" items={entry.done} dot="bg-emerald-400" collapsed={!full} />
         <Section title="Blockers" items={entry.blockers} dot="bg-red-400" collapsed={!full} />
-        <Section title="Plan for next day" items={entry.plans} dot="bg-amber-400" collapsed={!full} />
+        <Section title="Plan for tomorrow" items={entry.plans} dot="bg-amber-400" collapsed={!full} />
         {entry.notes?.trim() && (
           <div>
             <p className="eyebrow mb-1.5">Notes</p>
@@ -1142,7 +1119,7 @@ function ReportCard({
                 <ChevronRight size={13} />
                 {/* Says what is behind it. "See more" alone does not tell you
                     whether that is one hidden line or forty. */}
-                See more{hiddenItems > 0 ? ` · ${hiddenItems} more item${hiddenItems === 1 ? "" : "s"}` : ""}
+                See more{hiddenItems > 0 ? ` · ${hiddenItems} more line${hiddenItems === 1 ? "" : "s"}` : ""}
               </>
             )}
           </button>
@@ -1165,13 +1142,13 @@ function ReportCard({
           </div>
         )}
 
-        {/* Only imported sheet reports carry original text; ones submitted here
+        {/* Only imported reports carry original text; ones submitted here
             are already structured, so there is nothing rawer to show. */}
         {entry.raw?.trim() && (
         <div className="border-t border-border pt-2">
           <button onClick={onToggle} className="flex items-center gap-1 text-[11px] text-faint hover:text-zinc-100">
             {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-            Original text from the sheet
+            Original report text
           </button>
           {open && (
             <pre className="mt-2 whitespace-pre-wrap break-words rounded-lg bg-bg p-3 text-[11px] leading-relaxed text-muted">

@@ -16,6 +16,10 @@ import { supabase } from "@/lib/supabase";
 import { useMadelineContext } from "@/hooks/useMadeline";
 import { clientItem } from "@/lib/madelineItems";
 
+const STATUS_LABEL: Record<string, string> = {
+  todo: "To Do", in_progress: "In Progress", follow_up: "Follow-up", review: "Review", done: "Done",
+};
+
 const BLANK = { name: "", title: "", company: "", preferred_channel: "Email", tone: "Formal", tags: "", bio: "", preferences_notes: "", image: "" };
 
 export default function ClientVault() {
@@ -56,7 +60,7 @@ export default function ClientVault() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!supabase) { setUploadErr("Upload needs Supabase. Paste an image URL instead."); return; }
+    if (!supabase) { setUploadErr("Upload isn't available in demo mode. Paste an image URL instead."); return; }
     setUploading(true); setUploadErr("");
     try {
       const ext = file.name.split(".").pop() || "png";
@@ -142,7 +146,7 @@ export default function ClientVault() {
                 />
               </div>
 
-              {/* Response-time SLA, the headline service metric for this client. */}
+              {/* Response time, the headline service metric for this client. */}
               <div className="mt-4 rounded-lg bg-surface-2 px-3 py-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="eyebrow">Response</span>
@@ -284,7 +288,7 @@ export default function ClientVault() {
                           </p>
                         </div>
                         <div className="rounded-lg bg-surface-2 p-3">
-                          <p className="eyebrow">Breaches</p>
+                          <p className="eyebrow">Late replies</p>
                           <p className="mt-1 text-lg font-semibold">{sla.breaches30d}</p>
                           <p className="mt-0.5 text-[11px] text-faint">{sla.breaches7d} in the last 7 days</p>
                         </div>
@@ -294,7 +298,7 @@ export default function ClientVault() {
                         <SlaBadge status={sla.status} />
                         <span className="text-xs text-faint">
                           Target: reply within {sla.thresholds.ok}h
-                          {cfg.businessHoursOnly ? " (working hours)" : ""} · breach after {sla.thresholds.risk}h
+                          {cfg.businessHoursOnly ? " (working hours)" : ""} · overdue after {sla.thresholds.risk}h
                         </span>
                       </div>
 
@@ -338,7 +342,7 @@ export default function ClientVault() {
                         <div key={t.id} className="flex items-center gap-2 text-sm">
                           <CheckCircle2 size={14} className="text-faint" />
                           <span className="flex-1">{t.title}</span>
-                          <Badge tone={t.priority}>{t.status === "in_progress" ? "In Progress" : "To Do"}</Badge>
+                          <Badge tone={t.priority}>{STATUS_LABEL[t.status] ?? t.status}</Badge>
                         </div>
                       ))}
                     </div>

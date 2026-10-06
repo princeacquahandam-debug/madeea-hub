@@ -17,7 +17,7 @@ import { edgeFailure } from "@/lib/edgeError";
  */
 async function aiError(error: unknown, fallback: string): Promise<Error> {
   const { message, status, missing } = await edgeFailure(error, fallback);
-  if (missing) return new Error("That AI function isn't deployed. Run: npm run deploy:functions");
+  if (missing) return new Error("This AI feature isn't set up yet. Ask your admin.");
   if (status === 401) return new Error("Your session has expired. Sign in again.");
   return new Error(status ? `${message} (${status})` : message);
 }
@@ -72,7 +72,7 @@ export async function generate(payload: GeneratePayload): Promise<string> {
   return [
     `[DEMO OUTPUT. ${payload.format}]`,
     "",
-    "Connect Supabase + set OPENAI_API_KEY to generate real output.",
+    "Demo mode: connect the live workspace to generate real output.",
     "",
     "Inputs received:",
     filled || "(none)",
@@ -207,7 +207,7 @@ export async function assistantChatReply(messages: ChatMessage[], context?: Chat
   }
   await new Promise((r) => setTimeout(r, 600));
   return {
-    reply: "[DEMO] I'm Madeline. Connect Supabase + OpenAI to enable live, context-aware replies that know your tasks, meetings and clients.",
+    reply: "[DEMO] I'm Madeline. In the live Hub I answer from your real tasks, meetings and clients.",
     sources: [],
   };
 }

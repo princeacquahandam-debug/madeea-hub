@@ -6,7 +6,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useClientCapture } from "@/hooks/useClientCapture";
 import { cn } from "@/lib/utils";
-import { clockTime, dateOnly, dayLabel, hm } from "./format";
+import { clockTime, dateOnly, dayLabel, hm, surfaceLabel } from "./format";
 
 /**
  * A team member's own working day: their tasks, their clock, their captures.
@@ -163,13 +163,13 @@ export function ClientMyWork({ clientId }: { clientId: string }) {
 
             {running && !capture.sharing && (
               <button className="btn-ghost border border-border whitespace-nowrap" onClick={() => void capture.start()}>
-                <Camera size={15} /> Share screen
+                <Camera size={15} /> Start screen sharing
               </button>
             )}
             {capture.sharing && (
               <span className="pill bg-accent/15 text-accent-soft whitespace-nowrap">
                 <Camera size={11} /> Sharing
-                {capture.surface ? ` · ${capture.surface}` : ""}
+                {capture.surface ? ` · ${surfaceLabel(capture.surface)}` : ""}
               </span>
             )}
           </div>
@@ -187,7 +187,7 @@ export function ClientMyWork({ clientId }: { clientId: string }) {
         {running && (
           <p className="mt-3 text-xs text-faint">
             {capture.sharing
-              ? `A screenshot is taken every ${capture.intervalMinutes} minutes while you share, and goes to the person who runs this account. ${capture.count} taken this session. Stop sharing from your browser at any time.`
+              ? `A screenshot is taken every ${capture.intervalMinutes} minutes while you share, and goes to your primary contact. ${capture.count} taken this shift. Stop sharing from your browser at any time.`
               : "Screen sharing is off. Your hours are still recorded."}
           </p>
         )}
@@ -271,7 +271,7 @@ export function ClientMyWork({ clientId }: { clientId: string }) {
                 </span>
                 <span className="ml-auto flex items-center gap-3 text-xs text-faint">
                   {s.captures > 0 && (
-                    <span className="flex items-center gap-1"><Camera size={11} />{s.captures}</span>
+                    <span className="flex items-center gap-1" title={`${s.captures} screenshot${s.captures === 1 ? "" : "s"}`}><Camera size={11} />{s.captures}</span>
                   )}
                   <span className="flex items-center gap-1">
                     <Clock size={11} />

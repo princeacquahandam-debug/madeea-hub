@@ -160,7 +160,7 @@ export function ClientSettings({ email }: { email?: string }) {
       <section className="card p-5">
         <h2 className="mb-1 text-[17px] font-bold">Sign out</h2>
         <p className="mb-4 text-sm text-muted">
-          Ends this session on this device. Your account and everything on it stay
+          Signs you out on this device. Your account and everything on it stay
           exactly as they are.
         </p>
         <button

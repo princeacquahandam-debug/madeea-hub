@@ -91,7 +91,7 @@ export default function Admin() {
       setNotice({
         kind: "err",
         text: e.missing
-          ? "The invite function is not deployed. Deploy invite-member, or add the person from Supabase, Authentication."
+          ? "Adding people isn't set up yet. Ask your admin."
           : e.message || "Could not create that account.",
       });
     }
@@ -115,7 +115,7 @@ export default function Admin() {
   return (
     <div>
       <PageHeader
-        title="Admin"
+        title="Admin Panel"
         subtitle="Manage team accounts, roles and access for your workspace"
         action={
           <button className="btn-ghost border border-border" onClick={() => nav("/")}>
@@ -201,8 +201,8 @@ export default function Admin() {
         <p className="mb-3 text-sm text-faint">
           Giving a <span className="text-text">client</span> a login to their own portal is a
           different thing, and it lives in{" "}
-          <Link to="/clients" className="text-accent hover:underline">Client Vault</Link>{" "}
-          &mdash; look for <span className="text-text">Give access</span> on their card.
+          <Link to="/clients" className="text-accent hover:underline">Client Vault</Link>.{" "}
+          Look for <span className="text-text">Give access</span> on their profile.
         </p>
         {/* Two modes, because everybody invited before this change is holding an
             account they cannot change the password of: they were mailed a link,
@@ -368,7 +368,7 @@ export default function Admin() {
           <div className="border-b border-border px-5 py-3">
             <h2 className="text-sm font-semibold">What each role can do</h2>
             <p className="mt-0.5 text-xs text-faint">
-              Read live from the same ranks the database enforces, so this cannot drift from what is actually allowed.
+              These are the permissions every account actually has.
             </p>
           </div>
           <div className="grid gap-3 border-b border-border px-5 py-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -413,8 +413,8 @@ export default function Admin() {
       <p className="mt-4 flex items-start gap-1.5 text-xs text-faint">
         <Lock size={12} className="mt-0.5 shrink-0" />
         <span>
-          Enforced in the database, not here. Nobody can grant a role above their own, the last owner cannot be
-          demoted or removed, and each workspace is isolated. Turning these controls off in the browser changes nothing.
+          Nobody can grant a role above their own, the last owner cannot be demoted or removed, and each workspace is
+          isolated. These permissions are enforced for every account, whatever this screen shows.
         </span>
       </p>
     </div>

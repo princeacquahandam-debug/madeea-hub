@@ -92,7 +92,7 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
     });
     if (error) {
       const ctx = (error as { context?: Response }).context;
-      let msg = "The coach could not be reached.";
+      let msg = "Madeline couldn't be reached.";
       if (ctx?.text) {
         try {
           const parsed = JSON.parse(await ctx.text()) as { error?: string };
@@ -182,7 +182,7 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
     return (
       <div className="space-y-4">
         <p className="text-faint text-sm">
-          Delegation plans on this account. Only the account owner can create them.
+          Delegation plans on this account. Only the primary contact can create them.
         </p>
         <PlanList plans={plans} loading={isLoading} />
       </div>
@@ -265,7 +265,7 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
                  onChange={(v) => setDraft((d) => ({ ...d, team_member: v }))} />
 
           <div>
-            <div className="text-faint mb-1.5 text-xs uppercase tracking-wider">How much rope?</div>
+            <div className="text-faint mb-1.5 text-xs uppercase tracking-wider">How much freedom?</div>
             <div className="flex flex-col gap-2">
               {AUTONOMY.map((a) => (
                 <button

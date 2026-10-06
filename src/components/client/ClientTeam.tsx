@@ -2,10 +2,10 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Camera, Check, Clock, Loader2, Plus, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { clockTime, dateOnly, dayLabel, hm } from "./format";
+import { clockTime, dateOnly, dayLabel, hm, surfaceLabel } from "./format";
 
 /**
- * What the client sees of their own team: hours, captures, and a way to hand
+ * What the client sees of their own staff: hours, screenshots, and a way to hand
  * work over.
  *
  * WHY THE IMAGES ARE HERE AND NOT IN 0073's CLIENT VIEW. That one withholds
@@ -126,10 +126,10 @@ export function ClientTeam() {
   return (
     <div className="space-y-5">
       <section className="card p-5">
-        <h2 className="mb-3 text-[17px] font-bold">Give the team something to do</h2>
+        <h2 className="mb-3 text-[17px] font-bold">Give your staff something to do</h2>
         {members.length === 0 ? (
           <p className="text-sm text-faint">
-            No team members yet. Add one under People, then assign work here.
+            No staff yet. Add a staff member under People, then assign work here.
           </p>
         ) : (
           <>
@@ -182,7 +182,7 @@ export function ClientTeam() {
       <section className="card p-5">
         <h2 className="mb-3 text-[17px] font-bold">Hours</h2>
         {byPerson.length === 0 ? (
-          <p className="text-sm text-faint">Nobody on your team has clocked in yet.</p>
+          <p className="text-sm text-faint">None of your staff have clocked in yet.</p>
         ) : (
           <div className="space-y-4">
             {byPerson.map((p) => (
@@ -218,10 +218,10 @@ export function ClientTeam() {
       <section className="card p-5">
         <h2 className="mb-1 text-[17px] font-bold">Screenshots</h2>
         <p className="mb-3 text-sm text-muted">
-          Taken every ten minutes while a team member shares their screen on the clock.
+          Taken every ten minutes while a staff member has screen sharing on and is clocked in.
         </p>
         {shots.length === 0 ? (
-          <p className="text-sm text-faint">No captures yet.</p>
+          <p className="text-sm text-faint">No screenshots yet.</p>
         ) : (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             {shots.map((s) => (
@@ -235,7 +235,7 @@ export function ClientTeam() {
                 <p className="mt-0.5 text-[11px] text-faint">
                   {new Date(s.captured_at).toLocaleString()}
                 </p>
-                {s.surface && <p className="mt-0.5 text-[11px] text-faint">{s.surface}</p>}
+                {s.surface && <p className="mt-0.5 text-[11px] text-faint">{surfaceLabel(s.surface)}</p>}
               </button>
             ))}
           </div>
@@ -256,7 +256,7 @@ export function ClientTeam() {
                 <X size={18} />
               </button>
             </div>
-            <img src={shotUrl.url} alt={`Screen capture from ${shotUrl.who}`} className="w-full rounded-lg" />
+            <img src={shotUrl.url} alt={`Screenshot from ${shotUrl.who}`} className="w-full rounded-lg" />
           </div>
         </div>
       )}

@@ -44,28 +44,28 @@ export function EodCard() {
         <h2 className="font-semibold">Today's EOD</h2>
         {filed ? (
           <span className="pill bg-emerald-500/15 text-emerald-400">
-            <CheckCircle2 size={11} className="mr-1 inline" />Filed
+            <CheckCircle2 size={11} className="mr-1 inline" />Submitted
           </span>
         ) : (
-          <span className="pill bg-amber-500/15 text-amber-400">Not filed yet</span>
+          <span className="pill bg-amber-500/15 text-amber-400">Not submitted yet</span>
         )}
         <button
           onClick={() => nav("/eod")}
           className="ml-auto inline-flex items-center gap-1 text-[13px] font-semibold text-accent-soft hover:text-accent"
         >
-          {filed ? "Review" : "File it"} <ArrowRight size={14} />
+          {filed ? "Open" : "Submit it"} <ArrowRight size={14} />
         </button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Column label="Completed" tone="text-emerald-400" items={done} empty="Nothing marked done yet." />
+        <Column label="Done today" tone="text-emerald-400" items={done} empty="Nothing marked done yet." />
         <Column label="Blockers" tone="text-red-400" items={blockers} empty="Nothing blocked." icon />
         <Column label="Plan for tomorrow" tone="text-amber-400" items={plans} empty="Nothing queued." />
       </div>
 
       {!filed && (
         <p className="mt-3 text-[12px] text-faint">
-          Drawn from your board. Move a card to Done and it appears here, then in the report.
+          Drawn from your board. Move a task to Done and it appears here, then in the report.
         </p>
       )}
     </section>

@@ -135,7 +135,7 @@ export function ClientActivity() {
     <div className="space-y-4">
       <p className="text-faint text-sm">
         Each working day on your account: what your assistant completed, how long they
-        were clocked in, and the monitoring captures held on file for that session.
+        were clocked in, and the screenshots kept on file for that day.
       </p>
 
       {grouped.map((day) => (
@@ -163,12 +163,12 @@ export function ClientActivity() {
                   </span>
                 ) : null}
                 <span>
-                  {day.row.sessions} session{day.row.sessions === 1 ? "" : "s"}
+                  {day.row.sessions} shift{day.row.sessions === 1 ? "" : "s"}
                 </span>
                 {day.row.captures > 0 ? (
                   <span className="flex items-center gap-1.5">
                     <Camera size={13} />
-                    {day.row.captures} capture{day.row.captures === 1 ? "" : "s"}
+                    {day.row.captures} screenshot{day.row.captures === 1 ? "" : "s"}
                   </span>
                 ) : null}
                 {day.row.running ? (
@@ -211,7 +211,7 @@ export function ClientActivity() {
       ))}
 
       <p className="text-faint text-xs">
-        Monitoring captures are taken automatically during clocked sessions and held on
+        Screenshots are taken automatically during clocked-in shifts and kept on
         file by the agency. Ask your assistant if you need to review any of them.
       </p>
     </div>

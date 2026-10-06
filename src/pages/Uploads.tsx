@@ -72,10 +72,10 @@ export default function Uploads() {
           material. Naming what it feeds, and that it feeds THEIR assistant,
           is the whole difference. */}
       <PageHeader
-        title="Knowledge base"
+        title="Uploads"
         subtitle={
           scope === "team"
-            ? "What your AI Quick Actions read from. Documents here give your drafts, replies and research the context they would otherwise have to be told every time."
+            ? "Files for your team and for you."
             : "Your own shelf. Nobody else can open these, administrators included."
         }
         action={

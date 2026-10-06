@@ -93,7 +93,7 @@ export function VoiceCapture({ open, onClose }: { open: boolean; onClose: () => 
                 <Mic size={30} className="relative text-accent" />
               </div>
               <p className="mt-4 text-sm font-medium">Listening…</p>
-              <p className="mt-1 text-xs text-faint">Say something like “remind me to send Priya the board pack by Friday”.</p>
+              <p className="mt-1 text-xs text-faint">Say something like “remind me to send the board pack by Friday”.</p>
               <button className="btn-primary mt-5" onClick={speech.stop}>
                 <Square size={14} /> Stop
               </button>
@@ -225,7 +225,7 @@ export function VoiceCapture({ open, onClose }: { open: boolean; onClose: () => 
               value={form.client_id}
               onChange={(e) => setForm((f) => ({ ...f, client_id: e.target.value }))}
             >
-              <option value="">Unassigned</option>
+              <option value="">No client</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}

@@ -12,6 +12,7 @@ import { useMonitoringContext } from "@/store/monitoringContext";
 import { useClockGate } from "@/components/ClockGates";
 import type { MonitoringStatus } from "@/hooks/useMonitoring";
 import { useClientContext } from "@/store/clientContext";
+import { surfaceLabel } from "@/components/client/format";
 
 /**
  * 30720 -> "8:32". Hours and minutes, which is how a timesheet is read and how
@@ -258,7 +259,7 @@ export default function Time() {
                   noise nobody read. The client is the unit that matters. */}
               <label className="field-label" htmlFor="time-note">Notes (optional)</label>
               <input
-                id="time-note" className="input" placeholder="Anything worth remembering about this session"
+                id="time-note" className="input" placeholder="Anything worth remembering about this shift"
                 value={note} onChange={(e) => setNote(e.target.value)}
               />
             </div>
@@ -396,7 +397,7 @@ export default function Time() {
                         <button
                           className="icon-btn reveal-on-hover shrink-0 text-faint hover:text-red-400"
                           onClick={() => remove.mutate(e.id)}
-                          aria-label="Delete entry"
+                          aria-label="Delete shift"
                         >
                           <Trash2 size={13} />
                         </button>
@@ -412,7 +413,7 @@ export default function Time() {
         <p className="mt-4 flex items-start gap-1.5 border-t border-border pt-3 text-xs text-faint">
           <ShieldAlert size={12} className="mt-0.5 shrink-0" />
           <span>
-            Hours cannot be added or edited by hand, and a finished session cannot be changed.
+            Hours cannot be added or edited by hand, and a finished shift cannot be changed.
             If you missed a clock-in, ask an admin to correct it.
           </span>
         </p>
@@ -424,10 +425,10 @@ export default function Time() {
 /** Compact status next to the clock-out button. */
 function CaptureBadge({ capture, minutes }: { capture: MonitoringStatus; minutes: number }) {
   const map: Record<string, { text: string; cls: string }> = {
-    capturing: { text: `Capturing every ${minutes}m`, cls: "bg-emerald-500/15 text-emerald-400" },
-    off: { text: "Not capturing", cls: "bg-amber-500/15 text-amber-400" },
-    stopped: { text: "Capture stopped", cls: "bg-amber-500/15 text-amber-400" },
-    denied: { text: "Capture denied", cls: "bg-red-500/15 text-red-400" },
+    capturing: { text: `Screenshot every ${minutes}m`, cls: "bg-emerald-500/15 text-emerald-400" },
+    off: { text: "Screenshots off", cls: "bg-amber-500/15 text-amber-400" },
+    stopped: { text: "Screenshots stopped", cls: "bg-amber-500/15 text-amber-400" },
+    denied: { text: "Screen sharing refused", cls: "bg-red-500/15 text-red-400" },
     requesting: { text: "Waiting for permission", cls: "bg-zinc-500/15 text-faint" },
     unsupported: { text: "Not supported here", cls: "bg-red-500/15 text-red-400" },
   };
@@ -453,10 +454,10 @@ function CapturePanel({ capture, minutes }: { capture: MonitoringStatus; minutes
       <div className="flex flex-wrap items-center gap-3">
         <Camera size={15} className="text-accent" />
         <div className="min-w-[220px] flex-1">
-          <p className="text-sm font-semibold">Work verification</p>
+          <p className="text-sm font-semibold">Screenshots</p>
           <p className="text-xs text-faint">
             {capture.state === "capturing"
-              ? `Sharing your ${capture.surface ?? "screen"}. A frame every ${minutes} minutes.` +
+              ? `Sharing your ${capture.surface && capture.surface !== "unknown" ? surfaceLabel(capture.surface) : "screen"}. A screenshot every ${minutes} minutes.` +
                 (capture.lastCaptureAt
                   ? ` Last at ${capture.lastCaptureAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}, ` +
                     /* The next one, worked out from the last rather than from a
@@ -466,7 +467,7 @@ function CapturePanel({ capture, minutes }: { capture: MonitoringStatus; minutes
                        interval is randomised so captures cannot be timed. */
                     `next around ${new Date(capture.lastCaptureAt.getTime() + minutes * 60_000)
                       .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`
-                  : " Waiting for the first frame.")
+                  : " Waiting for the first screenshot.")
               : `Screenshots every ${minutes} minutes while you are clocked in. Your browser has to ask you first.`}
           </p>
         </div>
@@ -474,7 +475,7 @@ function CapturePanel({ capture, minutes }: { capture: MonitoringStatus; minutes
           <button className="btn-ghost border border-border" onClick={capture.stop}>Stop sharing</button>
         ) : (
           <button className="btn-primary" onClick={() => void capture.start()}>
-            <MonitorPlay size={14} /> Start screen capture
+            <MonitorPlay size={14} /> Start screen sharing
           </button>
         )}
       </div>
@@ -486,9 +487,8 @@ function CapturePanel({ capture, minutes }: { capture: MonitoringStatus; minutes
         <p className="mt-2 flex items-start gap-2 rounded-lg border border-red-500/50 bg-red-500/10 p-2.5 text-[12.5px] text-red-200">
           <Info size={14} className="mt-0.5 shrink-0" />
           <span>
-            <b>No screenshot has landed for {capture.stalledMinutes} minutes.</b> Screen sharing is
-            still on, so something is failing between the capture and the upload. The message
-            underneath usually names it; if it does not, stop and start sharing again.
+            <b>No screenshot has been saved for {capture.stalledMinutes} minutes.</b> Check that screen
+            sharing is still on. If it is, stop and start sharing again.
           </span>
         </p>
       )}

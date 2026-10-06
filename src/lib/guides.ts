@@ -8,7 +8,7 @@ export const GUIDES: Record<string, Guide> = {
   "/": {
     title: "How the Dashboard works",
     points: [
-      "Your command center. Live counts, today's priority queue, upcoming meetings and clients.",
+      "Your day at a glance. Live counts, today's priority queue, upcoming meetings and clients.",
       "Click any task, meeting or client to jump straight to it.",
       "Numbers update automatically as your tasks, calendar and inbox change.",
     ],
@@ -16,18 +16,17 @@ export const GUIDES: Record<string, Guide> = {
   "/tasks": {
     title: "How the Task Manager works",
     points: [
-      "Drag a card between columns (To Do / In Progress / Done) to update its status, it saves instantly.",
+      "Drag a task between columns (To Do, In Progress, Follow-up, Review, Done) to update its status. It saves instantly.",
       "“Add Task” to create one with a priority and a real due date.",
-      "Hover a card for the ✏️ edit and 🗑️ delete controls.",
+      "Hover a task for the ✏️ edit and 🗑️ delete controls.",
     ],
   },
   "/eod": {
     title: "How EOD Reports works",
     points: [
-      "Every end-of-day report from the team sheet, with submission compliance, blockers and next-day plans in one place.",
-      "A cell only counts as a submission once it's actually filled in. The sheet pre-fills every cell with a blank template, and those don't count.",
-      "Completion % is the sheet's own figure (submissions ÷ 31 days), so it matches what you already see in the spreadsheet.",
-      "Filter by member, date, or “With blockers”, and expand any report to read the original text as submitted.",
+      "Every EOD report from the team, with submission compliance, blockers and plans for tomorrow in one place.",
+      "Completion counts the days each EA submitted an EOD report this month.",
+      "Filter by EA, date, or “With blockers”, and expand any report to read the original text as submitted.",
     ],
   },
   "/notes": {
@@ -36,7 +35,7 @@ export const GUIDES: Record<string, Guide> = {
       "A shared pad for the whole team. Jot anything that doesn't belong on a task, a client, or the calendar yet.",
       "Give a note a title (or don't), and optionally link it to a client so it's easy to find later.",
       "Pin the ones you keep coming back to, they stay at the top. Search matches words in the title and body.",
-      "Notes are read by people, not the AI. To shape email drafts and briefings, use the Memory Helper instead.",
+      "Notes are read by people, not the AI.",
     ],
   },
   "/quick-actions": {
@@ -58,7 +57,7 @@ export const GUIDES: Record<string, Guide> = {
     title: "How Video Instruction works",
     points: [
       "Record your screen with narration, up to ten minutes per clip.",
-      "Save it, then write it up as a workflow so the steps outlast the recording.",
+      "Save it, then write it up as an SOP so the steps outlast the recording.",
       "Playback uses a link that expires, so a recording cannot leak by URL.",
     ],
   },
@@ -83,9 +82,9 @@ export const GUIDES: Record<string, Guide> = {
   "/integrations": {
     title: "How Integrations work",
     points: [
-      "Connect Gmail or Outlook on its card to sync mail; Google also brings your calendar.",
+      "Connect Gmail or Outlook to sync mail; Google also brings your calendar.",
       "Outlook does not have to match your MadeEA login email. Google does.",
-      "OAuth runs server-side. Your tokens never touch the browser.",
+      "You sign in on the provider's own page. MadeEA never sees your password.",
     ],
   },
   "/studio": {
@@ -96,7 +95,7 @@ export const GUIDES: Record<string, Guide> = {
     ],
   },
   "/admin": {
-    title: "How the Admin panel works",
+    title: "How the Admin Panel works",
     points: [
       "See every account in your workspace, their role (Admin / EA), and activity at a glance.",
       "Invite teammates by email, promote/demote roles, or remove access.",
@@ -115,7 +114,7 @@ export const GUIDES: Record<string, Guide> = {
     title: "How the Email Helper works",
     points: [
       "Pick a message and the panel shows what the draft will know, the client's tone, the thread so far, and what you owe them.",
-      "It also knows whether you're late, and adjusts the opening: no mention when you're on time, a real apology when you've breached.",
+      "It also knows whether you're late, and adjusts the opening: no mention when you're on time, a real apology when you're replying late.",
       "“What should this do?” changes the whole email. Declining reads nothing like chasing.",
       "This is the Inbox's draft with the client context added. Use that page for triage, this one to write.",
     ],
@@ -141,7 +140,7 @@ export const GUIDES: Record<string, Guide> = {
   "/voice-notes": {
     title: "How the Voice-Note Helper works",
     points: [
-      "Hit record and speak naturally. “remind me to send Priya the board pack by Friday, it's urgent”.",
+      "Hit record and speak naturally. “remind me to send the board pack by Friday, it's urgent”.",
       "Dates are worked out on your device from today's real date, not guessed by the AI.",
       "One note can become a task or something the desk remembers. You choose after reading it back.",
       "Nothing is saved until you press the button. Anything the parser overrode is shown in amber.",
@@ -193,7 +192,7 @@ export const GUIDES: Record<string, Guide> = {
     ],
   },
   "/scoreboard": {
-    title: "How the Scoreboard Helper works",
+    title: "How the Client Scoreboard works",
     points: [
       "Real performance over a period, compared against the period before it.",
       "“. ” means no data, not zero. A missing average is never shown as 0h.",

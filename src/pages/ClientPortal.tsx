@@ -81,8 +81,8 @@ const TABS: (ClientNavItem & { id: Tab; title: string; subtitle: string })[] = [
     title: "Notes", subtitle: "Things your assistant should keep to hand." },
   { id: "delegate", label: "Delegate", icon: Share2, group: "Working together",
     title: "Delegate", subtitle: "Hand a piece of work over properly." },
-  { id: "team", label: "Team", icon: UsersRound, group: "Working together",
-    title: "Your team", subtitle: "Their hours, their screens, and the work you hand them." },
+  { id: "team", label: "Staff", icon: UsersRound, group: "Working together",
+    title: "Your staff", subtitle: "Their hours, their screenshots, and the work you hand them." },
   { id: "people", label: "People", icon: Users, group: "Working together",
     title: "People", subtitle: "Who can see this account." },
   { id: "client_ea", label: CHANNEL.client_ea.label, icon: CHANNEL.client_ea.icon, group: "Messages",
@@ -114,7 +114,7 @@ const MEMBER_NAV: (ClientNavItem & { id: Tab; title: string; subtitle: string })
   { id: "calendar", label: "Calendar", icon: CalendarDays, group: "Your work",
     title: "Calendar", subtitle: "What is booked on this account." },
   { id: "notes", label: "Notes", icon: StickyNote, group: "Your work",
-    title: "Notes", subtitle: "What the account owner wants kept to hand." },
+    title: "Notes", subtitle: "What the primary contact wants kept to hand." },
 ];
 
 /* Reached from the sidebar footer rather than the nav, which is where the staff
@@ -259,6 +259,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
       company={header?.company ?? null}
       email={user?.email}
       isViewer={isViewer}
+      isMember={isMember}
       title={meta.title}
       subtitle={meta.subtitle}
       onOpenSettings={() => setTab("settings")}

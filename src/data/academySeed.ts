@@ -15,15 +15,15 @@ import type { AcademyLesson, AcademyModule, AcademyQuestion } from "@/types/db";
 export const MODULES: AcademyModule[] = [
   {
     id: "am-1", day: 1, title: "Foundations", position: 1, pass_pct: 80, is_published: true,
-    summary: "How the Command Center works and what good EA output looks like here. Reichelle: Day 1 is foundations.",
+    summary: "How the Hub works and what good EA output looks like here.",
   },
   {
     id: "am-2", day: 2, title: "The AI toolkit", position: 2, pass_pct: 80, is_published: true,
-    summary: "AI tools beyond ChatGPT, Claude and Gemini, and what each one is actually for. Draft arrangement, pending Reichelle.",
+    summary: "AI tools beyond ChatGPT, Claude and Gemini, and what each one is actually for.",
   },
   {
     id: "am-3", day: 3, title: "Simulation and practice", position: 3, pass_pct: 80, is_published: true,
-    summary: "Run a real day end to end, then navigate the app under time pressure. Draft arrangement, pending Reichelle.",
+    summary: "Run a real day end to end, then navigate the app under time pressure.",
   },
 ];
 
@@ -35,15 +35,15 @@ const L = (
 export const LESSONS: AcademyLesson[] = [
   L("al-1", "am-1", "Welcome to Made Ready", "video", 10, 1,
     "Why this course exists: you finish it before your first day with a client, so day one is not your training day."),
-  L("al-2", "am-1", "The Command Center in ten minutes", "video", 15, 2,
+  L("al-2", "am-1", "The Hub in ten minutes", "video", 15, 2,
     "Dashboard, Tasks, Communication, EOD. Where the day starts and where it ends."),
   L("al-3", "am-1", "What good output looks like", "reading", 20, 3,
-    "Every client-facing piece of work follows an SOP. SOPs are what keep quality standard across EAs (Rowena 54:55)."),
+    "Every client-facing piece of work follows an SOP. SOPs are what keep quality standard across EAs."),
   L("al-4", "am-1", "Your first task, start to finish", "simulation", 25, 4,
     "Open Tasks, pick anything in To Do, move it through In Progress and Review, and leave a comment explaining what you did."),
 
   L("al-5", "am-2", "Beyond the big three", "video", 20, 1,
-    "Most EAs only use ChatGPT, Claude and Gemini. That is the gap this closes (Reichelle 53:00)."),
+    "Most EAs only use ChatGPT, Claude and Gemini. That is the gap this closes."),
   L("al-6", "am-2", "What each tool is for", "reading", 30, 2,
     "Tool by tool: what it does well, what it does badly, and the EA task it belongs to. Content pending from FJ."),
   L("al-7", "am-2", "Choosing the right tool", "reading", 20, 3,
@@ -76,13 +76,13 @@ const QUESTIONS_WITH_KEY: Seeded[] = [
     id: "aq-3", module_id: "am-1", position: 3, answer: 2,
     prompt: "A client asks you to do something no SOP covers. What is the right move?",
     choices: ["Improvise and keep it to yourself", "Refuse until an SOP exists", "Do it, then write the SOP so the next person does it the same way", "Send it back to the client"],
-    explanation: "SOPs are how output stays consistent across EAs (Rowena 54:55). New work becomes a new SOP.",
+    explanation: "SOPs are how output stays consistent across EAs. New work becomes a new SOP.",
   },
   {
     id: "aq-4", module_id: "am-1", position: 4, answer: 1,
     prompt: "Where do client logins belong?",
     choices: ["A shared spreadsheet", "The Password Manager, encrypted", "A pinned chat message", "Your notes app"],
-    explanation: "Rowena 1:02:07. Credentials go in the vault, encrypted in the browser before they are stored. Better still, ask for delegated access instead of a password.",
+    explanation: "Credentials go in the vault, encrypted in the browser before they are stored. Better still, ask for delegated access instead of a password.",
   },
   {
     id: "aq-5", module_id: "am-1", position: 5, answer: 0,

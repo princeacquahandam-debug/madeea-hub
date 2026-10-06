@@ -269,9 +269,9 @@ export function formatDuration(hours: number, hoursPerDay = 24): string {
 }
 
 export const STATUS_LABEL: Record<SlaStatus, string> = {
-  on_track: "On Track",
-  at_risk: "At Risk",
-  breached: "Breached",
+  on_track: "On track",
+  at_risk: "At risk",
+  breached: "Overdue",
   no_data: "No data",
 };
 

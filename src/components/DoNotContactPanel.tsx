@@ -134,16 +134,16 @@ export function DoNotContactPanel() {
       <p id="dnc-title" className="field-label flex items-center gap-1.5"><Ban size={13} /> Do not contact</p>
       <p className="mb-4 text-sm text-muted">
         People who asked not to be messaged. Every system checks this list before sending: replies from
-        the inbox, and the n8n text, email and Instagram follow-ups. Replying "stop" on any channel adds
+        the inbox, and the automated text, email and Instagram follow-ups. Replying "stop" on any channel adds
         someone automatically.
       </p>
 
       {!supabase ? (
-        <p className="text-sm text-faint">Available once the Hub is connected to its database.</p>
+        <p className="text-sm text-faint">Available on the live Hub.</p>
       ) : missing ? (
         <p className="flex items-start gap-2 rounded-lg border border-border bg-surface-2/50 p-3 text-[12.5px] text-muted">
           <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-400" />
-          Run migration 0079 to turn on the do-not-contact list.
+          The do-not-contact list isn't switched on yet. Ask your admin.
         </p>
       ) : (
         <>

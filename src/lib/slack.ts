@@ -39,16 +39,16 @@ function classify(message: string): SlackFailure {
 
 /** What to tell a human, in words that name the fix. */
 export const SLACK_MESSAGE: Record<SlackFailure, string> = {
-  not_configured: "Slack is not connected. Set SLACK_BOT_TOKEN on the server.",
+  not_configured: "Slack isn't set up yet. Ask your admin.",
   missing_scope:
-    "The Slack app can read this workspace but cannot post to it. A Slack admin needs to add the chat:write scope and reinstall the app.",
-  not_in_channel: "The bot is not in that channel. Invite it with /invite @MadeEA in Slack.",
-  unauthorized: "The Slack token was rejected. It may have been revoked.",
+    "The Slack app can read this workspace but cannot post to it. Your Slack admin needs to allow MadeEA to post messages, then reinstall the app.",
+  not_in_channel: "The bot is not in that channel. Invite it with /invite @MadeEA OS in Slack.",
+  unauthorized: "Slack rejected the connection. Reconnect Slack in Integrations.",
   unknown: "Slack refused the message.",
 };
 
 export async function sendToSlack(text: string, channel?: string): Promise<SlackSendResult> {
-  if (!supabase) return { ok: false, failure: "not_configured", detail: "no backend in demo mode" };
+  if (!supabase) return { ok: false, failure: "not_configured", detail: "Not available in demo mode." };
   try {
     const { data, error } = await supabase.functions.invoke("slack-send", { body: { text, channel } });
     if (error) {
@@ -71,7 +71,7 @@ export async function sendToSlack(text: string, channel?: string): Promise<Slack
 
 /** Pull recent channel messages in. Returns how many landed. */
 export async function syncSlack(): Promise<{ ok: boolean; synced?: number; channels?: number; detail?: string }> {
-  if (!supabase) return { ok: false, detail: "no backend in demo mode" };
+  if (!supabase) return { ok: false, detail: "Not available in demo mode." };
   const { data, error } = await supabase.functions.invoke("slack-sync", { body: {} });
   if (error) return { ok: false, detail: error.message };
   if (data?.error) return { ok: false, detail: String(data.error) };
@@ -114,7 +114,7 @@ export interface SlackDirectory {
  */
 export async function listSlackChannels(): Promise<SlackDirectory> {
   const empty = { channels: [], joined: 0, total: 0, can_post: false, can_post_uninvited: false };
-  if (!supabase) return { ok: false, ...empty, failure: "not_configured", detail: "no backend in demo mode" };
+  if (!supabase) return { ok: false, ...empty, failure: "not_configured", detail: "Not available in demo mode." };
   const { data, error } = await supabase.functions.invoke("slack-channels", { body: {} });
   if (error) {
     let detail = error.message;

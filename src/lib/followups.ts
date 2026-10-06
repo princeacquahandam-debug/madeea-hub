@@ -134,5 +134,5 @@ export function findFollowUps(
 
 export const KIND_LABEL: Record<FlagKind, string> = {
   dead_thread: "No reply",
-  stale_task: "Stale task",
+  stale_task: "No update",
 };

@@ -144,7 +144,7 @@ export default function Sops() {
         status: "in_progress",
         client_id: clientId || null,
         assignee_id: myId,
-        notes: `Running the ${openSop.title} workflow.`,
+        notes: `Running the ${openSop.title} SOP.`,
       });
       tid = created?.id ?? "";
       setTaskId(tid);
@@ -212,7 +212,7 @@ export default function Sops() {
           <div className="flex gap-2">
             {isAdmin && (
               <button className="btn-ghost border border-border" onClick={() => setEditing("new")}>
-                <Plus size={15} /> New workflow
+                <Plus size={15} /> New SOP
               </button>
             )}
             <button className="btn-primary" onClick={() => setRecording(true)}>
@@ -277,9 +277,9 @@ export default function Sops() {
           {sops.length === 0 && (
             <div className="card col-span-full p-8 text-center">
               <ClipboardCheck size={22} className="mx-auto mb-3 text-faint" />
-              <p className="font-medium">No workflows yet</p>
+              <p className="font-medium">No SOPs yet</p>
               <p className="mx-auto mt-1 max-w-md text-sm text-faint">
-                A workflow is how a job gets done the same way every time, by whoever is doing it.
+                An SOP is how a job gets done the same way every time, by whoever is doing it.
                 Record yourself doing one, or write the steps out directly.
               </p>
             </div>
@@ -469,7 +469,7 @@ export default function Sops() {
                 <div className="mt-5">
                   {!runId ? (
                     <button className="btn-primary w-full" onClick={startRun} disabled={start.isPending}>
-                      <Play size={15} /> {start.isPending ? "Starting…" : "Start workflow"}
+                      <Play size={15} /> {start.isPending ? "Starting…" : "Start SOP"}
                     </button>
                   ) : (
                     <div className="flex gap-2">
@@ -555,7 +555,7 @@ function SopEditor({
 
   return (
     <Modal open={open} onClose={onClose}>
-      <h2 className="mb-1 text-lg font-semibold">{sop ? "Edit workflow" : "New workflow"}</h2>
+      <h2 className="mb-1 text-lg font-semibold">{sop ? "Edit SOP" : "New SOP"}</h2>
       <p className="mb-4 text-[13px] text-faint">
         Write the steps the way you would tell a new EA on their first day.
       </p>
@@ -618,7 +618,7 @@ function SopEditor({
             ))}
             {form.steps.length === 0 && (
               <p className="rounded-lg border border-dashed border-border p-4 text-center text-[13px] text-faint">
-                No steps yet. A workflow with no steps is just a title.
+                No steps yet. An SOP with no steps is just a title.
               </p>
             )}
           </div>
@@ -657,7 +657,7 @@ function SopEditor({
               })
             }
           >
-            {saving ? "Saving…" : sop ? "Save changes" : "Create workflow"}
+            {saving ? "Saving…" : sop ? "Save changes" : "Create SOP"}
           </button>
         </div>
         {!canSave && (

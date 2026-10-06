@@ -7,6 +7,7 @@ import {
   atLeast, ROLE_LABEL, workDate, type ScreenshotRow,
 } from "@/data/hooks";
 import { cn } from "@/lib/utils";
+import { surfaceLabel } from "@/components/client/format";
 
 /**
  * Screenshot review.
@@ -73,7 +74,7 @@ export default function Screenshots() {
     <div>
       <PageHeader
         title="Screenshots"
-        subtitle={canReview ? "The team's captured activity, with the numbers behind each image" : "Your own captured activity"}
+        subtitle={canReview ? "The team's screenshots, with the numbers behind each image" : "Your own screenshots"}
       />
 
       <div className="mb-3 flex flex-wrap items-end gap-2">
@@ -105,7 +106,7 @@ export default function Screenshots() {
       {isError && (
         <p className="card mb-3 flex items-start gap-2 p-3 text-[12.5px] text-amber-200">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          Could not load screenshots. This is a read failure, not evidence that none exist.
+          Couldn't load screenshots. Try again in a moment.
         </p>
       )}
 
@@ -115,10 +116,10 @@ export default function Screenshots() {
         <div className="card p-10 text-center">
           <Camera size={24} className="mx-auto mb-2 text-faint" />
           <p className="text-sm font-medium">
-            {focused ? `${focused} captured nothing on this day.` : "Nothing captured on this day."}
+            {focused ? `No screenshots from ${focused} on this day.` : "No screenshots on this day."}
           </p>
           <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-faint">
-            Screenshots are taken while the timer is running and screen sharing is on. A shift with no images
+            Screenshots are taken while you're clocked in and screen sharing is on. A shift with no images
             means sharing was never started or was stopped. It is not evidence that no work happened, and the
             images were not lost.
           </p>
@@ -135,7 +136,7 @@ export default function Screenshots() {
                     </span>
                   )}
                   <h2 className="text-xs font-semibold uppercase tracking-wide text-faint">
-                    {list[0].time_entry_id ? "Session" : "No session"}
+                    {list[0].time_entry_id ? "Shift" : "No shift"}
                   </h2>
                   <span className="text-xs text-faint">
                     {new Date(list[list.length - 1].captured_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -232,8 +233,8 @@ function ScreenshotDetail({ shot, person }: { shot: ScreenshotRow; person: strin
       )}
 
       <p className="mt-2 text-[11.5px] text-faint">
-        Shared surface: {shot.surface ?? "unknown"}
-        {shot.blurred && " · blurred at capture; the original was never stored"}
+        Shared: {surfaceLabel(shot.surface)}
+        {shot.blurred && " · blurred when taken; the original was never stored"}
       </p>
     </div>
   );

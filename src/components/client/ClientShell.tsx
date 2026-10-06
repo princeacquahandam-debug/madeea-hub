@@ -54,6 +54,7 @@ export function ClientShell({
   company,
   email,
   isViewer,
+  isMember = false,
   title,
   subtitle,
   onOpenSettings,
@@ -67,6 +68,7 @@ export function ClientShell({
   company: string | null;
   email?: string;
   isViewer: boolean;
+  isMember?: boolean;
   title: string;
   subtitle: string;
   onOpenSettings: () => void;
@@ -154,7 +156,7 @@ export function ClientShell({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium" title={email}>{email ?? clientName}</p>
             <p className="truncate text-xs text-faint">
-              {isViewer ? "View only" : "Account owner"}
+              {isViewer ? "View only" : isMember ? "Staff member" : "Primary contact"}
             </p>
           </div>
           <Settings size={15} className="shrink-0 text-faint transition-colors group-hover:text-text" />

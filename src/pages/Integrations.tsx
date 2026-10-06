@@ -241,8 +241,8 @@ export default function Integrations() {
 
         {mailboxes.length === 0 ? (
           <p className="mt-4 text-sm text-muted">
-            No mailbox has been organised yet. Once a teammate connects Google and the n8n schedule runs,
-            their sync status shows up here.
+            No mailbox has been organised yet. Once a teammate connects Google, their mailbox shows up
+            here after its first sync.
           </p>
         ) : (
           <div className="mt-4 space-y-2">
@@ -278,9 +278,8 @@ export default function Integrations() {
         <div className="text-sm text-muted">
           <p className="font-medium text-zinc-200">How connections work</p>
           <p className="mt-1">
-            OAuth runs server-side via Supabase Edge Functions. Tokens are stored encrypted and the
-            browser never sees a provider secret. Connecting redirects you to the provider's consent
-            screen, then back here to sync.
+            You sign in on Google's or Microsoft's own page. MadeEA never sees your password, and
+            your connection is stored encrypted.
           </p>
           {/* Said out loud, because it is the difference people run into and it
               looks arbitrary until you know which way round it is. */}

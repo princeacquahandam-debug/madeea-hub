@@ -48,6 +48,16 @@ export function localDayKey(iso: string): string {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
+/** A getDisplayMedia displaySurface value, in words a client reads. */
+export function surfaceLabel(surface: string | null | undefined): string {
+  switch (surface) {
+    case "monitor": return "entire screen";
+    case "browser": return "browser tab";
+    case "window": return "window";
+    default: return "unknown";
+  }
+}
+
 /** "09:02", in the reader's own zone. */
 export function clockTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
