@@ -67,7 +67,7 @@ export function ClientStaffReport() {
     <div className="space-y-5">
       <section className="card p-5">
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <h2 className="flex-1 text-[17px] font-bold">Today, {dayLabel(dateOnly(today))}</h2>
+          <h2 className="flex-1 text-[17px] font-bold">Today, {new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</h2>
           {todays && <span className="pill bg-emerald-500/15 text-[11px] text-emerald-400"><Check size={11} /> Sent</span>}
           <button onClick={fill} className="btn-ghost border border-border px-3 py-1.5 text-xs" title="Draft from your task board">
             <Wand2 size={13} /> Fill from my tasks
