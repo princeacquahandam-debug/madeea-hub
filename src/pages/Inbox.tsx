@@ -27,6 +27,7 @@ import { clientForMessage, messageInClient } from "@/lib/clientMatch";
 import { groupThreads, decodeEntities } from "@/lib/threads";
 import { useInboxKeys, INBOX_SHORTCUTS } from "@/hooks/useInboxKeys";
 import { ClientScopeBanner } from "@/components/ClientSwitcher";
+import { ClientMailboxButton } from "@/components/ClientMailbox";
 import { useMadelineContext } from "@/hooks/useMadeline";
 import { emailItem } from "@/lib/madelineItems";
 
@@ -455,6 +456,8 @@ export default function Communication() {
           it at 30px tells nobody anything they learned two seconds ago. */}
       <div className="mb-2.5 flex flex-wrap items-center gap-2">
         <h1 className="shrink-0 text-lg font-semibold">Communication Center</h1>
+        {/* Only for an EA a client has shared their mailbox with (0086). */}
+        <ClientMailboxButton />
 
         <div className="relative min-w-[200px] flex-1">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />

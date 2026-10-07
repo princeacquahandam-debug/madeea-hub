@@ -74,11 +74,15 @@ function openCentred(url: string, name: string): Window | null {
  * "the provider refused us" are both ordinary outcomes a card has to render,
  * and an exception is the wrong shape for either.
  */
-export async function connectAccount(provider: ConnectProvider): Promise<ConnectResult> {
+export async function connectAccount(
+  provider: ConnectProvider,
+  /** scopeSet "mail": a client sharing their Outlook mail with their EA (0086). */
+  opts: { scopeSet?: "mail" } = {},
+): Promise<ConnectResult> {
   if (!supabase) return { ok: false, error: "Supabase is not configured, so nothing can be connected." };
 
   const { data, error } = await supabase.functions.invoke(URL_FUNCTION, {
-    body: { provider, origin: window.location.origin, popup: true },
+    body: { provider, origin: window.location.origin, popup: true, ...(opts.scopeSet ? { scope_set: opts.scopeSet } : {}) },
   });
   let payload = (data ?? null) as { url?: string; error?: string } | null;
   if (error) payload = { error: await reasonFrom(error as { message: string; context?: Response }) };

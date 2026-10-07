@@ -39,6 +39,16 @@ type Provider = "google" | "microsoft" | "slack" | "discord" | "meta" | "linkedi
 const CLIENT_GOOGLE_SCOPES = ["https://www.googleapis.com/auth/calendar.events", "openid", "email", "profile"].join(" ");
 /** The Microsoft equivalent: read their Outlook calendar (Teams meetings included). No mail. */
 const CLIENT_MICROSOFT_SCOPES = ["offline_access", "openid", "email", "profile", "https://graph.microsoft.com/Calendars.Read"].join(" ");
+/* Only when the client asks, from "Outlook mail for your assistant" (0086):
+   the calendar, plus reading and sending their mail. Asked for explicitly
+   (scope_set: "mail"), never by default, so connecting a calendar can never
+   quietly hand over a mailbox. */
+const CLIENT_MICROSOFT_MAIL_SCOPES = [
+  "offline_access", "openid", "email", "profile",
+  "https://graph.microsoft.com/Calendars.Read",
+  "https://graph.microsoft.com/Mail.ReadWrite",
+  "https://graph.microsoft.com/Mail.Send",
+].join(" ");
 
 /* WHERE GOOGLE SENDS PEOPLE BACK.
    Google's app review only accepts a return address on a domain we own, and
@@ -316,7 +326,11 @@ Deno.serve(async (req) => {
       redirect_uri: callbackUrl(provider, SUPABASE_URL),
       response_type: "code",
       // A client grants calendar access only (see above).
-      scope: isClient ? (provider === "microsoft" ? CLIENT_MICROSOFT_SCOPES : CLIENT_GOOGLE_SCOPES) : spec.scopes,
+      scope: isClient
+        ? (provider === "microsoft"
+          ? (body.scope_set === "mail" ? CLIENT_MICROSOFT_MAIL_SCOPES : CLIENT_MICROSOFT_SCOPES)
+          : CLIENT_GOOGLE_SCOPES)
+        : spec.scopes,
       state,
       ...(spec.extra ?? {}),
       ...(challenge ? { code_challenge: challenge, code_challenge_method: "S256" } : {}),
