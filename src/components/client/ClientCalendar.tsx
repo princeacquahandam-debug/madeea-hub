@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, ChevronLeft, ChevronRight, MapPin, Video, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { MonthView, TimeGridView, type CalendarItem } from "@/components/calendar/views";
@@ -10,6 +10,7 @@ import {
 import type { CalendarEvent } from "@/data/hooks";
 import { cn } from "@/lib/utils";
 import { clockTime, dateOnly, dayLabel, localDayKey } from "./format";
+import { CLIENT_LAST_SYNC_KEY, syncClientCalendar } from "./ClientIntegrations";
 
 /**
  * The calendar, reflected to the client. Rowena's opening ask (0:18): "syempre,
@@ -39,6 +40,8 @@ interface EventRow {
 }
 
 type View = "month" | "week" | "agenda";
+/** How stale a connected Google Calendar may get before opening this tab refreshes it. */
+const AUTO_SYNC_MS = 30 * 60 * 1000;
 const VIEW_KEY = "madeea-client-calendar-view";
 const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -55,6 +58,30 @@ export function ClientCalendar() {
   const setView = (v: View) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage blocked */ } };
   const [anchor, setAnchor] = useState<DayKey>(() => todayKey(browserTz));
   const [open, setOpen] = useState<EventRow | null>(null);
+  const qc = useQueryClient();
+
+  /* If the client connected their Google Calendar (Connected accounts), bring
+     it up to date when they open this tab, at most every half hour. Quiet on
+     failure: the tab still shows what is already here, and Connected
+     accounts is where a sync error is explained. */
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const last = Number(localStorage.getItem(CLIENT_LAST_SYNC_KEY) ?? 0);
+        if (Date.now() - last < AUTO_SYNC_MS) return;
+      } catch { /* storage blocked: sync anyway */ }
+      const { data: auth } = await supabase!.auth.getUser();
+      if (!auth.user || cancelled) return;
+      const { data: cred } = await supabase!.from("google_credentials").select("owner_id").eq("owner_id", auth.user.id).maybeSingle();
+      if (!cred || cancelled) return;
+      try {
+        await syncClientCalendar();
+        if (!cancelled) void qc.invalidateQueries({ queryKey: ["client-portal", "calendar"] });
+      } catch { /* see above */ }
+    })();
+    return () => { cancelled = true; };
+  }, [qc]);
 
   /* The span on screen. Month is the 6-week grid; agenda is the next 60 days
      from the start of today (a meeting that began an hour ago is the one most

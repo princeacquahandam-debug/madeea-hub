@@ -56,6 +56,19 @@ Deno.serve(async (req) => {
     if (!cred?.refresh_token) return json({ error: "Google not connected" }, 400);
     const token = await accessToken(cred.refresh_token);
 
+    /* A CLIENT'S CALENDAR (client portal). Their login holds no membership,
+       so a write through their own session fails RLS (workspace_id would be
+       null), and their events must carry client_id for client_calendar to
+       show them. So the server writes these rows: owner_id pinned to the
+       verified caller, the workspace and client taken from client_users,
+       source 'gcal-client' (0083 limits those to the lead EA and admins). */
+    const { data: clientUser } = await admin
+      .from("client_users").select("client_id, workspace_id").eq("user_id", u.user.id).maybeSingle();
+    const writer = clientUser ? admin : supa;
+    const clientFields = clientUser
+      ? { owner_id: u.user.id, workspace_id: clientUser.workspace_id, client_id: clientUser.client_id }
+      : {};
+
     /* A WINDOW, not "the next ten things".
        This asked for maxResults=10 from now, which is a dashboard widget, not a
        calendar: opening last month showed nothing, and a busy fortnight was
@@ -123,10 +136,11 @@ Deno.serve(async (req) => {
       const end = ev.end?.dateTime ?? ev.end?.date;
       if (!start) continue;
 
-      const { error } = await supa.from("meetings").upsert(
+      const { error } = await writer.from("meetings").upsert(
         {
+          ...clientFields,
           gcal_event_id: ev.id,
-          source: "gcal",
+          source: clientUser ? "gcal-client" : "gcal",
           title: ev.summary ?? "(busy)",
           starts_at: new Date(start).toISOString(),
           ends_at: end ? new Date(end).toISOString() : null,

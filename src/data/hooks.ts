@@ -471,17 +471,29 @@ export function useCalendarEvents(from: string, to: string) {
       const { data: s } = await supabase.auth.getSession();
       const uid = s.session?.user.id;
       if (!uid) return [];
+      /* Plus the own Google Calendars of the clients you are lead EA for
+         (client portal, Connected accounts; 0083). Admins can read every
+         client's, but their Calendar is for their own day, so it is the
+         lead EA's clients here for everyone. */
+      const { data: led } = await supabase.from("clients").select("id").eq("lead_ea_id", uid);
+      const ledIds = (led ?? []).map((c) => String((c as { id: string }).id));
+      const whose = ledIds.length
+        ? `owner_id.eq.${uid},and(source.eq.gcal-client,client_id.in.(${ledIds.join(",")}))`
+        : `owner_id.eq.${uid}`;
       const { data, error } = await supabase
         .from("meetings")
         .select("id,title,starts_at,ends_at,all_day,location,html_link,organizer_email,description,attendee_emails,source,response_status,event_timezone,clients(name)")
-        .eq("owner_id", uid)
+        .or(whose)
         .gte("starts_at", from)
         .lte("starts_at", to)
         .order("starts_at", { ascending: true });
       if (error) throw error;
       return (data as unknown as (Record<string, unknown> & { clients?: { name?: string } })[]).map((m) => ({
         id: String(m.id),
-        title: String(m.title ?? "(busy)"),
+        // A client's own calendar says whose it is, in every view.
+        title: m.source === "gcal-client"
+          ? `${m.clients?.name ?? "Client"}: ${String(m.title ?? "(busy)")}`
+          : String(m.title ?? "(busy)"),
         starts_at: String(m.starts_at),
         ends_at: (m.ends_at as string | null) ?? null,
         all_day: Boolean(m.all_day),
@@ -551,6 +563,7 @@ export function useCalendarTimezone() {
         .from("meetings")
         .select("event_timezone")
         .not("event_timezone", "is", null)
+        .or("source.is.null,source.neq.gcal-client")
         .order("starts_at", { ascending: false })
         .limit(200);
       if (error) throw error;

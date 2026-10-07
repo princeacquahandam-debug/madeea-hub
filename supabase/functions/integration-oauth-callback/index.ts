@@ -428,7 +428,14 @@ Deno.serve(async (req) => {
   const { data: member } = await admin
     .from("memberships").select("workspace_id")
     .eq("user_id", st.user_id).eq("workspace_id", st.workspace_id).maybeSingle();
-  if (!member) {
+  /* Or still the primary contact of a client in that workspace (client
+     portal, Google calendar only), re-checked now rather than trusted from
+     the start of the flow. */
+  const { data: clientUser } = member ? { data: null } : await admin
+    .from("client_users").select("role")
+    .eq("user_id", st.user_id).eq("workspace_id", st.workspace_id).maybeSingle();
+  const isClient = !!clientUser && clientUser.role === "primary" && provider === "google";
+  if (!member && !isClient) {
     await log("oauth_failed", "failure", { error: "no longer a member" });
     return finish(st, { ok: false, provider, code: "forbidden", detail: "You are no longer a member of that workspace." });
   }

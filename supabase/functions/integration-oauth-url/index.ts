@@ -35,6 +35,9 @@ const APP_ORIGINS = (Deno.env.get("APP_ORIGINS") ?? "")
 
 type Provider = "google" | "microsoft" | "slack" | "discord" | "meta" | "linkedin";
 
+/** What a client grants: their calendar, and who they are. No Gmail. */
+const CLIENT_GOOGLE_SCOPES = ["https://www.googleapis.com/auth/calendar.events", "openid", "email", "profile"].join(" ");
+
 /* WHERE GOOGLE SENDS PEOPLE BACK.
    Google's app review only accepts a return address on a domain we own, and
    this function lives on supabase.co. So for Google the address can be the
@@ -244,7 +247,28 @@ Deno.serve(async (req) => {
        fancied. */
     const { data: member } = await admin
       .from("memberships").select("workspace_id, role").eq("user_id", u.user.id).limit(1).maybeSingle();
-    if (!member?.workspace_id) {
+
+    /* A CLIENT ACCOUNT (client portal). No membership by design (0065); the
+       workspace is the client's own, from client_users. Only the primary
+       contact connects, only Google for now, and only the calendar: Gmail
+       for their EA is a separate, consented step. */
+    let isClient = false;
+    let workspaceId = member?.workspace_id as string | undefined;
+    if (!workspaceId) {
+      const { data: cu } = await admin
+        .from("client_users").select("workspace_id, role").eq("user_id", u.user.id).maybeSingle();
+      if (cu?.workspace_id) {
+        if (cu.role !== "primary") {
+          return json({ error: "Only the account's primary contact can connect accounts.", code: "FORBIDDEN" }, 403);
+        }
+        if (provider !== "google") {
+          return json({ error: "Only Google Calendar can be connected from the client portal for now.", code: "PROVIDER_NOT_SUPPORTED" }, 400);
+        }
+        isClient = true;
+        workspaceId = cu.workspace_id;
+      }
+    }
+    if (!workspaceId) {
       return json({ error: "You are not in a workspace yet.", code: "WORKSPACE_REQUIRED" }, 400);
     }
 
@@ -266,7 +290,7 @@ Deno.serve(async (req) => {
 
     const { error } = await admin.from("oauth_states").insert({
       user_id: u.user.id,
-      workspace_id: member.workspace_id,
+      workspace_id: workspaceId,
       provider,
       state_hash: stateHash,
       code_verifier_encrypted: codeVerifier ? await encrypt(codeVerifier) : null,
@@ -278,7 +302,7 @@ Deno.serve(async (req) => {
     if (error) return json({ error: error.message }, 500);
 
     await admin.from("integration_logs").insert({
-      workspace_id: member.workspace_id,
+      workspace_id: workspaceId,
       user_id: u.user.id,
       action: "oauth_started",
       status: "success",
@@ -289,7 +313,8 @@ Deno.serve(async (req) => {
       client_id: clientId,
       redirect_uri: callbackUrl(provider, SUPABASE_URL),
       response_type: "code",
-      scope: spec.scopes,
+      // A client grants calendar access only (see above).
+      scope: isClient ? CLIENT_GOOGLE_SCOPES : spec.scopes,
       state,
       ...(spec.extra ?? {}),
       ...(challenge ? { code_challenge: challenge, code_challenge_method: "S256" } : {}),

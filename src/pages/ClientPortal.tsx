@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Send, ShieldCheck, MessageSquare, LayoutDashboard,
-  Activity, CalendarDays, StickyNote, Users, Share2, Briefcase, UsersRound, KanbanSquare, ClipboardList,
+  Activity, CalendarDays, StickyNote, Users, Share2, Briefcase, UsersRound, KanbanSquare, ClipboardList, Plug,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { ClientOverview } from "@/components/client/ClientOverview";
 import { ClientActivity } from "@/components/client/ClientActivity";
+import { ClientIntegrations } from "@/components/client/ClientIntegrations";
 import { ClientCalendar } from "@/components/client/ClientCalendar";
 import { ClientNotes } from "@/components/client/ClientNotes";
 import { ClientPeople } from "@/components/client/ClientPeople";
@@ -42,7 +43,7 @@ import { ClientMadeline } from "@/components/client/ClientMadeline";
  */
 
 type Kind = "client_ea" | "escalation";
-type Tab = "overview" | "tasks" | "reports" | "activity" | "calendar" | "notes" | "delegate" | "people" | "team" | "mywork" | "settings" | Kind;
+type Tab = "overview" | "tasks" | "reports" | "activity" | "calendar" | "notes" | "delegate" | "people" | "team" | "mywork" | "settings" | "accounts" | Kind;
 
 interface Conversation {
   id: string;
@@ -93,6 +94,8 @@ const TABS: (ClientNavItem & { id: Tab; title: string; subtitle: string })[] = [
     title: "Your staff", subtitle: "Their hours, their screenshots, and the work you hand them." },
   { id: "people", label: "People", icon: Users, group: "Working together",
     title: "People", subtitle: "Who can see this account." },
+  { id: "accounts", label: "Connected accounts", icon: Plug, group: "Working together",
+    title: "Connected accounts", subtitle: "Bring your own calendar into MadeEA, so your assistant can plan around it." },
   { id: "client_ea", label: CHANNEL.client_ea.label, icon: CHANNEL.client_ea.icon, group: "Messages",
     title: CHANNEL.client_ea.label, subtitle: CHANNEL.client_ea.blurb },
   { id: "escalation", label: CHANNEL.escalation.label, icon: CHANNEL.escalation.icon, group: "Messages",
@@ -112,6 +115,7 @@ const PANES: Partial<Record<Tab, boolean>> = {
   team: true,
   mywork: true,
   settings: true,
+  accounts: true,
 };
 
 /* A member's nav is not the client's with things removed. They get their own
@@ -160,7 +164,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
      is about not offering a door that opens onto an error. */
   const tabs = useMemo(() => {
     if (isMember) return MEMBER_NAV;
-    return isViewer ? TABS.filter((t) => PANES[t.id] && t.id !== "team") : TABS;
+    return isViewer ? TABS.filter((t) => PANES[t.id] && t.id !== "team" && t.id !== "accounts") : TABS;
   }, [isViewer, isMember]);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState("");
@@ -180,10 +184,10 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
     queryFn: async () => {
       const { data, error } = await supabase!
         .from("client_overview")
-        .select("client_name, company")
+        .select("client_name, company, assistant_name")
         .maybeSingle();
       if (error) throw error;
-      return data as { client_name: string; company: string | null } | null;
+      return data as { client_name: string; company: string | null; assistant_name: string | null } | null;
     },
   });
 
@@ -296,6 +300,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
           {tab === "team" ? <ClientTeam /> : null}
           {tab === "mywork" ? <ClientMyWork clientId={clientId} /> : null}
           {tab === "settings" ? <ClientSettings email={user?.email} /> : null}
+          {tab === "accounts" && !isViewer && !isMember ? <ClientIntegrations assistantName={header?.assistant_name} /> : null}
         </>
       ) : (
         /* A conversation is one object, so it gets one card: the thread scrolls
