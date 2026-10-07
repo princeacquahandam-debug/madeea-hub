@@ -250,6 +250,15 @@ Deno.serve(async (req) => {
 
     /* The account is a parameter. Defaults to the caller, and a future
        delegation model passes a different owner rather than changing this. */
+    /* SEND AS SOMEONE ELSE IS NOT ALLOWED (YET).
+       from_owner came straight from the request and was never checked, so any
+       signed-in account could send from any other person's connected Gmail
+       by naming their user id. Until a real delegation rule exists (a client's
+       lead EA, checked server-side), the only mailbox you can send from is
+       your own. */
+    if (body.from_owner != null && String(body.from_owner) !== u.user.id) {
+      return json({ error: "You can only send from your own mailbox." }, 403);
+    }
     const owner = String(body.from_owner ?? u.user.id);
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
