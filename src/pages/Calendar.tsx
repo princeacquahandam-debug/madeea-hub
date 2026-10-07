@@ -144,7 +144,7 @@ export default function Calendar() {
   /* The calendar's own zone, taken from the synced events, because that is what
      Google renders in and what the team means when it says "3pm". The browser
      is the fallback only when nothing has been synced yet. */
-  const calendarTz = events.find((e) => e.event_timezone && e.source !== "gcal-client")?.event_timezone ?? null;
+  const calendarTz = events.find((e) => e.event_timezone && !e.source?.endsWith("-client"))?.event_timezone ?? null;
   const tz = tzOverride ?? calendarTz ?? browserTz;
   const today = todayKey(tz);
 

@@ -30,6 +30,13 @@ async function accessToken(refresh: string): Promise<string> {
   return t.access_token;
 }
 
+/** Google Meet first, then any other video entry point (Zoom add-on etc.). */
+function meetLink(ev: Record<string, any>): string | null {
+  if (typeof ev.hangoutLink === "string") return ev.hangoutLink;
+  const video = (ev.conferenceData?.entryPoints ?? []).find((p: { entryPointType?: string }) => p?.entryPointType === "video");
+  return typeof video?.uri === "string" ? video.uri : null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
@@ -147,6 +154,11 @@ Deno.serve(async (req) => {
           all_day: allDay,
           location: ev.location ?? null,
           html_link: ev.htmlLink ?? null,
+          /* The Meet room, so a client (and the EA) can join from MadeEA. Only
+             written when Google has one: an event booked by
+             calendar-create-event already carries its link, and an empty
+             answer here must not wipe it. */
+          ...(meetLink(ev) ? { hangout_link: meetLink(ev) } : {}),
           organizer_email: ev.organizer?.email ?? null,
           description: typeof ev.description === "string" ? ev.description.slice(0, 4000) : null,
           calendar_id: "primary",

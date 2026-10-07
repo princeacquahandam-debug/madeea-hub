@@ -10,7 +10,7 @@ import {
 import type { CalendarEvent } from "@/data/hooks";
 import { cn } from "@/lib/utils";
 import { clockTime, dateOnly, dayLabel, localDayKey } from "./format";
-import { CLIENT_LAST_SYNC_KEY, syncClientCalendar } from "./ClientIntegrations";
+import { CALENDAR_PROVIDERS, isConnected, lastSync, syncClientCalendar } from "./ClientIntegrations";
 
 /**
  * The calendar, reflected to the client. Rowena's opening ask (0:18): "syempre,
@@ -60,26 +60,23 @@ export function ClientCalendar() {
   const [open, setOpen] = useState<EventRow | null>(null);
   const qc = useQueryClient();
 
-  /* If the client connected their Google Calendar (Connected accounts), bring
-     it up to date when they open this tab, at most every half hour. Quiet on
-     failure: the tab still shows what is already here, and Connected
-     accounts is where a sync error is explained. */
+  /* If the client connected their own calendar (Connected accounts: Google,
+     Outlook, or both), bring it up to date when they open this tab, at most
+     every half hour per provider. Quiet on failure: the tab still shows what
+     is already here, and Connected accounts is where a sync error is
+     explained. */
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      try {
-        const last = Number(localStorage.getItem(CLIENT_LAST_SYNC_KEY) ?? 0);
-        if (Date.now() - last < AUTO_SYNC_MS) return;
-      } catch { /* storage blocked: sync anyway */ }
-      const { data: auth } = await supabase!.auth.getUser();
-      if (!auth.user || cancelled) return;
-      const { data: cred } = await supabase!.from("google_credentials").select("owner_id").eq("owner_id", auth.user.id).maybeSingle();
-      if (!cred || cancelled) return;
-      try {
-        await syncClientCalendar();
-        if (!cancelled) void qc.invalidateQueries({ queryKey: ["client-portal", "calendar"] });
-      } catch { /* see above */ }
-    })();
+    for (const p of CALENDAR_PROVIDERS) {
+      if (Date.now() - lastSync(p) < AUTO_SYNC_MS) continue;
+      void (async () => {
+        try {
+          if (!(await isConnected(p)) || cancelled) return;
+          await syncClientCalendar(p);
+          if (!cancelled) void qc.invalidateQueries({ queryKey: ["client-portal", "calendar"] });
+        } catch { /* see above */ }
+      })();
+    }
     return () => { cancelled = true; };
   }, [qc]);
 

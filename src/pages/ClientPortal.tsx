@@ -95,7 +95,7 @@ const TABS: (ClientNavItem & { id: Tab; title: string; subtitle: string })[] = [
   { id: "people", label: "People", icon: Users, group: "Working together",
     title: "People", subtitle: "Who can see this account." },
   { id: "accounts", label: "Connected accounts", icon: Plug, group: "Working together",
-    title: "Connected accounts", subtitle: "Bring your own calendar into MadeEA, so your assistant can plan around it." },
+    title: "Connected accounts", subtitle: "Bring your Google or Outlook calendar into MadeEA, so your assistant can plan around it." },
   { id: "client_ea", label: CHANNEL.client_ea.label, icon: CHANNEL.client_ea.icon, group: "Messages",
     title: CHANNEL.client_ea.label, subtitle: CHANNEL.client_ea.blurb },
   { id: "escalation", label: CHANNEL.escalation.label, icon: CHANNEL.escalation.icon, group: "Messages",

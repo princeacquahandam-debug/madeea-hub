@@ -37,6 +37,8 @@ type Provider = "google" | "microsoft" | "slack" | "discord" | "meta" | "linkedi
 
 /** What a client grants: their calendar, and who they are. No Gmail. */
 const CLIENT_GOOGLE_SCOPES = ["https://www.googleapis.com/auth/calendar.events", "openid", "email", "profile"].join(" ");
+/** The Microsoft equivalent: read their Outlook calendar (Teams meetings included). No mail. */
+const CLIENT_MICROSOFT_SCOPES = ["offline_access", "openid", "email", "profile", "https://graph.microsoft.com/Calendars.Read"].join(" ");
 
 /* WHERE GOOGLE SENDS PEOPLE BACK.
    Google's app review only accepts a return address on a domain we own, and
@@ -250,8 +252,8 @@ Deno.serve(async (req) => {
 
     /* A CLIENT ACCOUNT (client portal). No membership by design (0065); the
        workspace is the client's own, from client_users. Only the primary
-       contact connects, only Google for now, and only the calendar: Gmail
-       for their EA is a separate, consented step. */
+       contact connects, only Google or Microsoft, and only the calendar:
+       mail for their EA is a separate, consented step. */
     let isClient = false;
     let workspaceId = member?.workspace_id as string | undefined;
     if (!workspaceId) {
@@ -261,8 +263,8 @@ Deno.serve(async (req) => {
         if (cu.role !== "primary") {
           return json({ error: "Only the account's primary contact can connect accounts.", code: "FORBIDDEN" }, 403);
         }
-        if (provider !== "google") {
-          return json({ error: "Only Google Calendar can be connected from the client portal for now.", code: "PROVIDER_NOT_SUPPORTED" }, 400);
+        if (provider !== "google" && provider !== "microsoft") {
+          return json({ error: "Only Google or Outlook calendars can be connected from the client portal for now.", code: "PROVIDER_NOT_SUPPORTED" }, 400);
         }
         isClient = true;
         workspaceId = cu.workspace_id;
@@ -314,7 +316,7 @@ Deno.serve(async (req) => {
       redirect_uri: callbackUrl(provider, SUPABASE_URL),
       response_type: "code",
       // A client grants calendar access only (see above).
-      scope: isClient ? CLIENT_GOOGLE_SCOPES : spec.scopes,
+      scope: isClient ? (provider === "microsoft" ? CLIENT_MICROSOFT_SCOPES : CLIENT_GOOGLE_SCOPES) : spec.scopes,
       state,
       ...(spec.extra ?? {}),
       ...(challenge ? { code_challenge: challenge, code_challenge_method: "S256" } : {}),

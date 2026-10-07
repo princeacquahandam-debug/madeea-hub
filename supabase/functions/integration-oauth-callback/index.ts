@@ -434,7 +434,7 @@ Deno.serve(async (req) => {
   const { data: clientUser } = member ? { data: null } : await admin
     .from("client_users").select("role")
     .eq("user_id", st.user_id).eq("workspace_id", st.workspace_id).maybeSingle();
-  const isClient = !!clientUser && clientUser.role === "primary" && provider === "google";
+  const isClient = !!clientUser && clientUser.role === "primary" && (provider === "google" || provider === "microsoft");
   if (!member && !isClient) {
     await log("oauth_failed", "failure", { error: "no longer a member" });
     return finish(st, { ok: false, provider, code: "forbidden", detail: "You are no longer a member of that workspace." });
