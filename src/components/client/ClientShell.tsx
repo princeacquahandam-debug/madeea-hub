@@ -55,6 +55,7 @@ export function ClientShell({
   email,
   isViewer,
   isMember = false,
+  headerTools,
   title,
   subtitle,
   onOpenSettings,
@@ -69,6 +70,8 @@ export function ClientShell({
   email?: string;
   isViewer: boolean;
   isMember?: boolean;
+  /** Right side of the header: search, guide, theme, notifications, Madeline. */
+  headerTools?: React.ReactNode;
   title: string;
   subtitle: string;
   onOpenSettings: () => void;
@@ -172,7 +175,12 @@ export function ClientShell({
           which is the whole of why the two looked like different products even
           after the tokens matched. */}
       <AmbientBackground />
-      <div className="hidden lg:block">{rail}</div>
+      {/* relative z-[1] on the rail and the content column: the ambient
+          layer is position:fixed z-0 in this same stacking context, so it was
+          painted OVER every non-positioned element. Cards survived (they make
+          their own stacking context); page titles, headings and the whole of
+          Activity and Calendar did not, and the portal looked blank. */}
+      <div className="relative z-[1] hidden lg:block">{rail}</div>
 
       {drawer && (
         <div className="fixed inset-0 z-50 lg:hidden">
@@ -181,7 +189,7 @@ export function ClientShell({
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="relative z-[1] flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3 lg:px-6">
           <button
             onClick={() => setDrawer(true)}
@@ -198,6 +206,7 @@ export function ClientShell({
           {isViewer && (
             <span className="pill bg-accent/15 text-accent-soft whitespace-nowrap text-[10px]">View only</span>
           )}
+          {headerTools}
         </header>
 
         <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6">

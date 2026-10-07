@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Send, ShieldCheck, MessageSquare, LayoutDashboard,
-  Activity, CalendarDays, StickyNote, Users, Share2, Briefcase, UsersRound,
+  Activity, CalendarDays, StickyNote, Users, Share2, Briefcase, UsersRound, KanbanSquare, ClipboardList,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,6 +16,10 @@ import { ClientShell, type ClientNavItem } from "@/components/client/ClientShell
 import { ClientSettings } from "@/components/client/ClientSettings";
 import { ClientMyWork } from "@/components/client/ClientMyWork";
 import { ClientTeam } from "@/components/client/ClientTeam";
+import { ClientBoard } from "@/components/client/ClientBoard";
+import { ClientReports } from "@/components/client/ClientReports";
+import { ClientHeaderTools } from "@/components/client/ClientHeaderTools";
+import { ClientMadeline } from "@/components/client/ClientMadeline";
 
 /**
  * What a client sees. Deliberately not the agency app with things hidden.
@@ -38,7 +42,7 @@ import { ClientTeam } from "@/components/client/ClientTeam";
  */
 
 type Kind = "client_ea" | "escalation";
-type Tab = "overview" | "activity" | "calendar" | "notes" | "delegate" | "people" | "team" | "mywork" | "settings" | Kind;
+type Tab = "overview" | "tasks" | "reports" | "activity" | "calendar" | "notes" | "delegate" | "people" | "team" | "mywork" | "settings" | Kind;
 
 interface Conversation {
   id: string;
@@ -73,6 +77,10 @@ const CHANNEL: Record<Kind, { label: string; blurb: string; icon: typeof Message
 const TABS: (ClientNavItem & { id: Tab; title: string; subtitle: string })[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, group: "Your account",
     title: "Overview", subtitle: "Where your account stands right now." },
+  { id: "tasks", label: "Tasks", icon: KanbanSquare, group: "Your account",
+    title: "Tasks", subtitle: "Everything on your account, by where it stands." },
+  { id: "reports", label: "Daily reports", icon: ClipboardList, group: "Your account",
+    title: "Daily reports", subtitle: "What your assistant got done each day, what's blocked, and what's next." },
   { id: "activity", label: "Activity", icon: Activity, group: "Your account",
     title: "Activity", subtitle: "What your assistant did, day by day." },
   { id: "calendar", label: "Calendar", icon: CalendarDays, group: "Your account",
@@ -94,6 +102,8 @@ const TABS: (ClientNavItem & { id: Tab; title: string; subtitle: string })[] = [
 /** The panes that are not a conversation, so the message furniture falls away. */
 const PANES: Partial<Record<Tab, boolean>> = {
   overview: true,
+  tasks: true,
+  reports: true,
   activity: true,
   calendar: true,
   notes: true,
@@ -260,6 +270,14 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
       email={user?.email}
       isViewer={isViewer}
       isMember={isMember}
+      headerTools={
+        <>
+          {/* Staff accounts have their own small nav (no Tasks, no messages), so the
+              search and bell, which jump to those, are for the account itself. */}
+          {!isMember && <ClientHeaderTools onNavigate={(id: string) => setTab(id as Tab)} />}
+          {!isMember && <ClientMadeline readOnly={isViewer} onNavigate={(id: string) => setTab(id as Tab)} />}
+        </>
+      }
       title={meta.title}
       subtitle={meta.subtitle}
       onOpenSettings={() => setTab("settings")}
@@ -268,6 +286,8 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
       {PANES[tab] ? (
         <>
           {tab === "overview" ? <ClientOverview onSeeActivity={() => setTab("activity")} readOnly={isViewer} /> : null}
+          {tab === "tasks" ? <ClientBoard /> : null}
+          {tab === "reports" ? <ClientReports /> : null}
           {tab === "activity" ? <ClientActivity /> : null}
           {tab === "calendar" ? <ClientCalendar /> : null}
           {tab === "notes" ? <ClientNotes readOnly={isViewer} /> : null}
