@@ -1,12 +1,13 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle, Camera, CheckCircle2, Circle, Clock, Loader2, Play, Square,
+  AlertTriangle, CalendarDays, Camera, CheckCircle2, Circle, ClipboardList, Clock, KanbanSquare, Loader2, Play, Square,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useClientCapture } from "@/hooks/useClientCapture";
 import { cn } from "@/lib/utils";
 import { clockTime, dateOnly, dayLabel, hm, surfaceLabel } from "./format";
+import { fetchMyTasks, fetchTeamReports, localToday, MY_TASKS_KEY, TEAM_REPORTS_KEY } from "./memberData";
 
 /**
  * A team member's own working day: their tasks, their clock, their captures.
@@ -24,15 +25,7 @@ import { clockTime, dateOnly, dayLabel, hm, surfaceLabel } from "./format";
  * owner of it.
  */
 
-interface Task {
-  id: string;
-  title: string;
-  status: "todo" | "in_progress" | "follow_up" | "review" | "done";
-  due_label: string | null;
-  blocked: boolean;
-  client_visible_blocker: string | null;
-  completed_at: string | null;
-}
+type Task = Awaited<ReturnType<typeof fetchMyTasks>>[number];
 
 interface Shift {
   id: string;
@@ -43,19 +36,22 @@ interface Shift {
   captures: number;
 }
 
-export function ClientMyWork({ clientId }: { clientId: string }) {
+export function ClientMyWork({ clientId, onNavigate }: { clientId: string; onNavigate?: (tab: string) => void }) {
   const qc = useQueryClient();
 
-  const { data: tasks = [], isLoading: loadingTasks } = useQuery({
-    queryKey: ["client-portal", "my-tasks"],
+  const { data: tasks = [], isLoading: loadingTasks } = useQuery({ queryKey: MY_TASKS_KEY, queryFn: fetchMyTasks });
+  const { data: reports = [] } = useQuery({ queryKey: TEAM_REPORTS_KEY, queryFn: fetchTeamReports });
+  const reportSent = reports.some((r) => r.is_you && r.work_date === localToday());
+
+  /* The next thing on the account's calendar (client_calendar: account
+     meetings only; the owner's own calendar is theirs, 0085). */
+  const { data: nextMeeting } = useQuery({
+    queryKey: ["client-portal", "next-meeting"],
+    refetchInterval: 300_000,
     queryFn: async () => {
-      const { data, error } = await supabase!
-        .from("client_my_tasks")
-        .select("id, title, status, due_label, blocked, client_visible_blocker, completed_at")
-        .order("status")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as Task[];
+      const { data } = await supabase!.from("client_calendar").select("id, title, starts_at, all_day")
+        .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(1);
+      return ((data ?? []) as { id: string; title: string; starts_at: string; all_day: boolean }[])[0] ?? null;
     },
   });
 
@@ -118,9 +114,22 @@ export function ClientMyWork({ clientId }: { clientId: string }) {
 
   const open = tasks.filter((t) => t.status !== "done");
   const done = tasks.filter((t) => t.status === "done");
+  const stuck = open.filter((t) => t.blocked).length;
 
   return (
     <div className="space-y-5">
+      {/* ---- today at a glance: each tile opens the page it summarises ---- */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Tile icon={KanbanSquare} label="Open tasks" value={String(open.length)}
+          note={stuck ? `${stuck} stuck` : open.length ? "Nothing stuck" : "All clear"} warn={stuck > 0} onClick={() => onNavigate?.("mytasks")} />
+        <Tile icon={CheckCircle2} label="Done today" value={String(done.filter((t) => t.completed_at && new Date(t.completed_at).toDateString() === new Date().toDateString()).length)}
+          note="Finished tasks" onClick={() => onNavigate?.("mytasks")} />
+        <Tile icon={CalendarDays} label="Next meeting" value={nextMeeting ? (nextMeeting.all_day ? "All day" : clockTime(nextMeeting.starts_at)) : "None"}
+          note={nextMeeting ? nextMeeting.title : "Nothing booked"} onClick={() => onNavigate?.("calendar")} />
+        <Tile icon={ClipboardList} label="Daily report" value={reportSent ? "Sent" : "Not yet"}
+          note={reportSent ? "Update it any time today" : "Send before you finish"} warn={!reportSent && !!running} onClick={() => onNavigate?.("myreport")} />
+      </div>
+
       {/* ---- the clock ---- */}
       <section className="card p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -203,7 +212,7 @@ export function ClientMyWork({ clientId }: { clientId: string }) {
         ) : (
           <div className="space-y-2">
             {open.map((t) => (
-              <div key={t.id} className="flex items-start gap-3 rounded-lg bg-surface-2 p-3">
+              <div key={t.id} className="flex flex-wrap items-start gap-3 rounded-lg bg-surface-2 p-3 sm:flex-nowrap">
                 <button
                   onClick={() => setStatus.mutate({ id: t.id, status: "done" })}
                   className="mt-0.5 shrink-0 text-faint transition-colors hover:text-accent"
@@ -284,5 +293,17 @@ export function ClientMyWork({ clientId }: { clientId: string }) {
         )}
       </section>
     </div>
+  );
+}
+
+function Tile({ icon: Icon, label, value, note, warn = false, onClick }: {
+  icon: typeof Clock; label: string; value: string; note: string; warn?: boolean; onClick?: () => void;
+}) {
+  return (
+    <button onClick={onClick} className="card min-w-0 p-4 text-left transition-colors hover:ring-1 hover:ring-accent/40">
+      <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.09em] text-faint"><Icon size={13} /> {label}</p>
+      <p className="mt-1.5 truncate text-[22px] font-extrabold leading-none">{value}</p>
+      <p className={cn("mt-1 truncate text-xs", warn ? "text-amber-400" : "text-faint")}>{note}</p>
+    </button>
   );
 }

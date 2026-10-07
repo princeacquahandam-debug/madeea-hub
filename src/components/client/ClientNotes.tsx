@@ -31,7 +31,8 @@ interface NoteRow {
   updated_at: string;
 }
 
-export function ClientNotes({ readOnly = false }: { readOnly?: boolean }) {
+/** member: a client's own staff (0078). They read what is shared; the notes are between the client and their EA. */
+export function ClientNotes({ readOnly = false, member = false }: { readOnly?: boolean; member?: boolean }) {
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -81,7 +82,7 @@ export function ClientNotes({ readOnly = false }: { readOnly?: boolean }) {
 
   return (
     <div className="space-y-6">
-      {readOnly ? null : (
+      {readOnly || member ? null : (
       <section className="card p-5">
         <h2 className="mb-3 text-[17px] font-bold">Leave a note</h2>
         <p className="text-faint mb-2 text-sm">
@@ -125,7 +126,7 @@ export function ClientNotes({ readOnly = false }: { readOnly?: boolean }) {
           <p className="text-faint text-sm">Loading…</p>
         ) : notes.length === 0 ? (
           <p className="text-faint text-sm">
-            {readOnly
+            {readOnly || member
               ? "Nothing has been shared on this account yet."
               : "Nothing shared yet. Notes you leave, and notes your assistant shares with you, both appear here."}
           </p>
@@ -142,7 +143,7 @@ export function ClientNotes({ readOnly = false }: { readOnly?: boolean }) {
                     {n.title ? <div className="text-sm font-medium">{n.title}</div> : null}
                     <div className="mt-0.5 whitespace-pre-wrap break-words text-sm">{n.body}</div>
                     <div className="text-faint mt-1.5 text-xs">
-                      {n.author_is_client ? "You" : "Your assistant"}
+                      {n.author_is_client ? (member ? "The account owner" : "You") : (member ? "The account's assistant" : "Your assistant")}
                       {" · "}
                       {dayLabel(dateOnly(localDayKey(n.updated_at)))} at {clockTime(n.updated_at)}
                     </div>

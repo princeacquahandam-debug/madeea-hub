@@ -2,14 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Bell, CalendarDays, CheckCircle2, Info, KanbanSquare, MessageSquare, Moon, Search,
-  ShieldCheck, StickyNote, Sun, AlertCircle, X,
+  Bell, CalendarDays, CheckCircle2, ClipboardList, Info, KanbanSquare, MessageSquare, Moon, Search,
+  ShieldCheck, StickyNote, Sun, AlertCircle, UserPlus, X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/store/theme";
 import { useAnchoredPanel, ANCHORED_PANEL_CLASS } from "@/hooks/useAnchoredPanel";
 import { cn } from "@/lib/utils";
+import { fetchMyTasks, fetchTeamChat, fetchTeamReports, MY_TASKS_KEY, TEAM_CHAT_KEY, TEAM_REPORTS_KEY } from "./memberData";
 
 /**
  * Search, page guide, theme and notifications, for the client portal header.
@@ -20,6 +21,11 @@ import { cn } from "@/lib/utils";
  * work. They sit in the header because the 6 Oct review asked for the portal
  * to feel like the same product, and these four are what a person reaches for
  * in any header.
+ *
+ * STAFF (member: a client's own team member, 0078) get the same four, over
+ * THEIR data: their own tasks, the account's shared notes and meetings, and
+ * their thread with the account owner. Nothing here reads past what their
+ * own pages show.
  *
  * EVERY PANEL IS PORTALLED. The header clips overflow and carries a
  * backdrop-filter; useAnchoredPanel explains why only <body> works.
@@ -76,26 +82,29 @@ async function fetchCalendar() {
   return (data ?? []) as EventRow[];
 }
 
-export function ClientHeaderTools({ onNavigate }: { onNavigate: (tab: string) => void }) {
+export function ClientHeaderTools({ onNavigate, member = false }: { onNavigate: (tab: string) => void; member?: boolean }) {
   return (
     <div className="flex shrink-0 items-center gap-1.5">
-      <SearchTool onNavigate={onNavigate} />
-      <GuideTool />
+      <SearchTool onNavigate={onNavigate} member={member} />
+      <GuideTool member={member} />
       <ThemeTool />
-      <BellTool onNavigate={onNavigate} />
+      {member ? <MemberBellTool onNavigate={onNavigate} /> : <BellTool onNavigate={onNavigate} />}
     </div>
   );
 }
 
 /* ───────────────────────── Search ───────────────────────── */
 
-function SearchTool({ onNavigate }: { onNavigate: (tab: string) => void }) {
+function SearchTool({ onNavigate, member }: { onNavigate: (tab: string) => void; member: boolean }) {
   const { anchorRef, panelRef, open, setOpen, pos } = useAnchoredPanel<HTMLButtonElement>();
   const [q, setQ] = useState("");
   const input = useRef<HTMLInputElement>(null);
 
   // Nothing is fetched until the panel opens; a closed search costs nothing.
-  const tasks = useQuery({ queryKey: ["client-portal", "tasks"], queryFn: fetchTasks, enabled: open });
+  // Staff search their own tasks, under My Work's key and shape (memberData).
+  const ownerTasks = useQuery({ queryKey: ["client-portal", "tasks"], queryFn: fetchTasks, enabled: open && !member });
+  const myTasks = useQuery({ queryKey: MY_TASKS_KEY, queryFn: fetchMyTasks, enabled: open && member });
+  const tasks = member ? myTasks : ownerTasks;
   const notes = useQuery({ queryKey: ["client-portal", "notes"], queryFn: fetchNotes, enabled: open });
   const events = useQuery({ queryKey: ["client-portal", "calendar"], queryFn: fetchCalendar, enabled: open });
 
@@ -109,7 +118,7 @@ function SearchTool({ onNavigate }: { onNavigate: (tab: string) => void }) {
     if (!needle) return null;
     const has = (s: string | null | undefined) => !!s && s.toLowerCase().includes(needle);
     return [
-      { label: "Tasks", tab: "tasks", icon: KanbanSquare,
+      { label: "Tasks", tab: member ? "mytasks" : "tasks", icon: KanbanSquare,
         items: (tasks.data ?? []).filter((t) => has(t.title)).slice(0, 5).map((t) => ({ id: t.id, text: t.title })) },
       { label: "Notes", tab: "notes", icon: StickyNote,
         items: (notes.data ?? []).filter((n) => has(n.title) || has(n.body)).slice(0, 5)
@@ -182,7 +191,15 @@ const GUIDE = [
   "Delegate helps you hand a piece of work over properly, with Madeline checking it is clear first.",
 ];
 
-function GuideTool() {
+const MEMBER_GUIDE = [
+  "My Work is your day: clock in and out, your hours, and a summary of what's open.",
+  "Tasks is your own board. Start a task, mark it done, or say you're stuck and the account owner is told.",
+  "Daily report is three lines at the end of the day: what you did, what's blocked, what's next.",
+  "Messages is a private thread between you and the account owner.",
+  "Calendar shows the meetings booked on this account. Notes are what's been shared with the team.",
+];
+
+function GuideTool({ member }: { member: boolean }) {
   const { anchorRef, panelRef, open, setOpen, pos } = useAnchoredPanel<HTMLButtonElement>();
   return (
     <>
@@ -198,7 +215,7 @@ function GuideTool() {
             <button onClick={() => setOpen(false)} aria-label="Close" className="text-faint hover:text-text"><X size={15} /></button>
           </div>
           <ul className="space-y-1.5 text-sm text-muted">
-            {GUIDE.map((p, i) => (
+            {(member ? MEMBER_GUIDE : GUIDE).map((p, i) => (
               <li key={i} className="flex gap-2">
                 <span className="mt-0.5 text-accent-soft">•</span>
                 <span>{p}</span>
@@ -246,7 +263,6 @@ function readSeen(uid: string | undefined): number {
 function BellTool({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const { user } = useAuth();
   const uid = user?.id;
-  const { anchorRef, panelRef, open, setOpen, pos } = useAnchoredPanel<HTMLButtonElement>();
   const [seen, setSeen] = useState(() => readSeen(uid));
   useEffect(() => { setSeen(readSeen(uid)); }, [uid]);
 
@@ -283,6 +299,10 @@ function BellTool({ onNavigate }: { onNavigate: (tab: string) => void }) {
     },
   });
 
+  // Viewers read neither (0085), so for them these are simply empty.
+  const staffMsgs = useQuery({ queryKey: TEAM_CHAT_KEY, queryFn: fetchTeamChat, refetchInterval: 60_000 });
+  const staffReports = useQuery({ queryKey: TEAM_REPORTS_KEY, queryFn: fetchTeamReports, refetchInterval: 120_000 });
+
   const items = useMemo<Notif[]>(() => {
     const since = Date.now() - WEEK_MS;
     const recent = (iso: string | null | undefined): iso is string => !!iso && new Date(iso).getTime() >= since;
@@ -299,6 +319,19 @@ function BellTool({ onNavigate }: { onNavigate: (tab: string) => void }) {
           icon: AlertCircle, tone: "text-amber-400" });
       }
     }
+    // From the client's own staff (0085): their messages and their daily reports.
+    for (const m of staffMsgs.data ?? []) {
+      if (!m.mine && recent(m.sent_at)) {
+        out.push({ id: "staff-msg-" + m.id, at: m.sent_at, tab: "staffchat", icon: MessageSquare,
+          text: "New message from " + (m.member_email ?? "your staff") });
+      }
+    }
+    for (const r of staffReports.data ?? []) {
+      if (!r.is_you && recent(r.updated_at)) {
+        out.push({ id: "staff-rep-" + r.id, at: r.updated_at, tab: "team", icon: ClipboardList,
+          text: "Daily report from " + (r.email ?? "your staff") });
+      }
+    }
     for (const m of msgs.data ?? []) {
       out.push({
         id: `msg-${m.id}`, at: m.at, tab: m.kind,
@@ -307,8 +340,49 @@ function BellTool({ onNavigate }: { onNavigate: (tab: string) => void }) {
       });
     }
     return out.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 15);
-  }, [tasks.data, msgs.data]);
+  }, [tasks.data, msgs.data, staffMsgs.data, staffReports.data]);
 
+  // Fail quiet: a bell that errors is worse than no bell.
+  if (tasks.isError) return null;
+
+  return <BellPanel items={items} uid={uid} seen={seen} setSeen={setSeen} onNavigate={onNavigate} />;
+}
+
+/* ── the staff bell: work handed to them, and the account owner's messages ── */
+
+function MemberBellTool({ onNavigate }: { onNavigate: (tab: string) => void }) {
+  const { user } = useAuth();
+  const uid = user?.id;
+  const [seen, setSeen] = useState(() => readSeen(uid));
+  useEffect(() => { setSeen(readSeen(uid)); }, [uid]);
+  const tasks = useQuery({ queryKey: MY_TASKS_KEY, queryFn: fetchMyTasks, refetchInterval: 60_000 });
+  const chat = useQuery({ queryKey: TEAM_CHAT_KEY, queryFn: fetchTeamChat, refetchInterval: 60_000 });
+
+  const items = useMemo<Notif[]>(() => {
+    const since = Date.now() - WEEK_MS;
+    const recent = (iso: string | null | undefined): iso is string => !!iso && new Date(iso).getTime() >= since;
+    const out: Notif[] = [];
+    for (const t of tasks.data ?? []) {
+      if (t.status !== "done" && recent(t.created_at)) {
+        out.push({ id: "new-" + t.id, at: t.created_at, text: "New task: " + t.title, tab: "mytasks", icon: UserPlus });
+      }
+    }
+    for (const m of chat.data ?? []) {
+      if (!m.mine && recent(m.sent_at)) {
+        out.push({ id: "msg-" + m.id, at: m.sent_at, text: "New message from the account owner", tab: "staffchat", icon: MessageSquare });
+      }
+    }
+    return out.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 15);
+  }, [tasks.data, chat.data]);
+
+  if (tasks.isError) return null;
+  return <BellPanel items={items} uid={uid} seen={seen} setSeen={setSeen} onNavigate={onNavigate} />;
+}
+
+function BellPanel({ items, uid, seen, setSeen, onNavigate }: {
+  items: Notif[]; uid: string | undefined; seen: number; setSeen: (n: number) => void; onNavigate: (tab: string) => void;
+}) {
+  const { anchorRef, panelRef, open, setOpen, pos } = useAnchoredPanel<HTMLButtonElement>();
   const unread = items.filter((n) => new Date(n.at).getTime() > seen).length;
 
   function markAll() {
@@ -317,9 +391,6 @@ function BellTool({ onNavigate }: { onNavigate: (tab: string) => void }) {
     if (!uid) return;
     try { localStorage.setItem(seenKey(uid), String(now)); } catch { /* private mode: count resets next visit */ }
   }
-
-  // Fail quiet: a bell that errors is worse than no bell.
-  if (tasks.isError) return null;
 
   return (
     <>

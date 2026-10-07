@@ -54,7 +54,9 @@ function parse(reply: string): { text: string; proposal: Proposal | null } {
   }
 }
 
-export function ClientMadeline({ readOnly = false, onNavigate }: { readOnly?: boolean; onNavigate?: (tab: string) => void }) {
+/** member: a client's own staff (0078). Madeline reads only their own work, and proposes no requests. */
+export function ClientMadeline({ readOnly: readOnlyProp = false, member = false, onNavigate }: { readOnly?: boolean; member?: boolean; onNavigate?: (tab: string) => void }) {
+  const readOnly = readOnlyProp || member;
   const { user } = useAuth();
   const key = `madeea-client-madeline-${user?.id ?? "anon"}`;
   const [open, setOpen] = useState(false);
@@ -78,12 +80,17 @@ export function ClientMadeline({ readOnly = false, onNavigate }: { readOnly?: bo
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  const starters = useMemo(() => [
+  const starters = useMemo(() => member ? [
+    "What's on my plate today?",
+    "What did I finish this week?",
+    "How many hours have I worked this week?",
+    "Help me write my daily report",
+  ] : [
     "What did my assistant do this week?",
     "What's waiting on me?",
     "What's coming up?",
     ...(readOnly ? [] : ["Help me write a request"]),
-  ], [readOnly]);
+  ], [readOnly, member]);
 
   function ask(prompt: string) {
     const raw = prompt.trim();
@@ -157,8 +164,10 @@ export function ClientMadeline({ readOnly = false, onNavigate }: { readOnly?: bo
                 <div className="flex flex-col gap-3">
                   <p className="text-lg font-extrabold">Hi{first ? ` ${first}` : ""}.</p>
                   <p className="text-[13px] text-muted">
-                    I can see your tasks, meetings, hours and the notes you share with your assistant. Ask me where things stand
-                    {readOnly ? "." : ", or tell me what you need and I'll turn it into a request."}
+                    {member
+                      ? "I can see your own tasks, your hours, the account's meetings and its shared notes. Ask me what's next, or to draft your daily report."
+                      : <>I can see your tasks, meetings, hours and the notes you share with your assistant. Ask me where things stand
+                        {readOnly ? "." : ", or tell me what you need and I'll turn it into a request."}</>}
                   </p>
                   <div className="flex flex-col gap-1.5">
                     {starters.map((s) => (
@@ -184,7 +193,7 @@ export function ClientMadeline({ readOnly = false, onNavigate }: { readOnly?: bo
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); ask(draft); } }}
-                placeholder="Ask about your account…"
+                placeholder={member ? "Ask about your work…" : "Ask about your account…"}
                 aria-label="Message Madeline"
                 className="min-w-0 flex-1 resize-none bg-transparent py-2 text-[13px] leading-snug text-text outline-none placeholder:text-faint focus-visible:outline-none"
               />

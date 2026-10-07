@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Camera, Check, Clock, Loader2, Plus, X } from "lucide-react";
+import { AlertTriangle, Camera, Check, Circle, Clock, Loader2, Play, Plus, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { clockTime, dateOnly, dayLabel, hm, surfaceLabel } from "./format";
+import { fetchTeamReports, TEAM_REPORTS_KEY } from "./memberData";
+import { ReportView } from "./ClientStaffReport";
 
 /**
  * What the client sees of their own staff: hours, screenshots, and a way to hand
@@ -22,6 +24,13 @@ import { clockTime, dateOnly, dayLabel, hm, surfaceLabel } from "./format";
  */
 
 interface Person { role: string; email: string | null; }
+/* client_tasks under the Board's key and select (it reads "*"), so the two
+   panes share one cache entry. staff_email marks a task as with their staff. */
+interface TeamTask {
+  id: string; title: string; status: string; due_label: string | null;
+  blocked: boolean; client_visible_blocker: string | null; completed_at: string | null;
+  staff_email?: string | null;
+}
 interface Day {
   owner_id: string; email: string; work_date: string;
   minutes: number; sessions: number;
@@ -77,6 +86,32 @@ export function ClientTeam() {
       return (data ?? []) as Shot[];
     },
   });
+
+  const { data: allTasks = [] } = useQuery({
+    queryKey: ["client-portal", "tasks"],
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase!.from("client_tasks").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as TeamTask[];
+    },
+  });
+  const { data: reports = [] } = useQuery({ queryKey: TEAM_REPORTS_KEY, queryFn: fetchTeamReports, refetchInterval: 120_000 });
+
+  /* Their work, by person: what is open (stuck first), and what they finished this week. */
+  const work = useMemo(() => {
+    const weekAgo = Date.now() - 7 * 86_400_000;
+    const m = new Map<string, { open: TeamTask[]; doneWeek: number }>();
+    for (const t of allTasks) {
+      if (!t.staff_email) continue;
+      const row = m.get(t.staff_email) ?? { open: [], doneWeek: 0 };
+      if (t.status === "done") { if (t.completed_at && new Date(t.completed_at).getTime() >= weekAgo) row.doneWeek++; }
+      else row.open.push(t);
+      m.set(t.staff_email, row);
+    }
+    for (const r of m.values()) r.open.sort((a, b) => Number(b.blocked) - Number(a.blocked));
+    return [...m.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [allTasks]);
 
   const assign = useMutation({
     mutationFn: async () => {
@@ -176,6 +211,59 @@ export function ClientTeam() {
               </p>
             )}
           </>
+        )}
+      </section>
+
+      <section className="card p-5">
+        <h2 className="mb-3 text-[17px] font-bold">Their work</h2>
+        {work.length === 0 ? (
+          <p className="text-sm text-faint">Nothing assigned to your staff yet.</p>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {work.map(([email, w]) => (
+              <div key={email} className="min-w-0 rounded-xl bg-surface-2 p-3">
+                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
+                  <span className="min-w-0 truncate text-sm font-semibold">{email}</span>
+                  <span className="text-xs text-faint">{w.open.length} open · {w.doneWeek} done this week</span>
+                </div>
+                {w.open.length === 0 ? (
+                  <p className="text-xs text-faint">All caught up.</p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {w.open.slice(0, 6).map((t) => (
+                      <li key={t.id} className="text-sm">
+                        <span className="flex items-start gap-2">
+                          {t.status === "todo"
+                            ? <Circle size={13} className="mt-0.5 shrink-0 text-faint" aria-label="To do" />
+                            : <Play size={13} className="mt-0.5 shrink-0 text-accent-soft" aria-label="In progress" />}
+                          <span className="min-w-0 flex-1 break-words">{t.title}</span>
+                          {t.due_label && <span className="shrink-0 text-xs text-faint">{t.due_label}</span>}
+                        </span>
+                        {t.blocked && t.client_visible_blocker && (
+                          <span className="ml-5 mt-0.5 flex items-start gap-1.5 text-xs text-amber-400">
+                            <AlertTriangle size={11} className="mt-0.5 shrink-0" /> <span className="break-words">Stuck: {t.client_visible_blocker}</span>
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                    {w.open.length > 6 && <li className="text-xs text-faint">+{w.open.length - 6} more on your Tasks board</li>}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="card p-5">
+        <h2 className="mb-1 text-[17px] font-bold">Daily reports</h2>
+        <p className="mb-3 text-sm text-muted">What each of your staff got done, what's blocked, and what's next, in their own words.</p>
+        {reports.length === 0 ? (
+          <p className="text-sm text-faint">No reports yet. Staff send one from their Daily report page.</p>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {reports.slice(0, 12).map((r) => <ReportView key={r.id} r={r} who={r.email} />)}
+          </div>
         )}
       </section>
 

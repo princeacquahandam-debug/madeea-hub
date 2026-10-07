@@ -2,13 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Send, ShieldCheck, MessageSquare, LayoutDashboard,
-  Activity, CalendarDays, StickyNote, Users, Share2, Briefcase, UsersRound, KanbanSquare, ClipboardList, Plug,
+  Activity, CalendarDays, StickyNote, Users, Share2, Briefcase, UsersRound, KanbanSquare, ClipboardList, Plug, MessagesSquare,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { ClientOverview } from "@/components/client/ClientOverview";
 import { ClientActivity } from "@/components/client/ClientActivity";
 import { ClientIntegrations } from "@/components/client/ClientIntegrations";
+import { ClientMemberBoard } from "@/components/client/ClientMemberBoard";
+import { ClientStaffReport } from "@/components/client/ClientStaffReport";
+import { ClientTeamChat } from "@/components/client/ClientTeamChat";
 import { ClientCalendar } from "@/components/client/ClientCalendar";
 import { ClientNotes } from "@/components/client/ClientNotes";
 import { ClientPeople } from "@/components/client/ClientPeople";
@@ -43,7 +46,7 @@ import { ClientMadeline } from "@/components/client/ClientMadeline";
  */
 
 type Kind = "client_ea" | "escalation";
-type Tab = "overview" | "tasks" | "reports" | "activity" | "calendar" | "notes" | "delegate" | "people" | "team" | "mywork" | "settings" | "accounts" | Kind;
+type Tab = "overview" | "tasks" | "reports" | "activity" | "calendar" | "notes" | "delegate" | "people" | "team" | "mywork" | "settings" | "accounts" | "mytasks" | "myreport" | "staffchat" | Kind;
 
 interface Conversation {
   id: string;
@@ -100,6 +103,8 @@ const TABS: (ClientNavItem & { id: Tab; title: string; subtitle: string })[] = [
     title: CHANNEL.client_ea.label, subtitle: CHANNEL.client_ea.blurb },
   { id: "escalation", label: CHANNEL.escalation.label, icon: CHANNEL.escalation.icon, group: "Messages",
     title: CHANNEL.escalation.label, subtitle: CHANNEL.escalation.blurb },
+  { id: "staffchat", label: "Your staff", icon: MessagesSquare, group: "Messages",
+    title: "Your staff", subtitle: "A private thread with each of your staff. Your assistant and the agency don't see these." },
 ];
 
 /** The panes that are not a conversation, so the message furniture falls away. */
@@ -116,6 +121,9 @@ const PANES: Partial<Record<Tab, boolean>> = {
   mywork: true,
   settings: true,
   accounts: true,
+  mytasks: true,
+  myreport: true,
+  staffchat: true,
 };
 
 /* A member's nav is not the client's with things removed. They get their own
@@ -125,11 +133,20 @@ const PANES: Partial<Record<Tab, boolean>> = {
 const MEMBER_NAV: (ClientNavItem & { id: Tab; title: string; subtitle: string })[] = [
   { id: "mywork", label: "My Work", icon: Briefcase, group: "Your work",
     title: "My work", subtitle: "Your clock, your tasks, and the day so far." },
+  { id: "mytasks", label: "Tasks", icon: KanbanSquare, group: "Your work",
+    title: "Tasks", subtitle: "Your work, by where it stands. Stuck? Say so and the account owner is told." },
+  { id: "myreport", label: "Daily report", icon: ClipboardList, group: "Your work",
+    title: "Daily report", subtitle: "What you did, what's blocked, and what's next, for the account owner." },
   { id: "calendar", label: "Calendar", icon: CalendarDays, group: "Your work",
     title: "Calendar", subtitle: "What is booked on this account." },
   { id: "notes", label: "Notes", icon: StickyNote, group: "Your work",
-    title: "Notes", subtitle: "What the primary contact wants kept to hand." },
+    title: "Notes", subtitle: "What's been shared on this account." },
+  { id: "staffchat", label: "Account owner", icon: MessagesSquare, group: "Messages",
+    title: "Messages", subtitle: "A private thread between you and the account owner." },
 ];
+
+/* Madeline's source chips name the client's tabs; a member has their own. */
+const MEMBER_TAB_FOR: Record<string, Tab> = { tasks: "mytasks", activity: "mywork" };
 
 /* Reached from the sidebar footer rather than the nav, which is where the staff
    app keeps it too. It is account housekeeping, not a place you work. */
@@ -164,7 +181,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
      is about not offering a door that opens onto an error. */
   const tabs = useMemo(() => {
     if (isMember) return MEMBER_NAV;
-    return isViewer ? TABS.filter((t) => PANES[t.id] && t.id !== "team" && t.id !== "accounts") : TABS;
+    return isViewer ? TABS.filter((t) => PANES[t.id] && t.id !== "team" && t.id !== "accounts" && t.id !== "staffchat") : TABS;
   }, [isViewer, isMember]);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState("");
@@ -276,10 +293,11 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
       isMember={isMember}
       headerTools={
         <>
-          {/* Staff accounts have their own small nav (no Tasks, no messages), so the
-              search and bell, which jump to those, are for the account itself. */}
-          {!isMember && <ClientHeaderTools onNavigate={(id: string) => setTab(id as Tab)} />}
-          {!isMember && <ClientMadeline readOnly={isViewer} onNavigate={(id: string) => setTab(id as Tab)} />}
+          {/* Staff get the same tools over their own work (0085): their tasks,
+              their thread with the owner, and a Madeline that reads only that. */}
+          <ClientHeaderTools member={isMember} onNavigate={(id: string) => setTab(id as Tab)} />
+          <ClientMadeline readOnly={isViewer} member={isMember}
+            onNavigate={(id: string) => setTab((isMember ? (MEMBER_TAB_FOR[id] ?? id) : id) as Tab)} />
         </>
       }
       title={meta.title}
@@ -294,11 +312,14 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
           {tab === "reports" ? <ClientReports /> : null}
           {tab === "activity" ? <ClientActivity /> : null}
           {tab === "calendar" ? <ClientCalendar /> : null}
-          {tab === "notes" ? <ClientNotes readOnly={isViewer} /> : null}
+          {tab === "notes" ? <ClientNotes readOnly={isViewer} member={isMember} /> : null}
+          {tab === "mytasks" && isMember ? <ClientMemberBoard /> : null}
+          {tab === "myreport" && isMember ? <ClientStaffReport /> : null}
+          {tab === "staffchat" && !isViewer ? <ClientTeamChat asOwner={!isMember} /> : null}
           {tab === "delegate" ? <ClientDelegation readOnly={isViewer} /> : null}
           {tab === "people" ? <ClientPeople readOnly={isViewer} /> : null}
           {tab === "team" ? <ClientTeam /> : null}
-          {tab === "mywork" ? <ClientMyWork clientId={clientId} /> : null}
+          {tab === "mywork" ? <ClientMyWork clientId={clientId} onNavigate={(id) => setTab(id as Tab)} /> : null}
           {tab === "settings" ? <ClientSettings email={user?.email} /> : null}
           {tab === "accounts" && !isViewer && !isMember ? <ClientIntegrations assistantName={header?.assistant_name} /> : null}
         </>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CalendarClock, CheckCircle2, Search, UserRound } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, Search, UserRound, Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Badge } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,8 @@ interface TaskRow {
   created_at: string;
   updated_at: string | null;
   requested_by_client: boolean;
+  /** Set when this is with one of the client's own staff (0085), not the agency. */
+  staff_email?: string | null;
 }
 
 // Mirrors COLUMNS in pages/Tasks.tsx. Copied, not imported, because that file
@@ -242,7 +244,11 @@ function TaskCard({ task: t }: { task: TaskRow }) {
             <CalendarClock size={12} /> Due {due}
           </span>
         ) : null}
-        {t.requested_by_client ? (
+        {t.staff_email ? (
+          <span className="flex min-w-0 items-center gap-1">
+            <Users size={12} className="shrink-0" /> <span className="truncate">Your staff: {t.staff_email}</span>
+          </span>
+        ) : t.requested_by_client ? (
           <span className="flex items-center gap-1">
             <UserRound size={12} /> Requested by you
           </span>
