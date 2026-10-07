@@ -20,7 +20,7 @@ const STATUS_LABEL: Record<string, string> = {
   todo: "To Do", in_progress: "In Progress", follow_up: "Follow-up", review: "Review", done: "Done",
 };
 
-const BLANK = { name: "", title: "", company: "", preferred_channel: "Email", tone: "Formal", tags: "", bio: "", preferences_notes: "", image: "" };
+const BLANK = { name: "", title: "", company: "", preferred_channel: "Email", tone: "Formal", tags: "", bio: "", preferences_notes: "", image: "", lead_ea_id: "" };
 
 export default function ClientVault() {
   const { data: clients = [], isLoading } = useClients();
@@ -52,6 +52,7 @@ export default function ClientVault() {
       preferred_channel: c.preferred_channel || "Email", tone: c.tone ?? "",
       tags: (c.tags ?? []).join(", "), bio: c.bio ?? "", preferences_notes: c.preferences_notes ?? "",
       image: c.avatar_url ?? "",
+      lead_ea_id: c.lead_ea_id ?? "",
     });
     setEditingId(c.id); setOpen(null); setUploadErr(""); setAdding(true);
   }
@@ -84,6 +85,7 @@ export default function ClientVault() {
       tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
       bio: form.bio, preferences_notes: form.preferences_notes,
       avatar_url: form.image.trim() || null,
+      lead_ea_id: form.lead_ea_id || null,
     };
     if (editingId) update.mutate({ id: editingId, ...payload });
     else create.mutate(payload);
@@ -402,6 +404,16 @@ export default function ClientVault() {
               </select>
             </div>
             <div><label className="field-label">Tone</label><input className="input" value={form.tone} onChange={set("tone")} placeholder="e.g. Formal" /></div>
+          </div>
+          {/* Who is accountable for this client. The card has always shown
+              "Lead: …", and the client portal names them as "your assistant",
+              but nothing could set it, so every client read "No lead EA". */}
+          <div>
+            <label className="field-label" htmlFor="client-lead">Lead EA</label>
+            <select id="client-lead" className="input" value={form.lead_ea_id} onChange={set("lead_ea_id")}>
+              <option value="">No lead EA</option>
+              {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}
+            </select>
           </div>
           <div><label className="field-label">Tags (comma separated)</label><input className="input" value={form.tags} onChange={set("tags")} placeholder="Board Prep, Travel" /></div>
           <div><label className="field-label">Biography</label><textarea className="input min-h-[70px]" value={form.bio} onChange={set("bio")} /></div>

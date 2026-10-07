@@ -366,6 +366,7 @@ export function useClientMutations() {
         preferred_channel: input.preferred_channel, tone: input.tone,
         tags: input.tags ?? [], bio: input.bio, preferences_notes: input.preferences_notes,
         avatar_url: input.avatar_url ?? null,
+        lead_ea_id: input.lead_ea_id ?? null,
       });
       if (error) throw error;
     },
