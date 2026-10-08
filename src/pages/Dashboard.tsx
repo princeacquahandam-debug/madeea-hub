@@ -8,7 +8,7 @@ import { useMadeline } from "@/store/madeline";
 import { meetingItem } from "@/lib/madelineItems";
 import { PREP_MEETING } from "@/lib/madelineActions";
 import { useAuth } from "@/hooks/useAuth";
-import { useTasks, useMeetings, useClients, useMessages, useAutomations, useGoogleConnection } from "@/data/hooks";
+import { useTasks, useMeetings, useClients, useMessages, useAutomations, useGoogleConnection, useMyRole, atLeast } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { emitOnce } from "@/lib/alerts";
 import { EodCard } from "@/components/EodCard";
@@ -30,6 +30,10 @@ const PANEL_LIMIT = 4;
 export default function Dashboard() {
   const { user } = useAuth();
   const nav = useNavigate();
+  /* Client Vault is managers and up (constants.ts NAV, 8 Oct 2026), so an EA
+     doesn't get the two Dashboard pieces that only lead there. */
+  const { data: role } = useMyRole();
+  const canVault = atLeast(role, "manager");
   const { data: tasks = [] } = useTasks();
   const { data: meetings = [] } = useMeetings({ mine: true });
   const { data: google } = useGoogleConnection();
@@ -106,7 +110,7 @@ export default function Dashboard() {
     { label: "Tasks Active", value: tasks.filter((t) => t.status !== "done").length },
     { label: "Meetings Today", value: meetingsToday },
     { label: "Emails Pending", value: messages.filter((m) => m.direction !== "outbound" && !m.first_reply_at).length },
-    { label: "Clients At Risk", value: atRisk.length, onClick: () => nav("/clients") },
+    ...(canVault ? [{ label: "Clients At Risk", value: atRisk.length, onClick: () => nav("/clients") }] : []),
     { label: "Gone quiet", value: flags.length },
     { label: "Automations Running", value: automations.filter((a) => a.status === "active").length },
   ];
@@ -145,7 +149,7 @@ export default function Dashboard() {
         <p className="mt-1.5 text-[15px] text-muted">Here's your day at a glance.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+      <div className={`grid grid-cols-2 gap-4 md:grid-cols-3 ${kpis.length === 6 ? "xl:grid-cols-6" : "xl:grid-cols-5"}`}>
         {kpis.map((kpi, i) => {
           const Icon = KPI_ICONS[i];
           const alert = (kpi.label === "Clients At Risk" || kpi.label === "Gone quiet") && kpi.value > 0;
@@ -292,7 +296,7 @@ export default function Dashboard() {
         </section>
       </div>
 
-      <section className="card mt-5 p-5">
+      {canVault && <section className="card mt-5 p-5">
         <h2 className="mb-3 text-[17px] font-bold">Client Snapshot</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {clients.map((c) => (
@@ -306,7 +310,7 @@ export default function Dashboard() {
           ))}
           {clients.length === 0 && <p className="py-4 text-center text-xs text-faint">No clients</p>}
         </div>
-      </section>
+      </section>}
 
       <MeetingPrepPacket meeting={prepFor} open={Boolean(prepFor)} onClose={() => setPrepFor(null)} />
     </div>
