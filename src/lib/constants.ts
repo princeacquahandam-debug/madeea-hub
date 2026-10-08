@@ -116,12 +116,18 @@ export const NAV: NavItem[] = [
   /* ---- Clients & Files ----------------------------------------------------
      Everything you go looking FOR rather than work you do. The client record
      and their logins sit together because that is how you arrive at them: you
-     open the client, then you need to get into their tools. */
-  { to: "/clients", label: "Client Vault", icon: Users, group: "Clients & Files", tab: "Clients" },
-  { to: "/credentials", label: "Password Manager", icon: KeyRound, group: "Clients & Files" },
-  { to: "/notes", label: "Notes & Files", icon: StickyNote, group: "Clients & Files", tab: "Notes" },
-  { to: "/uploads", label: "Uploads", icon: Upload, group: "Clients & Files", parent: "/notes" },
-  { to: "/saved", label: "Saved", icon: Bookmark, group: "Clients & Files", parent: "/notes" },
+     open the client, then you need to get into their tools.
+
+     MANAGERS AND UP (8 Oct 2026). MadeEA asked for the whole section to be
+     taken out of an EA's account. The sidebar drops the group, the command
+     palette and the tour leave it out, and an old link lands on "isn't part
+     of your access" (SectionTabs' useRoleBlocked). UI gating, as minRole
+     says: the data itself is still guarded by RLS. */
+  { to: "/clients", label: "Client Vault", icon: Users, group: "Clients & Files", tab: "Clients", minRole: "manager" },
+  { to: "/credentials", label: "Password Manager", icon: KeyRound, group: "Clients & Files", minRole: "manager" },
+  { to: "/notes", label: "Notes & Files", icon: StickyNote, group: "Clients & Files", tab: "Notes", minRole: "manager" },
+  { to: "/uploads", label: "Uploads", icon: Upload, group: "Clients & Files", parent: "/notes", minRole: "manager" },
+  { to: "/saved", label: "Saved", icon: Bookmark, group: "Clients & Files", parent: "/notes", minRole: "manager" },
   /* How each client's work is going, computed from tasks and EOD data. A
      manager's view of the team, so managers and up; a tab of the client list. */
   { to: "/scoreboard", label: "Client Scoreboard", icon: Trophy, group: "Clients & Files", minRole: "manager", parent: "/clients", tab: "Scoreboard" },

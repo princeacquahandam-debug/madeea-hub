@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Building2, ChevronsUpDown, Search, Check, Undo2, Users } from "lucide-react";
-import { useMyClients } from "@/data/hooks";
+import { atLeast, useMyClients, useMyRole } from "@/data/hooks";
 import { useClientContext } from "@/store/clientContext";
 import { cn, initials } from "@/lib/utils";
 
@@ -27,6 +27,8 @@ import { cn, initials } from "@/lib/utils";
  */
 export function ClientSwitcher({ collapsed }: { collapsed?: boolean }) {
   const clients = useMyClients();
+  const { data: role } = useMyRole();
+  const canVault = atLeast(role, "manager");
   const { clientId, setClient } = useClientContext();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -176,13 +178,16 @@ export function ClientSwitcher({ collapsed }: { collapsed?: boolean }) {
                 <p className="mt-1 text-[11.5px] leading-relaxed text-faint">
                   A client appears here once someone sets you as its lead EA.
                 </p>
-                <Link
-                  to="/clients"
-                  onClick={() => setOpen(false)}
-                  className="mt-2 inline-block text-[12px] font-medium text-accent hover:underline"
-                >
-                  Open the Client Vault
-                </Link>
+                {/* Client Vault is managers and up (constants.ts NAV). */}
+                {canVault && (
+                  <Link
+                    to="/clients"
+                    onClick={() => setOpen(false)}
+                    className="mt-2 inline-block text-[12px] font-medium text-accent hover:underline"
+                  >
+                    Open the Client Vault
+                  </Link>
+                )}
               </div>
             )}
 

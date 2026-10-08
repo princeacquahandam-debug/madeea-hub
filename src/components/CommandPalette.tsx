@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { Search, Star, CornerDownLeft, Sparkles } from "lucide-react";
 import { NAV } from "@/lib/constants";
-import { useClients, useTasks, useMessages, useSops } from "@/data/hooks";
+import { atLeast, useClients, useMessages, useMyRole, useSops, useTasks } from "@/data/hooks";
 import { useFavorites } from "@/store/favorites";
 import { useMadeline } from "@/store/madeline";
 import { cn } from "@/lib/utils";
@@ -29,6 +29,7 @@ export function CommandPalette() {
   const { data: tasks = [] } = useTasks();
   const { data: messages = [] } = useMessages();
   const { data: sops = [] } = useSops();
+  const { data: role } = useMyRole();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -52,7 +53,9 @@ export function CommandPalette() {
   }, [open]);
 
   const term = q.trim().toLowerCase();
-  const pages: Item[] = NAV.map((n) => ({ id: `page:${n.to}`, label: n.label, sub: n.group, path: n.to, favable: true }));
+  // Only pages this person may open: the same role rule as the sidebar.
+  const pages: Item[] = NAV.filter((n) => !n.minRole || atLeast(role, n.minRole))
+    .map((n) => ({ id: `page:${n.to}`, label: n.label, sub: n.group, path: n.to, favable: true }));
 
   const askItem: Item = {
     id: "ask-madeline",

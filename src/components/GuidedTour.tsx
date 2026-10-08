@@ -3,17 +3,18 @@ import { useTour } from "@/store/tour";
 import { useAuth } from "@/hooks/useAuth";
 import { useUI } from "@/store/ui";
 import { supabase } from "@/lib/supabase";
+import { atLeast, useMyRole } from "@/data/hooks";
 
-interface Step { selector?: string; title: string; body: string; needsNav?: boolean }
+interface Step { selector?: string; title: string; body: string; needsNav?: boolean; minRole?: "manager" }
 
 /* One step per nav group whose NAME does not already explain it. "Clients &
    Files" and "Setup" say what they hold, so a step telling you so would just be
    length. The tour promises 30 seconds and should cost 30 seconds. */
-const STEPS: Step[] = [
+const ALL_STEPS: Step[] = [
   { title: "Welcome to MadeEA Hub", body: "One place for your executive-assistant work. Here's a 30-second tour. Skip any time." },
   { selector: '[data-tour="nav"]', needsNav: true, title: "My Day", body: "Top to bottom is the order you work: inbox, then the board, then the EOD that closes the day. Start here every morning." },
   { selector: '[data-tour="playbook"]', needsNav: true, title: "Playbook", body: "How the work is done, defined once and reused. Record a Video Instruction, write it up as an SOP, put it on a schedule, and learn it in the Training Center." },
-  { selector: '[data-tour="clients-files"]', needsNav: true, title: "Clients & Files", body: "Each client's profile and logins, your notes and files, and the Client Scoreboard. Pages that belong together open as tabs: Calendar has Meeting Intelligence, Task Manager has Routines." },
+  { selector: '[data-tour="clients-files"]', needsNav: true, minRole: "manager", title: "Clients & Files", body: "Each client's profile and logins, your notes and files, and the Client Scoreboard. Pages that belong together open as tabs: Calendar has Meeting Intelligence, Task Manager has Routines." },
   { selector: '[data-tour="madeline"]', title: "Ask Madeline", body: "Your AI assistant, on every page. She sees what you have open (a task, meeting, client or email), and the conversation follows you from page to page. Ctrl/⌘-K searches and jumps anywhere." },
   { title: "You're all set", body: "The ⓘ beside the date explains the page you are on, and the ⋯ menu in the top right replays this tour." },
 ];
@@ -36,6 +37,9 @@ export function GuidedTour() {
   const { user } = useAuth();
   const { setNavOpen } = useUI();
   const [step, setStep] = useState(0);
+  // The section a step points at may be hidden for this role (constants.ts NAV).
+  const { data: role } = useMyRole();
+  const STEPS = ALL_STEPS.filter((s) => !s.minRole || atLeast(role, s.minRole));
   const [rect, setRect] = useState<DOMRect | null>(null);
 
   /* First-login auto-start. "Done" lives on the account as well as in this
