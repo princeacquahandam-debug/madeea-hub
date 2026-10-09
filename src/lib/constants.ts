@@ -53,7 +53,20 @@ import {
    Admin Panel moved into Setup instead of a heading of its own.
    Twenty-one links became thirteen for an admin and twelve for an EA, and
    both fit on a laptop screen with every group open. */
-export const NAV_GROUPS = ["My Day", "Clients & Files", "Playbook", "Setup"] as const;
+/* 9 Oct 2026: "My Day" held six different kinds of thing (a summary, a
+   schedule, an inbox, a board, a clock and a report), so on an EA's account
+   it was most of the sidebar under one heading again, the problem this note
+   opens with. Split by what the EA is doing when they reach for it:
+
+     Today              where do I stand, what's on        Dashboard, Calendar
+     Work               the work itself                    Communication Center, Task Manager
+     Time & Reports     prove it: clock, then report       Time Tracker, EOD Reports
+     Clients & Files    (managers and up)
+     Guides & Training  how we do things, and learning it  SOP, Training Center
+     Settings           configure once                     Integrations, Admin Panel
+
+   "Playbook" and "Setup" became the plain words for what they hold. */
+export const NAV_GROUPS = ["Today", "Work", "Time & Reports", "Clients & Files", "Guides & Training", "Settings"] as const;
 export type NavGroup = (typeof NAV_GROUPS)[number];
 
 export interface NavItem {
@@ -91,27 +104,27 @@ export const NAV: NavItem[] = [
      work. The old order put the board first because it was built first.
 
      Calendar would be the first item here. It is §5.7, parked pending OQ-3. */
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, group: "My Day" },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, group: "Today" },
   /* The route stays /inbox. Seventeen places link to it, the name is the
      only thing anyone sees, and renaming the path would buy nothing but a
      round of dead links. /communication already redirects here. */
-  { to: "/inbox", label: "Communication Center", icon: Mail, group: "My Day" },
-  { to: "/calendar", label: "Calendar", icon: CalendarDays, group: "My Day" },
+  { to: "/inbox", label: "Communication Center", icon: Mail, group: "Work" },
+  { to: "/calendar", label: "Calendar", icon: CalendarDays, group: "Today" },
   // What a meeting produced belongs beside when it happened.
-  { to: "/meeting-intelligence", label: "Meeting Intelligence", icon: Brain, group: "My Day", parent: "/calendar" },
-  { to: "/tasks", label: "Task Manager", icon: CheckSquare, group: "My Day", tab: "Tasks" },
+  { to: "/meeting-intelligence", label: "Meeting Intelligence", icon: Brain, group: "Today", parent: "/calendar" },
+  { to: "/tasks", label: "Task Manager", icon: CheckSquare, group: "Work", tab: "Tasks" },
   /* Routines make tasks, so they sit with them. Beta, because it was called
      beta on the 14 Sep walkthrough and labelled nowhere. */
-  { to: "/routines", label: "Routines", icon: Repeat, group: "My Day", parent: "/tasks", badge: "Beta" },
+  { to: "/routines", label: "Routines", icon: Repeat, group: "Work", parent: "/tasks", badge: "Beta" },
   /* AI Quick Actions left the sidebar: it was a fifth place to meet the AI.
      Its starters live in Madeline now. The route stays for Calendar's
      "Plan this day", which books the slots it proposes. */
   // The day closes here: what you did, and that you were there to do it.
-  { to: "/eod", label: "EOD Reports", icon: ClipboardList, group: "My Day" },
-  { to: "/time", label: "Time Tracker", icon: Clock, group: "My Day", tab: "Time" },
+  { to: "/time", label: "Time Tracker", icon: Clock, group: "Time & Reports", tab: "Time" },
   // Beside the tracker, because a screenshot only means anything next to the
   // session that produced it.
-  { to: "/screenshots", label: "Screenshots", icon: Camera, group: "My Day", parent: "/time" },
+  { to: "/screenshots", label: "Screenshots", icon: Camera, group: "Time & Reports", parent: "/time" },
+  { to: "/eod", label: "EOD Reports", icon: ClipboardList, group: "Time & Reports" },
 
   /* ---- Clients & Files ----------------------------------------------------
      Everything you go looking FOR rather than work you do. The client record
@@ -146,7 +159,7 @@ export const NAV: NavItem[] = [
      standard, and the product should say what the pitch says.
 
      The route stays /sops, which it never stopped being. */
-  { to: "/sops", label: "SOP", icon: ClipboardCheck, group: "Playbook", tab: "SOPs" },
+  { to: "/sops", label: "SOP", icon: ClipboardCheck, group: "Guides & Training", tab: "SOPs" },
   /* ADMINS ONLY, AND THIS IS A COST CONTROL, NOT A PERMISSION.
      Rowena, 14 Sep (24:06): "huwag mong ipapakita yan" — video capture is the
      most expensive thing in the app by a wide margin, and the team watched a
@@ -157,23 +170,23 @@ export const NAV: NavItem[] = [
      stays mounted; only the door narrows.
      The page repeats the check. Hiding a link does not unbookmark it. */
   // A tab of SOP: record it, then write it up.
-  { to: "/videos", label: "Video Instruction", icon: Video, group: "Playbook", minRole: "admin", parent: "/sops" },
+  { to: "/videos", label: "Video Instruction", icon: Video, group: "Guides & Training", minRole: "admin", parent: "/sops" },
   /* Called beta out loud on the 14 Sep walkthrough and labelled nowhere. An EA
      clicking into something half-built with no warning is a support ticket; a
      client watching it happen in a demo is worse. */
   /* The Academy was routed but never in the nav. The only way in was a promo
      card in the sidebar footer, which is dismissible, so dismissing it hid the
      training entirely. "Training Center" is what the team calls it. */
-  { to: "/academy", label: "Training Center", icon: GraduationCap, group: "Playbook" },
+  { to: "/academy", label: "Training Center", icon: GraduationCap, group: "Guides & Training" },
 
   /* ---- Setup --------------------------------------------------------------
      Configured once, then forgotten. Bottom of the list, away from daily work
      (nav-hierarchy: primary and secondary navigation stay separated). */
   // Everyone connects their own Gmail/Outlook here, so everyone sees it.
-  { to: "/integrations", label: "Integrations", icon: Plug, group: "Setup" },
+  { to: "/integrations", label: "Integrations", icon: Plug, group: "Settings" },
   // Workspace-wide rules: configured by an admin, not by each EA.
-  { to: "/automation", label: "Automation", icon: Workflow, group: "Setup", minRole: "admin", parent: "/integrations" },
-  { to: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "Setup", minRole: "admin", badge: "Admin" },
+  { to: "/automation", label: "Automation", icon: Workflow, group: "Settings", minRole: "admin", parent: "/integrations" },
+  { to: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "Settings", minRole: "admin", badge: "Admin" },
   /* Cut by the 09 Aug product direction, which judged every feature on two
      questions: does it prove the EA's work, and does it make the EA replaceable
      without pain. These answered neither, and each loses to a free tool:

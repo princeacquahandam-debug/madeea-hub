@@ -11,30 +11,38 @@ import {
   FolderOpen,
   BookMarked,
   SlidersHorizontal,
+  Briefcase,
+  Timer,
 } from "lucide-react";
 
 const GROUP_ICON: Record<NavGroup, LucideIcon> = {
-  "My Day": Sun,
+  Today: Sun,
+  Work: Briefcase,
+  "Time & Reports": Timer,
   "Clients & Files": FolderOpen,
-  Playbook: BookMarked,
-  Setup: SlidersHorizontal,
+  "Guides & Training": BookMarked,
+  Settings: SlidersHorizontal,
 };
 
 /* Every group open on a first visit. When the sidebar was 21 links, only My
    Day started open; the audit found that closed groups hid what was in them
    ("you have to open them and find them"). At 10 to 13 links it fits open. A
    group someone closes stays closed. */
-const DEFAULT_OPEN: Record<string, boolean> = { "My Day": true, "Clients & Files": true, Playbook: true, Setup: true };
+const DEFAULT_OPEN: Record<string, boolean> = {
+  Today: true, Work: true, "Time & Reports": true, "Clients & Files": true, "Guides & Training": true, Settings: true,
+};
 const OPEN_KEY = "madeea-nav-open";
 
 // Slugs the guided tour targets. Kept beside the group list so renaming a group
 // cannot silently leave the tour pointing at a selector that stopped rendering,
 // which is exactly what happened to the old "ai-suite" step.
 const TOUR_ANCHOR: Record<NavGroup, string> = {
-  "My Day": "nav",
+  Today: "nav",
+  Work: "work",
+  "Time & Reports": "time-reports",
   "Clients & Files": "clients-files",
-  Playbook: "playbook",
-  Setup: "setup",
+  "Guides & Training": "playbook",
+  Settings: "setup",
 };
 
 // Scrollable nav with no visible scrollbar; shows an animated down-chevron while
@@ -144,8 +152,8 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
      looks interactive and is not is worse than no control.
 
      So an explicit choice always wins. Only when the user has never touched a
-     group do we fall back to the default, which is My Day plus whichever group
-     holds the current page. */
+     group do we fall back to the default: every group open (DEFAULT_OPEN),
+     plus whichever group holds the current page. */
   const isOpen = (g: string) =>
     g in openGroups ? openGroups[g] : Boolean(DEFAULT_OPEN[g]) || g === activeGroup;
 
