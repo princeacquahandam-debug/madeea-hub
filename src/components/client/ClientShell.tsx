@@ -1,5 +1,6 @@
-import { useState, type ReactNode } from "react";
-import { Menu, X, Sun, Handshake, MessagesSquare, Settings, type LucideIcon } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { Menu, X, Sun, Handshake, MessagesSquare, Settings, Briefcase, ChevronRight, type LucideIcon } from "lucide-react";
 import { AmbientBackground } from "@/components/layout/AmbientBackground";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +38,10 @@ const GROUP_ICON: Record<string, LucideIcon> = {
   "Your account": Sun,
   "Working together": Handshake,
   "Messages": MessagesSquare,
+  // The staff account's groups (9 Oct 2026), named like the Hub's.
+  "Today": Sun,
+  "Work": Briefcase,
+  "Notes & messages": MessagesSquare,
 };
 
 export interface ClientNavItem {
@@ -55,6 +60,7 @@ export function ClientShell({
   email,
   isViewer,
   isMember = false,
+  hoverMenus = false,
   headerTools,
   title,
   subtitle,
@@ -70,6 +76,9 @@ export function ClientShell({
   email?: string;
   isViewer: boolean;
   isMember?: boolean;
+  /** Desktop: category titles that open their pages on hover, as the Hub's
+      sidebar does (9 Oct 2026). The phone drawer always lists them. */
+  hoverMenus?: boolean;
   /** Right side of the header: search, guide, theme, notifications, Madeline. */
   headerTools?: React.ReactNode;
   title: string;
@@ -79,11 +88,20 @@ export function ClientShell({
   children: ReactNode;
 }) {
   const [drawer, setDrawer] = useState(false);
+  /* One hover menu at a time, one timer: the same rules as the Hub sidebar. */
+  const [hoverGroup, setHoverGroup] = useState<string | null>(null);
+  const hoverTimer = useRef<number | undefined>(undefined);
+  const hoverTo = (g: string | null, delay: number) => {
+    window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = window.setTimeout(() => setHoverGroup(g), delay);
+  };
+  useEffect(() => { window.clearTimeout(hoverTimer.current); setHoverGroup(null); }, [active]);
+  useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
   const groups = [...new Set(nav.map((n) => n.group))];
   const initials = (clientName || "?")
     .split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
-  const rail = (
+  const rail = (hover: boolean) => (
     <aside
       className="flex h-full w-64 shrink-0 flex-col border-r border-border backdrop-blur-lg"
       style={{ background: "var(--sidebar-bg)" }}
@@ -114,8 +132,24 @@ export function ClientShell({
         <p className="truncate text-xs text-faint">{company || "Your account"}</p>
       </div>
 
-      <nav className="no-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto px-3 pb-2">
-        {groups.map((group) => {
+      <nav className={cn("no-scrollbar min-h-0 flex-1 overflow-y-auto px-3 pb-2", hover ? "space-y-1" : "space-y-5")}>
+        {hover && groups.map((group) => (
+          <HoverGroup
+            key={group}
+            group={group}
+            icon={GROUP_ICON[group]}
+            items={nav.filter((n) => n.group === group)}
+            active={active}
+            open={hoverGroup === group}
+            onEnterTitle={() => hoverTo(group, 120)}
+            onEnterMenu={() => hoverTo(group, 0)}
+            onLeave={() => hoverTo(null, 180)}
+            onToggle={() => { window.clearTimeout(hoverTimer.current); setHoverGroup(hoverGroup === group ? null : group); }}
+            onClose={() => { window.clearTimeout(hoverTimer.current); setHoverGroup(null); }}
+            onSelect={(id) => { setHoverGroup(null); onSelect(id); }}
+          />
+        ))}
+        {!hover && groups.map((group) => {
           const GroupIcon = GROUP_ICON[group];
           return (
           <div key={group}>
@@ -180,12 +214,12 @@ export function ClientShell({
           painted OVER every non-positioned element. Cards survived (they make
           their own stacking context); page titles, headings and the whole of
           Activity and Calendar did not, and the portal looked blank. */}
-      <div className="relative z-[1] hidden lg:block">{rail}</div>
+      <div className="relative z-[1] hidden lg:block">{rail(hoverMenus)}</div>
 
       {drawer && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/60" onClick={() => setDrawer(false)} />
-          <div className="absolute left-0 top-0 h-full">{rail}</div>
+          <div className="absolute left-0 top-0 h-full">{rail(false)}</div>
         </div>
       )}
 
@@ -221,6 +255,107 @@ export function ClientShell({
           {children}
         </main>
       </div>
+    </div>
+  );
+}
+
+/* ── A category title that opens its pages on hover ────────────────────────
+   The portal's copy of the Hub sidebar's HoverGroup (layout/Sidebar.tsx):
+   portalled because the rail has backdrop-filter and a clipping scroll area;
+   click and Escape work as well as hover; the current page shows under its
+   category, since the pages themselves are tucked away. */
+function HoverGroup({ group, icon: Icon, items, active, open, onEnterTitle, onEnterMenu, onLeave, onToggle, onClose, onSelect }: {
+  group: string;
+  icon?: LucideIcon;
+  items: ClientNavItem[];
+  active: string;
+  open: boolean;
+  onEnterTitle: () => void;
+  onEnterMenu: () => void;
+  onLeave: () => void;
+  onToggle: () => void;
+  onClose: () => void;
+  onSelect: (id: string) => void;
+}) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const anchor = useRef<HTMLButtonElement>(null);
+  const current = items.find((i) => i.id === active) ?? null;
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const el = anchor.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const side = el.closest("aside")?.getBoundingClientRect();
+    const estimate = 16 + items.length * 40;
+    setPos({ top: Math.max(8, Math.min(r.top - 6, window.innerHeight - estimate - 8)), left: (side?.right ?? r.right) + 6 });
+  }, [open, items.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { onClose(); anchor.current?.focus(); } };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onClose);
+    document.addEventListener("scroll", onClose, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onClose);
+      document.removeEventListener("scroll", onClose, true);
+    };
+  }, [open, onClose]);
+
+  return (
+    <div onMouseEnter={onEnterTitle} onMouseLeave={onLeave}>
+      <button
+        ref={anchor}
+        type="button"
+        onClick={onToggle}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={cn(
+          "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors hover:bg-[var(--chip-bg)]",
+          open && "bg-[var(--chip-bg)]",
+          current && "bg-[var(--nav-active-bg)]",
+        )}
+      >
+        {Icon ? <Icon size={16} className={cn("shrink-0", current ? "text-[color:var(--nav-active-text)]" : "text-accent")} /> : null}
+        <span className="min-w-0 flex-1">
+          <span className={cn("block text-[13.5px] font-semibold", current ? "text-[color:var(--nav-active-text)]" : "text-text")}>{group}</span>
+          {current && <span className="block truncate text-[11.5px] text-muted">{current.label}</span>}
+        </span>
+        <ChevronRight size={14} className={cn("shrink-0 text-faint transition-transform", open && "translate-x-0.5 text-accent")} />
+      </button>
+
+      {open && pos && createPortal(
+        <div
+          role="menu"
+          aria-label={group}
+          onMouseEnter={onEnterMenu}
+          onMouseLeave={onLeave}
+          style={{ top: pos.top, left: pos.left }}
+          // Solid, not the glass card: page text must not show through the menu.
+          className="fixed z-[60] min-w-[220px] rounded-xl border border-border bg-surface p-1.5 shadow-2xl"
+        >
+          <p className="eyebrow px-2.5 pb-1 pt-1">{group}</p>
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="menuitem"
+              onClick={() => onSelect(item.id)}
+              aria-current={active === item.id ? "page" : undefined}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-[var(--chip-bg)]",
+                active === item.id ? "bg-[var(--nav-active-bg)] font-semibold text-[color:var(--nav-active-text)]" : "text-text",
+              )}
+            >
+              <item.icon size={16} className="shrink-0" />
+              <span className="flex-1 whitespace-nowrap">{item.label}</span>
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }

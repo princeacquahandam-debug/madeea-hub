@@ -131,17 +131,17 @@ const PANES: Partial<Record<Tab, boolean>> = {
    client wrote down. Overview, Activity, Delegate, Team and People are the
    account's, not theirs. */
 const MEMBER_NAV: (ClientNavItem & { id: Tab; title: string; subtitle: string })[] = [
-  { id: "mywork", label: "My Work", icon: Briefcase, group: "Your work",
+  { id: "mywork", label: "My Work", icon: Briefcase, group: "Today",
     title: "My work", subtitle: "Your clock, your tasks, and the day so far." },
-  { id: "mytasks", label: "Tasks", icon: KanbanSquare, group: "Your work",
-    title: "Tasks", subtitle: "Your work, by where it stands. Stuck? Say so and the account owner is told." },
-  { id: "myreport", label: "Daily report", icon: ClipboardList, group: "Your work",
-    title: "Daily report", subtitle: "What you did, what's blocked, and what's next, for the account owner." },
-  { id: "calendar", label: "Calendar", icon: CalendarDays, group: "Your work",
+  { id: "calendar", label: "Calendar", icon: CalendarDays, group: "Today",
     title: "Calendar", subtitle: "What is booked on this account." },
-  { id: "notes", label: "Notes", icon: StickyNote, group: "Your work",
+  { id: "mytasks", label: "Tasks", icon: KanbanSquare, group: "Work",
+    title: "Tasks", subtitle: "Your work, by where it stands. Stuck? Say so and the account owner is told." },
+  { id: "myreport", label: "Daily report", icon: ClipboardList, group: "Work",
+    title: "Daily report", subtitle: "What you did, what's blocked, and what's next, for the account owner." },
+  { id: "notes", label: "Notes", icon: StickyNote, group: "Notes & messages",
     title: "Notes", subtitle: "What's been shared on this account." },
-  { id: "staffchat", label: "Account owner", icon: MessagesSquare, group: "Messages",
+  { id: "staffchat", label: "Account owner", icon: MessagesSquare, group: "Notes & messages",
     title: "Messages", subtitle: "A private thread between you and the account owner." },
 ];
 
@@ -291,6 +291,8 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
       email={user?.email}
       isViewer={isViewer}
       isMember={isMember}
+      // The staff account gets the Hub's hover menus (9 Oct 2026).
+      hoverMenus={isMember}
       headerTools={
         <>
           {/* Staff get the same tools over their own work (0085): their tasks,
