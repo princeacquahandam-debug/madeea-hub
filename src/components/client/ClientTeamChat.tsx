@@ -105,9 +105,9 @@ export function ClientTeamChat({ asOwner }: { asOwner: boolean }) {
                 {newDay && <p className="my-2 text-center text-[11px] text-faint">{dayLabel(dateOnly(day))}</p>}
                 <div className={cn("flex", m.mine ? "justify-end" : "justify-start")}>
                   <div className={cn("max-w-[85%] rounded-2xl px-3 py-2 text-sm sm:max-w-[70%]",
-                    m.mine ? "bg-accent text-white" : "bg-surface-2")}>
+                    m.mine ? "bg-[var(--nav-active-bg)] text-[color:var(--nav-active-text)]" : "border border-border bg-surface")}>
                     <p className="whitespace-pre-wrap break-words">{m.body}</p>
-                    <p className={cn("mt-0.5 text-[10px]", m.mine ? "text-white/70" : "text-faint")}>{clockTime(m.sent_at)}</p>
+                    <p className={cn("mt-0.5 text-[10px]", m.mine ? "opacity-70" : "text-faint")}>{clockTime(m.sent_at)}</p>
                   </div>
                 </div>
               </div>

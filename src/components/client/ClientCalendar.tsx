@@ -139,15 +139,15 @@ export function ClientCalendar() {
     <div className="space-y-4">
       {/* Toolbar: views, then navigation (not shown for the agenda). */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex rounded-xl border border-border p-0.5" role="group" aria-label="Calendar view">
+        <div className="flex rounded-lg bg-surface-2 p-0.5" role="group" aria-label="Calendar view">
           {(["month", "week", "agenda"] as View[]).map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
               aria-pressed={view === v}
               className={cn(
-                "rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition-colors",
-                view === v ? "bg-accent text-white" : "text-muted hover:text-text",
+                "rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition-colors",
+                view === v ? "bg-surface text-text shadow-sm" : "text-muted hover:text-text",
               )}
             >
               {v}
@@ -219,11 +219,11 @@ function Agenda({ events, onOpen }: { events: EventRow[]; onOpen: (e: EventRow) 
     <div className="space-y-4">
       {days.map((day) => (
         <section key={day.key}>
-          <h3 className="text-faint mb-2 text-xs font-semibold uppercase tracking-wider">{dayLabel(dateOnly(day.key))}</h3>
+          <h3 className="text-muted mb-2 text-xs font-semibold">{dayLabel(dateOnly(day.key))}</h3>
           <ul className="space-y-2">
             {day.events.map((e) => (
               <li key={e.id}>
-                <button onClick={() => onOpen(e)} className="flex w-full items-start gap-3 rounded-lg bg-surface-2 p-3 text-left hover:ring-1 hover:ring-accent/40">
+                <button onClick={() => onOpen(e)} className="flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left hover:bg-[var(--chip-bg)]">
                   <CalendarDays size={16} className="text-faint mt-0.5 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium">{e.title}</div>
@@ -248,7 +248,7 @@ function Details({ e, tz, onClose }: { e: EventRow; tz: string; onClose: () => v
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 sm:items-center sm:p-6" onClick={onClose}>
       <div role="dialog" aria-label={e.title} onClick={(ev) => ev.stopPropagation()} className="card w-full max-w-md rounded-b-none p-5 shadow-2xl sm:rounded-2xl">
         <div className="flex items-start gap-3">
-          <p className="min-w-0 flex-1 text-lg font-extrabold leading-tight">{e.title}</p>
+          <p className="min-w-0 flex-1 text-lg font-semibold leading-tight">{e.title}</p>
           <button onClick={onClose} aria-label="Close" className="text-faint hover:text-text"><X size={18} /></button>
         </div>
         <p className="mt-1.5 text-sm text-muted">

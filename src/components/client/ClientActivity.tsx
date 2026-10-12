@@ -141,7 +141,7 @@ export function ClientActivity() {
       {grouped.map((day) => (
         <section
           key={day.key}
-          className="rounded-lg bg-surface-2 p-3"
+          className="rounded-lg border border-border bg-surface p-3"
         >
           <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <h3 className="text-sm font-semibold">{dayLabel(day.date)}</h3>

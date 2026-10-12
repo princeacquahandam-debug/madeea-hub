@@ -65,8 +65,8 @@ export function ClientSettings({ email }: { email?: string }) {
   return (
     <div className="space-y-5">
       <section className="card p-5">
-        <h2 className="mb-3 text-[17px] font-bold">Your account</h2>
-        <div className="rounded-lg bg-surface-2 p-3">
+        <h2 className="mb-3 text-[15px] font-semibold">Your account</h2>
+        <div className="rounded-lg border border-border p-3">
           <p className="field-label mb-0.5">Signed in as</p>
           <p className="truncate text-sm">{email ?? "-"}</p>
         </div>
@@ -77,7 +77,7 @@ export function ClientSettings({ email }: { email?: string }) {
       </section>
 
       <section className="card p-5">
-        <h2 className="mb-1 text-[17px] font-bold">Password</h2>
+        <h2 className="mb-1 text-[15px] font-semibold">Password</h2>
         <p className="mb-4 text-sm text-muted">
           Change the password you use to sign in. You will need your current one &mdash;
           the password your assistant gave you when they set this account up, unless you
@@ -158,7 +158,7 @@ export function ClientSettings({ email }: { email?: string }) {
       </section>
 
       <section className="card p-5">
-        <h2 className="mb-1 text-[17px] font-bold">Sign out</h2>
+        <h2 className="mb-1 text-[15px] font-semibold">Sign out</h2>
         <p className="mb-4 text-sm text-muted">
           Signs you out on this device. Your account and everything on it stay
           exactly as they are.

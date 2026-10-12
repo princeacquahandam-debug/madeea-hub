@@ -335,7 +335,7 @@ function OutlookMailCard({ who }: { who: string }) {
           ) : (
             <ul className="space-y-1.5">
               {activity.map((a) => (
-                <li key={a.id} className="flex flex-wrap items-baseline gap-x-2 rounded-lg bg-surface-2 px-3 py-2 text-sm">
+                <li key={a.id} className="flex flex-wrap items-baseline gap-x-2 rounded-lg border border-border px-3 py-2 text-sm">
                   <span className="font-medium">{a.actor_name}</span>
                   <span className="text-muted">{a.action === "replied" ? "replied to" : "emailed"} {a.to_emails.join(", ") || "someone"}</span>
                   {a.subject && <span className="min-w-0 truncate text-faint">“{a.subject}”</span>}

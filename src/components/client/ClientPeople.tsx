@@ -159,7 +159,7 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
         </p>
       ) : (
         <section className="card p-5">
-          <h2 className="mb-3 text-[17px] font-bold">
+          <h2 className="mb-3 text-[15px] font-semibold">
             {mode === "reset" ? "Set someone's password" : "Give a colleague access"}
           </h2>
 
@@ -275,7 +275,7 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
       )}
 
       <section className="card p-5">
-        <h2 className="mb-3 text-[17px] font-bold">
+        <h2 className="mb-3 text-[15px] font-semibold">
           Who can see this account
         </h2>
         {isLoading ? (
@@ -285,7 +285,7 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
             {people.map((p, i) => (
               <li
                 key={p.email ?? `${p.role}-${i}`}
-                className="flex items-center gap-3 rounded-lg bg-surface-2 p-3"
+                className="flex items-center gap-3 rounded-lg border border-border p-3"
               >
                 {p.role === "primary" ? (
                   <ShieldCheck size={16} className="shrink-0" style={{ color: "var(--c-accent)" }} />

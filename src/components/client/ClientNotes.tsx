@@ -84,7 +84,7 @@ export function ClientNotes({ readOnly = false, member = false }: { readOnly?: b
     <div className="space-y-6">
       {readOnly || member ? null : (
       <section className="card p-5">
-        <h2 className="mb-3 text-[17px] font-bold">Leave a note</h2>
+        <h2 className="mb-3 text-[15px] font-semibold">Leave a note</h2>
         <p className="text-faint mb-2 text-sm">
           Anything your assistant should keep to hand — a preference, a contact, how you
           like something done. Your assistant sees these on their own notes page.
@@ -121,7 +121,7 @@ export function ClientNotes({ readOnly = false, member = false }: { readOnly?: b
       )}
 
       <section className="card p-5">
-        <h2 className="mb-3 text-[17px] font-bold">Shared notes</h2>
+        <h2 className="mb-3 text-[15px] font-semibold">Shared notes</h2>
         {isLoading ? (
           <p className="text-faint text-sm">Loading…</p>
         ) : notes.length === 0 ? (
@@ -135,7 +135,7 @@ export function ClientNotes({ readOnly = false, member = false }: { readOnly?: b
             {notes.map((n) => (
               <li
                 key={n.id}
-                className="rounded-lg bg-surface-2 p-3"
+                className="rounded-lg border border-border p-3"
               >
                 <div className="flex items-start gap-3">
                   <StickyNote size={15} className="text-faint mt-0.5 shrink-0" />

@@ -42,11 +42,11 @@ interface TaskRow {
 // Mirrors COLUMNS in pages/Tasks.tsx. Copied, not imported, because that file
 // is the agency page and pulls the whole drag-and-drop board in with it.
 const COLUMNS: { key: Status; label: string; dot: string; wash: string; edge: string }[] = [
-  { key: "todo",        label: "To Do",       dot: "bg-sky-400",     wash: "bg-sky-500/[0.06]",     edge: "border-sky-500/25" },
-  { key: "in_progress", label: "In Progress", dot: "bg-amber-400",   wash: "bg-amber-500/[0.06]",   edge: "border-amber-500/25" },
-  { key: "follow_up",   label: "Waiting",   dot: "bg-rose-400",    wash: "bg-rose-500/[0.06]",    edge: "border-rose-500/25" },
-  { key: "review",      label: "Review",      dot: "bg-violet-400",  wash: "bg-violet-500/[0.06]",  edge: "border-violet-500/25" },
-  { key: "done",        label: "Done",        dot: "bg-emerald-400", wash: "bg-emerald-500/[0.06]", edge: "border-emerald-500/25" },
+  { key: "todo",        label: "To do",       dot: "bg-sky-400",     wash: "",     edge: "" },
+  { key: "in_progress", label: "In progress", dot: "bg-amber-400",   wash: "",   edge: "" },
+  { key: "follow_up",   label: "Waiting",   dot: "bg-rose-400",    wash: "",    edge: "" },
+  { key: "review",      label: "Review",      dot: "bg-violet-400",  wash: "",  edge: "" },
+  { key: "done",        label: "Done",        dot: "bg-emerald-400", wash: "", edge: "" },
 ];
 
 const PRIORITY_LABEL: Record<string, string> = { urgent: "Urgent", high: "High", normal: "Normal", low: "Low" };
@@ -160,7 +160,7 @@ export function ClientBoard() {
             className={cn(
               "pill whitespace-nowrap border py-1 transition-colors",
               waitingOnly
-                ? "border-amber-500/50 bg-amber-500/15 text-amber-400"
+                ? "border-accent/50 bg-[var(--nav-active-bg)] text-[color:var(--nav-active-text)]"
                 : "border-border text-faint hover:text-text",
             )}
           >
@@ -185,18 +185,18 @@ export function ClientBoard() {
         /* Phone: one column per section, stacked, so nothing scrolls sideways.
            Then two, then three per row; from xl all five fit side by side, so
            Done is never hidden off the right edge. */
-        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {COLUMNS.map((col) => {
             const items = board[col.key];
             return (
               <section
                 key={col.key}
-                className={cn("flex min-w-0 flex-col rounded-xl border", col.edge, col.wash)}
+                className="flex min-w-0 flex-col rounded-xl bg-[var(--board-col)]"
               >
-                <div className="flex items-center gap-2 border-b border-inherit px-3.5 py-2.5">
+                <div className="flex items-center gap-2 px-3 pb-1 pt-3">
                   <span className={cn("h-2 w-2 shrink-0 rounded-full", col.dot)} />
-                  <h2 className="text-[14px] font-bold">{col.label}</h2>
-                  <span className="pill bg-black/20 text-faint">{items.length}</span>
+                  <h2 className="text-[13px] font-semibold">{col.label}</h2>
+                  <span className="text-xs tabular-nums text-faint">{items.length}</span>
                 </div>
                 <div className="space-y-2 p-3">
                   {items.map((t) => <TaskCard key={t.id} task={t} />)}
@@ -226,8 +226,7 @@ function TaskCard({ task: t }: { task: TaskRow }) {
   return (
     <article
       className={cn(
-        "rounded-lg bg-surface-2 p-3",
-        waiting && "ring-1 ring-amber-500/50",
+        "rounded-lg border border-border bg-surface p-3",
       )}
     >
       <p className="break-words text-sm font-medium">{t.title}</p>

@@ -200,7 +200,7 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
       {step === "list" ? (
         <>
           <section>
-            <h2 className="mb-1 text-[17px] font-bold">Hand something over</h2>
+            <h2 className="mb-1 text-[15px] font-semibold">Hand something over</h2>
             <p className="text-faint mb-3 text-sm">
               Work through one task at a time: what to let go of, what good looks like, and
               the message that hands it to your assistant. The plan becomes a real task on
@@ -214,7 +214,7 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
             </button>
           </section>
           <section className="card p-5">
-            <h2 className="mb-3 text-[17px] font-bold">Your plans</h2>
+            <h2 className="mb-3 text-[15px] font-semibold">Your plans</h2>
             <PlanList plans={plans} loading={isLoading} />
           </section>
         </>
@@ -248,8 +248,8 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
         <section className="card space-y-3 p-5">
           <StepHead n={2} of={3} title="What are you handing over?" />
           {insights ? (
-            <div className="rounded-lg bg-surface-2 p-3 text-sm">
-              <div className="text-faint mb-1 flex items-center gap-1.5 text-xs uppercase tracking-wider">
+            <div className="rounded-lg border border-border p-3 text-sm">
+              <div className="text-muted mb-1 flex items-center gap-1.5 text-xs font-semibold">
                 <Sparkles size={12} /> What stood out
               </div>
               <p className="whitespace-pre-wrap">{insights}</p>
@@ -265,7 +265,7 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
                  onChange={(v) => setDraft((d) => ({ ...d, team_member: v }))} />
 
           <div>
-            <div className="text-faint mb-1.5 text-xs uppercase tracking-wider">How much freedom?</div>
+            <div className="text-muted mb-1.5 text-xs font-semibold">How much freedom?</div>
             <div className="flex flex-col gap-2">
               {AUTONOMY.map((a) => (
                 <button
@@ -288,7 +288,7 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
           <Field label="Anything they will need from you?" value={draft.support_needed}
                  onChange={(v) => setDraft((d) => ({ ...d, support_needed: v }))} />
           <div>
-            <div className="text-faint mb-1.5 text-xs uppercase tracking-wider">By when (optional)</div>
+            <div className="text-muted mb-1.5 text-xs font-semibold">By when (optional)</div>
             <input type="date" value={draft.deadline}
                    onChange={(e) => setDraft((d) => ({ ...d, deadline: e.target.value }))}
                    className="input sm:w-56" />
@@ -373,7 +373,7 @@ function PlanList({ plans, loading }: { plans: Plan[]; loading: boolean }) {
   return (
     <ul className="space-y-2">
       {plans.map((p) => (
-        <li key={p.id} className="rounded-lg bg-surface-2 p-3">
+        <li key={p.id} className="rounded-lg border border-border p-3">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3">
             <span className="text-sm font-medium">{p.task_name}</span>
             <span className="text-faint text-xs">
@@ -393,7 +393,7 @@ function PlanList({ plans, loading }: { plans: Plan[]; loading: boolean }) {
 function StepHead({ n, of, title }: { n: number; of: number; title: string }) {
   return (
     <div>
-      <div className="text-faint text-xs uppercase tracking-wider">Step {n} of {of}</div>
+      <div className="text-faint text-xs font-medium">Step {n} of {of}</div>
       <h2 className="mt-0.5 text-base font-semibold">{title}</h2>
     </div>
   );
@@ -423,8 +423,8 @@ function Block({
   title, icon: Icon, children,
 }: { title: string; icon: typeof Target; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg bg-surface-2 p-3">
-      <div className="text-faint mb-2 flex items-center gap-1.5 text-xs uppercase tracking-wider">
+    <div className="rounded-lg border border-border p-3">
+      <div className="text-muted mb-2 flex items-center gap-1.5 text-xs font-semibold">
         <Icon size={12} /> {title}
       </div>
       {children}

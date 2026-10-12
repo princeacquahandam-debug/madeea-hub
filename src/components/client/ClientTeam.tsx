@@ -161,7 +161,7 @@ export function ClientTeam() {
   return (
     <div className="space-y-5">
       <section className="card p-5">
-        <h2 className="mb-3 text-[17px] font-bold">Give your staff something to do</h2>
+        <h2 className="mb-3 text-[15px] font-semibold">Give your staff something to do</h2>
         {members.length === 0 ? (
           <p className="text-sm text-faint">
             No staff yet. Add a staff member under People, then assign work here.
@@ -215,13 +215,13 @@ export function ClientTeam() {
       </section>
 
       <section className="card p-5">
-        <h2 className="mb-3 text-[17px] font-bold">Their work</h2>
+        <h2 className="mb-3 text-[15px] font-semibold">Their work</h2>
         {work.length === 0 ? (
           <p className="text-sm text-faint">Nothing assigned to your staff yet.</p>
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
             {work.map(([email, w]) => (
-              <div key={email} className="min-w-0 rounded-xl bg-surface-2 p-3">
+              <div key={email} className="min-w-0 rounded-lg border border-border p-3">
                 <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
                   <span className="min-w-0 truncate text-sm font-semibold">{email}</span>
                   <span className="text-xs text-faint">{w.open.length} open · {w.doneWeek} done this week</span>
@@ -256,7 +256,7 @@ export function ClientTeam() {
       </section>
 
       <section className="card p-5">
-        <h2 className="mb-1 text-[17px] font-bold">Daily reports</h2>
+        <h2 className="mb-1 text-[15px] font-semibold">Daily reports</h2>
         <p className="mb-3 text-sm text-muted">What each of your staff got done, what's blocked, and what's next, in their own words.</p>
         {reports.length === 0 ? (
           <p className="text-sm text-faint">No reports yet. Staff send one from their Daily report page.</p>
@@ -268,7 +268,7 @@ export function ClientTeam() {
       </section>
 
       <section className="card p-5">
-        <h2 className="mb-3 text-[17px] font-bold">Hours</h2>
+        <h2 className="mb-3 text-[15px] font-semibold">Hours</h2>
         {byPerson.length === 0 ? (
           <p className="text-sm text-faint">None of your staff have clocked in yet.</p>
         ) : (
@@ -281,7 +281,7 @@ export function ClientTeam() {
                 </div>
                 <div className="space-y-1">
                   {p.days.map((d) => (
-                    <div key={`${d.owner_id}-${d.work_date}`} className="flex flex-wrap items-center gap-x-3 rounded-lg bg-surface-2 px-3 py-2 text-sm">
+                    <div key={`${d.owner_id}-${d.work_date}`} className="flex flex-wrap items-center gap-x-3 rounded-lg border border-border px-3 py-2 text-sm">
                       <span className="min-w-[7rem] text-muted">{dayLabel(dateOnly(d.work_date))}</span>
                       <span className="text-xs text-faint">
                         {d.first_started_at ? clockTime(d.first_started_at) : "—"}
@@ -304,7 +304,7 @@ export function ClientTeam() {
       </section>
 
       <section className="card p-5">
-        <h2 className="mb-1 text-[17px] font-bold">Screenshots</h2>
+        <h2 className="mb-1 text-[15px] font-semibold">Screenshots</h2>
         <p className="mb-3 text-sm text-muted">
           Taken every ten minutes while a staff member has screen sharing on and is clocked in.
         </p>
@@ -316,7 +316,7 @@ export function ClientTeam() {
               <button
                 key={s.id}
                 onClick={() => void openShot(s)}
-                className="rounded-lg bg-surface-2 p-3 text-left transition-colors hover:bg-[var(--chip-bg)]"
+                className="rounded-lg border border-border p-3 text-left transition-colors hover:bg-[var(--chip-bg)]"
               >
                 <Camera size={14} className="mb-2 text-faint" />
                 <p className="truncate text-xs font-medium">{s.email}</p>

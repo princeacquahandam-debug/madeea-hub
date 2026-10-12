@@ -241,7 +241,7 @@ export function ClientOverview({
           "your day at a glance" line, with the numbers in it. */}
       <p className="text-[15px] text-muted">{summary}</p>
 
-      <section className="grid grid-cols-2 gap-4 md:grid-cols-3">
+      <section className="card grid grid-cols-1 overflow-hidden sm:grid-cols-3">
         <Stat label="Hours, last 7 days" value={hm(totals.last7)} icon={Clock} />
         <Stat label="Open tasks" value={String(totals.open)} icon={Circle} />
         <Stat label="Completed" value={String(totals.done)} icon={CheckCircle2} />
@@ -249,20 +249,20 @@ export function ClientOverview({
 
       {/* First and loud, because it is the only panel the client can clear. */}
       {waiting.length > 0 ? (
-        <section className="card border-amber-500/50 p-5">
+        <section className="card p-5">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="flex items-center gap-2 text-[17px] font-bold">
-              <AlertTriangle size={17} className="shrink-0 text-amber-400" /> Waiting on you
+            <h2 className="flex items-center gap-2 text-[15px] font-semibold">
+              <AlertTriangle size={16} className="shrink-0 text-accent" /> Waiting on you
             </h2>
-            <span className="pill bg-amber-500/15 text-amber-400">{waiting.length}</span>
+            <span className="pill bg-surface-2 text-muted">{waiting.length}</span>
           </div>
           <ul className="space-y-2">
             {waiting.map((t) => (
-              <li key={t.id} className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+              <li key={t.id} className="rounded-lg border border-border p-3">
                 <p className="break-words text-sm font-medium">{t.title}</p>
                 {/* Written for the client specifically (0075). blocker_note,
                     the private one, is not published at all. */}
-                <p className="mt-1 break-words text-sm text-amber-400">{t.client_visible_blocker}</p>
+                <p className="mt-1 break-words text-sm text-muted">{t.client_visible_blocker}</p>
               </li>
             ))}
           </ul>
@@ -271,13 +271,13 @@ export function ClientOverview({
 
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="card p-5">
-          <h2 className="mb-3 text-[17px] font-bold">Coming up</h2>
+          <h2 className="mb-3 text-[15px] font-semibold">Coming up</h2>
           {upcoming.length === 0 ? (
             <p className="text-sm text-faint">No meetings coming up.</p>
           ) : (
             <ul className="space-y-2">
               {upcoming.slice(0, MEETINGS_LIMIT).map((e) => (
-                <li key={e.id} className="flex items-start gap-3 rounded-lg bg-surface-2 p-3">
+                <li key={e.id} className="flex items-start gap-3 rounded-lg border border-border p-3">
                   <CalendarDays size={16} className="mt-0.5 shrink-0 text-faint" />
                   <div className="min-w-0 flex-1">
                     <p className="break-words text-sm font-medium">{e.title}</p>
@@ -311,7 +311,7 @@ export function ClientOverview({
         </section>
 
         <section className="card p-5">
-          <h2 className="mb-3 text-[17px] font-bold">Done today</h2>
+          <h2 className="mb-3 text-[15px] font-semibold">Done today</h2>
           {doneToday.length === 0 ? (
             <p className="text-sm text-faint">Nothing completed yet today.</p>
           ) : (
@@ -332,7 +332,7 @@ export function ClientOverview({
 
       {readOnly ? null : (
       <section className="card p-5">
-        <h2 className="mb-3 text-[17px] font-bold">Ask for something</h2>
+        <h2 className="mb-3 text-[15px] font-semibold">Ask for something</h2>
         <div className="flex flex-col gap-2 sm:flex-row">
           <input
             value={title}
@@ -370,7 +370,7 @@ export function ClientOverview({
 
       <section className="card p-5">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-[17px] font-bold">Your open tasks</h2>
+          <h2 className="text-[15px] font-semibold">Your open tasks</h2>
           {openTasks.length > OPEN_LIMIT ? (
             <span className="text-xs text-faint">
               Showing {OPEN_LIMIT} of {openTasks.length}. See all on Tasks.
@@ -386,7 +386,7 @@ export function ClientOverview({
             {openTasks.slice(0, OPEN_LIMIT).map((t) => (
               <li
                 key={t.id}
-                className="flex items-start gap-3 rounded-lg bg-surface-2 p-3"
+                className="flex items-start gap-3 rounded-lg border border-border p-3"
               >
                 <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", STATUS[t.status]?.dot ?? "bg-sky-400")} />
                 <div className="min-w-0 flex-1">
@@ -423,18 +423,13 @@ export function ClientOverview({
   );
 }
 
-/* The agency KPI tile, class for class: .card, the label small-caps and faint
-   on the left with an accent icon opposite, the number 34px and extra-bold
-   beneath. It was a bordered box with a 20px number, which is the difference
-   between "a figure" and "the headline". */
-function Stat({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Clock }) {
+/* One cell of the stats strip, as on the Hub's Home (12 Oct 2026, UI review
+   deck slides 2-3): plain label, number beneath, a divider between cells. */
+function Stat({ label, value }: { label: string; value: string; icon?: typeof Clock }) {
   return (
-    <div className="card p-5 transition-transform hover:-translate-y-0.5">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <span className="text-[11.5px] font-bold uppercase tracking-[0.09em] text-faint">{label}</span>
-        <Icon size={18} className="shrink-0 text-accent" />
-      </div>
-      <p className="text-[34px] font-extrabold leading-none tracking-[-0.02em]">{value}</p>
+    <div className="-mb-px -mr-px border-b border-r border-border px-4 py-3.5">
+      <span className="block text-xs text-muted">{label}</span>
+      <span className="mt-1 block text-[22px] font-semibold leading-tight tabular-nums">{value}</span>
     </div>
   );
 }

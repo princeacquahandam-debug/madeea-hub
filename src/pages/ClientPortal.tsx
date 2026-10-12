@@ -291,8 +291,8 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
       email={user?.email}
       isViewer={isViewer}
       isMember={isMember}
-      // The staff account gets the Hub's collapsible sections (12 Oct 2026).
-      hoverMenus={isMember}
+      // Everyone gets the Hub's collapsible sections (12 Oct 2026, deck slide 1).
+      hoverMenus
       headerTools={
         <>
           {/* Staff get the same tools over their own work (0085): their tasks,
@@ -349,8 +349,8 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
                     <div
                       className="max-w-[min(36rem,80%)] rounded-2xl px-4 py-2.5 text-sm"
                       style={{
-                        background: mine ? "var(--c-accent)" : "var(--glass)",
-                        color: mine ? "#fff" : undefined,
+                        background: mine ? "var(--nav-active-bg)" : "rgb(var(--c-surface))",
+                        color: mine ? "var(--nav-active-text)" : undefined,
                         border: mine ? "none" : "1px solid var(--c-border)",
                       }}
                     >

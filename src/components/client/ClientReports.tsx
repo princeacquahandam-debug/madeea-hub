@@ -155,7 +155,6 @@ export function ClientReports() {
             key={r.key}
             className={cn(
               "card min-w-0 overflow-hidden",
-              latest && blockers.length > 0 && "border-amber-500/40",
             )}
           >
             <header className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border px-4 py-3">
@@ -172,7 +171,7 @@ export function ClientReports() {
             </header>
 
             <div className="space-y-4 px-4 py-3">
-              <Section title="Done today" dot="bg-emerald-400" empty="Nothing completed this day.">
+              <Section title="Completed today" dot="bg-emerald-400" empty="Nothing completed this day.">
                 {r.done.map((t) => <Line key={t.id}>{t.title}</Line>)}
               </Section>
 
@@ -221,7 +220,7 @@ function Section({
 }) {
   return (
     <div>
-      <p className="eyebrow mb-1.5">{title}</p>
+      <p className="mb-1.5 text-xs font-semibold text-muted">{title}</p>
       {children.length > 0 ? (
         <ul className="space-y-1">
           {children.map((c, i) => (
