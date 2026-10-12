@@ -33,13 +33,13 @@ export function FollowUpRow({ flag, onAction }: { flag: Flag; onAction?: () => v
   }
 
   return (
-    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+    <div className="rounded-lg border border-border p-3">
       <div className="flex items-center gap-3">
-        <Icon size={16} className="shrink-0 text-amber-400" />
+        <Icon size={16} className="shrink-0 text-accent" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{flag.title}</p>
           <p className="truncate text-xs text-faint">
-            {flag.subtitle} · <span className="text-amber-400">{flag.reason}</span>
+            {flag.subtitle} · {flag.reason}
           </p>
         </div>
         <button

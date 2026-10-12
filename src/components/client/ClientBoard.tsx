@@ -44,7 +44,7 @@ interface TaskRow {
 const COLUMNS: { key: Status; label: string; dot: string; wash: string; edge: string }[] = [
   { key: "todo",        label: "To Do",       dot: "bg-sky-400",     wash: "bg-sky-500/[0.06]",     edge: "border-sky-500/25" },
   { key: "in_progress", label: "In Progress", dot: "bg-amber-400",   wash: "bg-amber-500/[0.06]",   edge: "border-amber-500/25" },
-  { key: "follow_up",   label: "Follow-up",   dot: "bg-rose-400",    wash: "bg-rose-500/[0.06]",    edge: "border-rose-500/25" },
+  { key: "follow_up",   label: "Waiting",   dot: "bg-rose-400",    wash: "bg-rose-500/[0.06]",    edge: "border-rose-500/25" },
   { key: "review",      label: "Review",      dot: "bg-violet-400",  wash: "bg-violet-500/[0.06]",  edge: "border-violet-500/25" },
   { key: "done",        label: "Done",        dot: "bg-emerald-400", wash: "bg-emerald-500/[0.06]", edge: "border-emerald-500/25" },
 ];

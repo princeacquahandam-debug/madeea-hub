@@ -1,22 +1,28 @@
 import { useState } from "react";
-import { Menu, Mic } from "lucide-react";
+import { Menu, Plus } from "lucide-react";
 import { todayLabel } from "@/lib/utils";
 import { GlobalSearch } from "./GlobalSearch";
 import { Notifications } from "./Notifications";
-import { AskMadelineButton } from "@/components/madeline/AskMadelineButton";
 import { VoiceCapture } from "@/components/VoiceCapture";
 import { ClockControl } from "@/components/ClockControl";
-import { HeaderMenu } from "./HeaderMenu";
-import { GuideButton } from "@/components/GuideCard";
+import { AvatarMenu } from "./AvatarMenu";
 
+/**
+ * The header, the same on every page (12 Oct 2026, UI review deck slide 9):
+ * date · a visible search field, centred · Clock in (a live timer once
+ * clocked in) · Quick note · notifications · avatar.
+ *
+ * Gone from here: the ⓘ beside the date and the ••• menu (both now in the
+ * avatar menu), and Ask Madeline, which is the floating button bottom-right.
+ * Flat white bar with a 1px bottom border.
+ */
 export function TopBar({ onMenu }: { onMenu?: () => void }) {
   const [capturing, setCapturing] = useState(false);
   return (
     <>
-    <header className="glass relative z-40 flex h-[66px] items-center gap-4 border-b border-border px-4 lg:px-6">
+    <header className="relative z-40 flex h-[60px] items-center gap-3 border-b border-border bg-surface px-4 lg:px-6">
       {/* Menu + logo grouped tightly on mobile (the sidebar, which normally
-          carries the logo, is hidden below lg). Compact square icon so it never
-          gets squeezed by the flex row. */}
+          carries the logo, is hidden below lg). */}
       <div className="-ml-1 flex items-center gap-1.5 lg:hidden">
         <button
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
@@ -27,50 +33,32 @@ export function TopBar({ onMenu }: { onMenu?: () => void }) {
         </button>
         <img src="/icon.png" alt="MadeEA" className="h-7 w-7 shrink-0 object-contain" />
       </div>
-      <span className="hidden sm:block text-sm font-medium text-muted">{todayLabel()}</span>
-      {/* "How this page works", as an icon instead of a bar on every page. */}
-      <GuideButton />
-      {/* min-w-0 + shrink lets this row give ground instead of overflowing.
-          It was `ml-auto flex` with no wrap and no scroll inside an
-          `overflow-hidden` ancestor, so at 1024px it ran 101px past the edge
-          and at 375px 62px past, with no scrollbar to reach it. Notifications
-          was entirely off-screen at both, which is the one control you cannot
-          afford to lose: it is how the app tells you something needs you. */}
-      <div className="ml-auto flex min-w-0 items-center gap-1 overflow-x-auto sm:gap-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]{display:none}">
-        {/* Global search appears only when there is room for it.
-            At 1024px it pushed the action row 123px past its own edge, so
-            Notifications scrolled out of sight: a badge you cannot see is not a
-            notification. It is also half of the "two search bars" problem, since
-            the inbox has its own scoped field. Below xl it collapses into the
-            command palette, which is the same search with a keyboard door. */}
-        <div className="hidden items-center gap-2 sm:flex" data-tour="search">
-          <GlobalSearch />
-        </div>
+      <span className="hidden shrink-0 text-sm text-muted md:block md:w-44">{todayLabel()}</span>
+
+      {/* Search: a field you can see, centred, with its shortcut. */}
+      <div className="hidden min-w-0 flex-1 justify-center sm:flex" data-tour="search">
+        <GlobalSearch />
+      </div>
+
+      <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:ml-0 sm:gap-2">
         {/* Clock in / out, deliberately on every page. See ClockControl. */}
         <ClockControl />
-        {/* Quick capture. The bottom-left corner is taken by the SOP widget,
-            so this lives in the header where it's reachable from
-            every page on both desktop and mobile. */}
         <button
-          className="flex h-10 items-center gap-1.5 rounded-xl border border-accent/70 px-3 text-sm font-bold text-accent transition-colors hover:bg-accent/10"
+          className="flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-text transition-colors hover:bg-[var(--chip-bg)]"
           onClick={() => setCapturing(true)}
-          aria-label="Capture a task by voice"
-          title="Quick capture (voice)"
+          aria-label="Quick note"
+          title="Quick note"
         >
-          <Mic size={16} />
-          <span className="hidden md:inline">Capture</span>
+          <Plus size={15} />
+          <span className="hidden md:inline">Quick note</span>
         </button>
-        <AskMadelineButton />
-        {/* Theme and the tour replay, once two buttons of their own: things
-            you set once or need rarely don't need a place in the header. */}
-        <HeaderMenu />
         <Notifications />
+        <AvatarMenu />
       </div>
     </header>
 
-    {/* Rendered OUTSIDE the header: the header's backdrop-filter would otherwise
-        become the containing block for this modal's `position: fixed`, trapping
-        it inside the 66px bar. Out here it centers over the whole viewport. */}
+    {/* Rendered OUTSIDE the header so its position: fixed centres over the
+        whole viewport rather than the 60px bar. */}
     <VoiceCapture open={capturing} onClose={() => setCapturing(false)} />
     </>
   );

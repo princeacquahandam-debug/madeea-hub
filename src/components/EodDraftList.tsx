@@ -18,6 +18,7 @@ export function DraftList({
   onChange,
   onPush,
   pushLabel,
+  boxed = false,
 }: {
   title: string;
   items: string[];
@@ -27,6 +28,9 @@ export function DraftList({
   /** R-4.3.4: turn this line into a real task. Only the plan list passes it. */
   onPush?: (title: string) => void;
   pushLabel?: string;
+  /** A bordered box with a dashed "Add item" field, for three side by side
+      (12 Oct 2026, UI review deck slide 7). */
+  boxed?: boolean;
 }) {
   const [add, setAdd] = useState("");
   /* Which lines have been pushed, by index. Local and deliberately not
@@ -35,9 +39,9 @@ export function DraftList({
   const [pushed, setPushed] = useState<Set<number>>(new Set());
 
   return (
-    <div>
-      <p className="eyebrow mb-1.5">{title}</p>
-      <ul className="space-y-1">
+    <div className={cn(boxed && "flex min-w-0 flex-col rounded-lg border border-border p-3")}>
+      <p className={boxed ? "mb-1.5 text-[13px] font-semibold" : "eyebrow mb-1.5"}>{title}</p>
+      <ul className={cn("space-y-1", boxed && "flex-1")}>
         {items.map((t, i) => (
           <li key={i} className="group flex items-start gap-2 rounded-md px-1 py-0.5 hover:bg-surface-2/60">
             <span className={cn("mt-2 h-1.5 w-1.5 shrink-0 rounded-sm", dot)} />
@@ -78,12 +82,13 @@ export function DraftList({
         }}
       >
         <input
-          className="input py-1 text-xs"
-          placeholder={`Add to ${title.toLowerCase()}…`}
+          className={cn("input py-1 text-xs", boxed && "mt-2 border-dashed")}
+          placeholder={boxed ? "+ Add item" : `Add to ${title.toLowerCase()}…`}
+          aria-label={`Add to ${title.toLowerCase()}`}
           value={add}
           onChange={(e) => setAdd(e.target.value)}
         />
-        <button type="submit" className="btn-ghost shrink-0 px-3 py-1 text-xs" disabled={!add.trim()}>
+        <button type="submit" className={cn("btn-ghost shrink-0 px-3 py-1 text-xs", boxed && !add.trim() && "hidden", boxed && "mt-2")} disabled={!add.trim()}>
           Add
         </button>
       </form>

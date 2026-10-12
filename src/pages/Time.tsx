@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ClockWatch } from "@/components/ClockWatch";
-import { Clock, Play, Square, Trash2, CalendarDays, Camera, ShieldAlert, Info, MonitorPlay } from "lucide-react";
+import { Play, Square, Trash2, Camera, ShieldAlert, Info, MonitorPlay } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui";
 import { atLeast,
   entrySeconds, useMyClients, useMyRole, useTimeEntries, useTimeMutations,
@@ -42,7 +42,7 @@ function fmtDay(iso: string): string {
 }
 
 /** Today, or a start/end pair. Reichelle asked for exactly these two. */
-type Range = "today" | "custom";
+type Range = "today" | "week" | "custom";
 
 export default function Time() {
   const { data: entries = [] } = useTimeEntries();
@@ -96,12 +96,21 @@ export default function Time() {
   // button below is the gesture, and the banner explains why it exists.
   useEffect(() => { if (!running) setAskEarly(false); }, [running]);
 
-  const inRange = useMemo(() => {
-    if (range === "today") return entries.filter((e) => e.work_date === today);
-    const lo = from <= to ? from : to;
-    const hi = from <= to ? to : from;
-    return entries.filter((e) => e.work_date >= lo && e.work_date <= hi);
-  }, [entries, range, today, from, to]);
+  // Monday of this week, for "This week".
+  const weekStart = useMemo(() => {
+    const d = new Date(`${today}T00:00:00`);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }, [today]);
+  const [lo, hi] = range === "today" ? [today, today]
+    : range === "week" ? [weekStart, today]
+    : from <= to ? [from, to] : [to, from];
+
+  const inRange = useMemo(
+    () => entries.filter((e) => e.work_date >= lo && e.work_date <= hi),
+    [entries, lo, hi],
+  );
 
   const rangeSeconds = useMemo(
     () => inRange.reduce((a, e) => a + entrySeconds(e, now), 0),
@@ -124,15 +133,14 @@ export default function Time() {
      Saturday does not silently add eight hours to the target. */
   const expectedSeconds = useMemo(() => {
     if (range === "today") return dailySeconds;
-    const lo = new Date((from <= to ? from : to) + "T00:00:00");
-    const hi = new Date((from <= to ? to : from) + "T00:00:00");
+    const end = new Date(hi + "T00:00:00");
     let days = 0;
-    for (const d = new Date(lo); d <= hi; d.setDate(d.getDate() + 1)) {
+    for (const d = new Date(lo + "T00:00:00"); d <= end; d.setDate(d.getDate() + 1)) {
       const wd = d.getDay();
       if (wd !== 0 && wd !== 6) days++;
     }
     return days * dailySeconds;
-  }, [range, from, to, dailySeconds]);
+  }, [range, lo, hi, dailySeconds]);
 
   /**
    * Clocking in and out, both gated on reporting (components/ClockGates).
@@ -200,39 +208,53 @@ export default function Time() {
   return (
     <div>
       <PageHeader
-        title="Time Tracker"
-        subtitle="Clock in to start your day. Attendance and payroll are recorded from this."
+        title="Time tracker"
+        subtitle="Your clock-ins are used for attendance and payroll."
       />
 
-      {/* Renders nothing below manager, and nothing when everyone has started.
-          Above the clock because a manager opening this page is here to check
-          the team, not their own shift. */}
-      <ClockWatch />
+      {/* Your shift first, the team beside it (12 Oct 2026, UI review deck
+          slide 6). Team today renders nothing below manager, and then the
+          clock takes the full width. */}
+      <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start">
 
       {/* ---- the clock ----
           Fixed min-height across both states. The card used to be a different
           height running and stopped, so clocking in shoved everything below it
           down the page and the timer appeared to jump. */}
-      <section className="card mb-4 min-h-[132px] p-5">
+      <section className="card min-h-[132px] min-w-0 flex-1 p-5">
+        {/* Today against the day's target, the biggest thing on the page. */}
+        <div className="flex items-start gap-3">
+          <div>
+            <p className="text-xs text-muted">Today</p>
+            <p className="tabular-nums">
+              <span className="text-[32px] font-semibold leading-tight">{running ? hms(todaySeconds) : hm(todaySeconds)}</span>
+              <span className="text-sm text-faint"> / {dailyHours}:00</span>
+            </p>
+          </div>
+          <span className="ml-auto mt-1 flex items-center gap-1.5 text-xs text-muted">
+            <span className={`h-1.5 w-1.5 rounded-full ${running ? "bg-emerald-500" : "bg-[rgb(var(--c-faint))]"}`} />
+            {running ? `Clocked in since ${new Date(running.started_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Not clocked in"}
+          </span>
+        </div>
+        <div className="mb-4 mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2">
+          <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${Math.min(100, (todaySeconds / dailySeconds) * 100)}%` }} />
+        </div>
         {running ? (
           <div className="flex flex-wrap items-center gap-4">
             <div className="min-w-0">
-              <p className="eyebrow mb-1">
-                Since {new Date(running.started_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-              </p>
-              {/* Fixed width and tabular figures: without both, the digits are
-                  different widths and the number visibly shifts every second. */}
-              <p className="w-[168px] text-3xl font-bold tabular-nums text-accent">
+              <p className="text-xs text-faint">This shift</p>
+              {/* Tabular figures so the digits don't shift every second. */}
+              <p className="text-lg font-semibold tabular-nums">
                 {hms(entrySeconds(running, now))}
               </p>
-              <p className="mt-1 truncate text-sm text-muted">
+              <p className="truncate text-sm text-muted">
                 {running.client_name ?? "No client"}
                 {running.note?.trim() ? ` · ${running.note}` : ""}
               </p>
             </div>
 
             <div className="ml-auto flex flex-col items-end gap-2">
-              <button className="btn-primary" onClick={() => gate.requestClockOut(running)} disabled={stop.isPending}>
+              <button className="btn-ghost border border-border" onClick={() => gate.requestClockOut(running)} disabled={stop.isPending}>
                 <Square size={15} /> Clock out
               </button>
               {screenshotsOn && <CaptureBadge capture={capture} minutes={settings?.screenshot_minutes ?? 10} />}
@@ -257,9 +279,9 @@ export default function Time() {
                   call, the calendar and admin for the same client inside one
                   hour; making them re-declare the activity each time produced
                   noise nobody read. The client is the unit that matters. */}
-              <label className="field-label" htmlFor="time-note">Notes (optional)</label>
+              <label className="field-label" htmlFor="time-note">Note (optional)</label>
               <input
-                id="time-note" className="input" placeholder="Anything worth remembering about this shift"
+                id="time-note" className="input" placeholder="Add a note for this shift"
                 value={note} onChange={(e) => setNote(e.target.value)}
               />
             </div>
@@ -291,70 +313,46 @@ export default function Time() {
             </div>
           </div>
         )}
-
-        <p className="mt-3 flex items-center gap-1.5 text-xs text-faint">
-          <Clock size={12} /> Today: <strong className="tabular-nums text-zinc-200">{hm(todaySeconds)}</strong>
-          <span>of {dailyHours}:00</span>
-          {todaySeconds === 0 && <span>. Nothing logged yet, so today counts as absent.</span>}
-        </p>
       </section>
+
+      <ClockWatch className="lg:w-[340px] lg:shrink-0" />
+      </div>
 
       {screenshotsOn && running && <CapturePanel capture={capture} minutes={settings?.screenshot_minutes ?? 10} />}
 
-      {/* ---- period + total ---- */}
-      <section className="card mb-4 p-5">
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <p className="field-label">Period</p>
-            <div className="flex gap-1">
-              {(["today", "custom"] as Range[]).map((r) => (
-                <button
-                  key={r} onClick={() => setRange(r)} aria-pressed={range === r}
-                  className={
-                    "min-h-[38px] rounded-lg px-3 text-sm font-medium transition-colors " +
-                    (range === r ? "bg-accent text-white" : "border border-border text-muted hover:text-text")
-                  }
-                >
-                  {r === "today" ? "Today" : "Custom range"}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {range === "custom" && (
-            <>
-              <div>
-                <label className="field-label" htmlFor="from">From</label>
-                <input id="from" type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} />
-              </div>
-              <div>
-                <label className="field-label" htmlFor="to">To</label>
-                <input id="to" type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} />
-              </div>
-            </>
-          )}
-
-          <div className="ml-auto text-right">
-            <p className="eyebrow mb-1">Total worked</p>
-            <p className="text-3xl font-bold tabular-nums text-accent">{hm(rangeSeconds)}</p>
-            <p className="text-xs text-faint">
-              of {hm(expectedSeconds)} expected
-              {rangeSeconds >= expectedSeconds && expectedSeconds > 0 && " · target met"}
-            </p>
-          </div>
-        </div>
-      </section>
-
       {/* ---- the timesheet ---- */}
       <section className="card p-5">
-        <h2 className="mb-3 flex items-center gap-2 font-semibold">
-          <CalendarDays size={15} className="text-accent" /> Timesheet
-        </h2>
+        {/* Period and total live in the header (deck slide 6). */}
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <h2 className="text-[15px] font-semibold">Timesheet</h2>
+          <div className="flex gap-0.5 rounded-lg bg-surface-2 p-0.5" role="tablist" aria-label="Period">
+            {(["today", "week", "custom"] as Range[]).map((r) => (
+              <button
+                key={r} role="tab" onClick={() => setRange(r)} aria-selected={range === r}
+                className={
+                  "min-h-[28px] rounded-md px-3 text-[13px] font-medium transition-colors " +
+                  (range === r ? "bg-surface text-text shadow-sm" : "text-muted hover:text-text")
+                }
+              >
+                {r === "today" ? "Today" : r === "week" ? "This week" : "Custom"}
+              </button>
+            ))}
+          </div>
+          {range === "custom" && (
+            <div className="flex items-center gap-1.5">
+              <input type="date" aria-label="From" className="input h-8 w-auto py-0 text-sm" value={from} onChange={(e) => setFrom(e.target.value)} />
+              <span className="text-faint">–</span>
+              <input type="date" aria-label="To" className="input h-8 w-auto py-0 text-sm" value={to} onChange={(e) => setTo(e.target.value)} />
+            </div>
+          )}
+          <p className="ml-auto text-sm text-muted">
+            Total <strong className="tabular-nums text-text">{hm(rangeSeconds)}</strong>
+            <span className="tabular-nums text-faint"> / {hm(expectedSeconds)}</span>
+          </p>
+        </div>
 
         {byDay.length === 0 && (
-          <p className="text-sm text-faint">
-            Nothing logged in this period. Clock in above and the day appears here, and in your attendance.
-          </p>
+          <p className="py-6 text-center text-sm text-faint">No time logged for this period.</p>
         )}
 
         <div className="space-y-4">
@@ -412,10 +410,7 @@ export default function Time() {
 
         <p className="mt-4 flex items-start gap-1.5 border-t border-border pt-3 text-xs text-faint">
           <ShieldAlert size={12} className="mt-0.5 shrink-0" />
-          <span>
-            Hours cannot be added or edited by hand, and a finished shift cannot be changed.
-            If you missed a clock-in, ask an admin to correct it.
-          </span>
+          <span>Shifts can't be edited. Missed a clock-in? Ask an admin.</span>
         </p>
       </section>
     </div>

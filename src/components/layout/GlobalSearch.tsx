@@ -12,12 +12,19 @@ export function GlobalSearch() {
      results panel is portalled out of the header, which was clipping it. */
   const { anchorRef, panelRef, open, setOpen, pos } = useAnchoredPanel<HTMLDivElement>();
   const [q, setQ] = useState("");
-  /* An icon until it's wanted (28 Sep audit: the header was crowded, and a
-     288px field was the widest thing in it). Opens on click, closes again
-     when it loses focus with nothing typed, or on Escape. */
-  const [expanded, setExpanded] = useState(false);
+  /* A visible field (12 Oct 2026, UI review deck slide 9: "search icon →
+     search field with ⌘K hint, centered"). It was an icon until clicked. */
   const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (expanded) inputRef.current?.focus(); }, [expanded]);
+  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+  useEffect(() => {
+    // "/" focuses the field from anywhere that isn't already typing.
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.key === "/" && !(t && (t.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(t.tagName)))) { e.preventDefault(); inputRef.current?.focus(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const { data: clients = [] } = useClients();
   const { data: tasks = [] } = useTasks();
   const { data: messages = [] } = useMessages();
@@ -42,33 +49,18 @@ export function GlobalSearch() {
     setQ("");
   }
 
-  if (!expanded) {
-    return (
-      <div ref={anchorRef}>
-        <button
-          onClick={() => setExpanded(true)}
-          aria-label="Search clients, tasks and emails"
-          title="Search (Ctrl/⌘K for everything)"
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
-        >
-          <Search size={18} />
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div className="relative" ref={anchorRef}>
+    <div className="relative w-full max-w-md" ref={anchorRef}>
       <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
       <input
         ref={inputRef}
-        onBlur={() => { if (!q.trim()) { setExpanded(false); setOpen(false); } }}
-        onKeyDown={(e) => { if (e.key === "Escape") { setQ(""); setOpen(false); setExpanded(false); } }}
-        className="input w-56 pl-9 lg:w-72"
+        onBlur={() => { if (!q.trim()) setOpen(false); }}
+        onKeyDown={(e) => { if (e.key === "Escape") { setQ(""); setOpen(false); (e.target as HTMLInputElement).blur(); } }}
+        className="input h-9 w-full bg-[rgb(var(--c-bg))] pl-9 pr-14"
         // The placeholder is not an accessible name: it isn't reliably announced
         // and it disappears as soon as anything is typed.
         aria-label="Search clients, tasks and emails"
-        placeholder="Search clients, tasks, emails..."
+        placeholder="Search tasks, clients, messages"
         value={q}
         onChange={(e) => { setQ(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
@@ -76,7 +68,7 @@ export function GlobalSearch() {
       {/* ⌘K opens the full search (pages too, and "Ask Madeline about…"). */}
       {!q && (
         <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md border border-border px-1.5 py-0.5 text-[10.5px] font-semibold text-faint">
-          ⌘K
+          {isMac ? "⌘K" : "Ctrl K"}
         </kbd>
       )}
       {/* Portalled for the same reason the bell is: this sits in the header's

@@ -73,7 +73,7 @@ interface EventRow {
 const STATUS: Record<TaskRow["status"], { label: string; dot: string }> = {
   todo:        { label: "To Do",       dot: "bg-sky-400" },
   in_progress: { label: "In Progress", dot: "bg-amber-400" },
-  follow_up:   { label: "Follow-up",   dot: "bg-rose-400" },
+  follow_up:   { label: "Waiting",   dot: "bg-rose-400" },
   review:      { label: "Review",      dot: "bg-violet-400" },
   done:        { label: "Done",        dot: "bg-emerald-400" },
 };

@@ -1,9 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CircleCheck, CircleAlert, Clock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { atLeast, useMyRole } from "@/data/hooks";
 import { emitOnce } from "@/lib/alerts";
+import { cn } from "@/lib/utils";
 
 /**
  * Who has not started today.
@@ -43,7 +43,13 @@ interface Row {
 /** Before this hour, "has not started" is just "it is early". */
 const EXPECT_BY_HOUR = 10;
 
-export function ClockWatch() {
+/** Rows shown before "View all". */
+const PREVIEW = 6;
+
+const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
+
+export function ClockWatch({ className }: { className?: string }) {
+  const [all, setAll] = useState(false);
   const { data: role } = useMyRole();
   const allowed = atLeast(role, "manager");
 
@@ -84,53 +90,48 @@ export function ClockWatch() {
   if (!allowed) return null;
   if (isLoading || rows.length === 0) return null;
 
+  /* A compact "Team today" list beside your own clock (12 Oct 2026, UI review
+     deck slide 6). Whoever hasn't started comes first. */
+  const clockedIn = rows.length - missing.length;
+  const ordered = [...missing, ...rows.filter((r) => r.clocked_in_today)];
+  const shown = all ? ordered : ordered.slice(0, PREVIEW);
+  const noEod = rows.filter((r) => r.clocked_in_today && !r.filed_eod_today).length;
+
   return (
-    <div className="card mt-6 p-5">
-      <div className="mb-3 flex items-center gap-2">
-        <Clock size={15} className="text-faint" />
-        <h2 className="text-sm font-semibold uppercase tracking-wider">Today at a glance</h2>
+    <section className={cn("card overflow-hidden", className)} aria-label="Team today">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+        <h2 className="text-sm font-semibold">Team today</h2>
+        <span className="pill bg-surface-2 text-muted">{clockedIn} of {rows.length} clocked in</span>
+        {rows.length > PREVIEW && (
+          <button className="ml-auto text-xs font-medium text-accent-soft hover:underline" onClick={() => setAll(!all)}>
+            {all ? "Show less" : "View all"}
+          </button>
+        )}
       </div>
-
-      {missing.length === 0 ? (
-        <p className="flex items-center gap-2 text-sm text-muted">
-          <CircleCheck size={15} style={{ color: "var(--c-accent)" }} />
-          Everyone has clocked in.
+      <ul className="divide-y divide-border">
+        {shown.map((r) => (
+          <li key={r.user_id} className="flex items-center gap-2.5 px-4 py-2 text-sm">
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-surface-2 text-[10px] font-semibold text-muted">
+              {initials(r.name)}
+            </span>
+            <span className="min-w-0 flex-1 truncate">{r.name}</span>
+            {/* The date beside the flag, because a clock-in that has not synced
+                and somebody absent for days look identical without it. */}
+            <span className={cn("shrink-0 text-xs", r.clocked_in_today ? "text-emerald-500" : late ? "text-accent" : "text-faint")}>
+              {r.clocked_in_today
+                ? "Clocked in"
+                : r.last_worked
+                  ? `Last worked ${new Date(`${r.last_worked}T00:00:00`).toLocaleDateString([], { month: "short", day: "numeric" })}`
+                  : "Never logged"}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {noEod > 0 && (
+        <p className="border-t border-border px-4 py-2 text-xs text-faint">
+          {noEod} clocked in without an EOD yet. They can't clock out until they submit one.
         </p>
-      ) : (
-        <>
-          <p className="mb-2 text-sm text-muted">
-            {missing.length} {missing.length === 1 ? "person has" : "people have"} not clocked in today
-            {late ? "." : ", though it is still early."}
-          </p>
-          <ul className="space-y-1.5">
-            {missing.map((r) => (
-              <li key={r.user_id} className="flex items-center gap-2.5 text-sm">
-                <CircleAlert
-                  size={15}
-                  className="shrink-0"
-                  style={{ color: late ? "var(--c-danger)" : "var(--c-text-faint)" }}
-                />
-                <span>{r.name}</span>
-                <span className="text-xs text-faint">
-                  {/* The date beside the flag, because a clock-in that has not
-                      synced and somebody absent for days look identical without
-                      it -- and they are very different conversations. */}
-                  {r.last_worked
-                    ? `last worked ${new Date(`${r.last_worked}T00:00:00`).toLocaleDateString()}`
-                    : "no time ever logged"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </>
       )}
-
-      {rows.some((r) => r.clocked_in_today && !r.filed_eod_today) ? (
-        <p className="mt-3 text-xs text-faint">
-          {rows.filter((r) => r.clocked_in_today && !r.filed_eod_today).length} clocked in and have not
-          submitted an EOD yet. They cannot clock out until they do.
-        </p>
-      ) : null}
-    </div>
+    </section>
   );
 }

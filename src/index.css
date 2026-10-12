@@ -9,85 +9,83 @@
 /* (`--c-*`), so alpha modifiers like bg-accent/15 keep working. Extra    */
 /* glass / ambient variables are used directly in CSS below.              */
 /* ===================================================================== */
+/* Flat design, 12 Oct 2026 (UI review deck, slide 12). Every screen uses
+   these tokens, so dark mode is a token swap, not a redesign. Values from the
+   deck except the two "hint" greys, which are a step darker than the deck's
+   (#9A9AA0 / #71717A) so small hint text still passes WCAG AA (4.5:1). */
 :root,
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --c-bg: 16 21 31;          /* #10151f */
-  --c-surface: 20 32 48;     /* #142030 */
-  --c-surface-2: 30 46 66;   /* #1e2e42 */
-  --c-muted: 142 161 181;    /* #8ea1b5 */
-  --c-faint: 117 133 151;    /* #758597 — was #5f7186 at 3.41:1, below AA */
-  --c-text: 233 240 247;     /* #e9f0f7 */
-  --c-accent: 253 88 17;     /* #fd5811 */
-  --c-accent-soft: 255 133 82;
-  /* Filled buttons only. White on #fd5811 is 3.19:1, so the most-clicked
-     control in the app failed AA. Darkening the accent itself would restyle
-     every border, dot and focus ring; this keeps the brand orange for those and
-     deepens it only where white text sits ON it. */
-  --c-accent-strong: 209 73 14;   /* #d1490e — white on it, 4.50:1 */
+  --c-bg: 17 17 19;          /* #111113 page */
+  --c-surface: 28 28 31;     /* #1C1C1F card / header / sidebar */
+  --c-surface-2: 39 39 43;   /* #27272B neutral fill (badges, tabs) */
+  --c-muted: 161 161 168;    /* #A1A1A8 secondary text */
+  --c-faint: 139 139 147;    /* #8B8B93 hint (deck #71717A, darkened for AA) */
+  --c-text: 237 237 239;     /* #EDEDEF */
+  --c-accent: 232 105 60;    /* #E8693C buttons, active */
+  --c-accent-soft: 240 138 98;   /* #F08A62 accent text on dark */
+  --c-accent-strong: 216 92 48;  /* #D85C30 filled buttons (white text) */
 
-  --c-border: rgba(255, 255, 255, 0.09);
-  --border-strong: rgba(255, 255, 255, 0.14);
+  --c-border: #2A2A2F;
+  --border-strong: #3A3A41;
 
-  --ambient-base: linear-gradient(150deg, #10151f 0%, #14131c 45%, #1d1712 100%);
-  --cool1: 58, 74, 104;
-  --cool2: 66, 60, 92;
-  --cool3: 52, 68, 98;
+  --ambient-base: #111113;
+  --cool1: 17, 17, 19;
+  --cool2: 17, 17, 19;
+  --cool3: 17, 17, 19;
 
-  --glass: rgba(20, 32, 48, 0.55);
-  --glass-2: rgba(30, 46, 66, 0.46);
-  --card-bg: rgba(19, 30, 46, 0.82);
-  --modal-bg: #16233a;
-  --sidebar-bg: rgba(12, 22, 36, 0.52);
-  --nav-active-bg: rgba(253, 88, 17, 0.14);
-  --nav-active-text: #ff6a2b;
-  --info-bg: rgba(255, 255, 255, 0.045);
+  --glass: #1C1C1F;
+  --glass-2: #17171A;
+  --card-bg: #1C1C1F;
+  --modal-bg: #1C1C1F;
+  --sidebar-bg: #1C1C1F;
+  --board-col: #17171A;
+  --nav-active-bg: #3A2219;  /* accent tint */
+  --nav-active-text: #F08A62;
+  --info-bg: #27272B;
   --chip-bg: rgba(255, 255, 255, 0.05);
-  --badge-bg: rgba(253, 88, 17, 0.16);
-  --badge-text: #ff8552;
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --badge-bg: #3A2219;
+  --badge-text: #F08A62;
+  --shadow-card: none;
   --scrollbar: rgba(255, 255, 255, 0.14);
 }
 
 [data-theme="light"] {
   color-scheme: light;
 
-  /* Warm cream palette (Revalo-style): white cards over warm-cream containers. */
-  --c-bg: 246 241 233;       /* #F6F1E9 warm cream */
-  --c-surface: 255 255 255;  /* white cards */
-  --c-surface-2: 244 239 231; /* #F4EFE7 warm cream container/hover */
-  --c-muted: 97 89 79;       /* #61594f — was #7A7064 at 4.39:1, below AA */
-  --c-faint: 110 103 95;     /* #6e675f — was #A59B8F at 2.21:1, the worst pair on the screen */
-  --c-text: 42 37 32;        /* #2A2520 warm near-black */
-  --c-accent: 253 88 17;
-  --c-accent-soft: 216 72 14; /* #d8480e */
-  --c-accent-strong: 193 66 12;  /* #c1420c — white on it, 5.1:1 on cream */
+  --c-bg: 246 246 247;       /* #F6F6F7 page */
+  --c-surface: 255 255 255;  /* #FFFFFF card / header / sidebar */
+  --c-surface-2: 241 241 243; /* #F1F1F3 neutral fill (badges, tabs) */
+  --c-muted: 110 110 115;    /* #6E6E73 secondary text */
+  --c-faint: 116 116 122;    /* #74747A hint (deck #9A9AA0, darkened for AA) */
+  --c-text: 28 28 30;        /* #1C1C1E */
+  --c-accent: 210 86 43;     /* #D2562B buttons, active */
+  --c-accent-soft: 184 71 31;    /* #B8471F accent text on white (5:1) */
+  --c-accent-strong: 197 77 36;  /* #C54D24 filled buttons (white text, 4.6:1) */
 
-  --c-border: rgba(66, 52, 36, 0.10);
-  /* 0.17 measured 1.36:1 against a white card, so the selected row's ring was
-     invisible in light while the same declaration gave 17:1 in dark. */
-  --border-strong: rgba(66, 52, 36, 0.55);
+  --c-border: #E8E8EB;
+  --border-strong: #C9C9CF;
 
-  /* Animated background retained (unchanged). */
-  --ambient-base: linear-gradient(150deg, #eef0f4 0%, #e9e6ee 42%, #f3e9e2 72%, #f6ede4 100%);
-  --cool1: 196, 206, 224;
-  --cool2: 213, 205, 228;
-  --cool3: 178, 190, 210;
+  --ambient-base: #F6F6F7;
+  --cool1: 246, 246, 247;
+  --cool2: 246, 246, 247;
+  --cool3: 246, 246, 247;
 
-  --glass: rgba(255, 254, 251, 0.72);
-  --glass-2: rgba(250, 246, 240, 0.5);
-  --card-bg: #ffffff;
-  --modal-bg: #ffffff;
-  --sidebar-bg: rgba(255, 255, 255, 0.85);
-  --nav-active-bg: rgba(253, 88, 17, 0.10);
-  --nav-active-text: #d8480e;
-  --info-bg: rgba(255, 254, 251, 0.5);
-  --chip-bg: rgba(66, 52, 36, 0.05);
-  --badge-bg: rgba(253, 88, 17, 0.12);
-  --badge-text: #c9450d;
-  --shadow-card: 0 2px 10px rgba(150, 120, 88, 0.10), 0 1px 3px rgba(150, 120, 88, 0.05);
-  --scrollbar: rgba(66, 52, 36, 0.18);
+  --glass: #FFFFFF;
+  --glass-2: #FFFFFF;
+  --card-bg: #FFFFFF;
+  --modal-bg: #FFFFFF;
+  --sidebar-bg: #FFFFFF;
+  --board-col: #EFEFF1;
+  --nav-active-bg: #FCEFE9;  /* accent tint */
+  --nav-active-text: #B8471F;
+  --info-bg: #F1F1F3;
+  --chip-bg: rgba(0, 0, 0, 0.04);
+  --badge-bg: #FCEFE9;
+  --badge-text: #B8471F;
+  --shadow-card: none;
+  --scrollbar: rgba(0, 0, 0, 0.18);
 }
 
 /* Animated angle for the rotating gradient card border (madeea.ai-style). */
@@ -109,7 +107,7 @@
   body {
     @apply font-sans antialiased;
     color: rgb(var(--c-text));
-    background: var(--ambient-base) fixed;
+    background: rgb(var(--c-bg));
   }
   * {
     @apply border-border;
@@ -127,7 +125,13 @@
   pointer-events: none;
   background: var(--ambient-base);
 }
-.ambient .blob {
+/* Flat design (12 Oct 2026): the animated backdrop is off entirely. body paints
+   the page colour. The layer was position:fixed at z-0 inside the shell's
+   stacking context, so it painted OVER any non-positioned element (the
+   "not in a workspace yet" banner vanished behind it); with nothing to show,
+   it is simply not drawn. */
+.ambient, .ambient .blob { display: none; }
+.ambient .blob-legacy {
   position: absolute;
   border-radius: 50%;
   will-change: transform, opacity;
@@ -205,22 +209,19 @@
 /* ---------------------------------------------------------------- */
 .greeting-title {
   display: inline-block;
-  font-size: 40px;
-  font-weight: 800;
+  font-size: 26px;
+  font-weight: 700;
   letter-spacing: -0.02em;
   /* Descenders (g, y) and the period were clipping. Give the text-clip box a
      bit of vertical breathing room. */
   line-height: 1.2;
   padding-bottom: 0.12em;
   width: fit-content;
-  /* Solid orange. No gradient. */
-  color: #fd5811;
-}
-[data-theme="light"] .greeting-title {
-  color: #d8480e;
+  /* Dark text, not orange (deck slide 3). */
+  color: rgb(var(--c-text));
 }
 @media (max-width: 860px) {
-  .greeting-title { font-size: 30px; }
+  .greeting-title { font-size: 22px; }
 }
 
 /* Page entrance, a pure OPACITY fade (no transform). A transform here would (a)
@@ -293,8 +294,8 @@
    light mode. */
 .modal-panel {
   background: var(--modal-bg);
-  border: 1px solid var(--border-strong);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--c-border);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
@@ -438,75 +439,21 @@
     position: relative;
     /* Allow cards to shrink inside flex/grid tracks (prevents mobile overflow). */
     min-width: 0;
-    /* Frosted glass: 50%-opacity surface tint over a blurred backdrop, so the
-       ambient background reads through. Uses the surface channel token, so it
-       resolves per theme (white in light, deep navy in dark). Blur kept modest
-       (8px) because backdrop-filter re-samples the animated background every
-       frame, a smaller radius keeps that cheap. */
-    background: rgb(var(--c-surface) / 0.5);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    /* Flat (deck slides 2-3, 12): solid card colour, 1px border, 12px radius,
+       no shadow, no hover glow. Cards separate from the page by colour and
+       border alone, in light and dark. */
+    background: rgb(var(--c-surface));
     border: 1px solid var(--c-border);
-    box-shadow: var(--shadow-card);
-    transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
-    @apply rounded-2xl;
-  }
-  /* madeea.ai-style container hover, a rotating orange gradient beam travels
-     around the border (revealed on hover) plus a soft glow and gentle lift.
-     `.no-hover` opts a card out. */
-  .card:not(.no-hover)::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    border-radius: inherit;
-    padding: 1.5px;
-    background: conic-gradient(
-      from var(--card-angle),
-      transparent 0%,
-      transparent 30%,
-      #fd5811 42%,
-      #ffb06a 50%,
-      #fd5811 58%,
-      transparent 70%,
-      transparent 100%
-    );
-    /* Show only the 1.5px border ring (mask out the inner content box). */
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    mask-composite: exclude;
-    opacity: 0;
-    transition: opacity 0.4s ease;
-    pointer-events: none;
-  }
-  .card:not(.no-hover):hover::before {
-    opacity: 1;
-    animation: cardBorderRotate 4s linear infinite;
-  }
-  .card:not(.no-hover):hover {
-    border-color: rgba(253, 88, 17, 0.35);
-    box-shadow:
-      0 0 40px rgba(253, 88, 17, 0.16),
-      inset 0 0 30px rgba(253, 88, 17, 0.04),
-      var(--shadow-card);
-    transform: translateY(-4px);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .card:not(.no-hover):hover { transform: none; }
-    .card:not(.no-hover):hover::before { animation: none; }
+    box-shadow: none;
+    border-radius: 12px;
   }
   .glass {
     background: var(--glass);
     border: 1px solid var(--c-border);
-    -webkit-backdrop-filter: blur(14px) saturate(1.3);
-    backdrop-filter: blur(14px) saturate(1.3);
   }
   .glass-soft {
     background: var(--glass-2);
     border: 1px solid var(--c-border);
-    -webkit-backdrop-filter: blur(12px) saturate(1.25);
-    backdrop-filter: blur(12px) saturate(1.25);
   }
   .pill {
     @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
@@ -518,29 +465,12 @@
   .nav-item:hover {
     background: var(--chip-bg);
     color: rgb(var(--c-text));
-    transform: translateX(2px);
   }
   .nav-item.active {
     background: var(--nav-active-bg);
     color: var(--nav-active-text);
     @apply font-semibold;
-    animation: navItemIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  /* Growing accent bar on the active link. Slides in when selection changes. */
-  .nav-item.active::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 50%;
-    height: 56%;
-    width: 3px;
-    border-radius: 0 3px 3px 0;
-    background: rgb(var(--c-accent));
-    transform: translateY(-50%);
-    animation: navBarIn 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  /* Icon pops when its link becomes active. */
-  .nav-item.active > svg { animation: navPop 0.34s cubic-bezier(0.22, 1, 0.36, 1); }
   .display {
     @apply font-display font-extrabold tracking-tight;
   }
@@ -552,7 +482,7 @@
   }
   .input {
     @apply w-full rounded-xl border px-3 py-2 text-sm placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent/70;
-    background: var(--glass-2);
+    background: rgb(var(--c-surface));
     color: rgb(var(--c-text));
     border-color: var(--c-border);
   }
@@ -570,7 +500,7 @@
   .btn-primary {
     @apply btn text-white;
     background: rgb(var(--c-accent-strong));
-    box-shadow: 0 4px 14px rgba(253, 88, 17, 0.3);
+    box-shadow: none;
   }
   /* The glow is the resting state's accent cue and read as a live CTA even at
      50% opacity, so a disabled primary still looked clickable. */
@@ -675,12 +605,12 @@
 /* Nested "surface-2" rows (list items, snapshot cards) are cream by default.
    Under light, make them white to match the request; a hairline border keeps
    them separated from the white panel behind them so they don't disappear. */
-[data-theme="light"] .bg-surface-2 {
-  background-color: #ffffff;
-  border: 1px solid var(--c-border);
-}
+/* (Removed 12 Oct 2026: surface-2 is now the deck's neutral fill #F1F1F3.) */
 /* Amber/yellow accents (SLA "at risk", high priority, needs-prep) are too pale
    on a light background. Darken to an amber that reads on white. */
+/* Palest ambers too (banners): they were invisible on a light page. */
+[data-theme="light"] .text-amber-100,
+[data-theme="light"] .text-amber-100\/80,
 [data-theme="light"] .text-amber-200,
 [data-theme="light"] .text-amber-300,
 [data-theme="light"] .text-amber-400,
@@ -690,6 +620,12 @@
 [data-theme="light"] .text-yellow-300,
 [data-theme="light"] .text-yellow-400 {
   color: #a16207;
+}
+/* Pale greens (success text authored for dark). */
+[data-theme="light"] .text-emerald-200,
+[data-theme="light"] .text-emerald-300,
+[data-theme="light"] .text-emerald-400 {
+  color: #047857;
 }
 /* Urgency reds. Make them prominent on the light cream theme (SLA breached,
    at-risk, urgent priority, errors). */
@@ -726,11 +662,9 @@
 /* ===================================================================== */
 @layer components {
   .cc-glass {
-    background: var(--glass);
-    -webkit-backdrop-filter: blur(22px) saturate(1.4);
-    backdrop-filter: blur(22px) saturate(1.4);
+    background: rgb(var(--c-surface));
     border: 1px solid var(--c-border);
-    box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(253, 88, 17, 0.06);
+    box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.45);
   }
   .cc-glass-soft {
     background: var(--glass-2);
@@ -741,7 +675,7 @@
   }
 }
 [data-theme="light"] .cc-glass {
-  box-shadow: 0 24px 60px -12px rgba(21, 46, 71, 0.18);
+  box-shadow: 0 16px 40px -12px rgba(28, 28, 30, 0.16);
 }
 
 /* Motion. Entrance, success pop, and the typing indicator. */

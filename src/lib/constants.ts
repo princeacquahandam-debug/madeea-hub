@@ -108,11 +108,11 @@ export const NAV: NavItem[] = [
   /* The route stays /inbox. Seventeen places link to it, the name is the
      only thing anyone sees, and renaming the path would buy nothing but a
      round of dead links. /communication already redirects here. */
-  { to: "/inbox", label: "Communication Center", icon: Mail, group: "Work" },
+  { to: "/inbox", label: "Inbox", icon: Mail, group: "Work" },
   { to: "/calendar", label: "Calendar", icon: CalendarDays, group: "Today" },
   // What a meeting produced belongs beside when it happened.
   { to: "/meeting-intelligence", label: "Meeting Intelligence", icon: Brain, group: "Today", parent: "/calendar" },
-  { to: "/tasks", label: "Task Manager", icon: CheckSquare, group: "Work", tab: "Tasks" },
+  { to: "/tasks", label: "Tasks", icon: CheckSquare, group: "Work", tab: "Tasks" },
   /* Routines make tasks, so they sit with them. Beta, because it was called
      beta on the 14 Sep walkthrough and labelled nowhere. */
   { to: "/routines", label: "Routines", icon: Repeat, group: "Work", parent: "/tasks", badge: "Beta" },
@@ -120,11 +120,11 @@ export const NAV: NavItem[] = [
      Its starters live in Madeline now. The route stays for Calendar's
      "Plan this day", which books the slots it proposes. */
   // The day closes here: what you did, and that you were there to do it.
-  { to: "/time", label: "Time Tracker", icon: Clock, group: "Time & Reports", tab: "Time" },
+  { to: "/time", label: "Time tracker", icon: Clock, group: "Time & Reports", tab: "Time" },
   // Beside the tracker, because a screenshot only means anything next to the
   // session that produced it.
   { to: "/screenshots", label: "Screenshots", icon: Camera, group: "Time & Reports", parent: "/time" },
-  { to: "/eod", label: "EOD Reports", icon: ClipboardList, group: "Time & Reports" },
+  { to: "/eod", label: "EOD reports", icon: ClipboardList, group: "Time & Reports" },
 
   /* ---- Clients & Files ----------------------------------------------------
      Everything you go looking FOR rather than work you do. The client record

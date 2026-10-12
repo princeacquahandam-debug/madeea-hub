@@ -7,6 +7,7 @@ import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { Footer } from "./Footer";
 import { MadelinePanel } from "@/components/madeline/MadelinePanel";
+import { MadelineFab, MadelineFabMobile } from "@/components/madeline/MadelineFab";
 import { InsightModal } from "@/components/madeline/InsightModal";
 import { CommandPalette } from "@/components/CommandPalette";
 import { FloatingSop } from "@/components/FloatingSop";
@@ -14,13 +15,11 @@ import { RoleBlocked, SectionTabs, useRoleBlocked } from "@/components/layout/Se
 import { MonitoringProvider } from "@/store/monitoringContext";
 import { GuidedTour } from "@/components/GuidedTour";
 import { useUI } from "@/store/ui";
-import { useMadeline } from "@/store/madeline";
 import { useSlaSettings } from "@/store/slaSettings";
 import { useRoutineRunner } from "@/hooks/useRoutineRunner";
 
 export function AppShell() {
   const { navOpen, setNavOpen } = useUI();
-  const madelineOpen = useMadeline((s) => s.open);
   const location = useLocation();
   const blocked = useRoleBlocked();
   /* SLA thresholds moved from localStorage to the sla_settings table (0036).
@@ -73,9 +72,6 @@ export function AppShell() {
                 scrolls. */}
             <Footer />
           </main>
-          {/* Holds the page clear of Madeline when she's docked on xl. The panel
-              itself is fixed, so it can sit above page modals. See MadelinePanel. */}
-          {madelineOpen && <div className="hidden w-[340px] shrink-0 xl:block" aria-hidden="true" />}
         </div>
       </div>
 
@@ -83,6 +79,9 @@ export function AppShell() {
           the Command Center modal it replaces were three assistants with three
           histories. ⌘K is now search, with "Ask Madeline about…" as its last row. */}
       <MadelinePanel />
+      {/* Ask Madeline: the floating button bottom-right (UI review deck slide 10). */}
+      <MadelineFab />
+      <MadelineFabMobile />
       <InsightModal />
       <CommandPalette />
       <FloatingSop />

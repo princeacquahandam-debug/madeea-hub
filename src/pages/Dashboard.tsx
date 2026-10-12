@@ -17,8 +17,8 @@ import { useFollowUps } from "@/hooks/useFollowUps";
 import { FollowUpRow } from "@/components/FollowUpRow";
 import { AssigneePicker } from "@/components/Assignee";
 import type { Meeting } from "@/types/db";
+import { useFollowUpSettings } from "@/store/followupSettings";
 
-const KPI_ICONS = [CheckSquare, Calendar, Mail, Timer, BellRing, Workflow];
 const KPI_ICON_COLORS = ["text-accent", "text-sky-400", "text-amber-400", "text-red-400", "text-amber-400", "text-emerald-400"];
 const priorityLabel: Record<string, string> = { urgent: "Urgent", high: "High", normal: "Normal", low: "Low" };
 const meetingLabel: Record<string, string> = { prepared: "Prepared", needs_prep: "Needs Prep", pending: "Pending" };
@@ -106,14 +106,18 @@ export default function Dashboard() {
     return t >= dayStart.getTime() && t < dayEnd;
   }).length;
 
-  const kpis = [
-    { label: "Tasks Active", value: tasks.filter((t) => t.status !== "done").length },
-    { label: "Meetings Today", value: meetingsToday },
-    { label: "Emails Pending", value: messages.filter((m) => m.direction !== "outbound" && !m.first_reply_at).length },
-    ...(canVault ? [{ label: "Clients At Risk", value: atRisk.length, onClick: () => nav("/clients") }] : []),
-    { label: "Gone quiet", value: flags.length },
-    { label: "Automations Running", value: automations.filter((a) => a.status === "active").length },
+  /* One strip of plain-word stats (12 Oct 2026, UI review deck slides 2-3). */
+  const activeCount = tasks.filter((t) => t.status !== "done").length;
+  const kpis: { label: string; value: number; onClick?: () => void; alert?: boolean }[] = [
+    { label: "Active tasks", value: activeCount, onClick: () => nav("/tasks") },
+    { label: "Meetings today", value: meetingsToday, onClick: () => nav("/calendar") },
+    { label: "Emails to answer", value: messages.filter((m) => m.direction !== "outbound" && !m.first_reply_at).length, onClick: () => nav("/inbox") },
+    ...(canVault ? [{ label: "Clients at risk", value: atRisk.length, onClick: () => nav("/clients"), alert: atRisk.length > 0 }] : []),
+    { label: "Needs follow-up", value: flags.length, alert: flags.length > 0 },
+    { label: "Automations running", value: automations.filter((a) => a.status === "active").length },
   ];
+  const followDays = useFollowUpSettings((s) => s.config.taskDays);
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
   const order: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
   const queue = [...tasks].sort((a, b) => order[a.priority] - order[b.priority]).slice(0, 5);
@@ -146,25 +150,24 @@ export default function Dashboard() {
     <div>
       <div className="mb-7">
         <h1 className="greeting-title">{timeOfDay}, {firstName}.</h1>
-        <p className="mt-1.5 text-[15px] text-muted">Here's your day at a glance.</p>
+        <p className="mt-1 text-sm text-muted">
+          You have {plural(activeCount, "active task", "active tasks")} and {plural(flags.length, "item that needs", "items that need")} a follow-up.
+        </p>
       </div>
 
-      <div className={`grid grid-cols-2 gap-4 md:grid-cols-3 ${kpis.length === 6 ? "xl:grid-cols-6" : "xl:grid-cols-5"}`}>
-        {kpis.map((kpi, i) => {
-          const Icon = KPI_ICONS[i];
-          const alert = (kpi.label === "Clients At Risk" || kpi.label === "Gone quiet") && kpi.value > 0;
+      {/* One strip with dividers, not six floating cards. */}
+      <div className={`card grid grid-cols-2 overflow-hidden sm:grid-cols-3 ${kpis.length === 6 ? "xl:grid-cols-6" : "xl:grid-cols-5"}`}>
+        {kpis.map((kpi) => {
+          const Cell = kpi.onClick ? "button" : "div";
           return (
-            <div
+            <Cell
               key={kpi.label}
-              className={`card p-5 transition-transform hover:-translate-y-0.5 ${kpi.onClick ? "cursor-pointer hover:border-accent/60" : ""} ${alert ? "border-red-500/40" : ""}`}
               onClick={kpi.onClick}
+              className={`-mb-px -mr-px border-b border-r border-border px-4 py-3.5 text-left ${kpi.onClick ? "transition-colors hover:bg-[var(--chip-bg)]" : ""}`}
             >
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-[11.5px] font-bold uppercase tracking-[0.09em] text-faint">{kpi.label}</span>
-                <Icon size={18} className={alert ? "text-red-400" : "text-accent"} />
-              </div>
-              <p className={`text-[34px] font-extrabold leading-none tracking-[-0.02em] ${alert ? "text-red-400" : ""}`}>{kpi.value}</p>
-            </div>
+              <span className="block text-xs text-muted">{kpi.label}</span>
+              <span className={`mt-1 block text-[22px] font-semibold leading-tight tabular-nums ${kpi.alert ? "text-accent" : ""}`}>{kpi.value}</span>
+            </Cell>
           );
         })}
       </div>
@@ -172,8 +175,8 @@ export default function Dashboard() {
       {flags.length > 0 && (
         <section className="card mt-5 p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-[17px] font-bold">Gone quiet</h2>
-            <span className="text-xs text-faint">Nothing has come back on these</span>
+            <h2 className="text-[15px] font-semibold">Needs follow-up</h2>
+            <span className="text-xs text-faint">No update in {followDays}+ days</span>
           </div>
           <div className="space-y-2">
             {flags.slice(0, 4).map((f) => <FollowUpRow key={f.id} flag={f} />)}
@@ -190,7 +193,7 @@ export default function Dashboard() {
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <section className="card p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-[17px] font-bold">Today's Priority Queue</h2>
+            <h2 className="text-[15px] font-semibold">Priorities</h2>
             <button className="text-xs text-accent-soft hover:underline" onClick={() => nav("/tasks")}>View all</button>
           </div>
           <div className="space-y-2">
@@ -216,7 +219,7 @@ export default function Dashboard() {
                 <CheckSquare size={16} className="text-faint" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{t.title}</p>
-                  <p className="truncate text-xs text-faint">{t.client_name} · {t.due_label}</p>
+                  <p className="truncate text-xs text-faint">{[t.client_name, t.due_label].filter(Boolean).join(" · ")}</p>
                 </div>
                 {/* Who's carrying this. Reassignable without leaving the dashboard. */}
                 <AssigneePicker task={t} />
@@ -243,14 +246,14 @@ export default function Dashboard() {
 
         <section className="card p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-[17px] font-bold">Upcoming Meetings</h2>
+            <h2 className="text-[15px] font-semibold">Upcoming meetings</h2>
             <a
               href="https://calendar.google.com"
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-accent-soft hover:underline"
             >
-              Open Calendar ↗
+              Open calendar ↗
             </a>
           </div>
           <div className="space-y-2">
@@ -281,11 +284,12 @@ export default function Dashboard() {
               </div>
             ))}
             {upcoming.length === 0 && (
-              <p className="py-4 text-center text-xs text-faint">
-                {google && !google.connected ? (
-                  <>Connect Google Calendar to see your meetings here. <Link to="/integrations" className="text-accent-soft hover:underline">Connect</Link></>
-                ) : "No upcoming meetings"}
-              </p>
+              google && !google.connected ? (
+                <div className="py-4 text-center">
+                  <p className="text-xs text-faint">Connect Google Calendar to see your meetings here.</p>
+                  <Link to="/integrations" className="mt-2 inline-flex h-8 items-center rounded-lg border border-border px-3 text-xs font-semibold transition-colors hover:bg-[var(--chip-bg)]">Connect calendar</Link>
+                </div>
+              ) : <p className="py-4 text-center text-xs text-faint">No upcoming meetings</p>
             )}
             {meetingsHidden > 0 && (
               <p className="py-1.5 text-center text-xs text-faint">
@@ -297,7 +301,7 @@ export default function Dashboard() {
       </div>
 
       {canVault && <section className="card mt-5 p-5">
-        <h2 className="mb-3 text-[17px] font-bold">Client Snapshot</h2>
+        <h2 className="mb-3 text-[15px] font-semibold">Client snapshot</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {clients.map((c) => (
             <button key={c.id} className="flex min-w-0 items-center gap-3 rounded-lg bg-surface-2 p-4 text-left hover:bg-surface-2/70" onClick={() => nav("/clients")}>

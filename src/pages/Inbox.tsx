@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNow } from "@/hooks/useNow";
-import { useSearchParams } from "react-router-dom";
-import { Wand2, Lock, Search, X, ArrowLeft, Keyboard } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { Wand2, Lock, Search, X, ArrowLeft, Keyboard, Mail, Plus } from "lucide-react";
 import type { Message } from "@/types/db";
 import { Badge } from "@/components/ui";
 import { initials, cn } from "@/lib/utils";
@@ -11,11 +11,10 @@ import { dayLength, formatDuration, isBreaching, responseHours, waitingHours } f
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { SlackComposer } from "@/components/SlackComposer";
 import { ChannelNotice } from "@/components/ChannelRail";
-import { SourceChips } from "@/components/SourceChips";
+import { SourceMenu } from "@/components/SourceChips";
 import { ThreadList } from "@/components/ThreadList";
 import { REAL_CHANNELS, channelById, type ChannelId } from "@/lib/channels";
 import { ComposeWindow, type ComposeSeed } from "@/components/ComposeWindow";
-import { ComposeMenu } from "@/components/ComposeMenu";
 import { useChannelStates } from "@/components/ChannelConnections";
 import { InlineReply } from "@/components/InlineReply";
 import { InlineChatReply } from "@/components/InlineChatReply";
@@ -37,16 +36,19 @@ import { emailItem } from "@/lib/madelineItems";
    "Done" surfaces the archive category, which existed in the schema and in
    categoryLabel but had no tab and no action, so archived messages were
    unreachable from any filter. */
-const TABS = ["All", "Needs Follow-up", "Urgent", "Awaiting Reply", "Delegated", "Done"] as const;
+/* Four tabs (12 Oct 2026, UI review deck slide 4), replacing six statuses
+   that overlapped. Urgent is a tag on the message now, and Delegated sits
+   under Waiting on others with mail you sent that hasn't had a reply. */
+const TABS = ["All", "Needs reply", "Waiting on others", "Done"] as const;
 const categoryLabel: Record<string, string> = { urgent: "Urgent", reply: "Reply", delegate: "Delegate", archive: "Archive" };
 // "Needs Follow-up" is resolved against the flag list, not a field on the message,
 // so it stays in lockstep with the badge count everywhere else.
 const TAB_FILTER: Record<(typeof TABS)[number], (m: Message) => boolean> = {
   All: (m) => m.category !== "archive",
-  "Needs Follow-up": () => true,
-  Urgent: (m) => m.category === "urgent",
-  "Awaiting Reply": (m) => m.category === "reply",
-  Delegated: (m) => m.category === "delegate",
+  // Incoming, triaged as needing you, and not answered yet.
+  "Needs reply": (m) => m.direction !== "outbound" && (m.category === "urgent" || m.category === "reply") && !m.first_reply_at,
+  // Resolved against the dead-thread flags as well; see `list` below.
+  "Waiting on others": (m) => m.category === "delegate",
   Done: (m) => m.category === "archive",
 };
 
@@ -137,11 +139,9 @@ export default function Communication() {
     [m.sender_name, m.sender_email, m.subject, m.preview, m.body]
       .some((v) => typeof v === "string" && v.toLowerCase().includes(q));
 
-  const list = (
-    tab === "Needs Follow-up"
-      ? messages.filter((m) => deadIds.has(m.id))
-      : messages.filter(TAB_FILTER[tab])
-  )
+  const inTab = (t: (typeof TABS)[number]) => (m: Message) =>
+    t === "Waiting on others" ? m.category !== "archive" && (TAB_FILTER[t](m) || deadIds.has(m.id)) : TAB_FILTER[t](m);
+  const list = messages.filter(inTab(tab))
     .filter(inChannel)
     .filter((m) => messageInClient(m, scopeId, clients))
     .filter(matches);
@@ -455,17 +455,42 @@ export default function Communication() {
           Center" is already the highlighted item in the sidebar and repeating
           it at 30px tells nobody anything they learned two seconds ago. */}
       <div className="mb-2.5 flex flex-wrap items-center gap-2">
-        <h1 className="shrink-0 text-lg font-semibold">Communication Center</h1>
+        <h1 className="mr-auto shrink-0 text-xl font-semibold">Inbox</h1>
         {/* Only for an EA a client has shared their mailbox with (0086). */}
         <ClientMailboxButton />
+        <button className="btn-primary h-9 px-3.5" onClick={() => { setSeed({ title: "Write an email", provider: undefined }); setComposing(true); }}>
+          <Plus size={15} /> New message
+        </button>
+      </div>
 
-        <div className="relative min-w-[200px] flex-1">
+      {/* ONE filter row: tabs, then search and the sources menu. */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-0.5 rounded-lg bg-surface-2 p-0.5" role="tablist" aria-label="Views">
+          {TABS.map((t) => {
+            const n = t === "All" ? 0 : messages.filter(inChannel).filter((m) => messageInClient(m, scopeId, clients)).filter(inTab(t)).length;
+            return (
+              <button
+                key={t}
+                role="tab"
+                onClick={() => setTab(t)}
+                aria-selected={tab === t}
+                className={cn(
+                  "min-h-[30px] rounded-md px-3 text-[13px] font-medium transition-colors",
+                  tab === t ? "bg-surface text-text shadow-sm" : "text-muted hover:text-text",
+                )}
+              >
+                {t}{n > 0 && <span className="ml-1.5 tabular-nums text-faint">{n}</span>}
+              </button>
+            );
+          })}
+        </div>
+        <div className="relative ml-auto min-w-[180px] max-w-xs flex-1">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
           <label htmlFor="inbox-search" className="sr-only">Search this inbox</label>
           <input
             id="inbox-search"
-            className="input h-10 pl-9 pr-9"
-            placeholder="Search sender, subject or message…"
+            className="input h-9 pl-9 pr-9"
+            placeholder="Search messages"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -480,77 +505,15 @@ export default function Communication() {
           )}
         </div>
 
-        <ComposeMenu
-          sole={soleSource}
-          slackAvailable={slackAvailable}
-          onEmail={(provider) => { setSeed({ title: "Write an email", provider }); setComposing(true); }}
-          onSlack={() => setSlackOpen(true)}
-        />
-        {/* A visible way into the shortcuts, because a keyboard feature nobody
-            can find is not a feature. Hidden below sm on purpose rather than by
-            accident: a phone has no physical keyboard, so the sheet would list
-            eleven things you cannot press. `?` still opens it anywhere a
-            keyboard exists. */}
-        <button
-          onClick={() => setShowHelp(true)}
-          aria-label="Keyboard shortcuts"
-          title="Keyboard shortcuts (?)"
-          className="hidden h-10 w-10 shrink-0 place-items-center rounded-xl border border-border text-faint transition-colors hover:bg-[var(--chip-bg)] hover:text-text sm:grid"
-        >
-          <Keyboard size={16} />
-        </button>
+        {/* Sources, and "Connect a channel", in one menu. The keyboard
+            shortcuts sheet is still on `?`; its button went (deck slide 4). */}
+        <SourceMenu active={sources} counts={counts} onToggle={toggleSource} />
         {/* The Slack button used to sit here. It was a third way to do
             something there are already two better ways to do: picking Slack in
             the channel row opens its composer by itself, and a Slack message in
             the list is now answered in place like every other channel. A button
             for one channel among nine also implied Slack was special, which
             stopped being true the day Discord and Teams arrived. */}
-      </div>
-
-      {/* View filters. Quieter than before: these narrow a list you are already
-          looking at, so they are secondary to it and should not compete with
-          the primary action beside them (§9 nav-hierarchy). */}
-      {/* Source, as a filter under the views. One hierarchy: the row above says
-          WHAT you are looking at, this row narrows it. Neither is a place. */}
-      <div className="mb-2.5 flex flex-wrap items-center gap-2">
-        <SourceChips active={sources} counts={counts} onToggle={toggleSource} />
-      </div>
-
-      <div className="mb-2.5 flex flex-wrap items-center gap-1">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            aria-pressed={tab === t}
-            className={cn(
-              "min-h-[30px] rounded-full px-2.5 text-xs font-medium transition-colors",
-              tab === t
-                ? "bg-[var(--nav-active-bg)] text-[color:var(--nav-active-text)]"
-                : "text-faint hover:bg-[var(--chip-bg)] hover:text-text",
-            )}
-          >
-            {t}
-            {t === "Needs Follow-up" && deadThreads.length > 0 && (
-              <span className={cn(
-                "ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
-                tab === t ? "bg-amber-500/25 text-amber-300" : "bg-amber-500/20 text-amber-400",
-              )}>
-                {deadThreads.length}
-              </span>
-            )}
-          </button>
-        ))}
-        <span className="ml-auto text-xs tabular-nums text-faint">
-          {threads.length} {q ? "found" : threads.length === list.length ? "in view" : `of ${list.length}`}
-          {messages.length >= MESSAGE_FETCH_LIMIT && (
-            /* The cap was invisible before. A mailbox bigger than the fetch
-               limit looked complete, which is the kind of quiet lie that makes
-               someone conclude a message was never received. */
-            <span className="ml-2" title={`Only the newest ${MESSAGE_FETCH_LIMIT} messages are loaded`}>
-              · newest {MESSAGE_FETCH_LIMIT}
-            </span>
-          )}
-        </span>
       </div>
 
       <ClientScopeBanner note="Messages are matched to a client by their sender's email domain." />
@@ -633,7 +596,12 @@ export default function Communication() {
       {isLoading ? (
         <p className="text-sm text-faint">Loading messages…</p>
       ) : messages.length === 0 ? (
-        <div className="card p-10 text-center text-sm text-faint">No messages yet. Connect Gmail from Integrations to populate your inbox.</div>
+        <div className="card flex flex-col items-center px-6 py-12 text-center">
+          <Mail size={22} className="mb-2 text-faint" />
+          <p className="font-semibold">No messages yet</p>
+          <p className="mt-1 text-sm text-muted">Connect Gmail to see your email here.</p>
+          <Link to="/integrations" className="btn-primary mt-4 h-9 px-3.5 text-sm">Connect Gmail</Link>
+        </div>
       ) : (
         <div className="grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)] xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           {/* Full height on laptops: the list scrolls inside itself beside the
@@ -658,8 +626,8 @@ export default function Communication() {
                       <p className="text-sm font-medium">
                         {q
                           ? `Nothing matches "${query}".`
-                          : tab === "Needs Follow-up"
-                            ? "Nothing is waiting on a reply."
+                          : tab === "Waiting on others"
+                            ? "Nothing is waiting on anyone else."
                             : `No ${soleSource ? soleSource.label + " " : ""}messages in this view.`}
                       </p>
                       <p className="mx-auto mt-1 max-w-sm text-xs text-faint">

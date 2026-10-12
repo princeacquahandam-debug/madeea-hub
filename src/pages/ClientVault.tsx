@@ -17,7 +17,7 @@ import { useMadelineContext } from "@/hooks/useMadeline";
 import { clientItem } from "@/lib/madelineItems";
 
 const STATUS_LABEL: Record<string, string> = {
-  todo: "To Do", in_progress: "In Progress", follow_up: "Follow-up", review: "Review", done: "Done",
+  todo: "To Do", in_progress: "In Progress", follow_up: "Waiting", review: "Review", done: "Done",
 };
 
 const BLANK = { name: "", title: "", company: "", preferred_channel: "Email", tone: "Formal", tags: "", bio: "", preferences_notes: "", image: "", lead_ea_id: "" };

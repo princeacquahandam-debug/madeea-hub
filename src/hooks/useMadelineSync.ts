@@ -18,7 +18,7 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
-import { useMadeline, type MadelineTurn } from "@/store/madeline";
+import { useMadeline, titleFor, type MadelineChat, type MadelineTurn } from "@/store/madeline";
 
 const SAVE_DELAY = 800;
 
@@ -38,14 +38,26 @@ export function useMadelineSync() {
     let cancelled = false;
     void (async () => {
       try {
-        const { data, error } = await supabase!
-          .from("madeline_threads").select("turns").eq("user_id", userId).maybeSingle();
+        // Chat history (0087) when the column exists; otherwise just the one thread.
+        let res = await supabase!.from("madeline_threads").select("turns, chats").eq("user_id", userId).maybeSingle();
+        if (res.error) res = await supabase!.from("madeline_threads").select("turns").eq("user_id", userId).maybeSingle() as typeof res;
+        const { data, error } = res;
         if (cancelled || error) return;
         const saved = (Array.isArray(data?.turns) ? data.turns : []) as MadelineTurn[];
-        const local = useMadeline.getState().turns;
-        const known = new Set(saved.map((t) => t.id));
-        const merged = [...saved, ...local.filter((t) => !known.has(t.id))];
-        if (merged.length !== local.length || saved.length) useMadeline.getState().setTurns(merged);
+        const savedChats = (Array.isArray((data as { chats?: unknown } | null)?.chats) ? (data as { chats: MadelineChat[] }).chats : []);
+        const st = useMadeline.getState();
+        // Chats kept on another device, plus this tab's own.
+        const byId = new Map<string, MadelineChat>();
+        for (const c of [...savedChats, ...st.chats]) if (!byId.has(c.id) || byId.get(c.id)!.updatedAt < c.updatedAt) byId.set(c.id, c);
+        // A thread saved before chat history existed becomes the first chat.
+        if (!savedChats.length && saved.length && ![...byId.values()].some((c) => c.turns.some((t) => t.id === saved[0].id))) {
+          const id = `legacy-${userId}`;
+          byId.set(id, { id, title: titleFor(saved), turns: saved, updatedAt: new Date().toISOString() });
+        }
+        const chats = [...byId.values()];
+        // Open where you left off: this tab's chat if it has one, else the newest.
+        const newest = [...chats].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+        st.setChats(chats, st.turns.length ? undefined : newest?.id);
       } catch {
         /* Offline or not migrated: keep the tab's own thread. */
       } finally {
@@ -60,15 +72,18 @@ export function useMadelineSync() {
     if (!userId || !supabase) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const unsub = useMadeline.subscribe((s, prev) => {
-      if (s.turns === prev.turns || loadedFor.current !== userId) return;
+      if ((s.turns === prev.turns && s.chats === prev.chats) || loadedFor.current !== userId) return;
       clearTimeout(timer);
       timer = setTimeout(() => {
         // A turn still waiting on its answer is saved once the answer lands.
-        const turns = useMadeline.getState().turns.filter((t) => t.status !== "running");
-        void supabase!
-          .from("madeline_threads")
-          .upsert({ user_id: userId, turns, updated_at: new Date().toISOString() })
-          .then(() => undefined, () => undefined);
+        const st = useMadeline.getState();
+        const turns = st.turns.filter((t) => t.status !== "running");
+        const chats = st.chats.map((c) => ({ ...c, turns: c.turns.filter((t) => t.status !== "running") }));
+        const row = { user_id: userId, turns, chats, updated_at: new Date().toISOString() };
+        void supabase!.from("madeline_threads").upsert(row).then(({ error }) => {
+          // Before migration 0087 there's no `chats` column: keep saving the open thread.
+          if (error) void supabase!.from("madeline_threads").upsert({ user_id: userId, turns, updated_at: row.updated_at }).then(() => undefined, () => undefined);
+        }, () => undefined);
       }, SAVE_DELAY);
     });
     return () => { clearTimeout(timer); unsub(); };

@@ -1,5 +1,7 @@
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
-import { Lock, Plus } from "lucide-react";
+import { Check, ChevronDown, Lock, Plus } from "lucide-react";
+import { useAnchoredPanel, ANCHORED_PANEL_CLASS } from "@/hooks/useAnchoredPanel";
 import { REAL_CHANNELS, isUsable, type ChannelId } from "@/lib/channels";
 import { useChannelStates } from "@/components/ChannelConnections";
 import { cn } from "@/lib/utils";
@@ -122,5 +124,58 @@ export function SourceChips({
         <Plus size={12} /> Connect{live.length === 0 ? " a channel" : ""}
       </Link>
     </div>
+  );
+}
+
+/**
+ * The same filter as one "All sources" dropdown (12 Oct 2026, UI review deck
+ * slide 4: two filter rows became one). It also holds "Connect a channel".
+ * Same rules as the chips: only channels this person has, or has messages from.
+ */
+export function SourceMenu({
+  active, counts, onToggle,
+}: {
+  active: Set<ChannelId>;
+  counts: Record<string, number>;
+  onToggle: (id: ChannelId) => void;
+}) {
+  const { anchorRef, panelRef, open, setOpen, pos } = useAnchoredPanel<HTMLButtonElement>();
+  const states = useChannelStates();
+  const works = (id: ChannelId) => Boolean(states[id]?.loading || states[id]?.connected || (counts[id] ?? 0) > 0);
+  const live = REAL_CHANNELS.filter((c) => isUsable(c) && works(c.id));
+  const all = active.size === 0;
+  const label = all ? "All sources" : active.size === 1 ? REAL_CHANNELS.find((c) => active.has(c.id))?.label ?? "1 source" : `${active.size} sources`;
+  const row = "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-surface-2";
+  return (
+    <>
+      <button ref={anchorRef} onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open}
+        className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-text transition-colors hover:bg-[var(--chip-bg)]">
+        {label} <ChevronDown size={14} className="text-faint" />
+      </button>
+      {open && pos && createPortal(
+        <div ref={panelRef} role="menu" aria-label="Filter by source" style={{ top: pos.top, right: pos.right }} className={`card ${ANCHORED_PANEL_CLASS} !w-60 p-1.5 shadow-xl`}>
+          <button role="menuitemradio" aria-checked={all} className={row} onClick={() => { onToggle("all"); setOpen(false); }}>
+            <span className="w-4">{all && <Check size={14} className="text-accent" />}</span> All sources
+          </button>
+          {live.map((c) => {
+            const on = active.has(c.id);
+            const n = counts[c.id] ?? 0;
+            return (
+              <button key={c.id} role="menuitemcheckbox" aria-checked={on} className={row} onClick={() => onToggle(c.id)}>
+                <span className="w-4">{on && <Check size={14} className="text-accent" />}</span>
+                <c.icon size={14} /> <span className="flex-1">{c.label}</span>
+                {n > 0 && <span className="text-xs tabular-nums text-faint">{n}</span>}
+              </button>
+            );
+          })}
+          <div className="mt-1 border-t border-border pt-1">
+            <Link to="/integrations" role="menuitem" className={cn(row, "text-muted")} onClick={() => setOpen(false)}>
+              <span className="w-4"><Plus size={14} /></span> Connect a channel
+            </Link>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }

@@ -76,7 +76,7 @@ export function VoiceCapture({ open, onClose }: { open: boolean; onClose: () => 
   return (
     <Modal open={open} onClose={onClose}>
       <div className="pr-8">
-        <span className="eyebrow">Quick Capture</span>
+        <span className="eyebrow">Quick note</span>
         <h2 className="display mt-1 text-2xl">
           {step === "confirm" ? "Check this before saving" : "Speak a task"}
         </h2>

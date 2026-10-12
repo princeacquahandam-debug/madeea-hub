@@ -37,7 +37,21 @@ export interface MadelineTurn {
   sources?: { kind: string; count: number }[];
   /** 👍 = 1, 👎 = -1. */
   rating?: 1 | -1;
+  /** When it was asked (ISO). Shown under the answer. Older turns have none. */
+  at?: string;
 }
+
+/** One saved conversation (12 Oct 2026, UI review deck slide 11: chat history). */
+export interface MadelineChat {
+  id: string;
+  /** Auto-named from the first question; renamable. */
+  title: string;
+  turns: MadelineTurn[];
+  updatedAt: string;
+}
+
+/** Which view the panel shows: the conversation, or the list of chats. */
+export type MadelineView = "chat" | "history";
 
 /** Where an answer shows: the sidebar chat, or a pop-up over the page. */
 export type MadelineDisplay = "panel" | "modal";
@@ -91,23 +105,46 @@ interface MadelineState {
   turns: MadelineTurn[];
   addTurn: (t: MadelineTurn) => void;
   patchTurn: (id: string, patch: Partial<MadelineTurn>) => void;
+  /** Start a new chat. The current one stays in history. */
   clearTurns: () => void;
+
+  /** Every saved chat, newest first. The open one is `currentChatId`. */
+  chats: MadelineChat[];
+  currentChatId: string;
+  setChats: (chats: MadelineChat[], openId?: string) => void;
+  openChat: (id: string) => void;
+  renameChat: (id: string, title: string) => void;
+  deleteChat: (id: string) => void;
+  view: MadelineView;
+  setView: (v: MadelineView) => void;
 }
 
-const OPEN_KEY = "madeea-madeline-open";
 const THREAD_KEY = "madeea-madeline-thread";
+const CHATS_KEY = "madeea-madeline-chats";
 const MAX_TURNS = 30;
-const XL = 1280;
+/** Kept per person; the oldest fall off. */
+export const MAX_CHATS = 50;
 
-/* Docked beside the page on wide screens it costs nothing, so it remembers
-   being open. Below xl it slides over the page, so it always starts closed:
-   reopening on every load would hide the page you came to. */
+const newId = () => (globalThis.crypto?.randomUUID?.() ?? `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+
+/** "What's overdue this week?" → a chat title. */
+export function titleFor(turns: MadelineTurn[]): string {
+  const first = turns.find((t) => t.prompt.trim())?.prompt.trim().replace(/\s+/g, " ") ?? "New chat";
+  return first.length > 60 ? `${first.slice(0, 59)}…` : first;
+}
+
+/* Madeline is a floating panel now (deck slide 10), over the page rather than
+   docked beside it, so it always starts closed. */
 function initialOpen(): boolean {
-  if (typeof window === "undefined") return false;
+  return false;
+}
+
+function initialChats(): MadelineChat[] {
   try {
-    return window.innerWidth >= XL && window.localStorage.getItem(OPEN_KEY) !== "0";
+    const raw = window.sessionStorage.getItem(CHATS_KEY);
+    return raw ? (JSON.parse(raw) as MadelineChat[]) : [];
   } catch {
-    return false;
+    return [];
   }
 }
 
@@ -129,14 +166,10 @@ function initialTurns(): MadelineTurn[] {
   }
 }
 
-function saveOpen(v: boolean) {
-  try { window.localStorage.setItem(OPEN_KEY, v ? "1" : "0"); } catch { /* storage blocked */ }
-}
-
 export const useMadeline = create<MadelineState>((set, get) => ({
   routePath: "/",
   open: initialOpen(),
-  setOpen: (v) => { saveOpen(v); set({ open: v }); },
+  setOpen: (v) => set({ open: v, ...(v ? {} : { view: "chat" as MadelineView }) }),
   toggle: () => get().setOpen(!get().open),
 
   item: null,
@@ -169,15 +202,51 @@ export const useMadeline = create<MadelineState>((set, get) => ({
   },
 
   turns: initialTurns(),
-  addTurn: (t) => set({ turns: [...get().turns, t].slice(-MAX_TURNS) }),
+  addTurn: (t) => set({ turns: [...get().turns, { at: new Date().toISOString(), ...t }].slice(-MAX_TURNS) }),
   patchTurn: (id, patch) => set({ turns: get().turns.map((t) => (t.id === id ? { ...t, ...patch } : t)) }),
-  clearTurns: () => set({ turns: [] }),
+  clearTurns: () => set({ turns: [], currentChatId: newId(), view: "chat" }),
   setTurns: (turns) => set({ turns: turns.slice(-MAX_TURNS) }),
+
+  chats: initialChats(),
+  currentChatId: newId(),
+  setChats: (chats, openId) => {
+    const sorted = [...chats].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, MAX_CHATS);
+    const open = openId ? sorted.find((c) => c.id === openId) : undefined;
+    set(open ? { chats: sorted, currentChatId: open.id, turns: open.turns.slice(-MAX_TURNS) } : { chats: sorted });
+  },
+  openChat: (id) => {
+    const c = get().chats.find((x) => x.id === id);
+    if (c) set({ currentChatId: c.id, turns: c.turns.slice(-MAX_TURNS), view: "chat" });
+  },
+  renameChat: (id, title) => set({ chats: get().chats.map((c) => (c.id === id ? { ...c, title: title.trim() || c.title } : c)) }),
+  deleteChat: (id) => {
+    const chats = get().chats.filter((c) => c.id !== id);
+    if (id === get().currentChatId) set({ chats, turns: [], currentChatId: newId() });
+    else set({ chats });
+  },
+  view: "chat",
+  setView: (v) => set({ view: v }),
 }));
 
+/* The open chat is mirrored into `chats` whenever it changes, titled from its
+   first question. An empty chat isn't saved. */
 useMadeline.subscribe((s, prev) => {
   if (s.turns === prev.turns) return;
   try { window.sessionStorage.setItem(THREAD_KEY, JSON.stringify(s.turns)); } catch { /* storage blocked */ }
+  if (!s.turns.length) return;
+  const existing = s.chats.find((c) => c.id === s.currentChatId);
+  const chat: MadelineChat = {
+    id: s.currentChatId,
+    title: existing && existing.title !== titleFor(prev.turns) ? existing.title : titleFor(s.turns),
+    turns: s.turns,
+    updatedAt: new Date().toISOString(),
+  };
+  const chats = [chat, ...s.chats.filter((c) => c.id !== chat.id)].slice(0, MAX_CHATS);
+  useMadeline.setState({ chats });
+});
+useMadeline.subscribe((s, prev) => {
+  if (s.chats === prev.chats) return;
+  try { window.sessionStorage.setItem(CHATS_KEY, JSON.stringify(s.chats)); } catch { /* storage blocked */ }
 });
 
 /** The item, if it was set on the page the user is on now. */

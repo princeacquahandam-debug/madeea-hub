@@ -1,82 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  ClipboardList,
-  Percent,
-  CalendarDays,
-  CheckSquare,
-  AlertTriangle,
-  ListTodo,
-  ChevronDown,
-  ChevronRight,
-  Link2,
-  Send,
-  Sparkles,
-  HelpCircle,
-  Trash2,
-} from "lucide-react";
-import { Link } from "react-router-dom";
+import { AlertTriangle, ChevronDown, ChevronRight, Link2, Send, Trash2 } from "lucide-react";
 import { Badge, PageHeader } from "@/components/ui";
-import { PageTour, usePageTour, type TourStep } from "@/components/PageTour";
 import { EOD_DATA, type CellStatus } from "@/data/eod";
-import { EOD_DATES, IMPORTED_EOD } from "@/data/eodImport";
+import { EOD_DATES } from "@/data/eodImport";
 import { atLeast, useDeleteEod, useEodReports, useMyRole, useSubmitEod, useTaskMutations, useTasks, useWorkspaceMembers } from "@/data/hooks";
 import { draftFromTasks, todayIso, type EodDraft as EodDraftState } from "@/lib/eodDraft";
 import { DraftList } from "@/components/EodDraftList";
 import type { EodReport } from "@/types/db";
 import { cn } from "@/lib/utils";
 
-const IMPORTED_COUNT = IMPORTED_EOD.length;
-
-// Self-serve walkthrough so the page explains itself. No live demo to the team.
-const TOUR_KEY = "madeea-tour-eod";
-const TOUR_STEPS: TourStep[] = [
-  {
-    title: "This is your EOD, done for you",
-    body: "No more retyping. Your end-of-day report is drafted from the work you already track on the board. Here's the 30-second tour.",
-  },
-  {
-    selector: '[data-tour="eod-today"]',
-    title: "Today's report, pre-filled",
-    body: "Completed tasks, blocked tasks, and what's still open are pulled straight from your Task Manager. Edit any line, then submit, that's your EOD.",
-  },
-  {
-    selector: '[data-tour="eod-notes"]',
-    title: "Add what the board can't know",
-    body: "Meetings, calls, a subscription that's down. Anything that isn't a task goes in Notes so your report is complete.",
-  },
-  {
-    selector: '[data-tour="eod-kpis"]',
-    title: "Team at a glance",
-    body: "Live totals across everyone: submissions, tasks done, blockers raised and plans set for the days ahead.",
-  },
-  {
-    selector: '[data-tour="eod-compliance"]',
-    title: "Who's reporting",
-    body: "Completion per person, plus a coverage grid of every day. This is why submitting matters: it's what compliance counts.",
-  },
-  {
-    selector: '[data-tour="eod-reports"]',
-    title: "Every report, searchable",
-    body: "Filter by EA, by date, or just the ones with blockers.",
-  },
-  {
-    selector: '[data-tour="eod-tour-btn"]',
-    title: "Replay any time",
-    body: "New teammate? Forgot a step? This button restarts the tour whenever you need it.",
-  },
-];
-
-const KPI_ICONS = [ClipboardList, Percent, CalendarDays, CheckSquare, AlertTriangle, ListTodo];
-const KPI_ICON_COLORS = [
-  "text-accent",
-  "text-amber-400",
-  "text-sky-400",
-  "text-emerald-400",
-  "text-red-400",
-  "text-violet-400",
-];
+/*
+ * EOD reports, in two tabs (12 Oct 2026, UI review deck slides 7-8).
+ *
+ * The page used to be one long scroll: your draft, six stats, a bar chart that
+ * repeated the table below it, an often-empty submissions chart, every report,
+ * and task metrics that repeated the Tasks board. "My report" is now the page
+ * for everyone; "Team" holds the analytics, for managers and admins.
+ */
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DAYS_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 /**
  * "2026-07-13" → "Jul 13". Parsed by hand so no timezone can shift the day.
@@ -89,6 +33,12 @@ function fmtDate(iso: string | undefined): string {
   return `${MONTHS[Number(m) - 1]} ${Number(d)}`;
 }
 
+/** "2026-10-09" → "Friday, Oct 9". Spelled out, never 09/10/2026 (deck slide 7). */
+function fmtLong(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${DAYS_LONG[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]}, ${MONTHS[m - 1]} ${d}`;
+}
+
 /** Day-of-week without local-timezone drift. */
 function isWeekend(iso: string): boolean {
   const [y, m, d] = iso.split("-").map(Number);
@@ -96,23 +46,47 @@ function isWeekend(iso: string): boolean {
   return dow === 0 || dow === 6;
 }
 
+/** Whole percentages: 8.06% reads as 8% (deck slide 8). */
 function pct(x: number): string {
-  return `${(x * 100).toFixed(2)}%`;
+  return `${Math.round(x * 100)}%`;
 }
 
-const CELL_STYLES: Record<CellStatus, string> = {
-  submitted: "bg-accent",
-  template: "bg-amber-500/20 border border-amber-500/40",
-  empty: "bg-surface-2 border border-border",
-};
-const CELL_LABELS: Record<CellStatus, string> = {
-  submitted: "submitted a report",
-  template: "not submitted",
-  empty: "no report",
+/** Every day of a "YYYY-MM" month, stopping at today for the current one. */
+function daysOf(month: string, today: string): string[] {
+  const [y, m] = month.split("-").map(Number);
+  const n = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const out: string[] = [];
+  for (let d = 1; d <= n; d++) {
+    const iso = `${month}-${String(d).padStart(2, "0")}`;
+    if (iso > today) break;
+    out.push(iso);
+  }
+  return out;
+}
+
+const daysInMonth = (month: string) => {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
 };
 
+type Cell = CellStatus | "weekend";
+const CELL_STYLES: Record<Cell, string> = {
+  submitted: "bg-accent",
+  template: "bg-surface-2",
+  empty: "bg-surface-2",
+  weekend: "border border-border",
+};
+const CELL_LABELS: Record<Cell, string> = {
+  submitted: "submitted a report",
+  template: "missed",
+  empty: "missed",
+  weekend: "weekend",
+};
+
+const segBtn = (on: boolean) =>
+  cn("min-h-[28px] rounded-md px-3 text-[13px] font-medium transition-colors", on ? "bg-surface text-text shadow-sm" : "text-muted hover:text-text");
+
 export default function EodReports() {
-  const { meta } = EOD_DATA;
   const { data: reports = [], isLoading: eodLoading, isError: eodError, error: eodErr, refetch: refetchEod } = useEodReports();
   const { data: tasks = [] } = useTasks();
   const { data: members = [] } = useWorkspaceMembers();
@@ -120,14 +94,9 @@ export default function EodReports() {
   const remove = useDeleteEod();
   const { create: createTask } = useTaskMutations();
   const { data: role } = useMyRole();
-  const isAdmin = atLeast(role, "admin");
-
-  const [person, setPerson] = useState<string>("all");
-  const [date, setDate] = useState<string>("all");
-  const [blockersOnly, setBlockersOnly] = useState(false);
-  const [expanded, setExpanded] = useState<string | null>(null);
-  // Tour no longer auto-opens on EOD. Only via the "Replay" button below.
-  const tour = usePageTour(TOUR_KEY, false);
+  // The team view is for whoever watches the team: managers and admins.
+  const canTeam = atLeast(role, "manager");
+  const [tab, setTab] = useState<"mine" | "team">("mine");
 
   // ---- the report you're filing: drafted from the board, edited and submitted ----
   const today = todayIso();
@@ -135,8 +104,7 @@ export default function EodReports() {
 
   /**
    * Which day this report covers. Defaults to today, but is changeable so
-   * someone catching up can file for a day they missed. Previously this was
-   * pinned to today and back-filling was impossible.
+   * someone catching up can file for a day they missed.
    */
   const [reportDate, setReportDate] = useState(today);
 
@@ -170,12 +138,8 @@ export default function EodReports() {
 
   /**
    * Typing a note is editing the report, so it marks the draft touched too.
-   *
-   * It used to be wired straight to setNotes, which left `touched` false, and
-   * the re-sync effect above only respects text it thinks you wrote. Anything
-   * that gave the board query a new result — a tab switch is enough, the tasks
-   * query refetches on window focus — re-ran that effect and overwrote the note
-   * with the empty string. Whoever was mid-sentence saw the box clear itself.
+   * Otherwise a tasks refetch (a tab switch is enough) re-runs the re-sync
+   * above and clears the note mid-sentence.
    */
   const editNotes = (next: string) => {
     setTouched(true);
@@ -190,12 +154,8 @@ export default function EodReports() {
   };
 
   /**
-   * R-4.3.4. Rowena, 1:07:10: a next step in the EOD should land in the to-do
-   * list for the following day rather than being retyped there.
-   *
-   * The day after the report, not tomorrow-from-now: file Monday's EOD on
-   * Tuesday and its plan still belongs on Monday+1. Assigned to you, because a
-   * line in your own report is your own work.
+   * R-4.3.4: a next step in the EOD lands on the board for the day after the
+   * report (not tomorrow-from-now), assigned to you.
    */
   const pushPlanToBoard = (title: string) => {
     const [y, m, d] = reportDate.split("-").map(Number);
@@ -209,216 +169,19 @@ export default function EodReports() {
     });
   };
 
-  /**
-   * Everyone this page measures: the people who are actually on the team.
-   *
-   * ── WHY THIS STOPPED BEING THE SHEET'S ROSTER ──────────────────────────
-   *
-   * It used to be the July sheet's eight names, plus anyone who had submitted
-   * since. That is TWO sources of identity for one person, and the compliance
-   * table showed exactly what two sources produce: "FJ Caballes 0.00%" from the
-   * sheet and "fj.caballes 6.45%" from his account, one above the other. Ten
-   * rows for eight humans, and the same split in the coverage grid, the
-   * leaderboard and the team total.
-   *
-   * Renaming the accounts (0061) makes the two sources AGREE, which collapses
-   * the pairs. But agreement between two lists is a thing that has to keep
-   * being true: the moment somebody is invited who is not on the sheet, or a
-   * name is spelled differently, the twins come back. So the second list is
-   * gone. Membership is the source, because membership is what the workspace
-   * actually knows about who works here.
-   *
-   * Reports still contribute names, for one reason: the July import has no
-   * owner_id, and a report whose author has left would otherwise vanish from
-   * the totals while its rows stayed in the browser below.
-   *
-   * Matched case-insensitively so "FJ Caballes" and "fj caballes" cannot be two
-   * people. The first spelling seen wins, and membership is read first, so the
-   * name on the page is the name on the account.
-   */
-  const people = useMemo(() => {
-    const seen = new Map<string, string>();
-    const add = (raw: string | null | undefined) => {
-      const name = (raw ?? "").trim();
-      const key = name.toLowerCase();
-      if (key && !seen.has(key)) seen.set(key, name);
-    };
-    for (const m of members) add(m.name);
-    for (const r of reports) add(r.person);
-    return [...seen.values()];
-  }, [members, reports]);
-
-  // Every dated row the sheet defined, extended by any day reported since.
-  const dates = useMemo(() => {
-    const set = new Set(EOD_DATES);
-    for (const r of reports) set.add(r.report_date);
-    return [...set].sort();
-  }, [reports]);
-
-  const entries = reports;
-
-  /**
-   * Cell status. The sheet's "blank template" state is history: it explains why
-   * July reads low and is preserved for those dates. Days after the sheet was
-   * retired are simply submitted or not.
-   */
-  const matrix = useMemo(() => {
-    const m: Record<string, CellStatus> = {};
-    const submitted = new Set(reports.map((r) => `${r.person}|${r.report_date}`));
-    for (const p of people) {
-      for (const d of dates) {
-        const key = `${p}|${d}`;
-        m[key] = submitted.has(key) ? "submitted" : EOD_DATA.matrix[key] ?? "empty";
-      }
-    }
-    return m;
-  }, [people, dates, reports]);
-
-  const stats = useMemo(() => {
-    const byPerson: Record<string, { subs: number; done: number; blockers: number; plans: number; days: string[] }> = {};
-    people.forEach((p) => (byPerson[p] = { subs: 0, done: 0, blockers: 0, plans: 0, days: [] }));
-    const byDate: Record<string, number> = {};
-    dates.forEach((d) => (byDate[d] = 0));
-
-    entries.forEach((e) => {
-      const s = byPerson[e.person ?? ""];
-      if (!s) return;
-      s.subs += 1;
-      s.done += e.done.length;
-      s.blockers += e.blockers.length;
-      s.plans += e.plans.length;
-      s.days.push(e.report_date);
-      if (e.report_date in byDate) byDate[e.report_date] += 1;
-    });
-
-    const cells = Object.values(matrix);
-    return {
-      byPerson,
-      byDate,
-      totalSubs: entries.length,
-      totalDone: entries.reduce((a, e) => a + e.done.length, 0),
-      totalBlockers: entries.reduce((a, e) => a + e.blockers.length, 0),
-      totalPlans: entries.reduce((a, e) => a + e.plans.length, 0),
-      totalLinks: entries.reduce((a, e) => a + (e.links?.length ?? 0), 0),
-      withBlockers: entries.filter((e) => e.blockers.length > 0).length,
-      activeDates: dates.filter((d) => byDate[d] > 0),
-      counts: {
-        submitted: cells.filter((c) => c === "submitted").length,
-        template: cells.filter((c) => c === "template").length,
-        empty: cells.filter((c) => c === "empty").length,
-      },
-    };
-  }, [people, dates, matrix, entries]);
-
-  // Live Kanban metrics. These replace the sheet's Task Tracker tab, which held
-  // the same four columns and never had a single row in it.
-  const kanban = useMemo(() => {
-    const done = tasks.filter((t) => t.status === "done").length;
-    return {
-      total: tasks.length,
-      open: tasks.length - done,
-      blocked: tasks.filter((t) => t.blocked).length,
-      rate: tasks.length ? done / tasks.length : 0,
-    };
-  }, [tasks]);
-
-  const { byPerson, byDate, activeDates, counts } = stats;
-
-  /**
-   * Who the report BROWSER offers, which is not the whole roster.
-   *
-   * A filter chip is a promise that there is something behind it. Seven of them
-   * reading "0" are seven promises the page cannot keep: pressing one empties
-   * the list and says nobody reported, which is a fact the chip already stated.
-   *
-   * The sections above still list everyone on purpose. Compliance and the
-   * coverage grid exist precisely to show the gaps — a member at 0% is the
-   * point of those, not noise in them. This one answers "whose report do I want
-   * to read", and only people who filed one are answers to it.
-   */
-  const reportedPeople = useMemo(
-    () => people.filter((p) => (byPerson[p]?.subs ?? 0) > 0),
-    [people, byPerson],
+  // Your own reports, newest first.
+  const mine = useMemo(
+    () => reports.filter((r) => r.person === me?.name).sort((a, b) => b.report_date.localeCompare(a.report_date)),
+    [reports, me],
   );
-  // Days where everyone expected to report actually did.
-  const fullTurnoutDays = activeDates.filter((d) => byDate[d] === people.length).length;
-  // The sheet divides every member by a fixed 31, so this is the highest anyone
-  // could score in a period where only `activeDates` were ever reported on.
-  const ceiling = activeDates.length / meta.denominator;
-  const teamCompletion = stats.totalSubs / (people.length * meta.denominator);
-  const maxDay = Math.max(...dates.map((d) => byDate[d]), 1);
-
-  // Guard every average: reports load async, so totalSubs is 0 on first render
-  // and a bare division would print NaN.
-  const avg = (n: number) => (stats.totalSubs ? (n / stats.totalSubs).toFixed(1) : "0");
-  const kpis = [
-    { label: "Submissions", value: stats.totalSubs, foot: `across ${people.length} EAs` },
-    { label: "Team Completion", value: pct(teamCompletion), foot: `${stats.totalSubs} of ${people.length * meta.denominator} possible` },
-    { label: "Days With Reports", value: activeDates.length, foot: `of ${dates.length} days` },
-    { label: "Tasks Completed", value: stats.totalDone, foot: `${avg(stats.totalDone)} avg per report` },
-    { label: "Blockers Raised", value: stats.totalBlockers, foot: `${stats.withBlockers} of ${stats.totalSubs} reports` },
-    { label: "Planned Items", value: stats.totalPlans, foot: `${avg(stats.totalPlans)} avg per report` },
-  ];
-
-  /**
-   * The dates this filter can offer, which depend on WHO is selected.
-   *
-   * It used to list every date the sheet ever defined, for everybody, with an
-   * "All dates" chip in front. That produced two dead ends at once: most of
-   * those dates were blank for the person being looked at, so choosing one
-   * showed "No reports match these filters" and told you nothing about why,
-   * and the row was long enough that finding the two days somebody actually
-   * reported meant reading twenty chips.
-   *
-   * Now the row is exactly the days that person filed something, newest first,
-   * so every chip leads somewhere.
-   */
-  const allReportedDates = useMemo(
-    () => [...new Set(entries.map((e) => e.report_date))].sort().reverse(),
-    [entries],
-  );
-  const personDates = useMemo(
-    () =>
-      person === "all"
-        ? allReportedDates
-        : [...new Set(entries.filter((e) => e.person === person).map((e) => e.report_date))].sort().reverse(),
-    [entries, person, allReportedDates],
-  );
-
-  /* One day is always selected, because "All dates" is gone. When the choice
-     stops making sense (a different member was picked, and they did not report
-     that day) it falls back to their most recent day rather than showing an
-     empty list under a date they never filed. */
-  useEffect(() => {
-    if (personDates.length === 0) return;
-    if (!personDates.includes(date)) setDate(personDates[0]);
-  }, [personDates, date]);
-
-  const visible = useMemo(
-    () =>
-      [...entries]
-        .sort((a, b) =>
-          a.report_date === b.report_date
-            ? people.indexOf(a.person ?? "") - people.indexOf(b.person ?? "")
-            : b.report_date.localeCompare(a.report_date),
-        )
-        .filter(
-          (e) =>
-            (person === "all" || e.person === person) &&
-            (date === "all" || e.report_date === date) &&
-            (!blockersOnly || e.blockers.length > 0),
-        ),
-    [entries, people, person, date, blockersOnly],
-  );
+  const mineThisMonth = mine.filter((r) => r.report_date.startsWith(today.slice(0, 7))).length;
+  const [showAllMine, setShowAllMine] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   return (
     <div>
-      <PageTour steps={TOUR_STEPS} storageKey={TOUR_KEY} open={tour.open} onClose={tour.close} />
-
       {/* A failed read used to render as a team that reported nothing: every
-          figure on this page reads 0, which is a real and alarming number, and
-          nothing said it was wrong. Two people on two machines saw different
-          totals and neither knew which to believe. */}
+          figure reads 0, which is a real and alarming number. */}
       {eodError && (
         <div className="card mb-3 flex flex-wrap items-center gap-2 border-amber-500/40 bg-amber-500/5 p-2.5 text-[12.5px] text-amber-200">
           <AlertTriangle size={14} className="shrink-0" />
@@ -433,365 +196,373 @@ export default function EodReports() {
       )}
       {eodLoading && <p className="mb-3 text-sm text-faint">Loading reports…</p>}
 
-      <PageHeader
-        title="EOD Reports"
-        subtitle={`Daily end-of-day reporting, submission compliance and blockers · ${fmtDate(dates[0])} – ${fmtDate(
-          dates[dates.length - 1],
-        )} ${(dates[dates.length - 1] ?? today).slice(0, 4)}`}
-        action={
-          <div className="flex shrink-0 items-center gap-2">
-            {myReportForDate && (
-              <span className="pill bg-emerald-500/15 text-emerald-400">
-                {reportDate === today ? "Today's EOD submitted" : `${fmtDate(reportDate)} submitted`}
-              </span>
-            )}
-            <button data-tour="eod-tour-btn" className="btn-ghost border border-border" onClick={tour.replay}>
-              <HelpCircle size={15} />
-              Tour
+      <PageHeader title="EOD reports" />
+
+      {canTeam && (
+        <div className="-mt-2 mb-4 flex gap-5 border-b border-border" role="tablist" aria-label="EOD views">
+          {([["mine", "My report"], ["team", "Team"]] as const).map(([k, l]) => (
+            <button
+              key={k}
+              role="tab"
+              aria-selected={tab === k}
+              onClick={() => setTab(k)}
+              className={cn(
+                "-mb-px border-b-2 pb-2 text-sm font-medium transition-colors",
+                tab === k ? "border-accent text-text" : "border-transparent text-muted hover:text-text",
+              )}
+            >
+              {l}
             </button>
-          </div>
-        }
-      />
-
-      <TodayEod
-        me={me?.name}
-        draft={draft}
-        onChange={editDraft}
-        notes={notes}
-        onNotes={editNotes}
-        existing={myReportForDate}
-        saving={submit.isPending}
-        reportDate={reportDate}
-        today={today}
-        onDateChange={changeReportDate}
-        onSubmit={() =>
-          submit.mutate({
-            person: me?.name ?? "",
-            report_date: reportDate,
-            done: draft.done,
-            blockers: draft.blockers,
-            plans: draft.plans,
-            notes,
-          })
-        }
-        onPushPlan={pushPlanToBoard}
-      />
-
-      {/* ---------------- KPIs ---------------- */}
-      <div data-tour="eod-kpis" className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        {kpis.map((kpi, i) => {
-          const Icon = KPI_ICONS[i];
-          const alert = kpi.label === "Blockers Raised" && stats.totalBlockers > 0;
-          return (
-            <div key={kpi.label} className={cn("card p-4", alert && "border-red-500/40")}>
-              <div className="flex items-center justify-between">
-                <span className="eyebrow">{kpi.label}</span>
-                <Icon size={16} className={KPI_ICON_COLORS[i]} />
-              </div>
-              <p className={cn("display mt-2 text-4xl", alert && "text-red-400")}>{kpi.value}</p>
-              <p className="mt-1 text-[11px] text-faint">{kpi.foot}</p>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Why completion reads low, the single most misread number on this page. */}
-      {activeDates.length > 0 && (
-        <div className="card mt-5 border-accent/40 bg-accent/5 p-4">
-          <p className="text-sm text-muted">
-            Completion counts the days each EA submitted an EOD report this month.
-          </p>
+          ))}
         </div>
       )}
 
-      {/* ---------------- Compliance ---------------- */}
-      <section data-tour="eod-compliance" className="card mt-5 p-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="font-semibold">Submission Compliance</h2>
-          <span className="text-xs text-faint">Dashed marker = best possible this period ({pct(ceiling)})</span>
-        </div>
+      {tab === "team" && canTeam ? (
+        <TeamTab reports={reports} members={members.map((m) => m.name)} today={today} onDelete={(id) => remove.mutateAsync(id)} />
+      ) : (
+        <>
+          <TodayEod
+            me={me?.name}
+            draft={draft}
+            onChange={editDraft}
+            notes={notes}
+            onNotes={editNotes}
+            existing={myReportForDate}
+            saving={submit.isPending}
+            reportDate={reportDate}
+            today={today}
+            onDateChange={changeReportDate}
+            onSubmit={() =>
+              submit.mutate({
+                person: me?.name ?? "",
+                report_date: reportDate,
+                done: draft.done,
+                blockers: draft.blockers,
+                plans: draft.plans,
+                notes,
+              })
+            }
+            onPushPlan={pushPlanToBoard}
+          />
 
-        <div className="space-y-2.5">
-          {people.map((p) => {
-            const s = byPerson[p];
-            const c = s.subs / meta.denominator;
-            return (
-              <div key={p} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[11rem_1fr_4rem]">
-                <span className="truncate text-sm text-muted">{p}</span>
-                <div className="relative order-3 col-span-2 h-2 rounded-full bg-surface-2 sm:order-none sm:col-span-1">
-                  <div className="h-full rounded-full bg-accent" style={{ width: `${c * 100}%` }} />
-                  <span
-                    className="absolute -top-1 -bottom-1 border-l border-dashed border-zinc-400/50"
-                    style={{ left: `${ceiling * 100}%` }}
-                    title={`Best possible this period: ${pct(ceiling)}`}
+          <section className="card mt-4 overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-border px-5 py-3">
+              <h2 className="text-[15px] font-semibold">Your past reports</h2>
+              <span className="ml-auto text-xs text-faint">{mineThisMonth} this month</span>
+            </div>
+            {mine.length === 0 ? (
+              <p className="py-8 text-center text-sm text-faint">Reports you submit will appear here.</p>
+            ) : (
+              <div className="space-y-3 p-4">
+                {(showAllMine ? mine : mine.slice(0, 5)).map((e) => (
+                  <ReportCard
+                    key={e.id}
+                    entry={e}
+                    open={expanded === e.id}
+                    onToggle={() => setExpanded(expanded === e.id ? null : e.id)}
+                    onDelete={() => remove.mutateAsync(e.id)}
                   />
-                </div>
-                <span className="text-right text-xs tabular-nums text-amber-400">{pct(c)}</span>
+                ))}
+                {mine.length > 5 && (
+                  <button className="w-full text-center text-xs font-medium text-accent-soft hover:underline" onClick={() => setShowAllMine(!showAllMine)}>
+                    {showAllMine ? "Show fewer" : `Show all ${mine.length}`}
+                  </button>
+                )}
               </div>
-            );
-          })}
-        </div>
+            )}
+          </section>
+        </>
+      )}
+    </div>
+  );
+}
 
-        <div className="mt-5 overflow-x-auto">
-          <table className="w-full min-w-[46rem] text-sm">
+/* ---------------------------------------------------------------- Team tab */
+
+function TeamTab({
+  reports, members, today, onDelete,
+}: {
+  reports: EodReport[];
+  members: string[];
+  today: string;
+  onDelete: (id: string) => Promise<unknown>;
+}) {
+  /**
+   * Everyone this page measures. Membership is the source of who works here;
+   * reports add names only so a report whose author has left still counts.
+   * Matched case-insensitively so "FJ Caballes" and "fj caballes" can't be two
+   * people.
+   */
+  const people = useMemo(() => {
+    const seen = new Map<string, string>();
+    const add = (raw: string | null | undefined) => {
+      const name = (raw ?? "").trim();
+      const key = name.toLowerCase();
+      if (key && !seen.has(key)) seen.set(key, name);
+    };
+    for (const m of members) add(m);
+    for (const r of reports) add(r.person);
+    return [...seen.values()];
+  }, [members, reports]);
+
+  // Months with anything in them, newest first; this month is always offered.
+  const months = useMemo(() => {
+    const set = new Set<string>([today.slice(0, 7)]);
+    for (const d of EOD_DATES) set.add(d.slice(0, 7));
+    for (const r of reports) set.add(r.report_date.slice(0, 7));
+    return [...set].sort().reverse();
+  }, [reports, today]);
+  // Opens on the newest month that has a report, so the tab isn't all zeros
+  // on the 1st.
+  const [month, setMonth] = useState(() => {
+    const latest = [...reports].map((r) => r.report_date).sort().pop();
+    return (latest ?? today).slice(0, 7);
+  });
+  const [ea, setEa] = useState("all");
+
+  const inMonth = useMemo(() => reports.filter((r) => r.report_date.startsWith(month)), [reports, month]);
+  const scopePeople = ea === "all" ? people : people.filter((p) => p === ea);
+  const scoped = ea === "all" ? inMonth : inMonth.filter((r) => r.person === ea);
+  const expected = scopePeople.length * daysInMonth(month);
+
+  const byPerson = useMemo(() => {
+    const out: Record<string, { subs: number; done: number; blockers: number; plans: number; last: string | null }> = {};
+    for (const p of people) out[p] = { subs: 0, done: 0, blockers: 0, plans: 0, last: null };
+    for (const e of inMonth) {
+      const s = out[e.person ?? ""];
+      if (!s) continue;
+      s.subs += 1;
+      s.done += e.done.length;
+      s.blockers += e.blockers.length;
+      s.plans += e.plans.length;
+      if (!s.last || e.report_date > s.last) s.last = e.report_date;
+    }
+    return out;
+  }, [people, inMonth]);
+
+  const totalDone = scoped.reduce((a, e) => a + e.done.length, 0);
+  const totalBlockers = scoped.reduce((a, e) => a + e.blockers.length, 0);
+  const reporters = scopePeople.filter((p) => byPerson[p]?.subs > 0);
+  const silent = scopePeople.filter((p) => !byPerson[p]?.subs);
+  const ranked = [...reporters].sort((a, b) => byPerson[b].subs - byPerson[a].subs);
+
+  const kpis = [
+    { label: "Reports submitted", value: String(scoped.length), foot: `from ${reporters.length} of ${scopePeople.length} EAs` },
+    {
+      label: "Submission rate",
+      value: pct(expected ? scoped.length / expected : 0),
+      foot: `${scoped.length} of ${expected} expected`,
+      // Was a banner above the table; now the tooltip on the number it explains.
+      tip: "Counts the days each EA submitted an EOD report this month, out of every day in the month.",
+    },
+    { label: "Tasks completed", value: String(totalDone), foot: `${scoped.length ? (totalDone / scoped.length).toFixed(1) : "0"} per report` },
+    { label: "Blockers raised", value: String(totalBlockers), foot: `in ${scoped.filter((e) => e.blockers.length).length} reports`, alert: totalBlockers > 0 },
+  ];
+
+  // Coverage: each day of the month so far.
+  const days = useMemo(() => daysOf(month, today), [month, today]);
+  const submitted = useMemo(() => new Set(inMonth.map((r) => `${r.person}|${r.report_date}`)), [inMonth]);
+  const cell = (p: string, d: string): Cell =>
+    submitted.has(`${p}|${d}`) ? "submitted" : isWeekend(d) ? "weekend" : EOD_DATA.matrix[`${p}|${d}`] ?? "empty";
+
+  // ---- Reports: three dropdowns instead of two rows of chips ----
+  const [person, setPerson] = useState("all");
+  useEffect(() => setPerson(ea), [ea]);
+  const [date, setDate] = useState("all");
+  const [blockersOnly, setBlockersOnly] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const reportedPeople = people.filter((p) => byPerson[p]?.subs > 0);
+  const personDates = useMemo(
+    () => [...new Set(inMonth.filter((e) => person === "all" || e.person === person).map((e) => e.report_date))].sort().reverse(),
+    [inMonth, person],
+  );
+  // Newest day by default; falls back when the choice stops making sense.
+  useEffect(() => {
+    if (personDates.length && date !== "all" && !personDates.includes(date)) setDate(personDates[0]);
+  }, [personDates, date]);
+  useEffect(() => setDate(personDates[0] ?? "all"), [month]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const visible = useMemo(
+    () =>
+      [...inMonth]
+        .sort((a, b) =>
+          a.report_date === b.report_date
+            ? people.indexOf(a.person ?? "") - people.indexOf(b.person ?? "")
+            : b.report_date.localeCompare(a.report_date),
+        )
+        .filter(
+          (e) =>
+            (person === "all" || e.person === person) &&
+            (date === "all" || e.report_date === date) &&
+            (!blockersOnly || e.blockers.length > 0),
+        ),
+    [inMonth, people, person, date, blockersOnly],
+  );
+
+  const monthLabel = (m: string) => `${MONTHS_LONG[Number(m.slice(5)) - 1]} ${m.slice(0, 4)}`;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        <select className="input w-auto" value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Month">
+          {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+        </select>
+        <select className="input w-auto" value={ea} onChange={(e) => setEa(e.target.value)} aria-label="EA">
+          <option value="all">All EAs</option>
+          {people.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
+      </div>
+
+      {/* Four stats in one strip. */}
+      <div className="card grid grid-cols-2 overflow-hidden lg:grid-cols-4">
+        {kpis.map((k) => (
+          <div key={k.label} className="-mb-px -mr-px border-b border-r border-border px-4 py-3.5" title={k.tip}>
+            <span className="block text-xs text-muted">
+              {k.label}
+              {k.tip && <span className="ml-1 cursor-help text-faint" aria-label={k.tip}>ⓘ</span>}
+            </span>
+            <span className={cn("mt-1 block text-[22px] font-semibold leading-tight tabular-nums", k.alert && "text-red-500")}>{k.value}</span>
+            <span className="block text-[11px] text-faint">{k.foot}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* By EA: the rate bar lives in the table. */}
+      <section className="card overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-border px-5 py-3">
+          <h2 className="text-[15px] font-semibold">By EA</h2>
+          <span className="ml-auto text-xs text-faint">Sorted by submission rate</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[40rem] text-sm">
             <thead>
-              <tr className="border-b border-border text-left">
-                <th className="eyebrow py-2 pr-3 font-semibold">EA</th>
-                <th className="eyebrow py-2 px-3 text-right font-semibold">Submissions</th>
-                <th className="eyebrow py-2 px-3 text-right font-semibold">Completion</th>
-                <th className="eyebrow py-2 px-3 text-right font-semibold">Tasks done</th>
-                <th className="eyebrow py-2 px-3 text-right font-semibold">Blockers</th>
-                <th className="eyebrow py-2 px-3 text-right font-semibold">Plans</th>
-                <th className="eyebrow py-2 px-3 text-right font-semibold">Avg / report</th>
-                <th className="eyebrow py-2 pl-3 font-semibold">First → last</th>
+              <tr className="border-b border-border text-left text-xs text-muted">
+                <th className="px-5 py-2 font-medium">EA</th>
+                <th className="px-3 py-2 text-right font-medium">Reports</th>
+                <th className="px-3 py-2 font-medium">Submission rate</th>
+                <th className="px-3 py-2 text-right font-medium">Tasks done</th>
+                <th className="px-3 py-2 text-right font-medium">Blockers</th>
+                <th className="px-3 py-2 text-right font-medium">Plans</th>
+                <th className="px-5 py-2 font-medium">Last report</th>
               </tr>
             </thead>
             <tbody>
-              {people.map((p) => {
+              {ranked.map((p) => {
                 const s = byPerson[p];
-                const days = [...s.days].sort();
+                const rate = s.subs / daysInMonth(month);
                 return (
-                  <tr key={p} className="border-b border-border/60 last:border-0">
-                    <td className="py-2.5 pr-3 font-medium">{p}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{s.subs}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums text-amber-400">{pct(s.subs / meta.denominator)}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{s.done}</td>
-                    <td className={cn("py-2.5 px-3 text-right tabular-nums", s.blockers > 0 && "text-red-400")}>{s.blockers}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{s.plans}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{s.subs ? (s.done / s.subs).toFixed(1) : "0"}</td>
-                    <td className="py-2.5 pl-3 text-xs text-faint">
-                      {days.length ? `${fmtDate(days[0])} → ${fmtDate(days[days.length - 1])}` : "-"}
+                  <tr key={p} className="border-b border-border last:border-0">
+                    <td className="px-5 py-2.5 font-medium">{p}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{s.subs}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 w-28 overflow-hidden rounded-full bg-surface-2">
+                          <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(100, rate * 100)}%` }} />
+                        </div>
+                        <span className="w-9 text-right text-xs tabular-nums text-muted">{pct(rate)}</span>
+                      </div>
                     </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{s.done}</td>
+                    <td className={cn("px-3 py-2.5 text-right tabular-nums", s.blockers > 0 && "text-red-500")}>{s.blockers}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{s.plans}</td>
+                    <td className="px-5 py-2.5 text-xs text-muted">{fmtDate(s.last ?? undefined)}</td>
                   </tr>
                 );
               })}
+              {ranked.length === 0 && (
+                <tr><td colSpan={7} className="px-5 py-6 text-center text-sm text-faint">No reports in {monthLabel(month)}.</td></tr>
+              )}
             </tbody>
-            <tfoot>
-              <tr className="border-t border-border font-semibold">
-                <td className="py-2.5 pr-3">Team total</td>
-                <td className="py-2.5 px-3 text-right tabular-nums">{stats.totalSubs}</td>
-                <td className="py-2.5 px-3 text-right tabular-nums text-amber-400">{pct(teamCompletion)}</td>
-                <td className="py-2.5 px-3 text-right tabular-nums">{stats.totalDone}</td>
-                <td className="py-2.5 px-3 text-right tabular-nums">{stats.totalBlockers}</td>
-                <td className="py-2.5 px-3 text-right tabular-nums">{stats.totalPlans}</td>
-                <td className="py-2.5 px-3 text-right tabular-nums">{avg(stats.totalDone)}</td>
-                <td className="py-2.5 pl-3 text-xs font-normal text-faint">
-                  {fmtDate(activeDates[0])} → {fmtDate(activeDates[activeDates.length - 1])}
-                </td>
-              </tr>
-            </tfoot>
           </table>
         </div>
+        {/* Everyone at zero on one line rather than a row each. */}
+        {silent.length > 0 && (
+          <p className="border-t border-border px-5 py-2.5 text-xs text-faint">
+            {silent.length} {silent.length === 1 ? "EA" : "EAs"} with no reports this month: {silent.join(", ")}
+          </p>
+        )}
       </section>
 
-      {/* ---------------- Daily submissions + coverage ---------------- */}
-      <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <section className="card p-5">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="font-semibold">Submissions Per Day</h2>
-            <span className="text-xs text-faint">
-              Peak {maxDay} · {activeDates.length} of {dates.length} dates active
-            </span>
-          </div>
-          <div className="flex h-44 items-end gap-1 overflow-x-auto pt-4">
-            {dates.map((d) => {
-              const v = byDate[d];
-              return (
-                <div
-                  key={d}
-                  className="flex h-full min-w-[1.4rem] flex-1 flex-col items-center justify-end gap-1.5"
-                  title={`${fmtDate(d)}: ${v} submission${v === 1 ? "" : "s"}`}
-                >
-                  <span className="text-[10px] tabular-nums text-muted">{v || ""}</span>
-                  <div
-                    className={cn("w-full rounded-t", v ? "bg-accent" : "bg-surface-2")}
-                    style={{ height: `${Math.max((v / maxDay) * 100, 2)}%` }}
-                  />
-                  <span className={cn("text-[9px] [writing-mode:vertical-rl] rotate-180", isWeekend(d) ? "text-faint/40" : "text-faint")}>
-                    {fmtDate(d)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="card p-5">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="font-semibold">Coverage</h2>
-            <span className="text-xs text-faint">Every day this month</span>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <section className="card min-w-0 p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <h2 className="text-[15px] font-semibold">Coverage</h2>
+            <span className="ml-auto text-xs text-faint">{days.length ? `${fmtDate(days[0])} – ${fmtDate(days[days.length - 1])}` : ""}</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[34rem] border-separate border-spacing-[2px]">
-              <thead>
-                <tr>
-                  <th />
-                  {dates.map((d) => (
-                    <th key={d} className="pb-1 text-[8px] font-normal text-faint">
-                      {d.slice(8)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
+            <table className="border-separate border-spacing-[2px]">
               <tbody>
-                {people.map((p) => (
+                {scopePeople.map((p) => (
                   <tr key={p}>
-                    <th className="pr-2 text-right text-[11px] font-normal text-muted whitespace-nowrap">{p.split(" ")[0]}</th>
-                    {dates.map((d) => {
-                      const st = matrix[`${p}|${d}`];
+                    <th className="whitespace-nowrap pr-2 text-left text-[11px] font-normal text-muted">{p.split(" ")[0]}</th>
+                    {days.map((d) => {
+                      const st = cell(p, d);
                       return (
                         <td key={d}>
-                          <span
-                            className={cn("block h-4 rounded-sm", CELL_STYLES[st])}
-                            title={`${p} · ${fmtDate(d)} · ${CELL_LABELS[st]}`}
-                          />
+                          <span className={cn("block h-3.5 w-3.5 rounded-[3px]", CELL_STYLES[st])} title={`${p} · ${fmtDate(d)} · ${CELL_LABELS[st]}`} />
                         </td>
                       );
                     })}
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr>
+                  <th />
+                  {days.map((d, i) => (
+                    <td key={d} className="text-center text-[9px] text-faint">{i % 7 === 0 ? Number(d.slice(8)) : ""}</td>
+                  ))}
+                </tr>
+              </tfoot>
             </table>
           </div>
-          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-faint">
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-accent" />
-              Submitted ({counts.submitted})
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm border border-amber-500/40 bg-amber-500/20" />
-              Not submitted ({counts.template})
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm border border-border bg-surface-2" />
-              Empty ({counts.empty})
-            </span>
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-faint">
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-accent" /> Submitted</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-surface-2" /> Missed</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] border border-border" /> Weekend</span>
+          </div>
+        </section>
+
+        <section className="card min-w-0 p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <h2 className="text-[15px] font-semibold">Reports</h2>
+            <span className="ml-auto text-xs text-faint">{visible.length} shown</span>
+          </div>
+          <div className="mb-3 flex flex-wrap gap-2">
+            <select className="input h-8 w-auto py-0 text-xs" value={person} onChange={(e) => setPerson(e.target.value)} aria-label="Whose reports">
+              <option value="all">All EAs</option>
+              {reportedPeople.map((p) => <option key={p} value={p}>{p} ({byPerson[p].subs})</option>)}
+            </select>
+            <select className="input h-8 w-auto py-0 text-xs" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Report date">
+              <option value="all">All dates</option>
+              {personDates.map((d) => <option key={d} value={d}>{fmtDate(d)}</option>)}
+            </select>
+            <select className="input h-8 w-auto py-0 text-xs" value={blockersOnly ? "blockers" : "all"} onChange={(e) => setBlockersOnly(e.target.value === "blockers")} aria-label="Blockers">
+              <option value="all">All reports</option>
+              <option value="blockers">With blockers only</option>
+            </select>
+          </div>
+          <div className="space-y-3">
+            {visible.map((e) => (
+              <ReportCard
+                key={e.id}
+                entry={e}
+                open={expanded === e.id}
+                onToggle={() => setExpanded(expanded === e.id ? null : e.id)}
+                onDelete={() => onDelete(e.id)}
+              />
+            ))}
+            {visible.length === 0 && <p className="py-8 text-center text-xs text-faint">No reports match these filters</p>}
           </div>
         </section>
       </div>
-
-      {/* The standalone "Blockers Raised" feed lived here and is gone. It was
-          the same blockers a second time, stripped of the report they came
-          from: the same paragraph appeared once in the feed and again inside
-          its report card lower down, and the copy in the feed was the less
-          useful one, because a blocker without the day's other work beside it
-          cannot be judged. Blockers now appear once, in the report that raised
-          them, with "With blockers" as the way to find them. */}
-
-      {/* ---------------- Report browser ---------------- */}
-      <section data-tour="eod-reports" className="card mt-5 p-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="font-semibold">Every Report</h2>
-          <span className="text-xs text-faint">
-            <strong className="text-zinc-100">{visible.length}</strong> shown
-          </span>
-        </div>
-
-        <div className="space-y-3 border-b border-border pb-4">
-          <div className="flex flex-wrap gap-1.5">
-            <FilterChip active={person === "all"} onClick={() => setPerson("all")}>
-              All EAs
-            </FilterChip>
-            {reportedPeople.map((p) => (
-              <FilterChip key={p} active={person === p} onClick={() => setPerson(p)}>
-                {p.split(" ")[0]} <span className="opacity-60">{byPerson[p].subs}</span>
-              </FilterChip>
-            ))}
-            {reportedPeople.length === 0 && (
-              <span className="self-center text-xs text-faint">
-                Nobody has submitted a report yet. Names appear here as reports come in.
-              </span>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {/* Newest first. A report browser is nearly always opened to read
-                the latest one, and having to walk to the end of the row to
-                reach it was backwards. */}
-            {personDates.map((d) => (
-              <FilterChip key={d} active={date === d} onClick={() => setDate(d)}>
-                {fmtDate(d)}
-              </FilterChip>
-            ))}
-            {personDates.length === 0 && (
-              <span className="text-xs text-faint">
-                {person === "all" ? "No reports yet" : `${person.split(" ")[0]} has not submitted a report yet`}
-              </span>
-            )}
-            <span className="mx-1 h-4 w-px bg-border" />
-            <FilterChip active={blockersOnly} onClick={() => setBlockersOnly(!blockersOnly)}>
-              With blockers
-            </FilterChip>
-            <button
-              className="ml-auto text-xs text-accent-soft hover:underline"
-              onClick={() => {
-                setPerson("all");
-                /* The newest day ANYBODY reported, not the newest day the
-                   member being reset away from reported. Reset that lands you
-                   on one person's last Tuesday is not a reset. */
-                setDate(allReportedDates[0] ?? "all");
-                setBlockersOnly(false);
-              }}
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-3">
-          {visible.map((e) => (
-            <ReportCard
-              key={e.id}
-              entry={e}
-              open={expanded === e.id}
-              onToggle={() => setExpanded(expanded === e.id ? null : e.id)}
-              onDelete={() => remove.mutateAsync(e.id)}
-            />
-          ))}
-          {visible.length === 0 && <p className="py-8 text-center text-xs text-faint">No reports match these filters</p>}
-        </div>
-      </section>
-
-      {/* ---------------- Kanban metrics (live) ---------------- */}
-      <section className="card mt-5 p-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="font-semibold">Task Metrics</h2>
-          <Link to="/tasks" className="text-xs text-accent-soft hover:underline">
-            Open Task Manager →
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {[
-            { label: "Total Tasks", value: kanban.total, foot: "on the board" },
-            { label: "Open Tasks", value: kanban.open, foot: "not yet done" },
-            { label: "Blocked", value: kanban.blocked, foot: "flagged blocked" },
-            { label: "Completion Rate", value: pct(kanban.rate), foot: "done ÷ total" },
-          ].map((k) => (
-            <div key={k.label} className="rounded-lg bg-surface-2 p-4">
-              <span className="eyebrow">{k.label}</span>
-              <p className={cn("display mt-1.5 text-3xl", k.label === "Blocked" && kanban.blocked > 0 && "text-red-400")}>{k.value}</p>
-              <p className="mt-1 text-[11px] text-faint">{k.foot}</p>
-            </div>
-          ))}
-        </div>
-
-        {kanban.total === 0 && (
-          <div className="py-8 text-center">
-            <p className="text-sm text-muted">No tasks on the board yet</p>
-            <p className="mx-auto mt-1 max-w-md text-xs text-faint">
-              These figures come live from the Task Manager. Add a task and it counts here,
-              and lands in your EOD draft by itself.
-            </p>
-          </div>
-        )}
-      </section>
     </div>
   );
 }
 
 /**
- * Today's report, drafted from the Kanban. Each line is editable and removable,
- * the board gets you 90% there, you fix the rest and submit.
+ * Your report for one day, drafted from the board. Three sections side by
+ * side, each with its own "Add item" (deck slide 7).
  */
 function TodayEod({
   me,
@@ -820,7 +591,6 @@ function TodayEod({
   onSubmit: () => void;
   onPushPlan: (title: string) => void;
 }) {
-  const [open, setOpen] = useState(!existing);
   const total = draft.done.length + draft.blockers.length + draft.plans.length;
   const isToday = reportDate === today;
 
@@ -833,149 +603,80 @@ function TodayEod({
   })();
 
   if (!me) {
-    return (
-      <div className="card mt-5 p-4 text-xs text-faint">
-        Sign in to draft and submit your end-of-day report.
-      </div>
-    );
+    return <div className="card p-4 text-xs text-faint">Sign in to draft and submit your end-of-day report.</div>;
   }
 
   return (
-    <section data-tour="eod-today" className="card mt-5 overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-2 px-5 py-3 text-left hover:bg-surface-2/40"
-      >
-        <Sparkles size={15} className="shrink-0 text-accent" />
-        <span className="text-sm font-medium">
-          {existing
-            ? isToday ? "Your EOD for today" : `Your EOD for ${fmtDate(reportDate)}`
-            : isToday ? "Draft today's EOD" : `Draft EOD for ${fmtDate(reportDate)}`}
-        </span>
-        <span className="pill bg-surface-2 text-faint">
-          {total} {total === 1 ? "task" : "tasks"} from your board
-        </span>
-        {existing && <Badge tone="done">Submitted</Badge>}
-        {!isToday && !existing && <Badge tone="high">Catching up</Badge>}
-        <span className="ml-auto text-faint">{open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</span>
-      </button>
-
-      {open && (
-        <div className="space-y-4 border-t border-border px-5 py-4">
-          {/* Which day this report is for. Lets someone who fell behind file for a
-              missed day instead of being locked to today. */}
-          <div className="flex flex-wrap items-end gap-3 rounded-lg bg-surface-2 p-3">
-            <div>
-              <label className="field-label" htmlFor="eod-date">Report for</label>
-              <input
-                id="eod-date"
-                type="date"
-                className="input py-1.5"
-                value={reportDate}
-                max={today}
-                onChange={(e) => e.target.value && onDateChange(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-1.5 pb-0.5">
-              <button
-                type="button"
-                onClick={() => onDateChange(today)}
-                className={cn(
-                  "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                  isToday ? "border-accent bg-accent/15 text-accent-soft" : "border-border text-muted hover:text-zinc-100",
-                )}
-              >
-                Today
-              </button>
-              <button
-                type="button"
-                onClick={() => onDateChange(yesterday)}
-                className={cn(
-                  "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                  reportDate === yesterday
-                    ? "border-accent bg-accent/15 text-accent-soft"
-                    : "border-border text-muted hover:text-zinc-100",
-                )}
-              >
-                Yesterday
-              </button>
-            </div>
-            <p className="ml-auto max-w-xs text-[11px] text-faint">
-              {existing
-                ? "You already submitted this day. Submitting again updates it."
-                : isToday
-                  ? "Submitting for today."
-                  : "Catching up on a missed day. Future dates aren't allowed."}
-            </p>
-          </div>
-
-          <p className="text-xs text-faint">
-            Pulled from your tasks: {isToday ? "done today" : `done on ${fmtDate(reportDate)}`}, blocked, and
-            still open. Edit anything, then submit.
-          </p>
-
-          <DraftList
-            title={isToday ? "Done today" : `Done on ${fmtDate(reportDate)}`}
-            items={draft.done}
-            dot="bg-emerald-400"
-            empty={isToday ? "Nothing marked done today. Move tasks to Done on the board, or add a line." : "Nothing marked done on this date. Add what you did."}
-            onChange={(done) => onChange({ ...draft, done })}
-          />
-          <DraftList
-            title="Blockers"
-            items={draft.blockers}
-            dot="bg-red-400"
-            empty="No blocked tasks. Flag a task as blocked, or add a blocker here."
-            onChange={(blockers) => onChange({ ...draft, blockers })}
-          />
-          <DraftList
-            title="Plan for tomorrow"
-            items={draft.plans}
-            dot="bg-amber-400"
-            empty="No open tasks assigned to you."
-            onChange={(plans) => onChange({ ...draft, plans })}
-            onPush={onPushPlan}
-            pushLabel="Add to board"
-          />
-
-          <div data-tour="eod-notes">
-            <label className="field-label" htmlFor="eod-notes">
-              Notes (things that aren't tasks)
-            </label>
-            <textarea
-              id="eod-notes"
-              className="input min-h-[70px]"
-              placeholder="e.g. Attended the Monday meeting; the client's subscription is still down"
-              value={notes}
-              onChange={(e) => onNotes(e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button className="btn-primary" onClick={onSubmit} disabled={saving || total === 0}>
-              <Send size={14} />
-              {saving ? "Submitting…" : existing ? "Update this report" : "Submit EOD"}
-            </button>
-            {existing && <span className="text-xs text-faint">Submitting again corrects this report.</span>}
-            {total === 0 && !existing && <span className="text-xs text-faint">Add at least one line to submit.</span>}
-          </div>
+    <section data-tour="eod-today" className="card p-5">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <h2 className="text-[15px] font-semibold">Report for {fmtLong(reportDate)}</h2>
+        <div className="flex gap-0.5 rounded-lg bg-surface-2 p-0.5">
+          <button type="button" className={segBtn(isToday)} aria-pressed={isToday} onClick={() => onDateChange(today)}>Today</button>
+          <button type="button" className={segBtn(reportDate === yesterday)} aria-pressed={reportDate === yesterday} onClick={() => onDateChange(yesterday)}>Yesterday</button>
         </div>
-      )}
-    </section>
-  );
-}
+        {/* Any earlier day, for catching up on one that was missed. */}
+        <input
+          type="date"
+          aria-label="Report for another day"
+          className="input h-8 w-auto py-0 text-xs"
+          value={reportDate}
+          max={today}
+          onChange={(e) => e.target.value && onDateChange(e.target.value)}
+        />
+        {existing && <Badge tone="done">Submitted</Badge>}
+        <span className="ml-auto text-xs text-faint">Pre-filled from your task board</span>
+      </div>
 
-function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-        active ? "border-accent bg-accent/15 text-accent-soft" : "border-border text-muted hover:bg-surface-2 hover:text-zinc-100",
-      )}
-    >
-      {children}
-    </button>
+      <div className="grid gap-3 md:grid-cols-3">
+        <DraftList
+          boxed
+          title={isToday ? "Completed today" : `Completed on ${fmtDate(reportDate)}`}
+          items={draft.done}
+          dot="bg-emerald-400"
+          empty={isToday ? "No tasks moved to Done today." : "No tasks marked done on this date."}
+          onChange={(done) => onChange({ ...draft, done })}
+        />
+        <DraftList
+          boxed
+          title="Blockers"
+          items={draft.blockers}
+          dot="bg-red-400"
+          empty="No blocked tasks."
+          onChange={(blockers) => onChange({ ...draft, blockers })}
+        />
+        <DraftList
+          boxed
+          title="Plan for tomorrow"
+          items={draft.plans}
+          dot="bg-amber-400"
+          empty="No open tasks assigned to you."
+          onChange={(plans) => onChange({ ...draft, plans })}
+          onPush={onPushPlan}
+          pushLabel="Add to board"
+        />
+      </div>
+
+      <div data-tour="eod-notes" className="mt-4">
+        <label className="field-label" htmlFor="eod-notes">Notes (optional)</label>
+        <textarea
+          id="eod-notes"
+          className="input min-h-[70px]"
+          placeholder="Anything that isn't a task, e.g. attended the Monday client meeting"
+          value={notes}
+          onChange={(e) => onNotes(e.target.value)}
+        />
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button className="btn-primary" onClick={onSubmit} disabled={saving || total === 0}>
+          <Send size={14} />
+          {saving ? "Submitting…" : existing ? "Update report" : "Submit report"}
+        </button>
+        {existing && <span className="text-xs text-faint">Submitting again updates this report.</span>}
+        {total === 0 && !existing && <span className="text-xs text-faint">Add at least one item to submit.</span>}
+        {!isToday && !existing && <span className="text-xs text-faint">Catching up on a missed day.</span>}
+      </div>
+    </section>
   );
 }
 
@@ -1093,7 +794,7 @@ function ReportCard({
       </div>
 
       <div className="space-y-4 px-4 py-3">
-        <Section title="Done today" items={entry.done} dot="bg-emerald-400" collapsed={!full} />
+        <Section title="Completed today" items={entry.done} dot="bg-emerald-400" collapsed={!full} />
         <Section title="Blockers" items={entry.blockers} dot="bg-red-400" collapsed={!full} />
         <Section title="Plan for tomorrow" items={entry.plans} dot="bg-amber-400" collapsed={!full} />
         {entry.notes?.trim() && (

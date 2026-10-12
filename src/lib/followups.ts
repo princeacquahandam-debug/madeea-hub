@@ -122,7 +122,7 @@ export function findFollowUps(
       itemId: t.id,
       title: t.title,
       subtitle: noClient ? "No client" : t.client_name,
-      reason: `No update in ${days} ${plural(days)}`,
+      reason: `Last update ${days} ${plural(days)} ago`,
       days,
       path: "/tasks",
     });

@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Play, Square, CameraOff } from "lucide-react";
-import { entrySeconds, useTimeEntries, useTimeMutations, useEffectiveTimeSettings } from "@/data/hooks";
+import { entrySeconds, useClients, useTimeEntries, useTimeMutations, useEffectiveTimeSettings } from "@/data/hooks";
 import { useMonitoringContext } from "@/store/monitoringContext";
 import { useClockGate } from "@/components/ClockGates";
 import { useNow } from "@/hooks/useNow";
@@ -27,6 +27,8 @@ export function ClockControl() {
   const { data: settings } = useEffectiveTimeSettings();
 
   const running = entries.find((e) => !e.ended_at);
+  const { data: clients = [] } = useClients();
+  const clientName = running?.client_id ? clients.find((c) => c.id === running.client_id)?.name ?? null : null;
   const now = useNow(running ? 1000 : null);
 
   /**
@@ -53,7 +55,8 @@ export function ClockControl() {
     if (!running) return "Clock in";
     const s = entrySeconds(running, now);
     const p = (n: number) => String(n).padStart(2, "0");
-    return `${p(Math.floor(s / 3600))}:${p(Math.floor((s % 3600) / 60))}`;
+    // Live, to the second (deck slide 9: "2:14:05").
+    return `${Math.floor(s / 3600)}:${p(Math.floor((s % 3600) / 60))}:${p(s % 60)}`;
   })();
 
   /**
@@ -81,10 +84,8 @@ export function ClockControl() {
     <div className="flex items-center gap-1.5">
       <button
         className={cn(
-          "flex h-10 items-center gap-1.5 rounded-xl border px-3 text-sm font-bold transition-colors",
-          running
-            ? "border-emerald-500/60 text-emerald-400 hover:bg-emerald-500/10"
-            : "border-border text-muted hover:bg-[var(--chip-bg)] hover:text-text",
+          "flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-sm font-medium transition-colors hover:bg-[var(--chip-bg)]",
+          running ? "text-text" : "text-text",
         )}
         onClick={() => (running ? gate.requestClockOut(running) : gate.requestClockIn())}
         // Right-click / long-press goes to the full timesheet rather than
@@ -94,8 +95,20 @@ export function ClockControl() {
         title={running ? "Clock out. Right-click for the timesheet" : "Clock in. Attendance is recorded from this."}
         aria-label={running ? "Clock out" : "Clock in"}
       >
-        {running ? <Square size={15} /> : <Play size={15} />}
-        <span className={cn("whitespace-nowrap tabular-nums", !running && "hidden sm:inline")}>{label}</span>
+        {running ? (
+          <>
+            {/* The live dot stays green in both themes (slide 14). */}
+            <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
+            <span className="whitespace-nowrap font-semibold tabular-nums">{label}</span>
+            <span className="hidden max-w-[9rem] truncate text-muted lg:inline">· {clientName ?? "No client"}</span>
+            <Square size={13} className="shrink-0 text-muted" aria-hidden="true" />
+          </>
+        ) : (
+          <>
+            <Play size={14} />
+            <span className="hidden whitespace-nowrap sm:inline">{label}</span>
+          </>
+        )}
       </button>
 
       {notCapturing && (

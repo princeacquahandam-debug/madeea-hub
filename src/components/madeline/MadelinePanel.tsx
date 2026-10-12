@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { ArrowUp, Check, CheckSquare, Copy, PanelRightClose, Paperclip, RotateCcw, Sparkles, ThumbsDown, ThumbsUp, X } from "lucide-react";
-import { Orb } from "@/components/layout/Orb";
+import { ArrowUp, Check, CheckSquare, Copy, History, Paperclip, Sparkles, SquarePen, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { MadelineHistory } from "./MadelineHistory";
 import { ResultCard } from "@/components/command-center/ResultCard";
 import { ConfirmDialog } from "@/components/command-center/ConfirmDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -109,16 +109,22 @@ function pageActions(
 }
 
 /**
- * The one Madeline panel. Docked beside the page on wide screens, sliding over
- * it below xl. Same component, same conversation, either way: the old rail and
- * floating bubble were two assistants with two histories, and crossing 1280px
- * swapped one for the other mid-conversation.
+ * The one Madeline panel. Since 12 Oct 2026 (UI review deck slides 10-11) a
+ * floating 400x640 panel above the orange button bottom-right, on every page,
+ * instead of a rail docked beside the page. Full screen on a phone. Two views
+ * in the same panel: the conversation, and the chat history (the clock icon
+ * switches between them).
  */
 export function MadelinePanel() {
   const open = useMadeline((s) => s.open);
   const setOpen = useMadeline((s) => s.setOpen);
   const turns = useMadeline((s) => s.turns);
   const clearTurns = useMadeline((s) => s.clearTurns);
+  const view = useMadeline((s) => s.view);
+  const setView = useMadeline((s) => s.setView);
+  const chats = useMadeline((s) => s.chats);
+  const currentChatId = useMadeline((s) => s.currentChatId);
+  const chatTitle = chats.find((c) => c.id === currentChatId)?.title;
   const draft = useMadeline((s) => s.draft);
   const setDraft = useMadeline((s) => s.setDraft);
   const focusToken = useMadeline((s) => s.focusToken);
@@ -161,15 +167,16 @@ export function MadelinePanel() {
     el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
   }, [draft, open]);
 
-  // Esc closes the slide-over. Docked on xl it stays, like any sidebar.
+  // Esc closes the panel (deck slide 10). From the history it goes back first.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !pendingConfirm && window.innerWidth < 1280) setOpen(false);
+      if (e.key !== "Escape" || pendingConfirm) return;
+      if (useMadeline.getState().view === "history") setView("chat"); else setOpen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, pendingConfirm, setOpen]);
+  }, [open, pendingConfirm, setOpen, setView]);
 
   if (!open) return null;
 
@@ -193,47 +200,54 @@ export function MadelinePanel() {
      clicks at exactly the moment it has the open task as context. */
   return createPortal(
     <>
-      {/* Below xl the panel covers the page, so the page dims and a tap outside closes it. */}
-      <div className="fixed inset-0 z-[84] bg-black/50 xl:hidden" onClick={() => setOpen(false)} aria-hidden="true" />
-
       {/* z-[85] sits above page modals (z-[80]), so Madeline stays usable with a
-          task or client open. That's exactly when it has something as context. */}
+          task or client open. That's exactly when it has something as context.
+          Floating above the button (28px from the corner, 56px tall); full
+          screen on a phone. A stronger shadow in dark so it lifts off the page. */}
       <aside
         className={cn(
-          "fixed right-0 z-[85] flex flex-col border-l border-border p-4 backdrop-blur-lg",
-          "top-0 h-full w-full sm:w-[380px]",
-          "xl:top-[66px] xl:h-[calc(100vh-66px)] xl:w-[340px]",
+          "fixed z-[85] flex flex-col overflow-hidden bg-surface p-4 shadow-2xl",
+          "inset-0 sm:inset-auto sm:bottom-[100px] sm:right-7 sm:h-[min(640px,calc(100vh-120px))] sm:w-[400px] sm:rounded-2xl sm:border sm:border-border",
+          "dark:shadow-black/60",
         )}
-        style={{ background: "var(--glass)", animation: "slideInChip 0.3s cubic-bezier(0.22,1,0.36,1)" }}
+        style={{ animation: "cc-scale-in 0.18s cubic-bezier(0.22,1,0.36,1)" }}
+        role="dialog"
         aria-label="Madeline"
       >
-        {/* Header */}
-        <div className="flex items-center gap-3 border-b border-border pb-3">
-          <Orb size={40} />
+        {view === "history" ? <MadelineHistory onClose={() => setOpen(false)} /> : <>
+        {/* Header: the chat's title (named from its first question) + history, new chat, close. */}
+        <div className="flex items-center gap-2.5 border-b border-border pb-3">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--nav-active-bg)] text-accent" aria-hidden="true"><Sparkles size={16} /></span>
           <div className="min-w-0 flex-1">
-            <p className="text-base font-extrabold tracking-tight">Madeline</p>
-            <p className="truncate text-xs font-semibold text-accent" title={`You're on ${pageLabel}`}>
-              On {pageLabel}
+            <p className="truncate text-sm font-bold">{turns.length && chatTitle ? chatTitle : "Madeline"}</p>
+            <p className="truncate text-xs text-muted" title={`You're on ${pageLabel}`}>
+              {turns.length && turns[0].at ? `Madeline · ${dayWord(turns[0].at)}` : `On ${pageLabel}`}
             </p>
           </div>
-          {turns.length > 0 && (
-            <button
-              onClick={clearTurns}
-              title="New conversation"
-              aria-label="Start a new conversation"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
-            >
-              <RotateCcw size={16} />
-            </button>
-          )}
+          <button
+            onClick={() => setView("history")}
+            title="Chat history"
+            aria-label="Chat history"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
+          >
+            <History size={16} />
+          </button>
+          <button
+            onClick={clearTurns}
+            disabled={!turns.length}
+            title="New chat"
+            aria-label="New chat"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text disabled:opacity-40"
+          >
+            <SquarePen size={16} />
+          </button>
           <button
             onClick={() => setOpen(false)}
-            title="Close"
+            title="Close (Esc)"
             aria-label="Close Madeline"
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
           >
-            <PanelRightClose size={18} className="hidden xl:block" />
-            <X size={18} className="xl:hidden" />
+            <X size={18} />
           </button>
         </div>
 
@@ -319,6 +333,7 @@ export function MadelinePanel() {
           </button>
         </form>
 
+        </>}
         {pendingConfirm && (
           <ConfirmDialog label={pendingConfirm.label} onConfirm={pendingConfirm.onConfirm} onCancel={pendingConfirm.onCancel} />
         )}
@@ -333,13 +348,13 @@ function TurnView({ turn, onNavigate }: { turn: MadelineTurn; onNavigate: (path:
     <>
       <div className="flex max-w-[88%] flex-col items-end gap-1 self-end">
         {turn.about && <span className="truncate text-[10.5px] font-semibold text-faint">About {turn.about}</span>}
-        <div className="whitespace-pre-wrap rounded-[14px_14px_4px_14px] bg-accent px-3.5 py-2.5 text-[13px] leading-relaxed text-white">
+        <div className="whitespace-pre-wrap rounded-[14px_14px_4px_14px] bg-[var(--nav-active-bg)] px-3.5 py-2.5 text-[13px] leading-relaxed text-[color:var(--nav-active-text)]">
           {turn.prompt}
         </div>
       </div>
       {turn.status === "running" && (
         <div className="flex items-start gap-2 self-start">
-          <span className="madeline-orb madeline-orb-still mt-1.5 h-[22px] w-[22px] shrink-0" aria-hidden="true" />
+          <span className="mt-1 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[var(--nav-active-bg)] text-accent" aria-hidden="true"><Sparkles size={12} /></span>
           <div className="rounded-[14px_14px_14px_4px] border border-border bg-surface-2 px-3 py-2.5">
             <span className="cc-typing" aria-label="Madeline is thinking"><span /><span /><span /></span>
           </div>
@@ -350,6 +365,9 @@ function TurnView({ turn, onNavigate }: { turn: MadelineTurn; onNavigate: (path:
         <div className="max-w-[92%] self-start">
           <ResultCard result={turn.result} onNavigate={onNavigate} />
         </div>
+      )}
+      {turn.at && turn.status !== "running" && (
+        <span className="-mt-1.5 self-start pl-[30px] text-[10.5px] text-faint">{clockTime(turn.at)}</span>
       )}
     </>
   );
@@ -705,4 +723,16 @@ function AiMarkdown({ markdown }: { markdown: string }) {
       </div>
     </div>
   );
+}
+
+/** 11:48 */
+function clockTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+/** "Today", "Yesterday", or "Oct 8". */
+export function dayWord(iso: string): string {
+  const d = new Date(iso), t = new Date();
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(t) - day(d)) / 86_400_000);
+  return diff === 0 ? "Today" : diff === 1 ? "Yesterday" : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }

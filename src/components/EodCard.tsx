@@ -41,31 +41,31 @@ export function EodCard() {
     <section className="card p-5">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <ClipboardList size={16} className="text-accent" />
-        <h2 className="font-semibold">Today's EOD</h2>
+        <h2 className="text-[15px] font-semibold">End-of-day report</h2>
         {filed ? (
           <span className="pill bg-emerald-500/15 text-emerald-400">
             <CheckCircle2 size={11} className="mr-1 inline" />Submitted
           </span>
         ) : (
-          <span className="pill bg-amber-500/15 text-amber-400">Not submitted yet</span>
+          <span className="pill bg-surface-2 text-muted">Not submitted</span>
         )}
         <button
           onClick={() => nav("/eod")}
           className="ml-auto inline-flex items-center gap-1 text-[13px] font-semibold text-accent-soft hover:text-accent"
         >
-          {filed ? "Open" : "Submit it"} <ArrowRight size={14} />
+          {filed ? "Open" : "Submit report"} <ArrowRight size={14} />
         </button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Column label="Done today" tone="text-emerald-400" items={done} empty="Nothing marked done yet." />
-        <Column label="Blockers" tone="text-red-400" items={blockers} empty="Nothing blocked." icon />
-        <Column label="Plan for tomorrow" tone="text-amber-400" items={plans} empty="Nothing queued." />
+        <Column label="Completed today" tone="text-text" items={done} empty="No tasks completed yet" />
+        <Column label="Blockers" tone="text-text" items={blockers} empty="No blockers" icon />
+        <Column label="Plan for tomorrow" tone="text-text" items={plans} empty="No tasks planned" />
       </div>
 
       {!filed && (
         <p className="mt-3 text-[12px] text-faint">
-          Drawn from your board. Move a task to Done and it appears here, then in the report.
+          Tasks you move to Done are added here automatically.
         </p>
       )}
     </section>
@@ -76,8 +76,8 @@ function Column({
   label, items, empty, tone, icon,
 }: { label: string; items: string[]; empty: string; tone: string; icon?: boolean }) {
   return (
-    <div className="rounded-lg border border-border bg-surface-2/40 p-3">
-      <p className={`mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.1em] ${tone}`}>
+    <div className="rounded-lg bg-[rgb(var(--c-bg))] p-3">
+      <p className={`mb-1.5 text-xs font-semibold ${tone}`}>
         {label} {items.length > 0 && <span className="text-faint">{items.length}</span>}
       </p>
       {items.length === 0 ? (

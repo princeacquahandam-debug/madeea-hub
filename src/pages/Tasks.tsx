@@ -8,17 +8,15 @@ import {
   SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus, Trash2, GripVertical, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2, List as ListIcon, Search, MessageSquare, Send, ShieldCheck, Bookmark } from "lucide-react";
+import { Plus, Trash2, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2, List as ListIcon, Search, MessageSquare, Send, ShieldCheck, Bookmark, Check } from "lucide-react";
 import type { Task, TaskStatus, Priority, Subtask, Recurrence, TaskProgress, TaskAttachment, TaskActivity } from "@/types/db";
 import { Badge, PageHeader, Modal } from "@/components/ui";
 import { useClientContext } from "@/store/clientContext";
 import { ClientScopeBanner } from "@/components/ClientSwitcher";
 import { SkeletonCard } from "@/components/Skeleton";
 import { atLeast, useTasks, useTaskMutations, useClients, useTaskComments, useTaskActivity, useCommentMutations, useCommentCounts, useMyRole, useSaved, useSavedMutations } from "@/data/hooks";
-import { useFollowUps } from "@/hooks/useFollowUps";
 import { AssigneePicker, AssigneeAvatar } from "@/components/Assignee";
 import { useWorkspaceMembers } from "@/data/hooks";
-import { FollowUpRow } from "@/components/FollowUpRow";
 import { TASK_TEMPLATES, type TaskTemplate } from "@/lib/taskTemplates";
 import { cn } from "@/lib/utils";
 import { useMadelineContext } from "@/hooks/useMadeline";
@@ -33,13 +31,14 @@ import { taskItem } from "@/lib/madelineItems";
    carrying the actual colour. The palette is untouched: these are the tones the
    app already uses for pending, in-flight and done. */
 const COLUMNS: { key: TaskStatus; label: string; dot: string; wash: string; edge: string }[] = [
-  { key: "todo",        label: "To Do",       dot: "bg-sky-400",     wash: "bg-sky-500/[0.06]",     edge: "border-sky-500/25" },
-  { key: "in_progress", label: "In Progress", dot: "bg-amber-400",   wash: "bg-amber-500/[0.06]",   edge: "border-amber-500/25" },
+  /* Flat grey columns, colour only in the dot (12 Oct 2026, UI review deck slide 5). */
+  { key: "todo", label: "To do", dot: "bg-sky-400", wash: "", edge: "" },
+  { key: "in_progress", label: "In progress", dot: "bg-amber-400", wash: "", edge: "" },
   // Waiting on someone else: a reply, a file, a decision (28 Sep audit, 0081).
-  { key: "follow_up",   label: "Follow-up",   dot: "bg-rose-400",    wash: "bg-rose-500/[0.06]",    edge: "border-rose-500/25" },
+  { key: "follow_up", label: "Waiting", dot: "bg-rose-400", wash: "", edge: "" },
   // Where work that needs sign-off waits (migration 0030, PROJECT_PLAN §5.3).
-  { key: "review",      label: "Review",      dot: "bg-violet-400",  wash: "bg-violet-500/[0.06]",  edge: "border-violet-500/25" },
-  { key: "done",        label: "Done",        dot: "bg-emerald-400", wash: "bg-emerald-500/[0.06]", edge: "border-emerald-500/25" },
+  { key: "review", label: "Review", dot: "bg-violet-400", wash: "", edge: "" },
+  { key: "done", label: "Done", dot: "bg-emerald-400", wash: "", edge: "" },
 ];
 const priorityLabel: Record<string, string> = { urgent: "Urgent", high: "High", normal: "Normal", low: "Low" };
 
@@ -64,6 +63,12 @@ function taskRef(id: string): string {
  * "Today" / "Tomorrow" / "Yesterday" where it helps, a date where it doesn't.
  * `tone` drives the colour: overdue is the only one worth alarming about.
  */
+function todayIso(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 function relativeDue(t: Task): { label: string; tone: "over" | "soon" | "plain" } | null {
   if (!t.due_at) return t.due_label ? { label: t.due_label, tone: "plain" } : null;
   const p = (n: number) => String(n).padStart(2, "0");
@@ -104,45 +109,52 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, onSave, isSaved
   const links = task.attachments?.length ?? 0;
   const progress = task.progress?.length ?? 0;
   return (
-    <div className={cn("rounded-lg bg-surface-2 p-3", overlay ? "shadow-xl ring-2 ring-accent/60 rotate-1" : "shadow-sm")}>
-      {/* The reference, so this card can be named in a message or an EOD line. */}
-      <p className="mb-1 pl-6 font-mono text-[10px] tracking-wide text-faint">{taskRef(task.id)}</p>
+    <div className={cn("relative rounded-lg border border-border bg-surface p-3", overlay && "shadow-xl ring-2 ring-accent/60 rotate-1")}>
+      {/* The reference, so this card can be named in a message or an EOD line.
+          Saved stays lit once set, so the card shows its own state. */}
+      <p className="mb-1 flex items-center gap-1 font-mono text-[10px] tracking-wide text-faint">
+        {taskRef(task.id)}
+        {isSaved && <Bookmark size={10} className="text-accent" fill="currentColor" aria-label="Saved" />}
+      </p>
+      {/* Card actions on hover only (12 Oct 2026, UI review deck slide 5),
+          floated over the corner so they take no width from the title. */}
+      {!overlay && (onSave || onComplete || onEdit || onDelete) && (
+        <div className="reveal-on-hover absolute right-1.5 top-1.5 flex items-center rounded-md border border-border bg-surface shadow-sm">
+          {onComplete && task.status !== "done" && (
+            <button className="icon-btn text-faint hover:text-emerald-500" onPointerDown={stop} onClick={onComplete} aria-label="Mark as complete" title="Mark as complete">
+              <Check size={13} />
+            </button>
+          )}
+          {onSave && (
+            <button className={cn("icon-btn", isSaved ? "text-accent" : "text-faint hover:text-accent")} onPointerDown={stop} onClick={onSave} aria-label={isSaved ? "Remove from saved" : "Save this task"} title={isSaved ? "Remove from saved" : "Save"}>
+              <Bookmark size={13} fill={isSaved ? "currentColor" : "none"} />
+            </button>
+          )}
+          {onEdit && (
+            <button className="icon-btn text-faint hover:text-accent" onPointerDown={stop} onClick={onEdit} aria-label="Edit task" title="Edit">
+              <Pencil size={13} />
+            </button>
+          )}
+          {onDelete && (
+            <button className="icon-btn text-faint hover:text-red-500" onPointerDown={stop} onClick={onDelete} aria-label="Delete task" title="Delete">
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
+      )}
       <div className="flex items-start gap-2">
-        <GripVertical size={14} className="mt-0.5 shrink-0 text-faint" />
-        <p className="flex-1 text-sm font-medium">{task.title}</p>
-        {/* Who this is for. Click to reassign, the overlay copy shown while dragging
-            gets a plain avatar, since a menu inside a drag preview makes no sense. */}
+        <p className="min-w-0 flex-1 text-sm font-medium">{task.title}</p>
+        {/* Who this is for. Click to reassign; the drag preview gets a plain
+            avatar, since a menu inside a drag preview makes no sense. */}
         {overlay ? <AssigneeAvatar member={null} /> : <AssigneePicker task={task} />}
-        {/* Saved stays lit once set, so the card shows its own state rather than
-            hiding it until you hover. */}
-        {onSave && (
-          <button
-            className={cn("icon-btn", isSaved ? "text-accent" : "reveal-on-hover text-faint hover:text-accent")}
-            onPointerDown={stop}
-            onClick={onSave}
-            aria-label={isSaved ? "Remove from saved" : "Save this task"}
-          >
-            <Bookmark size={13} fill={isSaved ? "currentColor" : "none"} />
-          </button>
-        )}
-        {onEdit && (
-          <button className="icon-btn reveal-on-hover text-faint hover:text-accent" onPointerDown={stop} onClick={onEdit} aria-label="Edit task">
-            <Pencil size={13} />
-          </button>
-        )}
-        {onDelete && (
-          <button className="icon-btn reveal-on-hover text-faint hover:text-red-400" onPointerDown={stop} onClick={onDelete} aria-label="Delete task">
-            <Trash2 size={13} />
-          </button>
-        )}
       </div>
       {/* A line of the notes, so the card says what the job IS rather than only
           what it is called. Truncated to two lines; the rest is one click away. */}
       {task.notes?.trim() && (
-        <p className="mt-1 line-clamp-2 pl-6 text-xs leading-snug text-muted">{task.notes}</p>
+        <p className="mt-1 line-clamp-2 text-xs leading-snug text-muted">{task.notes}</p>
       )}
 
-      <p className="mt-1 flex flex-wrap items-center gap-1 pl-6 text-xs text-faint">
+      <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-faint">
         {task.client_name}
         {due && (
           <>
@@ -157,7 +169,7 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, onSave, isSaved
         {progress > 0 && <><span>·</span><ListIcon size={11} />{progress}</>}
         {task.recurrence !== "none" && <Repeat size={11} className="text-accent-soft" />}
       </p>
-      <div className="mt-2 flex flex-wrap items-center gap-2 pl-6">
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <Badge tone={task.priority}>{priorityLabel[task.priority]}</Badge>
         {/* Client-facing work that cannot be closed by whoever did it. */}
         {task.requires_approval && (
@@ -178,18 +190,6 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, onSave, isSaved
         )}
       </div>
 
-      {/* Finishing something should not require opening it. Hidden until hover
-          so a wall of cards stays readable, and absent on the drag overlay,
-          where a button would be nonsense. */}
-      {onComplete && task.status !== "done" && (
-        <button
-          onPointerDown={stop}
-          onClick={onComplete}
-          className="reveal-on-hover mt-2 ml-6 flex min-h-[24px] items-center gap-1.5 text-[11px] text-faint hover:text-emerald-400"
-        >
-          <CheckSquare size={12} /> Mark as complete
-        </button>
-      )}
     </div>
   );
 }
@@ -225,26 +225,27 @@ function Column({ status, label, dot, wash, edge, items, blockedIds, onDelete, o
      source for "where will this land". */
   const { setNodeRef } = useDroppable({ id: status, data: { type: "column" } });
   return (
-    <div className={cn("flex flex-col overflow-hidden rounded-xl border transition-colors", edge, wash, dropActive && "col-drop-active")}>
+    <div className={cn("flex min-w-0 flex-col overflow-hidden rounded-xl bg-[var(--board-col)] transition-colors", edge, wash, dropActive && "col-drop-active")}>
       {/* Header carries the colour, and its own Add. You add a task WHERE it
           belongs rather than adding to To Do and dragging it across. */}
-      <div className="flex items-center gap-2 border-b border-inherit px-3.5 py-2.5">
+      <div className="flex items-center gap-2 px-3 pb-1 pt-3">
         <span className={cn("h-2 w-2 shrink-0 rounded-full", dot)} />
-        <h2 className="text-[14px] font-bold">{label}</h2>
-        <span className="pill bg-black/20 text-faint">{items.length}</span>
+        <h2 className="text-[13px] font-semibold">{label}</h2>
+        <span className="text-xs tabular-nums text-faint">{items.length}</span>
         <button
           onClick={() => onAdd(status)}
-          className="ml-auto flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-faint transition-colors hover:bg-black/20 hover:text-zinc-100"
+          className="icon-btn ml-auto text-faint hover:text-text"
           aria-label={`Add a task to ${label}`}
+          title="New task"
         >
-          <Plus size={12} /> Add Task
+          <Plus size={14} />
         </button>
       </div>
       <SortableContext id={status} items={items.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-        <div ref={setNodeRef} className="min-h-[180px] flex-1 space-y-2 p-3">
+        <div ref={setNodeRef} className="min-h-[180px] flex-1 space-y-2 p-2">
           {items.map((t) => <SortableCard key={t.id} task={t} blocked={blockedIds.has(t.id)} onDelete={() => onDelete(t.id)} onEdit={() => onEdit(t)} onComplete={() => onComplete(t.id)} onSave={() => onSave(t)} isSaved={savedIds.has(t.id)} comments={commentCounts[t.id] ?? 0} focused={focusId === t.id} justDropped={justDroppedId === t.id} />)}
           {items.length === 0 && (
-            <p className="rounded-lg border border-dashed border-current/15 py-8 text-center text-xs text-faint">Drop here</p>
+            <p className="rounded-lg border border-dashed border-border py-8 text-center text-xs text-faint">No tasks</p>
           )}
         </div>
       </SortableContext>
@@ -461,14 +462,12 @@ export default function Tasks() {
   const { setStatus, create, update, remove, approve } = useTaskMutations();
   const { data: clients = [] } = useClients();
   const { clientId: scopeId } = useClientContext();
-  const { flags } = useFollowUps();
   const { data: members = [] } = useWorkspaceMembers();
   // "mine" | "all" | a specific member id
   const [who, setWho] = useState<string>("all");
   // Deep link from the client activity timeline: /tasks?task=<id>
   const [params, setParams] = useSearchParams();
   const focusId = params.get("task");
-  const staleTasks = flags.filter((f) => f.kind === "stale_task");
   const [board, setBoard] = useState<Board>(group([]));
   const [activeId, setActiveId] = useState<string | null>(null);
   // Which column the card would land in right now. Drives the drop highlight.
@@ -480,6 +479,10 @@ export default function Tasks() {
   const { data: myRole } = useMyRole();
   const isAdmin = atLeast(myRole, "admin");
   const [q, setQ] = useState("");
+  // Deck slide 5: Assignee, Client, Priority and Due date beside search.
+  const [clientF, setClientF] = useState("all");
+  const [prioF, setPrioF] = useState("all");
+  const [dueF, setDueF] = useState("all");
   // Drives the drop-bounce animation on the card that was just released.
   const [justDroppedId, setJustDroppedId] = useState<string | null>(null);
   const [modal, setModal] = useState(false);
@@ -502,6 +505,16 @@ export default function Tasks() {
       if (who === "unassigned" && t.assignee_id) return false;
       if (who === "mine" && t.assignee_id !== me?.user_id) return false;
       if (who !== "all" && who !== "mine" && who !== "unassigned" && t.assignee_id !== who) return false;
+      if (clientF !== "all" && t.client_id !== clientF) return false;
+      if (prioF !== "all" && t.priority !== prioF) return false;
+      if (dueF !== "all") {
+        const day = t.due_at?.slice(0, 10);
+        const diff = day ? Math.round((Date.parse(`${day}T12:00:00Z`) - Date.parse(`${todayIso()}T12:00:00Z`)) / 864e5) : null;
+        if (dueF === "none" ? diff !== null : diff === null) return false;
+        if (dueF === "overdue" && !(diff! < 0 && t.status !== "done")) return false;
+        if (dueF === "today" && diff !== 0) return false;
+        if (dueF === "week" && !(diff! >= 0 && diff! <= 7)) return false;
+      }
       if (!needle) return true;
       /* Searches everything you might remember it by, including the reference
          and the notes: "the one about the printer" only finds it if the notes
@@ -511,7 +524,7 @@ export default function Tasks() {
         .toLowerCase()
         .includes(needle);
     });
-  }, [tasks, who, q, me?.user_id, scopeId]);
+  }, [tasks, who, q, me?.user_id, scopeId, clientF, prioF, dueF]);
 
   useEffect(() => { if (!activeId) setBoard(group(visible)); }, [visible, activeId]);
 
@@ -638,41 +651,27 @@ export default function Tasks() {
     <div>
       <ClientScopeBanner note="Tasks with no client attached are hidden." />
       <PageHeader
-        title="Task Manager"
-        subtitle="Drag tasks between columns to update their status"
+        title="Tasks"
         action={
           <div className="flex gap-2">
             <button className="btn-ghost border border-border" onClick={() => setTemplates(true)}><Copy size={15} /> Templates</button>
             {/* Wrapped, not passed directly: startCreate's first argument is the
                 column to create in, and onClick would hand it a MouseEvent. */}
-            <button className="btn-primary" onClick={() => startCreate()}><Plus size={15} /> Add Task</button>
+            <button className="btn-primary" onClick={() => startCreate()}><Plus size={15} /> New task</button>
           </div>
         }
       />
-
-      {staleTasks.length > 0 && (
-        <section className="card mb-4 p-4">
-          <div className="mb-2.5 flex items-center gap-2">
-            <h2 className="text-sm font-semibold">Gone quiet</h2>
-            <span className="pill bg-amber-500/15 text-amber-400">{staleTasks.length}</span>
-            <span className="ml-auto text-xs text-faint">No update in a while</span>
-          </div>
-          <div className="space-y-2">
-            {staleTasks.map((f) => <FollowUpRow key={f.id} flag={f} />)}
-          </div>
-        </section>
-      )}
 
       {/* One row of filters (28 Sep audit: the old two rows, three chips plus one
           per teammate plus a view switch, read as clutter). Search first,
           because on a board of forty typing three letters beats working out
           whose it was; then whose tasks, as one dropdown that holds everyone. */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[12rem] flex-1">
+        <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
           <input
             className="input pl-9"
-            placeholder="Search tasks. Title, client, notes, or reference…"
+            placeholder="Search tasks"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             aria-label="Search tasks"
@@ -693,7 +692,7 @@ export default function Tasks() {
           onChange={(e) => setWho(e.target.value)}
           aria-label="Whose tasks"
         >
-          <option value="all">All tasks</option>
+          <option value="all">Assignee: Anyone</option>
           <option value="mine">My tasks</option>
           <option value="unassigned">Unassigned</option>
           {members.length > 0 && (
@@ -702,13 +701,27 @@ export default function Tasks() {
             </optgroup>
           )}
         </select>
-        <span className="text-xs text-faint tabular-nums">
-          {visible.length} of {tasks.length} task{tasks.length === 1 ? "" : "s"}
-        </span>
+        {!scopeId && (
+          <select className="input w-auto" value={clientF} onChange={(e) => setClientF(e.target.value)} aria-label="Client">
+            <option value="all">Client: All</option>
+            {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
+        <select className="input w-auto" value={prioF} onChange={(e) => setPrioF(e.target.value)} aria-label="Priority">
+          <option value="all">Priority: All</option>
+          {Object.entries(priorityLabel).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </select>
+        <select className="input w-auto" value={dueF} onChange={(e) => setDueF(e.target.value)} aria-label="Due date">
+          <option value="all">Due date: Any</option>
+          <option value="overdue">Overdue</option>
+          <option value="today">Due today</option>
+          <option value="week">Next 7 days</option>
+          <option value="none">No due date</option>
+        </select>
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
           {COLUMNS.map((col) => (
             <div key={col.key} className="space-y-3">
               <SkeletonCard lines={2} />
@@ -718,7 +731,8 @@ export default function Tasks() {
         </div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setActiveId(null); setOverCol(null); }}>
-          <div className="grid gap-4 lg:grid-cols-3">
+          {/* One row of five on wide screens (deck slide 5). */}
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
             {COLUMNS.map((col) => (
               <Column key={col.key} status={col.key} label={col.label} dot={col.dot} wash={col.wash} edge={col.edge} items={board[col.key]} blockedIds={blockedIds} onDelete={(id) => remove.mutate(id)} onEdit={startEdit} onComplete={(id) => setStatus.mutate({ id, status: "done" })} onAdd={startCreate} onSave={(t) => saveToggle.mutate({ kind: "task", targetId: t.id, label: t.title, saved: savedIds.has(t.id) })} savedIds={savedIds} commentCounts={commentCounts} focusId={focusId} justDroppedId={justDroppedId} dropActive={activeId !== null && overCol === col.key} />
             ))}
@@ -735,7 +749,7 @@ export default function Tasks() {
 
       {/* Add / Edit */}
       <Modal open={modal} onClose={() => { setModal(false); setEditingId(null); }}>
-        <h2 className="mb-4 text-lg font-semibold">{editingId ? "Edit Task" : "Add Task"}</h2>
+        <h2 className="mb-4 text-lg font-semibold">{editingId ? "Edit task" : "New task"}</h2>
         <div className="space-y-3">
           <div>
             <label className="field-label">Title</label>
