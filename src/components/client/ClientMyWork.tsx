@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle, CalendarDays, Camera, CheckCircle2, Circle, ClipboardList, Clock, KanbanSquare, Loader2, Play, Square,
+  AlertTriangle, Camera, CheckCircle2, Circle, Clock, Loader2, Play, Square,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useClientCapture } from "@/hooks/useClientCapture";
@@ -118,37 +118,39 @@ export function ClientMyWork({ clientId, onNavigate }: { clientId: string; onNav
 
   return (
     <div className="space-y-5">
-      {/* ---- today at a glance: each tile opens the page it summarises ---- */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Tile icon={KanbanSquare} label="Open tasks" value={String(open.length)}
+      {/* ---- today at a glance: one strip with dividers (12 Oct 2026, UI
+          review deck slides 2-3); each cell opens the page it summarises ---- */}
+      <div className="card grid grid-cols-2 overflow-hidden lg:grid-cols-4">
+        <Tile label="Open tasks" value={String(open.length)}
           note={stuck ? `${stuck} stuck` : open.length ? "Nothing stuck" : "All clear"} warn={stuck > 0} onClick={() => onNavigate?.("mytasks")} />
-        <Tile icon={CheckCircle2} label="Done today" value={String(done.filter((t) => t.completed_at && new Date(t.completed_at).toDateString() === new Date().toDateString()).length)}
+        <Tile label="Done today" value={String(done.filter((t) => t.completed_at && new Date(t.completed_at).toDateString() === new Date().toDateString()).length)}
           note="Finished tasks" onClick={() => onNavigate?.("mytasks")} />
-        <Tile icon={CalendarDays} label="Next meeting" value={nextMeeting ? (nextMeeting.all_day ? "All day" : clockTime(nextMeeting.starts_at)) : "None"}
+        <Tile label="Next meeting" value={nextMeeting ? (nextMeeting.all_day ? "All day" : clockTime(nextMeeting.starts_at)) : "None"}
           note={nextMeeting ? nextMeeting.title : "Nothing booked"} onClick={() => onNavigate?.("calendar")} />
-        <Tile icon={ClipboardList} label="Daily report" value={reportSent ? "Sent" : "Not yet"}
+        <Tile label="Daily report" value={reportSent ? "Sent" : "Not yet"}
           note={reportSent ? "Update it any time today" : "Send before you finish"} warn={!reportSent && !!running} onClick={() => onNavigate?.("myreport")} />
       </div>
 
       {/* ---- the clock ---- */}
       <section className="card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-[11.5px] font-bold uppercase tracking-[0.09em] text-faint">
-              {running ? "On the clock" : "Today"}
+        {/* Today against an 8-hour day, the biggest thing on the page. */}
+        <div className="flex items-start gap-3">
+          <div>
+            <p className="text-xs text-muted">Today</p>
+            <p className="tabular-nums">
+              <span className="text-[32px] font-semibold leading-tight">{hm(today)}</span>
+              <span className="text-sm text-faint"> / 8h 0m</span>
             </p>
-            <p className="mt-1 text-[34px] font-extrabold leading-none tracking-[-0.02em]">
-              {hm(today)}
-            </p>
-            {running ? (
-              <p className="mt-1.5 text-sm text-muted">
-                Started {clockTime(running.started_at)}.
-              </p>
-            ) : (
-              <p className="mt-1.5 text-sm text-muted">Not clocked in.</p>
-            )}
           </div>
-
+          <span className="ml-auto mt-1 flex items-center gap-1.5 text-xs text-muted">
+            <span className={cn("h-1.5 w-1.5 rounded-full", running ? "bg-emerald-500" : "bg-[rgb(var(--c-faint))]")} />
+            {running ? `Clocked in since ${clockTime(running.started_at)}` : "Not clocked in"}
+          </span>
+        </div>
+        <div className="mb-4 mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2">
+          <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${Math.min(100, (today / 480) * 100)}%` }} />
+        </div>
+        <div className="flex flex-wrap items-center gap-4">
           <div className="flex flex-wrap items-center gap-2">
             {running ? (
               <button
@@ -204,7 +206,7 @@ export function ClientMyWork({ clientId, onNavigate }: { clientId: string; onNav
 
       {/* ---- their work ---- */}
       <section className="card p-5">
-        <h2 className="mb-3 text-[17px] font-bold">Your tasks</h2>
+        <h2 className="mb-3 text-[15px] font-semibold">Your tasks</h2>
         {loadingTasks ? (
           <p className="text-sm text-faint">Loading…</p>
         ) : open.length === 0 ? (
@@ -212,7 +214,7 @@ export function ClientMyWork({ clientId, onNavigate }: { clientId: string; onNav
         ) : (
           <div className="space-y-2">
             {open.map((t) => (
-              <div key={t.id} className="flex flex-wrap items-start gap-3 rounded-lg bg-surface-2 p-3 sm:flex-nowrap">
+              <div key={t.id} className="flex flex-wrap items-start gap-3 rounded-lg border border-border p-3 sm:flex-nowrap">
                 <button
                   onClick={() => setStatus.mutate({ id: t.id, status: "done" })}
                   className="mt-0.5 shrink-0 text-faint transition-colors hover:text-accent"
@@ -267,7 +269,7 @@ export function ClientMyWork({ clientId, onNavigate }: { clientId: string; onNav
 
       {/* ---- their timesheet ---- */}
       <section className="card p-5">
-        <h2 className="mb-3 text-[17px] font-bold">Your hours</h2>
+        <h2 className="mb-3 text-[15px] font-semibold">Timesheet</h2>
         {shifts.length === 0 ? (
           <p className="text-sm text-faint">No shifts recorded yet.</p>
         ) : (
@@ -296,14 +298,14 @@ export function ClientMyWork({ clientId, onNavigate }: { clientId: string; onNav
   );
 }
 
-function Tile({ icon: Icon, label, value, note, warn = false, onClick }: {
-  icon: typeof Clock; label: string; value: string; note: string; warn?: boolean; onClick?: () => void;
+function Tile({ label, value, note, warn = false, onClick }: {
+  label: string; value: string; note: string; warn?: boolean; onClick?: () => void;
 }) {
   return (
-    <button onClick={onClick} className="card min-w-0 p-4 text-left transition-colors hover:ring-1 hover:ring-accent/40">
-      <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.09em] text-faint"><Icon size={13} /> {label}</p>
-      <p className="mt-1.5 truncate text-[22px] font-extrabold leading-none">{value}</p>
-      <p className={cn("mt-1 truncate text-xs", warn ? "text-amber-400" : "text-faint")}>{note}</p>
+    <button onClick={onClick} className="-mb-px -mr-px min-w-0 border-b border-r border-border px-4 py-3.5 text-left transition-colors hover:bg-[var(--chip-bg)]">
+      <span className="block text-xs text-muted">{label}</span>
+      <span className="mt-1 block truncate text-[22px] font-semibold leading-tight tabular-nums">{value}</span>
+      <span className={cn("block truncate text-[11px]", warn ? "text-accent" : "text-faint")}>{note}</span>
     </button>
   );
 }

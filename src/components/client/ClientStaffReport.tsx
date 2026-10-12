@@ -66,22 +66,24 @@ export function ClientStaffReport() {
   return (
     <div className="space-y-5">
       <section className="card p-5">
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <h2 className="flex-1 text-[17px] font-bold">Today, {new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</h2>
-          {todays && <span className="pill bg-emerald-500/15 text-[11px] text-emerald-400"><Check size={11} /> Sent</span>}
-          <button onClick={fill} className="btn-ghost border border-border px-3 py-1.5 text-xs" title="Draft from your task board">
+        {/* 12 Oct 2026, UI review deck slide 7: the day spelled out, three
+            sections side by side, one Submit report. */}
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <h2 className="text-[15px] font-semibold">Report for {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</h2>
+          {todays && <span className="pill bg-emerald-500/15 text-[11px] text-emerald-600"><Check size={11} /> Submitted</span>}
+          <button onClick={fill} className="ml-auto btn-ghost border border-border px-3 py-1.5 text-xs" title="Draft from your task board">
             <Wand2 size={13} /> Fill from my tasks
           </button>
         </div>
-        <div className="space-y-3">
-          <Field label="What I got done" value={done} onChange={setDone} placeholder={"- Cleared the support inbox\n- Updated 40 CRM contacts"} />
-          <Field label="What's blocked (optional)" value={blocked} onChange={setBlocked} placeholder="Anything you need from the account owner" />
-          <Field label="Next (optional)" value={next} onChange={setNext} placeholder="What you'll pick up tomorrow" />
+        <div className="grid gap-3 md:grid-cols-3">
+          <Field label="Completed today" value={done} onChange={setDone} placeholder={"- Cleared the support inbox\n- Updated 40 CRM contacts"} />
+          <Field label="Blockers" value={blocked} onChange={setBlocked} placeholder="Anything you need from the account owner" />
+          <Field label="Plan for tomorrow" value={next} onChange={setNext} placeholder="What you'll pick up tomorrow" />
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <button className="btn-primary" disabled={!done.trim() || send.isPending} onClick={() => { setSent(""); send.mutate(); }}>
             {send.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-            {todays ? "Update report" : "Send report"}
+            {todays ? "Update report" : "Submit report"}
           </button>
           {sent && <span className="text-sm" style={{ color: "var(--c-accent)" }}>{sent}</span>}
           {send.error && (
@@ -91,9 +93,9 @@ export function ClientStaffReport() {
       </section>
 
       <section className="card p-5">
-        <h2 className="mb-3 text-[17px] font-bold">Your earlier reports</h2>
+        <h2 className="mb-3 text-[15px] font-semibold">Your past reports</h2>
         {mine.filter((r) => r.work_date !== today).length === 0 ? (
-          <p className="text-sm text-faint">None yet.</p>
+          <p className="py-6 text-center text-sm text-faint">Reports you submit will appear here.</p>
         ) : (
           <div className="space-y-3">
             {mine.filter((r) => r.work_date !== today).map((r) => <ReportView key={r.id} r={r} />)}
@@ -108,10 +110,10 @@ function Field({ label, value, onChange, placeholder }: {
   label: string; value: string; onChange: (v: string) => void; placeholder: string;
 }) {
   return (
-    <label className="block">
-      <span className="field-label">{label}</span>
-      <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={3} maxLength={4000}
-        placeholder={placeholder} className="input w-full text-sm" />
+    <label className="flex min-w-0 flex-col rounded-lg border border-border p-3">
+      <span className="mb-1.5 text-[13px] font-semibold">{label}</span>
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={5} maxLength={4000}
+        placeholder={placeholder} className="input w-full flex-1 text-sm" />
     </label>
   );
 }
@@ -119,15 +121,15 @@ function Field({ label, value, onChange, placeholder }: {
 /** One report, read-only. Shared with the client's Staff tab. */
 export function ReportView({ r, who }: { r: { work_date: string; done: string; blocked: string; next: string; updated_at: string }; who?: string | null }) {
   return (
-    <article className="rounded-xl bg-surface-2 p-3">
+    <article className="rounded-lg border border-border p-3">
       <p className="mb-1.5 flex flex-wrap items-center gap-x-2 text-sm font-semibold">
         <ClipboardList size={14} className="text-faint" />
         {who ? <span className="min-w-0 truncate">{who}</span> : null}
         <span className={who ? "text-xs font-normal text-faint" : ""}>{dayLabel(dateOnly(r.work_date))}</span>
       </p>
-      <Block title="Done" text={r.done} />
-      {r.blocked ? <Block title="Blocked" text={r.blocked} tone="text-amber-400" /> : null}
-      {r.next ? <Block title="Next" text={r.next} /> : null}
+      <Block title="Completed" text={r.done} />
+      {r.blocked ? <Block title="Blockers" text={r.blocked} tone="text-red-500" /> : null}
+      {r.next ? <Block title="Plan for tomorrow" text={r.next} /> : null}
     </article>
   );
 }
@@ -135,7 +137,7 @@ export function ReportView({ r, who }: { r: { work_date: string; done: string; b
 function Block({ title, text, tone }: { title: string; text: string; tone?: string }) {
   return (
     <div className="mt-1.5">
-      <p className={`text-[11px] font-bold uppercase tracking-wider ${tone ?? "text-faint"}`}>{title}</p>
+      <p className={`text-xs font-semibold ${tone ?? "text-muted"}`}>{title}</p>
       <p className="whitespace-pre-wrap break-words text-sm text-muted">{text}</p>
     </div>
   );

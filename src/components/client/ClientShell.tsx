@@ -1,7 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { useState, type ReactNode } from "react";
 import { Menu, X, Sun, Handshake, MessagesSquare, Settings, Briefcase, ChevronRight, type LucideIcon } from "lucide-react";
-import { AmbientBackground } from "@/components/layout/AmbientBackground";
 import { cn } from "@/lib/utils";
 
 /**
@@ -76,8 +74,9 @@ export function ClientShell({
   email?: string;
   isViewer: boolean;
   isMember?: boolean;
-  /** Desktop: category titles that open their pages on hover, as the Hub's
-      sidebar does (9 Oct 2026). The phone drawer always lists them. */
+  /** Category titles that open and close their pages in place, as the Hub's
+      sidebar does (12 Oct 2026, UI review deck slide 1; this replaced the
+      9 Oct hover menus). Desktop and the phone drawer alike. */
   hoverMenus?: boolean;
   /** Right side of the header: search, guide, theme, notifications, Madeline. */
   headerTools?: React.ReactNode;
@@ -88,23 +87,19 @@ export function ClientShell({
   children: ReactNode;
 }) {
   const [drawer, setDrawer] = useState(false);
-  /* One hover menu at a time, one timer: the same rules as the Hub sidebar. */
-  const [hoverGroup, setHoverGroup] = useState<string | null>(null);
-  const hoverTimer = useRef<number | undefined>(undefined);
-  const hoverTo = (g: string | null, delay: number) => {
-    window.clearTimeout(hoverTimer.current);
-    hoverTimer.current = window.setTimeout(() => setHoverGroup(g), delay);
-  };
-  useEffect(() => { window.clearTimeout(hoverTimer.current); setHoverGroup(null); }, [active]);
-  useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
+  /* Which sections are open. A section with no stored choice is open only when
+     it holds the current page, the Hub sidebar's rule. */
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const groups = [...new Set(nav.map((n) => n.group))];
+  const activeGroup = nav.find((n) => n.id === active)?.group;
+  const isOpen = (g: string) => (g in openGroups ? openGroups[g] : g === activeGroup);
+  const toggleGroup = (g: string) => setOpenGroups((o) => ({ ...o, [g]: !isOpen(g) }));
   const initials = (clientName || "?")
     .split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
   const rail = (hover: boolean) => (
     <aside
-      className="flex h-full w-64 shrink-0 flex-col border-r border-border backdrop-blur-lg"
-      style={{ background: "var(--sidebar-bg)" }}
+      className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-surface"
     >
       <div className="flex items-start justify-between gap-2 px-5 py-5">
         <div className="min-w-0">
@@ -132,23 +127,47 @@ export function ClientShell({
         <p className="truncate text-xs text-faint">{company || "Your account"}</p>
       </div>
 
-      <nav className={cn("no-scrollbar min-h-0 flex-1 overflow-y-auto px-3 pb-2", hover ? "space-y-1" : "space-y-5")}>
-        {hover && groups.map((group) => (
-          <HoverGroup
-            key={group}
-            group={group}
-            icon={GROUP_ICON[group]}
-            items={nav.filter((n) => n.group === group)}
-            active={active}
-            open={hoverGroup === group}
-            onEnterTitle={() => hoverTo(group, 120)}
-            onEnterMenu={() => hoverTo(group, 0)}
-            onLeave={() => hoverTo(null, 180)}
-            onToggle={() => { window.clearTimeout(hoverTimer.current); setHoverGroup(hoverGroup === group ? null : group); }}
-            onClose={() => { window.clearTimeout(hoverTimer.current); setHoverGroup(null); }}
-            onSelect={(id) => { setHoverGroup(null); onSelect(id); }}
-          />
-        ))}
+      <nav className={cn("no-scrollbar min-h-0 flex-1 overflow-y-auto px-3 pb-2", hover ? "space-y-0.5" : "space-y-5")}>
+        {/* Inline collapse / expand (deck slide 1): click a section to show its
+            pages indented beneath it; the chevron turns when it is open. */}
+        {hover && groups.map((group) => {
+          const open = isOpen(group);
+          const GroupIcon = GROUP_ICON[group];
+          const items = nav.filter((n) => n.group === group);
+          const here = items.some((i) => i.id === active);
+          return (
+            <div key={group}>
+              <button
+                type="button"
+                onClick={() => toggleGroup(group)}
+                aria-expanded={open}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--chip-bg)]",
+                  here && open ? "bg-[var(--chip-bg)] font-semibold text-[color:var(--nav-active-text)]" : here ? "font-semibold text-text" : "font-medium text-text",
+                )}
+              >
+                {GroupIcon ? <GroupIcon size={16} className={cn("shrink-0", here ? "text-accent" : "text-muted")} /> : null}
+                <span className="flex-1 truncate">{group}</span>
+                <ChevronRight size={15} className={cn("shrink-0 text-faint transition-transform duration-150", open && "rotate-90")} />
+              </button>
+              {open && (
+                <div className="mb-1 mt-0.5 space-y-0.5">
+                  {items.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => { onSelect(item.id); setDrawer(false); }}
+                      className={cn("nav-item py-1.5 pl-[2.375rem]", active === item.id && "active")}
+                      aria-current={active === item.id ? "page" : undefined}
+                    >
+                      <span className="flex-1 truncate text-left">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
         {!hover && groups.map((group) => {
           const GroupIcon = GROUP_ICON[group];
           return (
@@ -203,28 +222,21 @@ export function ClientShell({
   );
 
   return (
-    <div className="relative z-10 flex h-screen overflow-hidden bg-transparent">
-      {/* The six drifting blobs the agency shell renders. body paints
-          --ambient-base for both, but only AppShell was layering this over it,
-          which is the whole of why the two looked like different products even
-          after the tokens matched. */}
-      <AmbientBackground />
-      {/* relative z-[1] on the rail and the content column: the ambient
-          layer is position:fixed z-0 in this same stacking context, so it was
-          painted OVER every non-positioned element. Cards survived (they make
-          their own stacking context); page titles, headings and the whole of
-          Activity and Calendar did not, and the portal looked blank. */}
+    <div className="relative z-10 flex h-screen overflow-hidden bg-[rgb(var(--c-bg))]">
+      {/* Flat page, no ambient layer (12 Oct 2026, UI review deck slide 2). */}
       <div className="relative z-[1] hidden lg:block">{rail(hoverMenus)}</div>
 
       {drawer && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/60" onClick={() => setDrawer(false)} />
-          <div className="absolute left-0 top-0 h-full">{rail(false)}</div>
+          <div className="absolute left-0 top-0 h-full">{rail(hoverMenus)}</div>
         </div>
       )}
 
       <div className="relative z-[1] flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3 lg:px-6">
+        {/* Flat bar with a 1px bottom border (deck slide 9): date, search in
+            the middle, then notifications and the avatar menu. */}
+        <header className="flex h-[60px] shrink-0 items-center gap-3 border-b border-border bg-surface px-4 lg:px-6">
           <button
             onClick={() => setDrawer(true)}
             aria-label="Open menu"
@@ -233,7 +245,7 @@ export function ClientShell({
             <Menu size={18} />
           </button>
 
-          <p className="min-w-0 flex-1 truncate text-sm text-muted">
+          <p className="hidden shrink-0 truncate text-sm text-muted md:block">
             {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
           </p>
 
@@ -248,114 +260,13 @@ export function ClientShell({
               "Good afternoon, ...". Solid accent, 40px, 800 weight. The portal
               heading was plain white, which is most of why it read as a
               different product. */}
-          <div className="mb-7">
+          <div className="mb-6">
             <h1 className="greeting-title">{title}</h1>
-            <p className="mt-1.5 text-[15px] text-muted">{subtitle}</p>
+            <p className="mt-1 text-sm text-muted">{subtitle}</p>
           </div>
           {children}
         </main>
       </div>
-    </div>
-  );
-}
-
-/* ── A category title that opens its pages on hover ────────────────────────
-   The portal's copy of the Hub sidebar's HoverGroup (layout/Sidebar.tsx):
-   portalled because the rail has backdrop-filter and a clipping scroll area;
-   click and Escape work as well as hover; the current page shows under its
-   category, since the pages themselves are tucked away. */
-function HoverGroup({ group, icon: Icon, items, active, open, onEnterTitle, onEnterMenu, onLeave, onToggle, onClose, onSelect }: {
-  group: string;
-  icon?: LucideIcon;
-  items: ClientNavItem[];
-  active: string;
-  open: boolean;
-  onEnterTitle: () => void;
-  onEnterMenu: () => void;
-  onLeave: () => void;
-  onToggle: () => void;
-  onClose: () => void;
-  onSelect: (id: string) => void;
-}) {
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const anchor = useRef<HTMLButtonElement>(null);
-  const current = items.find((i) => i.id === active) ?? null;
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    const el = anchor.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const side = el.closest("aside")?.getBoundingClientRect();
-    const estimate = 16 + items.length * 40;
-    setPos({ top: Math.max(8, Math.min(r.top - 6, window.innerHeight - estimate - 8)), left: (side?.right ?? r.right) + 6 });
-  }, [open, items.length]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { onClose(); anchor.current?.focus(); } };
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("resize", onClose);
-    document.addEventListener("scroll", onClose, true);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("resize", onClose);
-      document.removeEventListener("scroll", onClose, true);
-    };
-  }, [open, onClose]);
-
-  return (
-    <div onMouseEnter={onEnterTitle} onMouseLeave={onLeave}>
-      <button
-        ref={anchor}
-        type="button"
-        onClick={onToggle}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className={cn(
-          "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors hover:bg-[var(--chip-bg)]",
-          open && "bg-[var(--chip-bg)]",
-          current && "bg-[var(--nav-active-bg)]",
-        )}
-      >
-        {Icon ? <Icon size={16} className={cn("shrink-0", current ? "text-[color:var(--nav-active-text)]" : "text-accent")} /> : null}
-        <span className="min-w-0 flex-1">
-          <span className={cn("block text-[13.5px] font-semibold", current ? "text-[color:var(--nav-active-text)]" : "text-text")}>{group}</span>
-          {current && <span className="block truncate text-[11.5px] text-muted">{current.label}</span>}
-        </span>
-        <ChevronRight size={14} className={cn("shrink-0 text-faint transition-transform", open && "translate-x-0.5 text-accent")} />
-      </button>
-
-      {open && pos && createPortal(
-        <div
-          role="menu"
-          aria-label={group}
-          onMouseEnter={onEnterMenu}
-          onMouseLeave={onLeave}
-          style={{ top: pos.top, left: pos.left }}
-          // Solid, not the glass card: page text must not show through the menu.
-          className="fixed z-[60] min-w-[220px] rounded-xl border border-border bg-surface p-1.5 shadow-2xl"
-        >
-          <p className="eyebrow px-2.5 pb-1 pt-1">{group}</p>
-          {items.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="menuitem"
-              onClick={() => onSelect(item.id)}
-              aria-current={active === item.id ? "page" : undefined}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-[var(--chip-bg)]",
-                active === item.id ? "bg-[var(--nav-active-bg)] font-semibold text-[color:var(--nav-active-text)]" : "text-text",
-              )}
-            >
-              <item.icon size={16} className="shrink-0" />
-              <span className="flex-1 whitespace-nowrap">{item.label}</span>
-            </button>
-          ))}
-        </div>,
-        document.body,
-      )}
     </div>
   );
 }

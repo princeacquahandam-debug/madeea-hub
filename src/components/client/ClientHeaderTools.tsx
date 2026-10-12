@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Bell, CalendarDays, CheckCircle2, ClipboardList, Info, KanbanSquare, MessageSquare, Moon, Search,
-  ShieldCheck, StickyNote, Sun, AlertCircle, UserPlus, X,
+  Bell, CalendarDays, CheckCircle2, ClipboardList, Info, KanbanSquare, LogOut, MessageSquare, Monitor, Moon, Search,
+  Settings as SettingsIcon, ShieldCheck, StickyNote, Sun, AlertCircle, UserPlus, X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
-import { useTheme } from "@/store/theme";
+import { useTheme, type ThemeChoice } from "@/store/theme";
 import { useAnchoredPanel, ANCHORED_PANEL_CLASS } from "@/hooks/useAnchoredPanel";
 import { cn } from "@/lib/utils";
 import { fetchMyTasks, fetchTeamChat, fetchTeamReports, MY_TASKS_KEY, TEAM_CHAT_KEY, TEAM_REPORTS_KEY } from "./memberData";
@@ -82,14 +82,20 @@ async function fetchCalendar() {
   return (data ?? []) as EventRow[];
 }
 
-export function ClientHeaderTools({ onNavigate, member = false }: { onNavigate: (tab: string) => void; member?: boolean }) {
+/* The Hub's header layout (12 Oct 2026, UI review deck slide 9): a visible
+   search field in the middle, then notifications and an avatar menu, which
+   takes over the ⓘ guide and the theme button. */
+export function ClientHeaderTools({ onNavigate, member = false, roleLabel }: { onNavigate: (tab: string) => void; member?: boolean; roleLabel: string }) {
   return (
-    <div className="flex shrink-0 items-center gap-1.5">
-      <SearchTool onNavigate={onNavigate} member={member} />
-      <GuideTool member={member} />
-      <ThemeTool />
-      {member ? <MemberBellTool onNavigate={onNavigate} /> : <BellTool onNavigate={onNavigate} />}
-    </div>
+    <>
+      <div className="flex min-w-0 flex-1 justify-center">
+        <SearchTool onNavigate={onNavigate} member={member} />
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        {member ? <MemberBellTool onNavigate={onNavigate} /> : <BellTool onNavigate={onNavigate} />}
+        <AccountMenu member={member} roleLabel={roleLabel} onSettings={() => onNavigate("settings")} />
+      </div>
+    </>
   );
 }
 
@@ -112,6 +118,19 @@ function SearchTool({ onNavigate, member }: { onNavigate: (tab: string) => void;
     if (open) input.current?.focus();
     else setQ("");
   }, [open]);
+  // Ctrl/⌘ K, or "/" outside a text field, opens it, as in the Hub.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName));
+      if ((e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !typing)) {
+        e.preventDefault();
+        setOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [setOpen]);
+  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -133,9 +152,13 @@ function SearchTool({ onNavigate, member }: { onNavigate: (tab: string) => void;
 
   return (
     <>
+      {/* Looks like a field, opens the search panel. */}
       <button ref={anchorRef} onClick={() => setOpen(!open)} aria-expanded={open}
-        aria-label="Search your account" title="Search your account" className={BTN}>
-        <Search size={17} />
+        aria-label="Search your account"
+        className="flex h-9 w-full max-w-md items-center gap-2 rounded-lg border border-border bg-[rgb(var(--c-bg))] px-3 text-left text-sm text-faint transition-colors hover:border-[rgb(var(--c-faint))]">
+        <Search size={15} className="shrink-0" />
+        <span className="min-w-0 flex-1 truncate">Search tasks, notes, meetings</span>
+        <kbd className="hidden shrink-0 rounded-md border border-border px-1.5 py-0.5 text-[10.5px] font-semibold sm:inline">{isMac ? "⌘K" : "Ctrl K"}</kbd>
       </button>
       {open && pos && createPortal(
         <div ref={panelRef} role="dialog" aria-label="Search your account" style={{ top: pos.top, right: pos.right }} className={PANEL}>
@@ -199,45 +222,78 @@ const MEMBER_GUIDE = [
   "Calendar shows the meetings booked on this account. Notes are what's been shared with the team.",
 ];
 
-function GuideTool({ member }: { member: boolean }) {
+/* ───────────────────────── Account menu ───────────────────────── */
+
+function AccountMenu({ member, roleLabel, onSettings }: { member: boolean; roleLabel: string; onSettings: () => void }) {
   const { anchorRef, panelRef, open, setOpen, pos } = useAnchoredPanel<HTMLButtonElement>();
+  const { user, signOut } = useAuth();
+  const { choice, setChoice } = useTheme();
+  const [guide, setGuide] = useState(false);
+  const label = user?.name || user?.email || "Your account";
+  const initials = (user?.name || user?.email || "?").split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
+  const item = "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-surface-2";
+  const themes: { id: ThemeChoice; label: string; icon: typeof Sun }[] = [
+    { id: "light", label: "Light", icon: Sun },
+    { id: "dark", label: "Dark", icon: Moon },
+    { id: "system", label: "System", icon: Monitor },
+  ];
   return (
     <>
-      <button ref={anchorRef} onClick={() => setOpen(!open)} aria-expanded={open}
-        aria-label="How the portal works" title="How the portal works" className={BTN}>
-        <Info size={17} />
+      <button ref={anchorRef} onClick={() => setOpen(!open)} aria-label="Your account" aria-expanded={open} aria-haspopup="menu" title={label}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--nav-active-bg)] text-xs font-bold text-[color:var(--nav-active-text)] transition-shadow hover:ring-2 hover:ring-accent/30">
+        {initials}
       </button>
       {open && pos && createPortal(
-        <div ref={panelRef} role="dialog" aria-label="How the portal works" style={{ top: pos.top, right: pos.right }} className={PANEL}>
-          <div className="mb-2 flex items-center gap-2">
-            <Info size={15} className="shrink-0 text-accent-soft" />
-            <p className="flex-1 text-sm font-bold">How the portal works</p>
-            <button onClick={() => setOpen(false)} aria-label="Close" className="text-faint hover:text-text"><X size={15} /></button>
+        <div ref={panelRef} role="menu" style={{ top: pos.top, right: pos.right }} className={`card ${ANCHORED_PANEL_CLASS} !w-64 p-1.5 shadow-xl`}>
+          <div className="border-b border-border px-2.5 pb-2.5 pt-1.5">
+            {user?.name && <p className="truncate text-sm font-semibold">{user.name}</p>}
+            <p className="truncate text-xs text-muted">{user?.email}</p>
+            <p className="mt-0.5 text-[11px] text-faint">{roleLabel}</p>
           </div>
-          <ul className="space-y-1.5 text-sm text-muted">
-            {(member ? MEMBER_GUIDE : GUIDE).map((p, i) => (
-              <li key={i} className="flex gap-2">
-                <span className="mt-0.5 text-accent-soft">•</span>
-                <span>{p}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="py-1">
+            <button role="menuitem" className={item} onClick={() => { setOpen(false); onSettings(); }}>
+              <SettingsIcon size={16} className="text-muted" /> Settings
+            </button>
+            <button role="menuitem" className={item} onClick={() => { setOpen(false); setGuide(true); }}>
+              <Info size={16} className="text-muted" /> How the portal works
+            </button>
+          </div>
+          <div className="border-t border-border px-2.5 py-2">
+            <p className="mb-1.5 text-[11px] font-semibold text-faint">Theme</p>
+            <div className="grid grid-cols-3 gap-1 rounded-lg bg-surface-2 p-0.5" role="group" aria-label="Theme">
+              {themes.map((t) => (
+                <button key={t.id} onClick={() => setChoice(t.id)} aria-pressed={choice === t.id}
+                  className={cn("flex items-center justify-center gap-1 rounded-md py-1.5 text-xs font-semibold transition-colors",
+                    choice === t.id ? "bg-surface text-text shadow-sm" : "text-muted hover:text-text")}>
+                  <t.icon size={13} /> {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="border-t border-border pt-1">
+            <button role="menuitem" className={cn(item, "text-muted")} onClick={() => { setOpen(false); void signOut(); }}>
+              <LogOut size={16} /> Sign out
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+      {guide && createPortal(
+        <div className="fixed inset-0 z-[70] flex items-start justify-center bg-black/30 p-4 pt-20" onClick={() => setGuide(false)}>
+          <div role="dialog" aria-label="How the portal works" onClick={(e) => e.stopPropagation()} className="card w-[26rem] max-w-full p-5 shadow-xl">
+            <div className="mb-3 flex items-center gap-2">
+              <Info size={16} className="shrink-0 text-accent" />
+              <p className="flex-1 font-bold">How the portal works</p>
+              <button onClick={() => setGuide(false)} aria-label="Close" className="text-faint hover:text-text"><X size={16} /></button>
+            </div>
+            <ul className="space-y-2 text-sm text-muted">
+              {(member ? MEMBER_GUIDE : GUIDE).map((p, i) => <li key={i} className="flex gap-2"><span className="text-accent">•</span><span>{p}</span></li>)}
+            </ul>
+          </div>
         </div>,
         document.body,
       )}
     </>
-  );
-}
-
-/* ───────────────────────── Theme ───────────────────────── */
-
-function ThemeTool() {
-  const { theme, toggle } = useTheme();
-  const label = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
-  return (
-    <button onClick={toggle} aria-label={label} title={label} className={BTN}>
-      {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
-    </button>
   );
 }
 

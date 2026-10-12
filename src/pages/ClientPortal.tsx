@@ -291,13 +291,13 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
       email={user?.email}
       isViewer={isViewer}
       isMember={isMember}
-      // The staff account gets the Hub's hover menus (9 Oct 2026).
+      // The staff account gets the Hub's collapsible sections (12 Oct 2026).
       hoverMenus={isMember}
       headerTools={
         <>
           {/* Staff get the same tools over their own work (0085): their tasks,
               their thread with the owner, and a Madeline that reads only that. */}
-          <ClientHeaderTools member={isMember} onNavigate={(id: string) => setTab(id as Tab)} />
+          <ClientHeaderTools member={isMember} roleLabel={isViewer ? "View only" : isMember ? "Staff member" : "Primary contact"} onNavigate={(id: string) => setTab(id as Tab)} />
           <ClientMadeline readOnly={isViewer} member={isMember}
             onNavigate={(id: string) => setTab((isMember ? (MEMBER_TAB_FOR[id] ?? id) : id) as Tab)} />
         </>

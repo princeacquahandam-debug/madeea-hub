@@ -19,10 +19,10 @@ import { fetchMyTasks, MY_TASKS_KEY, type MyTask, type MyTaskStatus } from "./me
  * channel.
  */
 
-const COLUMNS: { id: "todo" | "in_progress" | "done"; label: string }[] = [
-  { id: "todo", label: "To do" },
-  { id: "in_progress", label: "In progress" },
-  { id: "done", label: "Done" },
+const COLUMNS: { id: "todo" | "in_progress" | "done"; label: string; dot: string }[] = [
+  { id: "todo", label: "To do", dot: "bg-sky-400" },
+  { id: "in_progress", label: "In progress", dot: "bg-amber-400" },
+  { id: "done", label: "Done", dot: "bg-emerald-400" },
 ];
 
 const columnOf = (s: MyTaskStatus): "todo" | "in_progress" | "done" =>
@@ -62,18 +62,19 @@ export function ClientMemberBoard() {
       {tasks.length === 0 ? (
         <p className="card p-5 text-sm text-faint">Nothing assigned to you yet. Work the account owner gives you appears here.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {COLUMNS.map((col) => {
             const items = tasks.filter((t) => columnOf(t.status) === col.id);
             return (
-              <section key={col.id} className="card flex min-w-0 flex-col p-3" aria-label={col.label}>
-                <div className="mb-2 flex items-center justify-between px-1">
-                  <h2 className="text-sm font-bold">{col.label}</h2>
-                  <span className="pill border border-border text-[11px] text-faint">{items.length}</span>
+              <section key={col.id} className="flex min-w-0 flex-col rounded-xl bg-[var(--board-col)] p-2" aria-label={col.label}>
+                <div className="mb-1 flex items-center gap-2 px-1 pt-1">
+                  <span className={cn("h-2 w-2 shrink-0 rounded-full", col.dot)} />
+                  <h2 className="text-[13px] font-semibold">{col.label}</h2>
+                  <span className="text-xs tabular-nums text-faint">{items.length}</span>
                 </div>
                 <div className="space-y-2">
                   {items.length === 0 ? (
-                    <p className="px-1 py-3 text-xs text-faint">Nothing here.</p>
+                    <p className="rounded-lg border border-dashed border-border py-8 text-center text-xs text-faint">No tasks</p>
                   ) : items.map((t) => (
                     <Card key={t.id} t={t} busy={move.isPending || flag.isPending}
                       onMove={(status) => move.mutate({ id: t.id, status })}
@@ -100,7 +101,7 @@ function Card({ t, busy, onMove, onFlag }: {
   const due = t.due_at ? `${dayLabel(dateOnly(localDayKey(t.due_at)))} ${clockTime(t.due_at)}` : t.due_label;
 
   return (
-    <article className="rounded-xl bg-surface-2 p-3">
+    <article className="rounded-lg border border-border bg-surface p-3">
       <p className={cn("break-words text-sm font-medium", col === "done" && "text-muted line-through decoration-faint")}>{t.title}</p>
       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-faint">
         {col === "done" && t.completed_at ? (
