@@ -163,23 +163,18 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
             {mode === "reset" ? "Set someone's password" : "Give a colleague access"}
           </h2>
 
-          <div className="mb-3 flex gap-2">
-            {([
-              ["invite", "Add someone"],
-              ["reset", "Set a password"],
-            ] as const).map(([k, label]) => (
-              <button
-                key={k}
-                onClick={() => { setMode(k); setError(""); setDone(""); setSent(null); }}
-                className={
-                  mode === k
-                    ? "flex-1 rounded-lg border border-accent bg-accent/15 p-2 text-sm"
-                    : "flex-1 rounded-lg border border-border bg-surface-2 p-2 text-sm hover:border-accent/50"
-                }
-              >
-                {label}
-              </button>
-            ))}
+          <div className="mb-3">
+            {mode === "invite" ? (
+            <button type="button" className="text-xs font-medium text-accent-soft hover:underline"
+              onClick={() => { setMode("reset"); setError(""); setDone(""); setSent(null); }}>
+              Someone already here can't sign in? Set a new password instead
+            </button>
+          ) : (
+            <button type="button" className="text-xs font-medium text-accent-soft hover:underline"
+              onClick={() => { setMode("invite"); setError(""); setDone(""); setSent(null); }}>
+              Back to giving someone access
+            </button>
+          )}
           </div>
 
           {mode === "invite" ? (

@@ -137,10 +137,11 @@ export function timeLabel(iso: string, tz: string): string {
   }).format(new Date(iso));
 }
 
-/** "5a", "1:30p". For grids too narrow to spend seven characters on a time. */
+/** "5am", "1:30pm". For grids too narrow for "1:30 PM". It was "5a" / "1:30p",
+    which read as a typo (13 Oct 2026 review). */
 export function compactTime(iso: string, tz: string): string {
   const { hour, minute } = zoned(iso, tz);
-  const suffix = hour < 12 ? "a" : "p";
+  const suffix = hour < 12 ? "am" : "pm";
   const h12 = hour % 12 === 0 ? 12 : hour % 12;
   return minute === 0 ? `${h12}${suffix}` : `${h12}:${String(minute).padStart(2, "0")}${suffix}`;
 }

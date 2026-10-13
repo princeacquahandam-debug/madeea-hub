@@ -64,7 +64,7 @@ export function AppShell() {
                 Suspense shows the shimmer skeleton while a lazy page chunk loads. */}
             <div key={location.pathname} className="page-enter">
               <Suspense fallback={<PageSkeleton />}>
-                {blocked ? <RoleBlocked label={blocked} /> : <Outlet />}
+                {blocked === "checking" ? <PageSkeleton /> : blocked ? <RoleBlocked label={blocked} /> : <Outlet />}
               </Suspense>
             </div>
             {/* Outside the keyed wrapper, so it does not re-animate on every

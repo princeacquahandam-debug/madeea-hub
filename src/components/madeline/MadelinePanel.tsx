@@ -88,7 +88,18 @@ function pageActions(
       out.push({ label: "What needs attention?", prompt: "What needs my attention right now? Check overdue and blocked tasks, emails waiting on a reply and today's meetings. Most urgent first." });
     }
   } else if (path.startsWith("/tasks")) {
-    if (open.length) {
+    /* All three task actions on the board, not only "Suggest priority"
+       (13 Oct 2026 review). With no task open, "this task" is the most
+       pressing one: overdue first, then the soonest due, then the most
+       recently touched. Named on hover and attached as context. The
+       follow-up goes to a task that is waiting on someone, if there is one. */
+    const byUrgency = [...open].sort((a, b) =>
+      (at(a.due_at) || Infinity) - (at(b.due_at) || Infinity) || at(b.updated_at) - at(a.updated_at));
+    const focus = byUrgency[0];
+    const waitingOn = open.find((t) => t.status === "follow_up") ?? open.find((t) => t.blocked) ?? focus;
+    if (focus) {
+      out.push({ ...FOR_ITEM.task[0], item: taskItem(focus), hint: `For: ${focus.title}` });
+      out.push({ ...FOR_ITEM.task[1], item: taskItem(waitingOn), hint: `For: ${waitingOn.title}` });
       out.push({ label: "Suggest priority", prompt: "Look at my open tasks and suggest what to prioritise: the three to do next, and any whose priority looks wrong." });
     }
   } else if (path.startsWith("/calendar")) {
@@ -101,8 +112,15 @@ function pageActions(
       const time = new Date(next.starts_at!).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit", hour12: true });
       out.push({ ...FOR_ITEM.meeting[0], item: meetingItem(next), hint: `Next: ${next.title}, ${time}` });
     }
+    /* Recorded notes when there are some; otherwise the last meeting on the
+       calendar, so the action is there whenever a meeting has happened. */
+    const last = meetings
+      .filter((m) => at(m.starts_at) <= now)
+      .sort((a, b) => at(b.starts_at) - at(a.starts_at))[0];
     if (notes.length) {
       out.push({ label: "Summarize last meeting", prompt: "Summarise my most recent recorded meeting: decisions, action items and anything still open.", hint: `Last: ${notes[0].title}` });
+    } else if (last) {
+      out.push({ ...FOR_ITEM.meeting[1], item: meetingItem(last), hint: `Last: ${last.title}` });
     }
   }
   return out;

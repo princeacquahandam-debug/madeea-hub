@@ -40,7 +40,10 @@ export default function Admin() {
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   // UI gate only. RLS is the real boundary (admins-only writes, workspace isolation).
-  if (!roleLoading && !["owner", "admin"].includes(role ?? "")) {
+  // Nothing renders until the role is known (the shell shows a skeleton), so
+  // the panel never flashes for an account that can't use it.
+  if (roleLoading) return null;
+  if (!["owner", "admin"].includes(role ?? "")) {
     return (
       <div className="mx-auto max-w-md pt-10 text-center">
         <div className="card p-8">
@@ -78,7 +81,7 @@ export default function Admin() {
           ? `New password set for ${addr}. Nothing else about their account changed — tell them what it is.`
           : res?.reinstated
             ? `${addr} already had an account, so they were added straight back as ${asRole}, with the password below.`
-            : `${addr} can sign in now, as ${asRole}. Nothing was emailed, so send them the details below.`,
+            : `${addr} can sign in now, as ${asRole}. Nothing was emailed, so send them the credentials below.`,
       });
       setSent({ email: addr, password });
       setEmail("");
@@ -210,24 +213,19 @@ export default function Admin() {
             the current password, as it must. "Set a password" is the way out,
             and it is a mode you pick rather than something re-inviting does
             behind your back. */}
-        <div className="mb-3 flex max-w-sm gap-2">
-          {([
-            ["invite", "Add someone"],
-            ["reset", "Set a password"],
-          ] as const).map(([k, label]) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => { setMode(k); setNotice(null); setSent(null); }}
-              className={
-                mode === k
-                  ? "flex-1 rounded-lg border border-accent bg-accent/15 p-2 text-sm"
-                  : "flex-1 rounded-lg border border-border bg-surface-2 p-2 text-sm hover:border-accent/50"
-              }
-            >
-              {label}
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+          {mode === "reset" && <p className="text-sm font-semibold">Set a new password for an existing member</p>}
+          {mode === "invite" ? (
+            <button type="button" className="text-xs font-medium text-accent-soft hover:underline"
+              onClick={() => { setMode("reset"); setNotice(null); setSent(null); }}>
+              Already a member and can't sign in? Set a new password instead
             </button>
-          ))}
+          ) : (
+            <button type="button" className="text-xs font-medium text-accent-soft hover:underline"
+              onClick={() => { setMode("invite"); setNotice(null); setSent(null); }}>
+              Back to adding someone new
+            </button>
+          )}
         </div>
 
         <form onSubmit={sendInvite} className="flex flex-col gap-2 sm:flex-row">
@@ -280,18 +278,17 @@ export default function Admin() {
             : ROLE_BLURB[inviteRole]}
         </p>
 
+        {notice && (
+          <div className={`mt-3 max-w-xl rounded-lg border px-4 py-3 text-sm ${notice.kind === "ok" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-200"}`}>
+            {notice.text}
+          </div>
+        )}
         {sent ? (
-          <div className="mt-3 max-w-sm">
+          <div className="mt-2 max-w-sm">
             <CredentialsHandover email={sent.email} password={sent.password} />
           </div>
         ) : null}
       </section>
-
-      {notice && (
-        <div className={`mb-5 rounded-lg border px-4 py-3 text-sm ${notice.kind === "ok" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-200"}`}>
-          {notice.text}
-        </div>
-      )}
 
       {/* Members */}
       <section className="card overflow-hidden">

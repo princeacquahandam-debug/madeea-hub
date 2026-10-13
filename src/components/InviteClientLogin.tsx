@@ -132,23 +132,18 @@ export function InviteClientLogin({
             They never see the agency app.
           </p>
 
-          <div className="mt-4 flex gap-2">
-            {([
-              ["invite", "Give access"],
-              ["reset", "Set a password"],
-            ] as const).map(([k, label]) => (
-              <button
-                key={k}
-                onClick={() => { setMode(k); setError(""); setDone(""); setSent(null); }}
-                className={
-                  mode === k
-                    ? "flex-1 rounded-lg border border-accent bg-accent/15 p-2 text-sm"
-                    : "flex-1 rounded-lg border border-border bg-surface-2 p-2 text-sm hover:border-accent/50"
-                }
-              >
-                {label}
-              </button>
-            ))}
+          <div className="mt-4">
+            {mode === "invite" ? (
+            <button type="button" className="text-xs font-medium text-accent-soft hover:underline"
+              onClick={() => { setMode("reset"); setError(""); setDone(""); setSent(null); }}>
+              Already has a login and can't get in? Set a new password instead
+            </button>
+          ) : (
+            <button type="button" className="text-xs font-medium text-accent-soft hover:underline"
+              onClick={() => { setMode("invite"); setError(""); setDone(""); setSent(null); }}>
+              Back to giving access
+            </button>
+          )}
           </div>
           <p className="mt-2 text-xs text-faint">
             {mode === "invite"
