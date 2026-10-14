@@ -1,3 +1,4 @@
+import { InlineAiActions } from "@/components/madeline/PageAiActions";
 import { useEffect, useMemo, useState } from "react";
 import { useNow } from "@/hooks/useNow";
 import { Link, useSearchParams } from "react-router-dom";
@@ -455,7 +456,9 @@ export default function Communication() {
           Center" is already the highlighted item in the sidebar and repeating
           it at 30px tells nobody anything they learned two seconds ago. */}
       <div className="mb-2.5 flex flex-wrap items-center gap-2">
-        <h1 className="mr-auto shrink-0 text-xl font-semibold">Inbox</h1>
+        <h1 className="shrink-0 text-xl font-semibold">Inbox</h1>
+        {/* AI actions right beside the title, as in Abder’s mockup (13 Oct call). */}
+        <div className="mr-auto"><InlineAiActions path="/inbox" /></div>
         {/* Only for an EA a client has shared their mailbox with (0086). */}
         <ClientMailboxButton />
         <button className="btn-primary h-9 px-3.5" onClick={() => { setSeed({ title: "Write an email", provider: undefined }); setComposing(true); }}>
