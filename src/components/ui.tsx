@@ -26,11 +26,14 @@ export function Badge({ tone, children }: { tone?: string; children: ReactNode }
   return <span className={cn("pill", PILL_STYLES[tone ?? "normal"] ?? PILL_STYLES.normal)}>{children}</span>;
 }
 
-export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+export function PageHeader({ title, subtitle, action, titleAside }: { title: string; subtitle?: string; action?: ReactNode; titleAside?: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-4 mb-6">
-      <div>
-        <h1 className="display text-3xl">{title}</h1>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h1 className="display text-3xl">{title}</h1>
+          {titleAside}
+        </div>
         {subtitle && <p className="text-sm text-muted mt-1">{subtitle}</p>}
       </div>
       {action}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors,
@@ -8,7 +8,7 @@ import {
   SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus, Trash2, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2, List as ListIcon, Search, MessageSquare, Send, ShieldCheck, Bookmark, Check } from "lucide-react";
+import { Plus, Trash2, Pencil, CalendarDays, CheckSquare, Repeat, Lock, X, Copy, Link2, List as ListIcon, Search, MessageSquare, Send, ShieldCheck, Bookmark, Check, Sparkles, Loader2 } from "lucide-react";
 import type { Task, TaskStatus, Priority, Subtask, Recurrence, TaskProgress, TaskAttachment, TaskActivity } from "@/types/db";
 import { Badge, PageHeader, Modal } from "@/components/ui";
 import { useClientContext } from "@/store/clientContext";
@@ -21,6 +21,12 @@ import { TASK_TEMPLATES, type TaskTemplate } from "@/lib/taskTemplates";
 import { cn } from "@/lib/utils";
 import { useMadelineContext } from "@/hooks/useMadeline";
 import { taskItem } from "@/lib/madelineItems";
+import { prioritize, findStuck, type PrioritizeResult, type RankedRow, type StuckRow } from "@/lib/taskInsights";
+import { breakDownTask, type Step } from "@/lib/taskBreakdown";
+import { PrioritizePanel } from "@/components/tasks/PrioritizePanel";
+import { StuckCard } from "@/components/tasks/StuckCard";
+import { UndoToast } from "@/components/tasks/UndoToast";
+import { useMadeline } from "@/store/madeline";
 
 /* Each column is colour-washed, the way Wing's board is: To Do, In Progress and
    Done read as three different places at a glance rather than three identical
@@ -194,19 +200,38 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, onSave, isSaved
   );
 }
 
+/* The Tasks quick actions' state, shared with every card without threading it
+   through the columns: which card is selected, which are stuck (outlined),
+   whether "Break down a task" is waiting for a card to be picked, and the
+   step preview shown in place on a card. */
+interface BoardAi {
+  selectedId: string | null;
+  stuckIds: Set<string>;
+  picking: boolean;
+  onCardClick: (t: Task) => void;
+  preview: (t: Task) => React.ReactNode;
+}
+const BoardAiContext = createContext<BoardAi | null>(null);
+
 function SortableCard({ task, blocked, onDelete, onEdit, onComplete, onSave, isSaved, comments, focused, justDropped }: { task: Task; blocked: boolean; onDelete: () => void; onEdit: () => void; onComplete: () => void; onSave: () => void; isSaved: boolean; comments?: number; focused?: boolean; justDropped?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
+  const ai = useContext(BoardAiContext);
   return (
     // data-task-id is the scroll anchor for the /tasks?task=<id> deep link from the
     // client activity timeline.
     <div ref={setNodeRef} data-task-id={task.id} style={{ transform: CSS.Transform.toString(transform), transition }} {...attributes} {...listeners}
+      onClick={() => ai?.onCardClick(task)}
       className={cn(
         "group touch-none cursor-grab rounded-lg active:cursor-grabbing",
         isDragging && "opacity-40",
         justDropped && "card-drop",
-        focused && "ring-2 ring-accent ring-offset-2 ring-offset-bg",
+        // Find stuck tasks outlines the stuck cards on the board.
+        ai?.stuckIds.has(task.id) && "ring-2 ring-red-400/70",
+        (focused || ai?.selectedId === task.id) && "ring-2 ring-accent ring-offset-2 ring-offset-bg",
+        ai?.picking && task.status !== "done" && "cursor-pointer hover:ring-2 hover:ring-accent/60",
       )}>
       <CardBody task={task} blocked={blocked} onDelete={onDelete} onEdit={onEdit} onComplete={onComplete} onSave={onSave} isSaved={isSaved} comments={comments} />
+      {ai?.preview(task)}
     </div>
   );
 }
@@ -478,6 +503,18 @@ export default function Tasks() {
   const savedIds = new Set(savedRows.filter((s) => s.kind === "task").map((s) => s.target_id));
   const { data: myRole } = useMyRole();
   const isAdmin = atLeast(myRole, "admin");
+  const { add: addComment } = useCommentMutations();
+
+  /* ── AI quick actions (Abder's answer spec, 14 Oct 2026) ── */
+  const [panel, setPanel] = useState<{ result: PrioritizeResult; at: Date } | null>(null);
+  const [stuckOpen, setStuckOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [bd, setBd] = useState<{ taskId: string; state: "loading" | "steps" | "question" | "error"; steps?: Step[]; question?: string; error?: string } | null>(null);
+  const [bdAnswer, setBdAnswer] = useState("");
+  const [toast, setToast] = useState<{ message: string; undo: () => void } | null>(null);
+  const [tried, setTried] = useState(() => { try { return localStorage.getItem("madeea-ai-actions-tried") === "1"; } catch { return true; } });
+  const markTried = () => { try { localStorage.setItem("madeea-ai-actions-tried", "1"); } catch { /* storage blocked */ } setTried(true); };
   const [q, setQ] = useState("");
   // Deck slide 5: Assignee, Client, Priority and Due date beside search.
   const [clientF, setClientF] = useState("all");
@@ -527,6 +564,119 @@ export default function Tasks() {
   }, [tasks, who, q, me?.user_id, scopeId, clientF, prioF, dueF]);
 
   useEffect(() => { if (!activeId) setBoard(group(visible)); }, [visible, activeId]);
+
+  // Prioritize board: worked out from the board in view (it follows the filters).
+  const runPrioritize = () => {
+    markTried();
+    setPanel({ result: prioritize(visible, { now: new Date(), members, clients }), at: new Date() });
+  };
+  // Find stuck tasks: same board, updated live as the board changes.
+  const stuck = useMemo(() => (stuckOpen ? findStuck(visible, new Date()) : null), [stuckOpen, visible]);
+  const stuckIds = useMemo(() => new Set(stuck?.rows.map((r) => r.task.id) ?? []), [stuck]);
+
+  /** Write the checked changes; Undo puts every one back for ten seconds. */
+  function applyChanges(rows: RankedRow[]) {
+    const write = (id: string, patch: Partial<Task>) =>
+      patch.status ? setStatus.mutate({ id, status: patch.status }) : update.mutate({ id, ...patch } as Parameters<typeof update.mutate>[0]);
+    for (const r of rows) if (r.change) write(r.task.id, r.change.patch);
+    setPanel(null);
+    setToast({
+      message: `Applied ${rows.length} ${rows.length === 1 ? "change" : "changes"}`,
+      undo: () => { for (const r of rows) if (r.change) write(r.task.id, r.change.undo); },
+    });
+  }
+
+  function continueInChat() {
+    if (!panel) return;
+    const lines = panel.result.rows.map((r) =>
+      `${r.rank ?? "-"}. ${r.task.title}: ${r.reason}${r.change ? ` Suggested: ${r.change.label} ${r.change.field === "assignee" ? "" : `${r.change.from} → `}${r.change.to}.` : ""}`);
+    setPanel(null);
+    useMadeline.getState().ask(`Here are the suggested priorities for my task board:\n${panel.result.summary}\n${lines.join("\n")}\n\nLet's talk them through.`, { send: true });
+  }
+
+  /* Break down a task: the selected card, or ask for one ("Pick a task first."). */
+  async function runBreakdown(t: Task, answer?: string) {
+    setPicking(false);
+    setSelectedId(t.id);
+    setBd({ taskId: t.id, state: "loading" });
+    try {
+      const r = await breakDownTask(t, t.client_name || null, answer);
+      setBd("steps" in r ? { taskId: t.id, state: "steps", steps: r.steps } : { taskId: t.id, state: "question", question: r.question });
+      setBdAnswer("");
+    } catch (e) {
+      setBd({ taskId: t.id, state: "error", error: e instanceof Error ? e.message : "Couldn't break this task down." });
+    }
+  }
+  function startBreakdown() {
+    markTried();
+    const t = visible.find((x) => x.id === selectedId && x.status !== "done");
+    if (t) void runBreakdown(t);
+    else setPicking(true);
+  }
+  function keepSteps(t: Task, steps: Step[]) {
+    const before = t.subtasks ?? [];
+    const added = steps.map((s, i) => ({ id: `${Date.now()}-${i}`, label: s.minutes ? `${s.text} (~${s.minutes} min)` : s.text, done: false }));
+    update.mutate({ id: t.id, subtasks: [...before, ...added] } as Parameters<typeof update.mutate>[0]);
+    setBd(null);
+    setToast({ message: `Added ${added.length} steps to "${t.title}"`, undo: () => update.mutate({ id: t.id, subtasks: before } as Parameters<typeof update.mutate>[0]) });
+  }
+
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  const boardAi: BoardAi = {
+    selectedId,
+    stuckIds,
+    picking,
+    onCardClick: (t) => {
+      if (picking) { if (t.status !== "done") void runBreakdown(t); return; }
+      setSelectedId((cur) => (cur === t.id ? null : t.id));
+    },
+    // The steps, filled in place on the task, with Keep all / Undo.
+    preview: (t) => {
+      if (bd?.taskId !== t.id) return null;
+      return (
+        <div onPointerDown={stop} onClick={stop} className="mt-1.5 cursor-default rounded-lg border border-accent/40 bg-[var(--nav-active-bg)] p-2.5 text-xs">
+          <p className="mb-1.5 flex items-center gap-1 font-semibold text-[color:var(--nav-active-text)]"><Sparkles size={12} /> Break down</p>
+          {bd.state === "loading" && <p className="flex items-center gap-1.5 text-muted"><Loader2 size={12} className="animate-spin" /> Breaking this down…</p>}
+          {bd.state === "error" && (
+            <div className="space-y-1.5">
+              <p className="text-red-500">{bd.error}</p>
+              <div className="flex gap-1.5">
+                <button className="btn-ghost border border-border px-2 py-1 text-xs" onClick={() => void runBreakdown(t)}>Try again</button>
+                <button className="btn-ghost px-2 py-1 text-xs" onClick={() => setBd(null)}>Close</button>
+              </div>
+            </div>
+          )}
+          {bd.state === "question" && (
+            <form className="space-y-1.5" onSubmit={(e) => { e.preventDefault(); if (bdAnswer.trim()) void runBreakdown(t, bdAnswer.trim()); }}>
+              <p className="text-text">{bd.question}</p>
+              <input className="input h-8 py-0 text-xs" autoFocus value={bdAnswer} onChange={(e) => setBdAnswer(e.target.value)} placeholder="Your answer" aria-label="Answer Madeline's question" />
+              <div className="flex gap-1.5">
+                <button type="submit" className="btn-primary px-2.5 py-1 text-xs" disabled={!bdAnswer.trim()}>Break down</button>
+                <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => setBd(null)}>Cancel</button>
+              </div>
+            </form>
+          )}
+          {bd.state === "steps" && bd.steps && (
+            <>
+              <ol className="mb-2 space-y-1">
+                {bd.steps.map((s, i) => (
+                  <li key={i} className="flex gap-1.5 text-text">
+                    <span className="mt-[3px] h-3 w-3 shrink-0 rounded-sm border border-border bg-surface" aria-hidden="true" />
+                    <span className="min-w-0 flex-1">{s.text}</span>
+                    {s.minutes && <span className="shrink-0 text-faint">~{s.minutes} min</span>}
+                  </li>
+                ))}
+              </ol>
+              <div className="flex gap-1.5">
+                <button className="btn-primary px-2.5 py-1 text-xs" onClick={() => keepSteps(t, bd.steps!)}>Keep all</button>
+                <button className="btn-ghost border border-border px-2.5 py-1 text-xs" onClick={() => setBd(null)}>Undo</button>
+              </div>
+            </>
+          )}
+        </div>
+      );
+    },
+  };
 
   // Scroll the linked card into view and let the highlight fade, rather than
   // dumping the user on a board and making them hunt for the row.
@@ -652,6 +802,28 @@ export default function Tasks() {
       <ClientScopeBanner note="Tasks with no client attached are hidden." />
       <PageHeader
         title="Tasks"
+        titleAside={
+          <div className="flex flex-wrap items-center gap-1.5" aria-label="AI actions">
+            {([
+              ["Prioritize board", runPrioritize],
+              ["Break down a task", startBreakdown],
+              ["Find stuck tasks", () => { markTried(); setStuckOpen(true); }],
+            ] as const).map(([label, run]) => (
+              <button
+                key={label}
+                type="button"
+                onClick={run}
+                disabled={!visible.some((t) => t.status !== "done")}
+                className={cn(
+                  "flex h-8 items-center gap-1.5 rounded-full border border-accent/50 bg-[var(--nav-active-bg)] px-3 text-xs font-semibold text-[color:var(--nav-active-text)] transition-colors hover:border-accent hover:bg-accent hover:text-white disabled:pointer-events-none disabled:opacity-40",
+                  !tried && "ai-attention",
+                )}
+              >
+                <Sparkles size={12} /> {label}
+              </button>
+            ))}
+          </div>
+        }
         action={
           <div className="flex gap-2">
             <button className="btn-ghost border border-border" onClick={() => setTemplates(true)}><Copy size={15} /> Templates</button>
@@ -661,6 +833,13 @@ export default function Tasks() {
           </div>
         }
       />
+
+      {picking && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-accent/40 bg-[var(--nav-active-bg)] px-3 py-2 text-sm text-[color:var(--nav-active-text)]">
+          <Sparkles size={14} /> Pick a task first: click the card you want broken down.
+          <button className="ml-auto text-xs font-semibold hover:underline" onClick={() => setPicking(false)}>Cancel</button>
+        </div>
+      )}
 
       {/* One row of filters (28 Sep audit: the old two rows, three chips plus one
           per teammate plus a view switch, read as clutter). Search first,
@@ -720,6 +899,22 @@ export default function Tasks() {
         </select>
       </div>
 
+      {stuck && (
+        <StuckCard
+          rows={stuck.rows}
+          checked={stuck.checked}
+          onClose={() => setStuckOpen(false)}
+          onOpen={(r: StuckRow) => startEdit(r.task)}
+          onSetDate={(r: StuckRow, day: string) => {
+            const before = r.task.due_at;
+            update.mutate({ id: r.task.id, due_at: day } as Parameters<typeof update.mutate>[0]);
+            setToast({ message: `New due date for "${r.task.title}"`, undo: () => update.mutate({ id: r.task.id, due_at: before } as Parameters<typeof update.mutate>[0]) });
+          }}
+          onNudge={(r: StuckRow) => addComment.mutate({ taskId: r.task.id, body: "Nudge: any update on this one? It hasn't moved in a while." })}
+        />
+      )}
+
+      <BoardAiContext.Provider value={boardAi}>
       {isLoading ? (
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
           {COLUMNS.map((col) => (
@@ -746,6 +941,21 @@ export default function Tasks() {
           </DragOverlay>
         </DndContext>
       )}
+
+      </BoardAiContext.Provider>
+
+      {panel && (
+        <PrioritizePanel
+          result={panel.result}
+          generatedAt={panel.at}
+          onClose={() => setPanel(null)}
+          onRefresh={runPrioritize}
+          onOpenTask={(r) => setParams({ task: r.task.id })}
+          onApply={applyChanges}
+          onContinueInChat={continueInChat}
+        />
+      )}
+      {toast && <UndoToast message={toast.message} onUndo={toast.undo} onDone={() => setToast(null)} />}
 
       {/* Add / Edit */}
       <Modal open={modal} onClose={() => { setModal(false); setEditingId(null); }}>

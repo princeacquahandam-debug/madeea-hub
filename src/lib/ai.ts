@@ -44,7 +44,8 @@ export type GenerateTool =
   | "meeting_followup"
   | "focus"
   | "briefing"
-  | "decision";
+  | "decision"
+  | "task_breakdown";
 
 export interface GeneratePayload {
   tool: GenerateTool;

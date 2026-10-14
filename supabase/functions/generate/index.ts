@@ -166,6 +166,26 @@ const FACTS_ONLY =
   "do not recalculate, re-round, extrapolate or add numbers of your own. If something needed is absent, write [TBC].";
 
 function systemFor(tool: string, format: string): string {
+  /* "Break down a task" on the Tasks board (Abder's AI answer spec, 14 Oct
+     2026). Data out, not prose: the app shows the steps on the task card with
+     Keep all / Undo, so the reply must parse. */
+  if (tool === "task_breakdown")
+    return `${BASE} You split ONE task into the smaller steps an executive assistant would tick off.
+
+Reply with JSON only, no prose and no code fence, in exactly one of these two shapes:
+{"steps":[{"text":string,"minutes":number|null}]}
+{"question":string}
+
+Rules for steps:
+- Between 3 and 7 steps, in the order the work is actually done.
+- Each "text" starts with a verb and is at most 10 words. No numbering, no full stop.
+- "minutes" is a rough time estimate when you can judge it, otherwise null.
+- Do not repeat a step that already exists in the task's subtasks.
+- Use only what the task says; never invent names, dates or facts.
+
+If the task is too vague to split sensibly (for example a single word with no notes), return {"question": ...}
+with ONE short question that would let you split it. Never guess.`;
+
   if (tool === "studio")
     return `${BASE} You are producing a "${format}". Match the requested tone exactly. Return only the finished document, no preamble.`;
   if (tool === "bookkeeping")
@@ -316,7 +336,9 @@ Deno.serve(async (req) => {
         { role: "system", content: systemFor(tool, format) },
         { role: "user", content: prompt },
       ],
-      "premium",
+      // A short structured reply: the cheaper model is plenty, and cost is
+      // the deciding factor for these one-click actions (13 Oct call).
+      tool === "task_breakdown" ? "cheap" : "premium",
       (s) => void recordSpend(authHeader0, "generate", "openai", s),
     );
 

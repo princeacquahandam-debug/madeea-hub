@@ -42,7 +42,10 @@ interface PageConfig {
 
 const PAGES: PageConfig[] = [
   {
-    path: "/tasks",
+    // Tasks renders its own buttons beside the title (pages/Tasks.tsx):
+    // Prioritize board and Find stuck tasks are worked out from the board
+    // itself, per Abder's answer spec. Kept here for reference only.
+    path: "/tasks-legacy",
     placement: "strip",
     needs: "tasks",
     actions: [

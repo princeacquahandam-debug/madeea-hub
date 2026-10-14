@@ -735,3 +735,7 @@
 }
 .ai-attention { animation: ai-attention 2s ease-out infinite; }
 @media (prefers-reduced-motion: reduce) { .ai-attention { animation: none; } }
+
+/* The Prioritize board side panel slides in from the right (14 Oct 2026). */
+@keyframes slideInRight { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { [style*="slideInRight"] { animation: none !important; } }
