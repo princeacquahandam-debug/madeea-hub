@@ -62,11 +62,11 @@ import {
      Work               the work itself                    Communication Center, Task Manager
      Time & Reports     prove it: clock, then report       Time Tracker, EOD Reports
      Clients & Files    (managers and up)
-     Guides & Training  how we do things, and learning it  SOP, Training Center
+     Learn              how we do things, and learning it  SOP, Training Center
      Settings           configure once                     Integrations, Admin Panel
 
    "Playbook" and "Setup" became the plain words for what they hold. */
-export const NAV_GROUPS = ["Today", "Work", "Time & Reports", "Clients & Files", "Guides & Training", "Settings"] as const;
+export const NAV_GROUPS = ["Today", "Work", "Time & Reports", "Clients & Files", "Learn", "Settings"] as const;
 export type NavGroup = (typeof NAV_GROUPS)[number];
 
 export interface NavItem {
@@ -159,7 +159,7 @@ export const NAV: NavItem[] = [
      standard, and the product should say what the pitch says.
 
      The route stays /sops, which it never stopped being. */
-  { to: "/sops", label: "SOP", icon: ClipboardCheck, group: "Guides & Training", tab: "SOPs" },
+  { to: "/sops", label: "SOP", icon: ClipboardCheck, group: "Learn", tab: "SOPs" },
   /* ADMINS ONLY, AND THIS IS A COST CONTROL, NOT A PERMISSION.
      Rowena, 14 Sep (24:06): "huwag mong ipapakita yan" — video capture is the
      most expensive thing in the app by a wide margin, and the team watched a
@@ -170,14 +170,14 @@ export const NAV: NavItem[] = [
      stays mounted; only the door narrows.
      The page repeats the check. Hiding a link does not unbookmark it. */
   // A tab of SOP: record it, then write it up.
-  { to: "/videos", label: "Video Instruction", icon: Video, group: "Guides & Training", minRole: "admin", parent: "/sops" },
+  { to: "/videos", label: "Video Instruction", icon: Video, group: "Learn", minRole: "admin", parent: "/sops" },
   /* Called beta out loud on the 14 Sep walkthrough and labelled nowhere. An EA
      clicking into something half-built with no warning is a support ticket; a
      client watching it happen in a demo is worse. */
   /* The Academy was routed but never in the nav. The only way in was a promo
      card in the sidebar footer, which is dismissible, so dismissing it hid the
      training entirely. "Training Center" is what the team calls it. */
-  { to: "/academy", label: "Training Center", icon: GraduationCap, group: "Guides & Training" },
+  { to: "/academy", label: "Training Center", icon: GraduationCap, group: "Learn" },
 
   /* ---- Setup --------------------------------------------------------------
      Configured once, then forgotten. Bottom of the list, away from daily work

@@ -44,7 +44,12 @@ export function MessageRow({
   unread?: boolean;
 }) {
   const unread = unreadProp ?? (m.direction !== "outbound" && !m.first_reply_at);
-  const channel = REAL_CHANNELS.find((c) => c.source === (m as { source?: string }).source);
+  /* Every row carries its channel's logo, on the corner of the avatar, so one
+     list can hold Gmail, Slack, Outlook and the rest and still say where each
+     came from (13 Oct 2026 call). A row with no source is mail from Gmail,
+     the default mailbox. */
+  const channel = REAL_CHANNELS.find((c) => c.source === ((m as { source?: string }).source ?? "gmail"))
+    ?? REAL_CHANNELS.find((c) => c.id === "gmail");
   const avatar = avatarColors(avatarHue(m.sender_email ?? m.sender_name ?? "?"));
 
   /* One line describing what the message is about. Subject first because it is
@@ -79,12 +84,23 @@ export function MessageRow({
 
       {/* Stand-in for a profile photo: a stable colour per sender, so the same
           person is the same circle every time. */}
-      <span
-        aria-hidden="true"
-        className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full text-[11px] font-semibold"
-        style={{ background: avatar.bg, color: avatar.fg }}
-      >
-        {initials(m.sender_name)}
+      <span className="relative mt-0.5 shrink-0">
+        <span
+          aria-hidden="true"
+          className="grid h-9 w-9 place-items-center rounded-full text-[11px] font-semibold"
+          style={{ background: avatar.bg, color: avatar.fg }}
+        >
+          {initials(m.sender_name)}
+        </span>
+        {channel && showChannel !== null && (
+          <span
+            className="absolute -bottom-1 -right-1 grid h-[18px] w-[18px] place-items-center rounded-full bg-surface ring-1 ring-border"
+            title={channel.label}
+            aria-label={`via ${channel.label}`}
+          >
+            <channel.icon size={11} />
+          </span>
+        )}
       </span>
 
       <span className="min-w-0 flex-1">
@@ -126,14 +142,6 @@ export function MessageRow({
         </span>
       </span>
 
-      {/* Where it came from, only when that is a real question. It used to show
-          on all 96 rows while all 96 were Gmail, which is 96 repetitions of
-          something the source chips already said. */}
-      {channel && showChannel && (
-        <span className="mt-1 shrink-0" title={channel.label} aria-label={`via ${channel.label}`}>
-          <channel.icon size={16} />
-        </span>
-      )}
     </button>
   );
 }

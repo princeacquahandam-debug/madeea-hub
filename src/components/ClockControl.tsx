@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Play, Square, CameraOff } from "lucide-react";
+import { Play, Square, CameraOff, Camera } from "lucide-react";
 import { entrySeconds, useClients, useTimeEntries, useTimeMutations, useEffectiveTimeSettings } from "@/data/hooks";
 import { useMonitoringContext } from "@/store/monitoringContext";
 import { useClockGate } from "@/components/ClockGates";
@@ -121,6 +121,21 @@ export function ClockControl() {
           {/* Named on wider screens, an icon on a phone. The colour alone is
               not the message: this gets screenshotted into Slack. */}
           <span className="hidden md:inline">No screenshots</span>
+        </button>
+      )}
+
+      {/* While the screen is being shared, say so beside the clock and let it be
+          stopped in one click (13 Oct 2026 call: "how do I stop it?"). Stopping
+          sharing keeps the shift running; clocking out ends both. */}
+      {running && capture.state === "capturing" && (
+        <button
+          onClick={capture.stop}
+          className="flex h-9 items-center gap-1.5 rounded-lg border border-border px-2.5 text-xs font-semibold text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
+          title="Your screen is being shared for screenshots. Click to stop sharing; your shift keeps running."
+          aria-label="Stop screen sharing"
+        >
+          <Camera size={14} className="text-emerald-500" />
+          <span className="hidden md:inline">Stop sharing</span>
         </button>
       )}
 

@@ -21,7 +21,7 @@ const GROUP_ICON: Record<NavGroup, LucideIcon> = {
   Work: Briefcase,
   "Time & Reports": Timer,
   "Clients & Files": FolderOpen,
-  "Guides & Training": BookMarked,
+  "Learn": BookMarked,
   Settings: SlidersHorizontal,
 };
 
@@ -37,7 +37,7 @@ const TOUR_ANCHOR: Record<NavGroup, string> = {
   Work: "work",
   "Time & Reports": "time-reports",
   "Clients & Files": "clients-files",
-  "Guides & Training": "playbook",
+  "Learn": "playbook",
   Settings: "setup",
 };
 

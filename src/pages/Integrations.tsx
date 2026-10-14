@@ -170,7 +170,7 @@ export default function Integrations() {
         {/* Google Calendar. The mail half of this consent lives on the Gmail
             card above; what is left here is the part that has nothing to do
             with messages, and it is the same Google connection either way. */}
-        <div className="card flex flex-col p-5 md:col-span-2">
+        <div className="card flex flex-col p-5 md:col-span-2 xl:col-span-3">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-surface-2">
               <Calendar size={20} className="text-accent-soft" />

@@ -5,10 +5,10 @@ import { PageSkeleton } from "@/components/Skeleton";
 import { AmbientBackground } from "./AmbientBackground";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
-import { Footer } from "./Footer";
 import { MadelinePanel } from "@/components/madeline/MadelinePanel";
 import { MadelineFab, MadelineFabMobile } from "@/components/madeline/MadelineFab";
 import { InsightModal } from "@/components/madeline/InsightModal";
+import { PageAiActions } from "@/components/madeline/PageAiActions";
 import { CommandPalette } from "@/components/CommandPalette";
 import { FloatingSop } from "@/components/FloatingSop";
 import { RoleBlocked, SectionTabs, useRoleBlocked } from "@/components/layout/SectionTabs";
@@ -64,13 +64,12 @@ export function AppShell() {
                 Suspense shows the shimmer skeleton while a lazy page chunk loads. */}
             <div key={location.pathname} className="page-enter">
               <Suspense fallback={<PageSkeleton />}>
-                {blocked === "checking" ? <PageSkeleton /> : blocked ? <RoleBlocked label={blocked} /> : <Outlet />}
+                {blocked === "checking" ? <PageSkeleton /> : blocked ? <RoleBlocked label={blocked} /> : <><PageAiActions /><Outlet /></>}
               </Suspense>
             </div>
             {/* Outside the keyed wrapper, so it does not re-animate on every
                 route change, and inside <main>, which is the element that
                 scrolls. */}
-            <Footer />
           </main>
         </div>
       </div>

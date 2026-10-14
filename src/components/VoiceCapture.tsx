@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Mic, Square, Sparkles, Keyboard, AlertTriangle, Check } from "lucide-react";
+import { Mic, Square, Sparkles, Keyboard, AlertTriangle, Check, Mail } from "lucide-react";
 import { Modal } from "@/components/ui";
 import { useSpeechCapture } from "@/hooks/useSpeechCapture";
 import { parseVoiceTask } from "@/lib/ai";
 import type { ParseResult } from "@/lib/voiceTask";
 import { useClients, useTaskMutations } from "@/data/hooks";
 import type { Priority } from "@/types/db";
+import { useMadeline } from "@/store/madeline";
 
 type Step = "capture" | "parsing" | "confirm";
 
@@ -61,6 +62,22 @@ export function VoiceCapture({ open, onClose }: { open: boolean; onClose: () => 
     }
   }
 
+  /* A spoken note can be an email as often as a task (13 Oct 2026 call):
+     "draft a quick note to the client saying...". Madeline drafts it in the
+     result pop-up; nothing is sent, the draft is there to review and copy. */
+  function draftEmail() {
+    const note = text;
+    if (!note) return;
+    speech.stop();
+    onClose();
+    useMadeline.getState().ask(
+      `Draft an email from this note I just recorded. Work out who it's to if I named them, write a short subject line and the email itself, ready for me to review. Don't send anything.
+
+My note: "${note}"`,
+      { display: "modal", title: "Draft email" },
+    );
+  }
+
   // Nothing is ever saved without this being pressed.
   function save() {
     if (!form.title.trim()) return;
@@ -78,7 +95,7 @@ export function VoiceCapture({ open, onClose }: { open: boolean; onClose: () => 
       <div className="pr-8">
         <span className="eyebrow">Quick note</span>
         <h2 className="display mt-1 text-2xl">
-          {step === "confirm" ? "Check this before saving" : "Speak a task"}
+          {step === "confirm" ? "Check this before saving" : "Speak a note"}
         </h2>
       </div>
 
@@ -93,7 +110,7 @@ export function VoiceCapture({ open, onClose }: { open: boolean; onClose: () => 
                 <Mic size={30} className="relative text-accent" />
               </div>
               <p className="mt-4 text-sm font-medium">Listening…</p>
-              <p className="mt-1 text-xs text-faint">Say something like “remind me to send the board pack by Friday”.</p>
+              <p className="mt-1 text-xs text-faint">Say something like “remind me to send the board pack by Friday”, or what an email should say.</p>
               <button className="btn-primary mt-5" onClick={speech.stop}>
                 <Square size={14} /> Stop
               </button>
@@ -156,14 +173,24 @@ export function VoiceCapture({ open, onClose }: { open: boolean; onClose: () => 
 
           {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
 
-          <button
-            className="btn-primary mt-4 w-full"
-            onClick={parse}
-            disabled={!text || step === "parsing"}
-          >
-            <Sparkles size={15} className={step === "parsing" ? "animate-pulse" : undefined} />
-            {step === "parsing" ? "Reading it…" : "Turn into a task"}
-          </button>
+          {/* Two things a note can become: a task, or an email drafted for you. */}
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <button
+              className="btn-primary flex-1"
+              onClick={parse}
+              disabled={!text || step === "parsing"}
+            >
+              <Sparkles size={15} className={step === "parsing" ? "animate-pulse" : undefined} />
+              {step === "parsing" ? "Reading it…" : "Turn into a task"}
+            </button>
+            <button
+              className="btn-ghost flex-1 border border-border"
+              onClick={draftEmail}
+              disabled={!text || step === "parsing"}
+            >
+              <Mail size={15} /> Draft an email
+            </button>
+          </div>
         </div>
       )}
 

@@ -14,7 +14,7 @@ interface Step { selector?: string; title: string; body: string; needsNav?: bool
 const ALL_STEPS: Step[] = [
   { title: "Welcome to MadeEA Hub", body: "One place for your executive-assistant work. Here's a 30-second tour. Skip any time." },
   { selector: '[data-tour="nav"]', needsNav: true, title: "Your day, top to bottom", body: "Today shows where you stand and what's booked. Work is your inbox and task board. Time & Reports is your clock and the EOD report that closes the day." },
-  { selector: '[data-tour="playbook"]', needsNav: true, title: "Guides & Training", body: "How the work is done, written down once and reused: the SOPs you follow, and the Training Center to learn them." },
+  { selector: '[data-tour="playbook"]', needsNav: true, title: "Learn", body: "How the work is done, written down once and reused: the SOPs you follow, and the Training Center to learn them." },
   { selector: '[data-tour="clients-files"]', needsNav: true, minRole: "manager", title: "Clients & Files", body: "Each client's profile and logins, your notes and files, and the Client Scoreboard. Pages that belong together open as tabs: Calendar has Meeting Intelligence, Task Manager has Routines." },
   { selector: '[data-tour="madeline"]', title: "Ask Madeline", body: "The orange button in the bottom-right corner, on every page. She sees what you have open (a task, meeting, client or email), and the conversation follows you from page to page. Ctrl/⌘-K searches and jumps anywhere." },
   { title: "You're all set", body: "The ⓘ beside the date explains the page you are on, and the ⋯ menu in the top right replays this tour." },

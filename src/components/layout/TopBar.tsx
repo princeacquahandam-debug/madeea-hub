@@ -6,6 +6,7 @@ import { Notifications } from "./Notifications";
 import { VoiceCapture } from "@/components/VoiceCapture";
 import { ClockControl } from "@/components/ClockControl";
 import { AvatarMenu } from "./AvatarMenu";
+import { LearnMenu } from "./LearnMenu";
 
 /**
  * The header, the same on every page (12 Oct 2026, UI review deck slide 9):
@@ -52,6 +53,7 @@ export function TopBar({ onMenu }: { onMenu?: () => void }) {
           <Plus size={15} />
           <span className="hidden md:inline">Quick note</span>
         </button>
+        <LearnMenu />
         <Notifications />
         <AvatarMenu />
       </div>

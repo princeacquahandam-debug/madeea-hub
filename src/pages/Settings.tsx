@@ -40,7 +40,9 @@ export default function Settings() {
   return (
     <div>
       <PageHeader title="Settings" subtitle="Your account and preferences" />
-      <div className="max-w-xl space-y-4">
+      {/* Two columns on a wide screen rather than one narrow one with the right
+          half of the page empty (13 Oct 2026 call). Cards don't split. */}
+      <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
         <section className="card p-5">
           <p className="field-label">Account</p>
           <div className="flex items-center gap-3">

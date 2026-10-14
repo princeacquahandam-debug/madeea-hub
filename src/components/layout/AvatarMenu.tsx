@@ -1,12 +1,9 @@
 import { createPortal } from "react-dom";
-import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { HelpCircle, Info, LogOut, Monitor, Moon, Settings as SettingsIcon, Sun, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { LogOut, Monitor, Moon, Settings as SettingsIcon, Sun } from "lucide-react";
 import { useAnchoredPanel, ANCHORED_PANEL_CLASS } from "@/hooks/useAnchoredPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { ROLE_LABEL, useMyRole } from "@/data/hooks";
-import { GUIDES } from "@/lib/guides";
-import { useTour } from "@/store/tour";
 import { useTheme, type ThemeChoice } from "@/store/theme";
 import { cn } from "@/lib/utils";
 
@@ -14,19 +11,15 @@ import { cn } from "@/lib/utils";
  * The avatar at the far right of the header: profile, settings, theme, help and
  * sign out (12 Oct 2026, UI review deck slide 9).
  *
- * It takes over the header's ••• menu (theme, tour) and the ⓘ beside the date
- * (how this page works), so the header carries only daily actions.
+ * It took over the header's ••• menu. Page help and the tour moved again on
+ * 13 Oct 2026, to the Learn button beside it, so they're in plain sight.
  */
 export function AvatarMenu() {
   const { anchorRef, panelRef, open, setOpen, pos } = useAnchoredPanel<HTMLButtonElement>();
   const { user, signOut } = useAuth();
   const { data: role } = useMyRole();
   const nav = useNavigate();
-  const { pathname } = useLocation();
-  const startTour = useTour((s) => s.start);
   const { choice, setChoice } = useTheme();
-  const [guideOpen, setGuideOpen] = useState(false);
-  const guide = GUIDES[pathname];
 
   const item = "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-surface-2";
   const themes: { id: ThemeChoice; label: string; icon: typeof Sun }[] = [
@@ -59,14 +52,6 @@ export function AvatarMenu() {
             <button role="menuitem" className={item} onClick={() => { setOpen(false); nav("/settings"); }}>
               <SettingsIcon size={16} className="text-muted" /> Profile & settings
             </button>
-            {guide && (
-              <button role="menuitem" className={item} onClick={() => { setOpen(false); setGuideOpen(true); }}>
-                <Info size={16} className="text-muted" /> How this page works
-              </button>
-            )}
-            <button role="menuitem" className={item} onClick={() => { setOpen(false); startTour(); }}>
-              <HelpCircle size={16} className="text-muted" /> Replay the guided tour
-            </button>
           </div>
           <div className="border-t border-border px-2.5 py-2">
             <p className="mb-1.5 text-[11px] font-semibold text-faint">Theme</p>
@@ -84,21 +69,6 @@ export function AvatarMenu() {
             <button role="menuitem" className={cn(item, "text-muted")} onClick={() => { setOpen(false); void signOut(); }}>
               <LogOut size={16} /> Sign out
             </button>
-          </div>
-        </div>,
-        document.body,
-      )}
-      {guideOpen && guide && createPortal(
-        <div className="fixed inset-0 z-[70] flex items-start justify-center bg-black/30 p-4 pt-20" onClick={() => setGuideOpen(false)}>
-          <div role="dialog" aria-label={guide.title} onClick={(e) => e.stopPropagation()} className="card w-[26rem] max-w-full p-5 shadow-xl">
-            <div className="mb-3 flex items-center gap-2">
-              <Info size={16} className="shrink-0 text-accent" />
-              <p className="flex-1 font-bold">{guide.title}</p>
-              <button onClick={() => setGuideOpen(false)} aria-label="Close" className="text-faint hover:text-text"><X size={16} /></button>
-            </div>
-            <ul className="space-y-2 text-sm text-muted">
-              {guide.points.map((p, i) => <li key={i} className="flex gap-2"><span className="text-accent">•</span><span>{p}</span></li>)}
-            </ul>
           </div>
         </div>,
         document.body,

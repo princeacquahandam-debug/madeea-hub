@@ -205,9 +205,11 @@ export function MadelinePanel() {
     send(draft);
   }
 
+  /* Inside the chat, an answer belongs in the chat (13 Oct 2026 call: a
+     pop-up from the chat "doesn't make sense"). The pop-up is for the AI
+     action buttons on the pages themselves. */
   function runAction(a: Action) {
-    // One click: runs now and answers in the pop-up over the page.
-    useMadeline.getState().ask(a.prompt, { item: a.item, display: "modal", title: a.label });
+    useMadeline.getState().ask(a.prompt, { item: a.item, send: true });
   }
 
   const go = (path: string) => navigate(path);
@@ -280,7 +282,7 @@ export function MadelinePanel() {
               messages={messages}
               flags={flags}
               disabled={running}
-              onPick={(sg) => useMadeline.getState().ask(sg.prompt, { item: sg.item, display: "modal", title: sg.label })}
+              onPick={(sg) => useMadeline.getState().ask(sg.prompt, { item: sg.item, send: true })}
             />
           )}
           {turns.map((t) => <TurnView key={t.id} turn={t} onNavigate={go} />)}

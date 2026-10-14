@@ -725,3 +725,13 @@
   outline-offset: 2px;
   border-radius: 0.5rem;
 }
+
+/* AI quick actions on a page (13 Oct 2026): a soft pulsing ring until someone
+   has tried one, so they are noticed rather than ignored. */
+@keyframes ai-attention {
+  0%   { box-shadow: 0 0 0 0 rgb(var(--c-accent) / 0.45); }
+  70%  { box-shadow: 0 0 0 8px rgb(var(--c-accent) / 0); }
+  100% { box-shadow: 0 0 0 0 rgb(var(--c-accent) / 0); }
+}
+.ai-attention { animation: ai-attention 2s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .ai-attention { animation: none; } }
