@@ -37,6 +37,15 @@ const BLANK = {
   leadDays: 0,
 };
 
+/* One-click starting points (19 Oct 2026): the jobs EAs repeat most, so an
+   empty page shows what a repetitive task is rather than just saying so. */
+const STARTERS: { label: string; hint: string; form: Partial<typeof BLANK> }[] = [
+  { label: "Update the attendance sheet", hint: "Every weekday", form: { name: "Update the attendance sheet", freq: "WEEKLY", byDay: [1, 2, 3, 4, 5] } },
+  { label: "Send the Monday report", hint: "Every Monday", form: { name: "Send the Monday report", freq: "WEEKLY", byDay: [1] } },
+  { label: "Check and clear the inbox", hint: "Every day", form: { name: "Check and clear the inbox", freq: "DAILY" } },
+  { label: "Month-end invoicing", hint: "On the 28th of each month", form: { name: "Month-end invoicing", freq: "MONTHLY", byMonthDay: 28, leadDays: 1 } },
+];
+
 const fmtDay = (iso: string) => {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
@@ -102,20 +111,47 @@ export default function Routines() {
     <div>
       <PageHeader
         title="Routines"
-        subtitle="Work that comes back. The task appears on its own, on the day it should."
-        action={<button className="btn-primary" onClick={() => { setForm(mine()); setModal(true); }}><Plus size={15} /> New routine</button>}
+        subtitle="Repetitive tasks. Set one up once and the task is created for you automatically, every time it's due."
+        action={<button className="btn-primary" onClick={() => { setForm(mine()); setModal(true); }}><Plus size={15} /> New repetitive task</button>}
       />
+
+      {/* How it works, in three steps (19 Oct 2026: "repetitive task, auto-create
+          the task once it's scheduled"). */}
+      <ol className="mb-4 grid gap-2 sm:grid-cols-3">
+        {[
+          ["Set what and when", "Name the task and how often it repeats: daily, weekly or monthly."],
+          ["It's created automatically", "On each date (or a few days ahead) the task appears by itself. Nobody has to remember."],
+          ["It lands in Tasks", "Assigned to you, or whoever you pick, and counted in their EOD like any task."],
+        ].map(([t, d], i) => (
+          <li key={t} className="flex gap-2.5 rounded-lg border border-border bg-surface p-3">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--nav-active-bg)] text-xs font-semibold text-[color:var(--nav-active-text)]">{i + 1}</span>
+            <span><span className="block text-sm font-semibold">{t}</span><span className="block text-xs text-muted">{d}</span></span>
+          </li>
+        ))}
+      </ol>
 
       {isLoading && <p className="text-sm text-faint">Loading…</p>}
 
       {!isLoading && routines.length === 0 && (
         <div className="card p-8 text-center">
           <Repeat size={24} className="mx-auto mb-3 text-faint" />
-          <p className="font-medium">No routines yet</p>
+          <p className="font-medium">No repetitive tasks yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-faint">
-            Anything you do on a rhythm, the Monday report, the daily attendance sheet,
-            month-end invoicing. Set it once and the task turns up by itself.
+            Anything you do on a rhythm. Set it once and the task turns up by itself. Start from one of these:
           </p>
+          <div className="mx-auto mt-4 grid max-w-2xl gap-2 sm:grid-cols-2">
+            {STARTERS.map((st) => (
+              <button
+                key={st.label}
+                onClick={() => { setForm({ ...mine(), ...st.form }); setModal(true); }}
+                className="flex items-center gap-2.5 rounded-lg border border-border px-3 py-2.5 text-left transition-colors hover:border-accent hover:bg-[var(--chip-bg)]"
+              >
+                <Repeat size={15} className="shrink-0 text-accent" />
+                <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{st.label}</span><span className="block text-xs text-faint">{st.hint}</span></span>
+                <Plus size={14} className="shrink-0 text-faint" />
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -152,6 +188,7 @@ export default function Routines() {
 
               <div className="flex flex-wrap items-center gap-1.5 pl-6">
                 <CalendarClock size={11} className="text-faint" />
+                {next.length > 0 && <span className="text-xs text-muted">{r.is_active ? "Next tasks created:" : "Paused. Would create:"}</span>}
                 {next.length === 0 && <span className="text-xs text-faint">Schedule not recognised</span>}
                 {next.map((d) => (
                   <span key={d} className="pill bg-surface-2 text-faint">{fmtDay(d)}</span>
@@ -163,7 +200,8 @@ export default function Routines() {
       </div>
 
       <Modal open={modal} onClose={() => setModal(false)}>
-        <h2 className="mb-4 text-lg font-semibold">New routine</h2>
+        <h2 className="mb-1 text-lg font-semibold">New repetitive task</h2>
+        <p className="mb-4 text-sm text-muted">The task is created for you automatically on every date it's due.</p>
         <div className="space-y-3">
           <div>
             <label className="field-label" htmlFor="r-name">Name</label>
@@ -251,7 +289,7 @@ export default function Routines() {
           {/* §5.7 wants this before saving: a recurrence rule is easy to get
               subtly wrong, and five real dates make the mistake obvious. */}
           <div className="rounded-lg bg-surface-2 p-3">
-            <p className="eyebrow mb-1.5">{invalid ? "Not scheduled yet" : `${describe(rule)}. Next five`}</p>
+            <p className="eyebrow mb-1.5">{invalid ? "Not scheduled yet" : `${describe(rule)}. The task will be created on`}</p>
             {invalid ? (
               <p className="text-xs text-amber-300">
                 {noDaysPicked ? "Pick at least one day of the week." : "That combination never occurs."}
@@ -264,7 +302,7 @@ export default function Routines() {
           </div>
 
           <button className="btn-primary w-full" onClick={() => void submit()} disabled={!form.name.trim() || invalid || create.isPending}>
-            {create.isPending ? "Creating…" : "Create routine"}
+            {create.isPending ? "Creating…" : "Create repetitive task"}
           </button>
         </div>
       </Modal>

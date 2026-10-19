@@ -1,3 +1,4 @@
+import { LoomCard } from "@/components/LoomCard";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Link2, SlidersHorizontal, MoreVertical, RefreshCw, Unplug } from "lucide-react";
@@ -413,6 +414,9 @@ export function ChannelConnections() {
             accounts={installs?.[CONNECT_AS[c.id] ?? ""] ?? []}
           />
         ))}
+        {/* Loom sits with the channels (19 Oct 2026): not a mailbox, but a way
+            to send instructions, recorded from inside the Hub. */}
+        <LoomCard />
       </div>
     </section>
   );

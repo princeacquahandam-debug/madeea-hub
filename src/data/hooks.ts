@@ -2520,7 +2520,37 @@ export function useTimeMutations() {
     onSettled: invalidate,
   });
 
-  return { start, stop, remove };
+  /* Pause (19 Oct 2026, 0088): the running session ends, marked paused. Paused
+     time is in no session, so it never counts toward attendance or payroll,
+     and screen capture stops with the session. Resume is a fresh `start`. */
+  const pause = useMutation({
+    mutationFn: async (id: string) => {
+      const patch = { ended_at: new Date().toISOString(), paused: true };
+      if (!supabase) { updateDemoTime(id, patch); return; }
+      const { error } = await supabase.from("time_entries").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  /* Clocking out while paused: the paused session is already finished, so the
+     only change is `paused` off, plus the clock-out notes. 0088's guard allows
+     exactly that and nothing about the hours. */
+  const finishPaused = useMutation({
+    mutationFn: async (input: { id: string; early_reason?: string | null; eod_skipped_reason?: string | null }) => {
+      const patch = {
+        paused: false,
+        ...(input.early_reason?.trim() ? { early_reason: input.early_reason.trim() } : {}),
+        ...(input.eod_skipped_reason?.trim() ? { eod_skipped_reason: input.eod_skipped_reason.trim() } : {}),
+      };
+      if (!supabase) { updateDemoTime(input.id, patch); return; }
+      const { error } = await supabase.from("time_entries").update(patch).eq("id", input.id);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  return { start, stop, remove, pause, finishPaused };
 }
 
 /** Submit (or correct) today's report. Upserts on person + date. */
@@ -3235,4 +3265,17 @@ export function useClientLogins() {
     },
     retry: false,
   });
+}
+
+/**
+ * Today's paused session, if the shift is on a break: nothing is running and
+ * the latest session of the day ended with Pause (0088). Null otherwise.
+ */
+export function pausedSession(entries: TimeEntry[]): TimeEntry | null {
+  if (entries.some((e) => !e.ended_at)) return null;
+  const today = workDate();
+  const latest = entries
+    .filter((e) => e.work_date === today)
+    .sort((a, b) => b.started_at.localeCompare(a.started_at))[0];
+  return latest?.paused ? latest : null;
 }

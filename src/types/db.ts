@@ -267,6 +267,9 @@ export interface TimeEntry {
   focus?: string | null;
   /** Why this shift closed with no EOD. Null is the normal case: it was filed. */
   eod_skipped_reason?: string | null;
+  /** This session ended with Pause, not Clock out (0088): the shift resumes
+      with a new session. Cleared when the shift is clocked out. */
+  paused?: boolean;
   /** Joined for display; never written. */
   task_title?: string | null;
   client_name?: string | null;

@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
-import { Play, Square, CameraOff, Camera } from "lucide-react";
-import { entrySeconds, useClients, useTimeEntries, useTimeMutations, useEffectiveTimeSettings } from "@/data/hooks";
+import { Play, Pause, Square, CameraOff, Camera } from "lucide-react";
+import { entrySeconds, pausedSession, useClients, useTimeEntries, useTimeMutations, useEffectiveTimeSettings } from "@/data/hooks";
 import { useMonitoringContext } from "@/store/monitoringContext";
 import { useClockGate } from "@/components/ClockGates";
 import { useNow } from "@/hooks/useNow";
@@ -22,11 +22,13 @@ import { cn } from "@/lib/utils";
 export function ClockControl() {
   const nav = useNavigate();
   const { data: entries = [] } = useTimeEntries();
-  const { start, stop } = useTimeMutations();
+  const { start, stop, pause } = useTimeMutations();
   const capture = useMonitoringContext();
   const { data: settings } = useEffectiveTimeSettings();
 
   const running = entries.find((e) => !e.ended_at);
+  // On a break (0088): the header offers Resume; clocking out from a break is on the Time page.
+  const paused = pausedSession(entries);
   const { data: clients = [] } = useClients();
   const clientName = running?.client_id ? clients.find((c) => c.id === running.client_id)?.name ?? null : null;
   const now = useNow(running ? 1000 : null);
@@ -80,8 +82,46 @@ export function ClockControl() {
   const screenshotsExpected = settings?.screenshotsEnabled !== false;
   const notCapturing = Boolean(running) && screenshotsExpected && capture.state !== "capturing";
 
+  /* Resume: same client and note; screen sharing asked for on this click. */
+  function resume() {
+    if (!paused) return;
+    start.mutate({ client_id: paused.client_id ?? null, note: paused.note ?? null, focus: paused.focus ?? null });
+    if (settings?.screenshotsEnabled !== false && capture.state !== "capturing") void capture.start();
+  }
+
+  if (paused) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <button
+          className="flex h-9 items-center gap-2 rounded-lg border border-amber-500/50 px-3 text-sm font-medium transition-colors hover:bg-[var(--chip-bg)]"
+          onClick={resume}
+          onContextMenu={(e) => { e.preventDefault(); nav("/time"); }}
+          disabled={start.isPending}
+          title="On a break. Click to resume; clock out from the Time tracker."
+          aria-label="Resume the clock"
+        >
+          <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />
+          <span className="hidden sm:inline">Paused</span>
+          <Play size={13} className="shrink-0" aria-hidden="true" />
+          <span className="font-semibold">Resume</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-1.5">
+      {running && (
+        <button
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
+          onClick={() => pause.mutate(running.id)}
+          disabled={pause.isPending || stop.isPending}
+          title="Pause: take a break. The clock and screenshots stop, and paused time isn't counted."
+          aria-label="Pause the clock"
+        >
+          <Pause size={14} />
+        </button>
+      )}
       <button
         className={cn(
           "flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-sm font-medium transition-colors hover:bg-[var(--chip-bg)]",

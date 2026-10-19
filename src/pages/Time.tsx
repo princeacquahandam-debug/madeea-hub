@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { ClockWatch } from "@/components/ClockWatch";
-import { Play, Square, Trash2, Camera, ShieldAlert, Info, MonitorPlay } from "lucide-react";
+import { Play, Pause, Square, Trash2, Camera, ShieldAlert, Info, MonitorPlay } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui";
 import { atLeast,
-  entrySeconds, useMyClients, useMyRole, useTimeEntries, useTimeMutations,
+  entrySeconds, pausedSession, useMyClients, useMyRole, useTimeEntries, useTimeMutations,
   useTimeSettings, useEffectiveTimeSettings, workDate,
 } from "@/data/hooks";
 import type { TimeEntry } from "@/types/db";
@@ -49,11 +49,14 @@ export default function Time() {
   const clients = useMyClients();
   const { data: role } = useMyRole();
   const { data: settings } = useTimeSettings();
-  const { start, stop, remove } = useTimeMutations();
+  const { start, stop, remove, pause, finishPaused } = useTimeMutations();
   const isAdmin = atLeast(role, "admin");
 
   const running = entries.find((e) => !e.ended_at);
-  const now = useNow(running ? 1000 : null);
+  /* On a break (19 Oct 2026, 0088): nothing running, and today's latest
+     session ended with Pause. Resume opens a new session for the same client. */
+  const paused = pausedSession(entries);
+  const now = useNow(running || paused ? 1000 : null);
 
   /* Seeded from the client you are working on, so clocking in while scoped to
      CandyPay books the time to CandyPay without asking again. Still a plain
@@ -94,7 +97,7 @@ export default function Time() {
 
   // Auto-prompt is impossible: getDisplayMedia needs a user gesture. So the
   // button below is the gesture, and the banner explains why it exists.
-  useEffect(() => { if (!running) setAskEarly(false); }, [running]);
+  useEffect(() => { if (!running && !paused) setAskEarly(false); }, [running, paused]);
 
   // Monday of this week, for "This week".
   const weekStart = useMemo(() => {
@@ -175,6 +178,17 @@ export default function Time() {
     onClockOut: (skipped) => afterEod(skipped),
   });
 
+  /* Resume after a pause. Same client, note and day focus as before the
+     break, and screen sharing is asked for in this same click, because a
+     browser only allows that from a user gesture (see the clock-in note above). */
+  function resume() {
+    if (!paused) return;
+    start.mutate({ client_id: paused.client_id ?? null, note: paused.note ?? null, focus: paused.focus ?? null });
+    if (effective?.screenshotsEnabled !== false && capture.state !== "capturing") {
+      void capture.start();
+    }
+  }
+
   /* Carried between the two questions asked at clock-out. The EOD gate answers
      first and hands its verdict here; the early-finish question may then need
      asking, and the answer to the first has to survive that second round trip
@@ -184,7 +198,7 @@ export default function Time() {
   /** Where the EOD gate hands back. This order on purpose: a short day still
       owes a report, and asking both things at once gets one of them answered. */
   function afterEod(skipped: string | null) {
-    if (!running) return;
+    if (!running && !paused) return;
     const short = todaySeconds < dailySeconds;
     // Ask at the moment of clocking out, not later. Reconstructing why you left
     // early on a Tuesday three weeks ago produces fiction, not a reason.
@@ -193,13 +207,13 @@ export default function Time() {
   }
 
   function finishClockOut(skipped: string | null) {
-    if (!running) return;
+    if (!running && !paused) return;
     const short = todaySeconds < dailySeconds;
-    stop.mutate({
-      id: running.id,
-      early_reason: short ? earlyReason.trim() || null : null,
-      eod_skipped_reason: skipped,
-    });
+    const notes = { early_reason: short ? earlyReason.trim() || null : null, eod_skipped_reason: skipped };
+    // Clocking out from a break: the paused session is already closed, so the
+    // shift just stops being paused, with the same clock-out notes.
+    if (running) stop.mutate({ id: running.id, ...notes });
+    else if (paused) finishPaused.mutate({ id: paused.id, ...notes });
     setEarlyReason("");
     setAskEarly(false);
     setPendingSkip(null);
@@ -232,8 +246,12 @@ export default function Time() {
             </p>
           </div>
           <span className="ml-auto mt-1 flex items-center gap-1.5 text-xs text-muted">
-            <span className={`h-1.5 w-1.5 rounded-full ${running ? "bg-emerald-500" : "bg-[rgb(var(--c-faint))]"}`} />
-            {running ? `Clocked in since ${new Date(running.started_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Not clocked in"}
+            <span className={`h-1.5 w-1.5 rounded-full ${running ? "bg-emerald-500" : paused ? "bg-amber-500" : "bg-[rgb(var(--c-faint))]"}`} />
+            {running
+              ? `Clocked in since ${new Date(running.started_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+              : paused
+                ? `Paused since ${new Date(paused.ended_at!).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+                : "Not clocked in"}
           </span>
         </div>
         <div className="mb-4 mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2">
@@ -254,10 +272,37 @@ export default function Time() {
             </div>
 
             <div className="ml-auto flex flex-col items-end gap-2">
-              <button className="btn-ghost border border-border" onClick={() => gate.requestClockOut(running)} disabled={stop.isPending}>
+              <div className="flex gap-2">
+                {/* A break: the clock and screenshots stop, and paused time is
+                    not counted. Resume picks up the same client. */}
+                <button className="btn-ghost border border-border" onClick={() => pause.mutate(running.id)} disabled={pause.isPending || stop.isPending}>
+                  <Pause size={15} /> Pause
+                </button>
+                <button className="btn-ghost border border-border" onClick={() => gate.requestClockOut(running)} disabled={stop.isPending}>
+                  <Square size={15} /> Clock out
+                </button>
+              </div>
+              {screenshotsOn && <CaptureBadge capture={capture} minutes={settings?.screenshot_minutes ?? 10} />}
+            </div>
+          </div>
+        ) : paused ? (
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="min-w-0">
+              <p className="text-xs text-faint">On a break</p>
+              <p className="text-lg font-semibold tabular-nums">{hms(Math.max(0, Math.floor((now - new Date(paused.ended_at!).getTime()) / 1000)))}</p>
+              <p className="truncate text-sm text-muted">
+                {paused.client_name ?? "No client"}
+                {paused.note?.trim() ? ` · ${paused.note}` : ""}
+                {" · paused time isn't counted"}
+              </p>
+            </div>
+            <div className="ml-auto flex gap-2">
+              <button className="btn-primary" onClick={resume} disabled={start.isPending}>
+                <Play size={15} /> Resume
+              </button>
+              <button className="btn-ghost border border-border" onClick={() => gate.requestClockOut(paused)} disabled={finishPaused.isPending}>
                 <Square size={15} /> Clock out
               </button>
-              {screenshotsOn && <CaptureBadge capture={capture} minutes={settings?.screenshot_minutes ?? 10} />}
             </div>
           </div>
         ) : (
@@ -292,7 +337,7 @@ export default function Time() {
         )}
 
         {/* Early clock-out reason, asked only when the day is actually short. */}
-        {askEarly && running && (
+        {askEarly && (running || paused) && (
           <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
             <label className="field-label" htmlFor="early-reason">
               You have {hm(todaySeconds)} of {dailyHours}:00 today. Why are you clocking out early?
@@ -304,7 +349,7 @@ export default function Time() {
                 value={earlyReason} onChange={(e) => setEarlyReason(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") finishClockOut(pendingSkip); }}
               />
-              <button className="btn-primary shrink-0" onClick={() => finishClockOut(pendingSkip)} disabled={stop.isPending}>
+              <button className="btn-primary shrink-0" onClick={() => finishClockOut(pendingSkip)} disabled={stop.isPending || finishPaused.isPending}>
                 Clock out
               </button>
               <button className="btn-ghost shrink-0 border border-border" onClick={() => setAskEarly(false)}>
@@ -386,6 +431,12 @@ export default function Time() {
                         </span>
                       )}
                       {!e.ended_at && <Badge tone="urgent">Running</Badge>}
+                      {/* Ended with Pause (0088): a break followed, not counted. */}
+                      {e.paused && (
+                        <span title="Paused here. The break isn't counted." className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">
+                          Paused
+                        </span>
+                      )}
                       <span className="shrink-0 text-sm tabular-nums">{hm(entrySeconds(e, now))}</span>
                       {/* Admin only since 0041. An EA deleting a short day was
                           the easiest way to fake a timesheet, and RLS refuses
