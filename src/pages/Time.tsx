@@ -7,6 +7,7 @@ import { atLeast,
   useTimeSettings, useEffectiveTimeSettings, workDate,
 } from "@/data/hooks";
 import type { TimeEntry } from "@/types/db";
+import { dayTotal, type BreakRule } from "@/lib/breakDeduction";
 import { useNow } from "@/hooks/useNow";
 import { useMonitoringContext } from "@/store/monitoringContext";
 import { useClockGate } from "@/components/ClockGates";
@@ -80,10 +81,16 @@ export default function Time() {
   const dailyHours = settings?.daily_hours ?? 8;
   const dailySeconds = dailyHours * 3600;
 
-  const todaySeconds = useMemo(
-    () => entries.filter((e) => e.work_date === today).reduce((a, e) => a + entrySeconds(e, now), 0),
-    [entries, today, now],
-  );
+  /* Automatic break deduction (0089): a day longer than the set hours has
+     the set break taken off, minus any break already taken with Pause. */
+  const breakRule: BreakRule | null = settings && settings.auto_break_minutes > 0
+    ? { breakMinutes: settings.auto_break_minutes, afterHours: settings.auto_break_after_hours }
+    : null;
+  const todayTotal = useMemo(() => {
+    const rows = entries.filter((e) => e.work_date === today);
+    return dayTotal(rows, rows.reduce((a, e) => a + entrySeconds(e, now), 0), breakRule);
+  }, [entries, today, now, breakRule?.breakMinutes, breakRule?.afterHours]); // eslint-disable-line react-hooks/exhaustive-deps
+  const todaySeconds = todayTotal.net;
 
   /* Screen capture is tied to the running session, so it cannot outlive the
      clock and cannot start without one. */
@@ -115,10 +122,14 @@ export default function Time() {
     [entries, lo, hi],
   );
 
-  const rangeSeconds = useMemo(
-    () => inRange.reduce((a, e) => a + entrySeconds(e, now), 0),
-    [inRange, now],
-  );
+  // Per day, so each day's break is judged on its own length.
+  const rangeSeconds = useMemo(() => {
+    const days = new Map<string, TimeEntry[]>();
+    for (const e of inRange) days.set(e.work_date, [...(days.get(e.work_date) ?? []), e]);
+    let total = 0;
+    for (const rows of days.values()) total += dayTotal(rows, rows.reduce((a, e) => a + entrySeconds(e, now), 0), breakRule).net;
+    return total;
+  }, [inRange, now, breakRule?.breakMinutes, breakRule?.afterHours]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const byDay = useMemo(() => {
     const map = new Map<string, TimeEntry[]>();
@@ -244,6 +255,11 @@ export default function Time() {
               <span className="text-[32px] font-semibold leading-tight">{running ? hms(todaySeconds) : hm(todaySeconds)}</span>
               <span className="text-sm text-faint"> / {dailyHours}:00</span>
             </p>
+            {todayTotal.deducted > 0 && (
+              <p className="text-[11px] text-faint" title={`Days over ${breakRule?.afterHours} hours have a ${breakRule?.breakMinutes}-minute unpaid break. Breaks taken with Pause count toward it.`}>
+                After a {Math.round(todayTotal.deducted / 60)} min automatic break
+              </p>
+            )}
           </div>
           <span className="ml-auto mt-1 flex items-center gap-1.5 text-xs text-muted">
             <span className={`h-1.5 w-1.5 rounded-full ${running ? "bg-emerald-500" : paused ? "bg-amber-500" : "bg-[rgb(var(--c-faint))]"}`} />
@@ -402,13 +418,19 @@ export default function Time() {
 
         <div className="space-y-4">
           {byDay.map(([day, rows]) => {
-            const total = rows.reduce((a, e) => a + entrySeconds(e, now), 0);
+            const t = dayTotal(rows, rows.reduce((a, e) => a + entrySeconds(e, now), 0), breakRule);
+            const total = t.net;
             return (
               <div key={day}>
                 <div className="mb-1.5 flex items-center gap-2">
                   <p className="eyebrow">{fmtDay(day)}</p>
                   {day === today && <Badge tone="normal">Today</Badge>}
-                  <span className="ml-auto text-sm font-semibold tabular-nums">{hm(total)}</span>
+                  {t.deducted > 0 && (
+                    <span className="ml-auto text-[11px] text-faint" title="Automatic unpaid break, set by your admin">
+                      −{Math.round(t.deducted / 60)} min break
+                    </span>
+                  )}
+                  <span className={`${t.deducted > 0 ? "" : "ml-auto "}text-sm font-semibold tabular-nums`}>{hm(total)}</span>
                 </div>
                 <div className="space-y-1">
                   {rows.map((e) => (

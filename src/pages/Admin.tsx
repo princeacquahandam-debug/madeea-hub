@@ -4,6 +4,7 @@ import { ShieldCheck, ArrowLeft, UserPlus, Trash2, ArrowUpCircle, ArrowDownCircl
 import { PageHeader } from "@/components/ui";
 import { ROLE_LABEL, ROLE_RANK, ROLE_BLURB, useGrantableRoles, useRoleCapabilities, type MemberRole, useMyRole, useWorkspaceMembers, useMemberMutations, useInviteMember, useTasks } from "@/data/hooks";
 import { AssigneeAvatar } from "@/components/Assignee";
+import { TimePolicyCard } from "@/components/TimePolicyCard";
 import { CredentialsHandover, StartingPassword } from "@/components/StartingPassword";
 import { MIN_PASSWORD, suggestPassword } from "@/lib/password";
 import { teamWorkload, unassignedCount } from "@/lib/team";
@@ -289,6 +290,9 @@ export default function Admin() {
           </div>
         ) : null}
       </section>
+
+      {/* Daily hours and the automatic break (19 Oct 2026). */}
+      <TimePolicyCard />
 
       {/* Members */}
       <section className="card overflow-hidden">

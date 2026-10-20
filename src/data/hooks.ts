@@ -367,6 +367,8 @@ export function useClientMutations() {
         tags: input.tags ?? [], bio: input.bio, preferences_notes: input.preferences_notes,
         avatar_url: input.avatar_url ?? null,
         lead_ea_id: input.lead_ea_id ?? null,
+        // Only when set, so adding a client still works before 0089 is applied.
+        ...(input.timezone ? { timezone: input.timezone } : {}),
       });
       if (error) throw error;
     },
@@ -2876,6 +2878,10 @@ export interface TimeSettings {
   daily_hours: number;
   screenshot_minutes: number;
   screenshots_enabled: boolean;
+  /** Automatic unpaid break (0089). 0 = off. */
+  auto_break_minutes: number;
+  /** ...taken off any day longer than this many hours. */
+  auto_break_after_hours: number;
 }
 
 /** Workspace time policy. Defaults match what Reichelle asked for. */
@@ -2883,17 +2889,19 @@ export function useTimeSettings() {
   return useQuery<TimeSettings>({
     queryKey: ["time_settings"],
     queryFn: async () => {
-      const fallback = { daily_hours: 8, screenshot_minutes: 10, screenshots_enabled: true };
+      const fallback = { daily_hours: 8, screenshot_minutes: 10, screenshots_enabled: true, auto_break_minutes: 0, auto_break_after_hours: 6 };
       if (!supabase) return fallback;
-      const { data, error } = await supabase
-        .from("time_settings")
-        .select("daily_hours,screenshot_minutes,screenshots_enabled")
-        .maybeSingle();
+      /* `*` rather than a column list, so the break columns (0089) are read
+         when they exist and their absence before the migration is not an
+         error that throws away the daily hours. */
+      const { data, error } = await supabase.from("time_settings").select("*").maybeSingle();
       if (error || !data) return fallback;
       return {
         daily_hours: Number(data.daily_hours) || 8,
         screenshot_minutes: Number(data.screenshot_minutes) || 10,
         screenshots_enabled: data.screenshots_enabled !== false,
+        auto_break_minutes: Number(data.auto_break_minutes) || 0,
+        auto_break_after_hours: Number(data.auto_break_after_hours) || 6,
       };
     },
     retry: false,
@@ -3278,4 +3286,61 @@ export function pausedSession(entries: TimeEntry[]): TimeEntry | null {
     .filter((e) => e.work_date === today)
     .sort((a, b) => b.started_at.localeCompare(a.started_at))[0];
   return latest?.paused ? latest : null;
+}
+
+/** Admins set the workspace's time policy (0041's policy: admins only). */
+export function useSaveTimeSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (patch: Partial<Pick<TimeSettings, "daily_hours" | "auto_break_minutes" | "auto_break_after_hours">>) => {
+      if (!supabase) return;
+      const { data: auth } = await supabase.auth.getUser();
+      const { data: m, error: mErr } = await supabase.from("memberships").select("workspace_id").eq("user_id", auth.user?.id ?? "").limit(1).maybeSingle();
+      if (mErr || !m?.workspace_id) throw new Error("Couldn't find your workspace.");
+      const { error } = await supabase.from("time_settings").upsert({ workspace_id: m.workspace_id, ...patch, updated_at: new Date().toISOString() });
+      if (error) throw error;
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["time_settings"] }),
+  });
+}
+
+/* ── Training videos (Loom), in Learn (19 Oct 2026, migration 0089) ── */
+export interface LearnVideo { id: string; title: string; url: string; sop_id: string | null; created_by: string | null; created_at: string }
+
+/** Training Center videos (sopId null) or one SOP's walkthroughs. */
+export function useLearnVideos(sopId: string | null) {
+  return useQuery<LearnVideo[]>({
+    queryKey: ["learn_videos", sopId ?? "training"],
+    queryFn: async () => {
+      if (!supabase) return [];
+      let q = supabase.from("learn_videos").select("*").order("created_at", { ascending: false });
+      q = sopId ? q.eq("sop_id", sopId) : q.is("sop_id", null);
+      const { data, error } = await q;
+      // Before 0089 the table doesn't exist: show none rather than break the page.
+      if (error) return [];
+      return (data ?? []) as LearnVideo[];
+    },
+  });
+}
+
+export function useLearnVideoMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["learn_videos"] });
+  const add = useMutation({
+    mutationFn: async (input: { title: string; url: string; sop_id: string | null }) => {
+      if (!supabase) throw new Error("Not available in demo mode.");
+      const { error } = await supabase.from("learn_videos").insert(input);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      if (!supabase) return;
+      const { error } = await supabase.from("learn_videos").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+  return { add, remove };
 }

@@ -29,6 +29,8 @@ export interface Client {
   lead_ea_id?: string | null;
   /** The address this client is known by. */
   email?: string | null;
+  /** The client's own time zone, an IANA name, set at onboarding (0089). */
+  timezone?: string | null;
   /**
    * Domains that identify this client's people, used to match an incoming
    * message to them when nothing stored the link. Free-mail hosts are ignored

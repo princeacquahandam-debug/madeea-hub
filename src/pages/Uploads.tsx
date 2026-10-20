@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { Upload, FileText, Trash2, Download, Bookmark, Loader2, Users, Lock } from "lucide-react";
-import { PageHeader } from "@/components/ui";
+import { Upload, FileText, Trash2, Download, Bookmark, Loader2, Users, Lock, ShieldCheck } from "lucide-react";
+import { Modal, PageHeader } from "@/components/ui";
 import { fileUrl, useClients, useFileMutations, useFiles, useSaved, useSavedMutations } from "@/data/hooks";
 import type { WorkspaceFile, KbScope } from "@/types/db";
 import { cn } from "@/lib/utils";
@@ -33,20 +33,36 @@ export default function Uploads() {
      the exception, so it is the one you choose. */
   const [scope, setScope] = useState<KbScope>("team");
   const [error, setError] = useState<string | null>(null);
+  /* Files waiting for consent before they go on the team shelf (19 Oct 2026
+     team meeting: consent before Knowledge Base files are shared between
+     accounts). */
+  const [pending, setPending] = useState<File[] | null>(null);
+  const [agreed, setAgreed] = useState(false);
 
   const savedIds = new Set(saved.filter((s) => s.kind === "file").map((s) => s.target_id));
+
+  const put = (files: File[], to: KbScope) => {
+    for (const f of files) upload.mutate({ file: f, clientId: client || null, scope: to });
+  };
 
   const send = (list: FileList | null) => {
     if (!list?.length) return;
     setError(null);
+    const ok: File[] = [];
     for (const f of Array.from(list)) {
       // The bucket caps at 50MB; saying so up front beats a failed upload.
       if (f.size > 50 * 1024 * 1024) {
         setError(`"${f.name}" is ${humanSize(f.size)}, the limit is 50 MB.`);
         continue;
       }
-      upload.mutate({ file: f, clientId: client || null, scope });
+      ok.push(f);
     }
+    if (!ok.length) return;
+    /* The team shelf is shared with every account in the workspace, and
+       Madeline reads it, so it asks first. The personal shelf stays private
+       and needs no prompt. */
+    if (scope === "team") { setAgreed(false); setPending(ok); }
+    else put(ok, "personal");
   };
 
   const download = async (f: WorkspaceFile) => {
@@ -85,6 +101,36 @@ export default function Uploads() {
           </button>
         }
       />
+
+      <Modal open={!!pending} onClose={() => setPending(null)}>
+        <div className="pr-8">
+          <h2 className="flex items-center gap-2 text-lg font-semibold"><ShieldCheck size={18} className="text-accent" /> Share with your team?</h2>
+          <p className="mt-2 text-sm text-muted">
+            {pending?.length === 1 ? "This file goes" : `These ${pending?.length ?? 0} files go`} on the <b>team shelf</b>. Once shared:
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">
+            <li><b>Everyone in this workspace</b> can open and download {pending?.length === 1 ? "it" : "them"}: EAs, managers and admins.</li>
+            <li><b>Madeline can read {pending?.length === 1 ? "it" : "them"}</b> to answer questions and run AI actions for your team.</li>
+            <li>Clients can't see the team shelf from their portal.</li>
+          </ul>
+          <ul className="mt-3 max-h-32 space-y-1 overflow-y-auto rounded-lg border border-border p-2 text-xs">
+            {(pending ?? []).map((f) => <li key={f.name + f.size} className="flex justify-between gap-2"><span className="truncate">{f.name}</span><span className="shrink-0 text-faint">{humanSize(f.size)}</span></li>)}
+          </ul>
+          <label className="mt-3 flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[rgb(var(--c-accent))]" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+            <span>I have permission to share {pending?.length === 1 ? "this file" : "these files"} with the team, and {pending?.length === 1 ? "it doesn't" : "they don't"} contain passwords or personal information that shouldn't be passed on.</span>
+          </label>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button className="btn-primary" disabled={!agreed} onClick={() => { put(pending ?? [], "team"); setPending(null); }}>
+              <Users size={15} /> Share with the team
+            </button>
+            <button className="btn-ghost border border-border" onClick={() => { put(pending ?? [], "personal"); setPending(null); setScope("personal"); }}>
+              <Lock size={15} /> Keep on my personal shelf
+            </button>
+            <button className="btn-ghost" onClick={() => setPending(null)}>Cancel</button>
+          </div>
+        </div>
+      </Modal>
 
       <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => { send(e.target.files); e.target.value = ""; }} />
 

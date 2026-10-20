@@ -21,7 +21,7 @@ import { cn, initials } from "@/lib/utils";
  * else the button does not render.
  */
 
-interface Mailbox { client_id: string; client_name: string; provider: string; account_email: string | null; granted_at: string }
+export interface Mailbox { client_id: string; client_name: string; provider: string; account_email: string | null; granted_at: string }
 interface Mail {
   id: string; client_id: string; thread_id: string | null; direction: "inbound" | "outbound";
   sender_name: string | null; sender_email: string | null; to_emails: string[]; cc_emails: string[];
@@ -65,9 +65,10 @@ export function ClientMailboxButton() {
   );
 }
 
-function ClientMailboxPanel({ boxes, onClose }: { boxes: Mailbox[]; onClose: () => void }) {
+/** Exported for the Inbox account switcher (19 Oct 2026), which opens it on one client. */
+export function ClientMailboxPanel({ boxes, onClose, initialClientId }: { boxes: Mailbox[]; onClose: () => void; initialClientId?: string }) {
   const qc = useQueryClient();
-  const [clientId, setClientId] = useState(boxes[0].client_id);
+  const [clientId, setClientId] = useState(initialClientId ?? boxes[0].client_id);
   const box = boxes.find((b) => b.client_id === clientId) ?? boxes[0];
   const [openId, setOpenId] = useState<string | null>(null);
   const [composing, setComposing] = useState(false);

@@ -1,3 +1,4 @@
+import { LoomVideos } from "@/components/LoomVideos";
 import { useMemo, useState } from "react";
 import {
   ArrowLeft, ArrowRight, BookOpen, Check, CircleCheckBig, FlaskConical, Lock,
@@ -159,6 +160,11 @@ export default function Academy() {
           </div>
         )}
       />
+
+      {/* Training videos, recorded in Loom (19 Oct 2026 team meeting). */}
+      <div id="videos" className="card mb-5 p-5">
+        <LoomVideos sopId={null} title="Training videos" empty="No training videos yet. Managers can add a Loom link or record one here." />
+      </div>
 
       {tab === "team" && isAdmin ? <Roster /> : (
         <>

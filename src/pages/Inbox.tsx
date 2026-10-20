@@ -27,7 +27,7 @@ import { clientForMessage, messageInClient } from "@/lib/clientMatch";
 import { groupThreads, decodeEntities } from "@/lib/threads";
 import { useInboxKeys, INBOX_SHORTCUTS } from "@/hooks/useInboxKeys";
 import { ClientScopeBanner } from "@/components/ClientSwitcher";
-import { ClientMailboxButton } from "@/components/ClientMailbox";
+import { AccountSwitcher } from "@/components/AccountSwitcher";
 import { useMadelineContext } from "@/hooks/useMadeline";
 import { emailItem } from "@/lib/madelineItems";
 
@@ -460,7 +460,9 @@ export default function Communication() {
         {/* AI actions right beside the title, as in Abder’s mockup (13 Oct call). */}
         <div className="mr-auto"><InlineAiActions path="/inbox" /></div>
         {/* Only for an EA a client has shared their mailbox with (0086). */}
-        <ClientMailboxButton />
+        {/* Every mailbox you can read, by address: your Gmail and Outlook, and any
+            client mailbox shared with you (19 Oct 2026). */}
+        <AccountSwitcher active={sources} onPick={toggleSource} />
         <button className="btn-primary h-9 px-3.5" onClick={() => { setSeed({ title: "Write an email", provider: undefined }); setComposing(true); }}>
           <Plus size={15} /> New message
         </button>

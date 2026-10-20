@@ -1,5 +1,6 @@
+import { localTime, myTimeZone, timeZones, zoneOffset } from "@/lib/timezones";
 import { useState } from "react";
-import { MessageSquare, ChevronRight, CheckCircle2, Plus, Trash2, Pencil, AlertTriangle } from "lucide-react";
+import { MessageSquare, ChevronRight, CheckCircle2, Plus, Trash2, Pencil, AlertTriangle, Clock } from "lucide-react";
 import type { Client } from "@/types/db";
 import { Badge, PageHeader, Modal } from "@/components/ui";
 import { InviteClientLogin } from "@/components/InviteClientLogin";
@@ -20,7 +21,7 @@ const STATUS_LABEL: Record<string, string> = {
   todo: "To Do", in_progress: "In Progress", follow_up: "Waiting", review: "Review", done: "Done",
 };
 
-const BLANK = { name: "", title: "", company: "", preferred_channel: "Email", tone: "Formal", tags: "", bio: "", preferences_notes: "", image: "", lead_ea_id: "" };
+const BLANK = { name: "", title: "", company: "", preferred_channel: "Email", tone: "Formal", tags: "", bio: "", preferences_notes: "", image: "", lead_ea_id: "", timezone: "" };
 
 export default function ClientVault() {
   const { data: clients = [], isLoading } = useClients();
@@ -53,6 +54,7 @@ export default function ClientVault() {
       tags: (c.tags ?? []).join(", "), bio: c.bio ?? "", preferences_notes: c.preferences_notes ?? "",
       image: c.avatar_url ?? "",
       lead_ea_id: c.lead_ea_id ?? "",
+      timezone: c.timezone ?? "",
     });
     setEditingId(c.id); setOpen(null); setUploadErr(""); setAdding(true);
   }
@@ -86,6 +88,8 @@ export default function ClientVault() {
       bio: form.bio, preferences_notes: form.preferences_notes,
       avatar_url: form.image.trim() || null,
       lead_ea_id: form.lead_ea_id || null,
+      // Sent only when there is one to send (see useClientMutations).
+      ...(form.timezone ? { timezone: form.timezone } : editingId && clients.find((x) => x.id === editingId)?.timezone ? { timezone: null } : {}),
     };
     if (editingId) update.mutate({ id: editingId, ...payload });
     else create.mutate(payload);
@@ -227,6 +231,11 @@ export default function ClientVault() {
                   <p className="truncate text-sm text-faint">
                     {[open.title, open.company].filter(Boolean).join(", ")}
                   </p>
+                  {open.timezone && localTime(open.timezone) && (
+                    <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted" title={open.timezone}>
+                      <Clock size={12} /> {localTime(open.timezone)} their time · {open.timezone.replace(/_/g, " ")} ({zoneOffset(open.timezone)})
+                    </p>
+                  )}
                   {(open.preferred_channel || open.tone) && (
                     <div className="mt-1 flex items-center gap-1.5 text-xs text-muted">
                       <MessageSquare size={12} />
@@ -414,6 +423,18 @@ export default function ClientVault() {
               <option value="">No lead EA</option>
               {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}
             </select>
+          </div>
+          {/* Set at onboarding (19 Oct 2026), so everyone sees the client's
+              own time before scheduling or messaging them. */}
+          <div>
+            <label className="field-label" htmlFor="client-tz">Client's time zone</label>
+            <div className="flex gap-2">
+              <select id="client-tz" className="input" value={form.timezone} onChange={set("timezone")}>
+                <option value="">Not set</option>
+                {timeZones().map((z) => <option key={z} value={z}>{z.replace(/_/g, " ")} ({zoneOffset(z)})</option>)}
+              </select>
+              <button type="button" className="btn-ghost shrink-0 border border-border text-xs" onClick={() => setForm((f) => ({ ...f, timezone: myTimeZone() }))}>Use mine</button>
+            </div>
           </div>
           <div><label className="field-label">Tags (comma separated)</label><input className="input" value={form.tags} onChange={set("tags")} placeholder="Board Prep, Travel" /></div>
           <div><label className="field-label">Biography</label><textarea className="input min-h-[70px]" value={form.bio} onChange={set("bio")} /></div>

@@ -1,7 +1,7 @@
 import { createPortal } from "react-dom";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { BookOpen, ClipboardCheck, GraduationCap, HelpCircle, Info, X } from "lucide-react";
+import { BookOpen, ClipboardCheck, GraduationCap, HelpCircle, Info, PlayCircle, X } from "lucide-react";
 import { useAnchoredPanel, ANCHORED_PANEL_CLASS } from "@/hooks/useAnchoredPanel";
 import { GUIDES } from "@/lib/guides";
 import { useTour } from "@/store/tour";
@@ -49,7 +49,11 @@ export function LearnMenu() {
           </button>
           <button role="menuitem" className={item} onClick={() => { setOpen(false); nav("/academy"); }}>
             <GraduationCap size={16} className="mt-0.5 shrink-0 text-accent" />
-            <span><span className="block font-medium">Training Center</span><span className="block text-xs text-faint">Lessons and how-to videos</span></span>
+            <span><span className="block font-medium">Training Center</span><span className="block text-xs text-faint">Lessons and the Made Ready course</span></span>
+          </button>
+          <button role="menuitem" className={item} onClick={() => { setOpen(false); nav("/academy#videos"); }}>
+            <PlayCircle size={16} className="mt-0.5 shrink-0 text-accent" />
+            <span><span className="block font-medium">Training videos</span><span className="block text-xs text-faint">Loom walkthroughs of how the work is done</span></span>
           </button>
           <button role="menuitem" className={item} onClick={() => { setOpen(false); nav("/sops"); }}>
             <ClipboardCheck size={16} className="mt-0.5 shrink-0 text-accent" />

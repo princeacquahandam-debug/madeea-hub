@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Copy, ExternalLink, Link2, Loader2, Video } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { LOOM_APP_ID as APP_ID, useLoomRecorder } from "@/lib/loom";
 
 /**
  * Loom, on the Integrations page beside the message channels (19 Oct 2026,
@@ -16,7 +17,6 @@ import { useAuth } from "@/hooks/useAuth";
  * (@loomhq/record-sdk, pinned) is only downloaded when someone records, so it
  * costs the rest of the Hub nothing.
  */
-const APP_ID = (import.meta.env.VITE_LOOM_APP_ID as string | undefined)?.trim() || "";
 const MAX_KEPT = 5;
 
 interface Recording { title: string; url: string; at: string }
@@ -43,46 +43,14 @@ export function LoomCard() {
     try { return JSON.parse(localStorage.getItem(key) ?? "[]") as Recording[]; } catch { return []; }
   });
   const [setup, setSetup] = useState(false);
-  const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [error, setError] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
-  const recordRef = useRef<HTMLButtonElement>(null);
+  // The recorder lives in lib/loom, shared with Learn (Training Center, SOPs).
+  const rec = useLoomRecorder((v) => setRecent((r) => [{ title: v.title, url: v.url, at: new Date().toISOString() }, ...r.filter((x) => x.url !== v.url)].slice(0, MAX_KEPT)));
+  const { buttonRef: recordRef, state, error, prepare } = rec;
 
   useEffect(() => {
     try { localStorage.setItem(key, JSON.stringify(recent.slice(0, MAX_KEPT))); } catch { /* storage blocked */ }
   }, [recent, key]);
-
-  /* Load the kit and attach it to the Record button. After this, a click on
-     the button opens Loom's recorder; "Insert" at the end hands back the video. */
-  async function prepare() {
-    if (!APP_ID || state === "loading" || state === "ready") return;
-    setState("loading");
-    setError("");
-    try {
-      const { isSupported } = await import("@loomhq/record-sdk/is-supported");
-      const support = await isSupported();
-      if (!support.supported) {
-        setState("error");
-        setError(support.error === "third-party-cookies-disabled"
-          ? "Loom needs third-party cookies for this site. Allow them in your browser settings, then try again."
-          : "This browser can't record with Loom. Try Chrome, Edge or Firefox on a computer.");
-        return;
-      }
-      const { setup: loomSetup } = await import("@loomhq/record-sdk");
-      const { configureButton } = await loomSetup({ publicAppId: APP_ID });
-      if (!recordRef.current) return;
-      const sdkButton = configureButton({ element: recordRef.current });
-      sdkButton.on("insert-click", (video) => {
-        setRecent((r) => [{ title: video.title || "Loom recording", url: video.sharedUrl, at: new Date().toISOString() }, ...r.filter((x) => x.url !== video.sharedUrl)].slice(0, MAX_KEPT));
-      });
-      setState("ready");
-      // The first click only loaded the kit; open the recorder now.
-      recordRef.current.click();
-    } catch (e) {
-      setState("error");
-      setError(e instanceof Error ? e.message : "Loom couldn't start. Try again.");
-    }
-  }
 
   async function copy(url: string) {
     try { await navigator.clipboard?.writeText(url); setCopied(url); window.setTimeout(() => setCopied(null), 1500); } catch { /* clipboard blocked */ }
