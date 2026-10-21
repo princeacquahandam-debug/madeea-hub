@@ -18,6 +18,8 @@ import { FollowUpRow } from "@/components/FollowUpRow";
 import { AssigneePicker } from "@/components/Assignee";
 import type { Meeting } from "@/types/db";
 import { useFollowUpSettings } from "@/store/followupSettings";
+import { useClientContext } from "@/store/clientContext";
+import { isMine } from "@/lib/taskSort";
 
 const KPI_ICON_COLORS = ["text-accent", "text-sky-400", "text-amber-400", "text-red-400", "text-amber-400", "text-emerald-400"];
 const priorityLabel: Record<string, string> = { urgent: "Urgent", high: "High", normal: "Normal", low: "Low" };
@@ -35,6 +37,7 @@ export default function Dashboard() {
   const { data: role } = useMyRole();
   const canVault = atLeast(role, "manager");
   const { data: tasks = [] } = useTasks();
+  const { clientId: scopeId } = useClientContext();
   const { data: meetings = [] } = useMeetings({ mine: true });
   const { data: google } = useGoogleConnection();
   const { data: clients = [] } = useClients();
@@ -107,9 +110,13 @@ export default function Dashboard() {
   }).length;
 
   /* One strip of plain-word stats (12 Oct 2026, UI review deck slides 2-3). */
-  const activeCount = tasks.filter((t) => t.status !== "done").length;
+  /* YOUR active tasks: the same rule as "My tasks" on the board, and the same
+     client scope, so the two numbers agree (Reich's testing, 20 Oct 2026: the
+     Dashboard said 7 while her board showed 5, because this counted the whole
+     team's unfinished tasks). Deleted tasks are in Recently deleted, not here. */
+  const activeCount = tasks.filter((t) => t.status !== "done" && isMine(t, user?.id) && (!scopeId || t.client_id === scopeId)).length;
   const kpis: { label: string; value: number; onClick?: () => void; alert?: boolean }[] = [
-    { label: "Active tasks", value: activeCount, onClick: () => nav("/tasks") },
+    { label: "Your active tasks", value: activeCount, onClick: () => nav("/tasks?who=mine") },
     { label: "Meetings today", value: meetingsToday, onClick: () => nav("/calendar") },
     { label: "Emails to answer", value: messages.filter((m) => m.direction !== "outbound" && !m.first_reply_at).length, onClick: () => nav("/inbox") },
     ...(canVault ? [{ label: "Clients at risk", value: atRisk.length, onClick: () => nav("/clients"), alert: atRisk.length > 0 }] : []),

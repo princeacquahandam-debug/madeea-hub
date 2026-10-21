@@ -8,6 +8,9 @@ import { TimePolicyCard } from "@/components/TimePolicyCard";
 import { CredentialsHandover, StartingPassword } from "@/components/StartingPassword";
 import { MIN_PASSWORD, suggestPassword } from "@/lib/password";
 import { teamWorkload, unassignedCount } from "@/lib/team";
+import { useMemberTimeZones } from "@/data/memberTimeZones";
+import { localTime, zoneOffset } from "@/lib/timezones";
+import { zoneCity } from "@/lib/userTimeZone";
 
 function fmtDate(s: string) {
   const d = new Date(s);
@@ -20,6 +23,9 @@ export default function Admin() {
   const { data: grantable = [] } = useGrantableRoles();
   const { data: capabilities = [] } = useRoleCapabilities();
   const { data: members = [], isLoading } = useWorkspaceMembers();
+  /* Each person's zone from Settings, so booking a handover across the team
+     does not start with "what time is it for you?" (Reich's testing, 20 Oct 2026). */
+  const { data: memberZones = {} } = useMemberTimeZones(members.map((m) => m.user_id));
   const { setRole, remove } = useMemberMutations();
   const invite = useInviteMember();
   const [inviteRole, setInviteRole] = useState<MemberRole>("employee");
@@ -319,7 +325,14 @@ export default function Admin() {
                       {m.name}
                       {m.is_me && <span className="pill bg-surface-2 text-[10px] text-faint">You</span>}
                     </p>
-                    <p className="text-xs text-faint">Joined {fmtDate(m.joined_at)} · {m.open_tasks} open · {m.clients} clients</p>
+                    <p className="text-xs text-faint">
+                      Joined {fmtDate(m.joined_at)} · {m.open_tasks} open · {m.clients} clients
+                      {memberZones[m.user_id] && (
+                        <span title={memberZones[m.user_id]}>
+                          {" "}· {zoneCity(memberZones[m.user_id])} ({zoneOffset(memberZones[m.user_id])}), {localTime(memberZones[m.user_id])} there
+                        </span>
+                      )}
+                    </p>
                   </div>
 
                   <span className={`pill text-[10px] ${ROLE_RANK[m.role] >= 30 ? "bg-accent/15 text-accent-soft" : "bg-surface-2 text-muted"}`}>

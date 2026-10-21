@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDirtyGuard } from "@/hooks/useDirtyGuard";
 import { X, Loader2, CheckCircle2, AlertTriangle, ExternalLink, Link2 } from "lucide-react";
-import { useCreateCalendarEvent } from "@/data/hooks";
+import { useClients, useCreateCalendarEvent } from "@/data/hooks";
 import { reconnectMail } from "@/hooks/useSendEmail";
-import { type DayKey, dayLabel, zoneLabel } from "@/lib/calendarTime";
+import { type DayKey, dayLabel, dayKeyOf, timeLabel, zoneLabel } from "@/lib/calendarTime";
+import { instantFor } from "@/lib/workday";
+import { timeZones } from "@/lib/timezones";
+import { isValidZone, zoneCity } from "@/lib/userTimeZone";
 
 /**
  * Booking something, for real, on Google.
@@ -16,17 +19,31 @@ import { type DayKey, dayLabel, zoneLabel } from "@/lib/calendarTime";
  * the calendar lives, which is the same 3pm the rest of the page shows and the
  * same one Google will show. Reading these as the laptop's zone is how you book
  * a Manila meeting for the middle of the night.
+ *
+ * AND YOU CAN PICK ANOTHER ONE (Reich's testing, 20 Oct 2026). Booking across
+ * countries means typing "9am" and meaning the CLIENT's 9am. The zone selector
+ * defaults to the zone the calendar is showing (yours, when you set one in
+ * Settings), offers the client's zone in one click, and states the other side's
+ * clock under the times so nobody has to do the arithmetic.
  */
 export function NewEventDialog({
-  day, tz, canCreate, onClose,
+  day, tz: calendarTz, myTz, canCreate, onClose,
 }: {
   day: DayKey;
+  /** The zone the calendar is drawn in. The form's default. */
   tz: string;
+  /** Your zone from Settings (or the computer's). Offered as a quick option. */
+  myTz: string;
   /** False when the connection can read the calendar but not add to it. */
   canCreate: boolean;
   onClose: () => void;
 }) {
   const create = useCreateCalendarEvent();
+  const { data: clients = [] } = useClients();
+  /* Only for the time hint and the quick zone option: Google has no notion of
+     a MadeEA client, so nothing about the client is sent with the event. */
+  const [clientId, setClientId] = useState("");
+  const [tz, setTz] = useState(calendarTz);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState<DayKey>(day);
   const [start, setStart] = useState("09:00");
@@ -65,26 +82,40 @@ export function NewEventDialog({
     return () => document.removeEventListener("keydown", onKey, true);
   }, [isDirty]);
 
-  /* A wall-clock time in a named zone is not a Date. Build the instant by
-     asking what offset that zone is at on that date, then subtracting it: the
-     naive `new Date("2026-08-24T09:00")` is the BROWSER's 9am, which for a
-     Manila calendar viewed from Denver is fifteen hours out. */
-  const toInstant = useMemo(() => (d: DayKey, hhmm: string): string => {
-    const [h, m] = hhmm.split(":").map(Number);
-    const [y, mo, dd] = d.split("-").map(Number);
-    const guess = Date.UTC(y, mo - 1, dd, h, m);
-    const seen = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
-      hour: "2-digit", minute: "2-digit", hour12: false,
-    }).formatToParts(new Date(guess));
-    const p = Object.fromEntries(seen.map((x) => [x.type, x.value])) as Record<string, string>;
-    const asZone = Date.UTC(+p.year, +p.month - 1, +p.day, Number(p.hour) % 24, +p.minute);
-    return new Date(guess - (asZone - guess)).toISOString();
-  }, [tz]);
+  /* A wall-clock time in a named zone is not a Date. The naive
+     `new Date("2026-08-24T09:00")` is the BROWSER's 9am, which for a Manila
+     calendar viewed from Denver is fifteen hours out. instantFor asks the zone
+     what offset it is at on that date (DST included); it is the one shared
+     copy, which this dialog used to duplicate. */
+  const timesOk = /^\d{2}:\d{2}$/.test(start) && /^\d{2}:\d{2}$/.test(end) && /^\d{4}-\d{2}-\d{2}$/.test(date);
+  const startsAt = timesOk ? instantFor(date, start, tz) : "";
+  const endsAt = timesOk ? instantFor(date, end, tz) : "";
+  const invalid = !timesOk || new Date(endsAt) <= new Date(startsAt);
 
-  const startsAt = toInstant(date, start);
-  const endsAt = toInstant(date, end);
-  const invalid = new Date(endsAt) <= new Date(startsAt);
+  const withZone = useMemo(
+    () => clients.filter((c) => isValidZone(c.timezone)).sort((a, b) => a.name.localeCompare(b.name)),
+    [clients],
+  );
+  const client = withZone.find((c) => c.id === clientId) ?? null;
+  const clientTz = client && isValidZone(client.timezone) ? client.timezone : null;
+  const zones = useMemo(() => {
+    const all = timeZones();
+    const extra = [calendarTz, myTz, clientTz].filter((z): z is string => !!z && !all.includes(z));
+    return [...new Set(extra), ...all];
+  }, [calendarTz, myTz, clientTz]);
+
+  /* "That's 9:00 AM in Dubai (Acme Ltd)". The date is added when the other
+     side is already on a different day, which is exactly the case that books
+     someone at 1am. */
+  function elsewhere(zone: string): string | null {
+    if (!startsAt || invalid || zone === tz) return null;
+    const otherDay = dayKeyOf(startsAt, zone);
+    const dayNote = otherDay !== date ? ` on ${dayLabel(otherDay, { weekday: "short", day: "numeric", month: "short" })}` : "";
+    return `${timeLabel(startsAt, zone)} to ${timeLabel(endsAt, zone)}${dayNote}`;
+  }
+  const clientLine = clientTz ? elsewhere(clientTz) : null;
+  const myLine = myTz !== clientTz ? elsewhere(myTz) : null;
+
   const ready = title.trim().length > 0 && !invalid && !create.isPending && canCreate;
 
   async function submit(e: React.FormEvent) {
@@ -119,7 +150,7 @@ export function NewEventDialog({
           <div className="min-w-0 flex-1">
             <h3 className="text-base font-semibold">New event</h3>
             <p className="mt-0.5 text-[11.5px] text-faint">
-              Added to your Google Calendar, in {zoneLabel(tz, date)} ({tz.split("/").pop()?.replace(/_/g, " ")}).
+              Added to your Google Calendar. Times below are in {zoneCity(tz)} ({zoneLabel(tz, date)}).
             </p>
           </div>
           <button type="button" className="btn-ghost grid h-7 w-7 place-items-center p-0" onClick={attemptClose} aria-label="Close">
@@ -193,6 +224,53 @@ export function NewEventDialog({
                   <input id="ev-end" type="time" className="input" value={end} onChange={(e) => setEnd(e.target.value)} />
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div>
+                  <label className="field-label" htmlFor="ev-tz">Time zone</label>
+                  <select id="ev-tz" className="input" value={tz} onChange={(e) => setTz(e.target.value)}>
+                    {zones.map((z) => (
+                      <option key={z} value={z}>{z.replace(/_/g, " ")} ({zoneLabel(z, date)})</option>
+                    ))}
+                  </select>
+                </div>
+                {withZone.length > 0 && (
+                  <div>
+                    <label className="field-label" htmlFor="ev-client">Client</label>
+                    <select id="ev-client" className="input" value={clientId} onChange={(e) => setClientId(e.target.value)}>
+                      <option value="">None</option>
+                      {withZone.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* One-click zones: yours and the client's. */}
+              {(tz !== myTz || (clientTz && tz !== clientTz)) && (
+                <div className="flex flex-wrap gap-1.5">
+                  {tz !== myTz && (
+                    <button type="button" className="btn-ghost border border-border px-2 py-1 text-[11.5px]" onClick={() => setTz(myTz)}>
+                      Use mine ({zoneCity(myTz)})
+                    </button>
+                  )}
+                  {client && clientTz && tz !== clientTz && (
+                    <button type="button" className="btn-ghost border border-border px-2 py-1 text-[11.5px]" onClick={() => setTz(clientTz)}>
+                      Use {client.name}'s ({zoneCity(clientTz)})
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {(clientLine || myLine) && (
+                <div className="space-y-0.5 rounded-lg bg-surface-2 px-2 py-1.5 text-[12px] text-muted">
+                  {client && clientTz && clientLine && (
+                    <p>That's {clientLine} in {zoneCity(clientTz)} ({client.name}).</p>
+                  )}
+                  {myLine && <p>That's {myLine} for you ({zoneCity(myTz)}).</p>}
+                </div>
+              )}
 
               <div>
                 <label className="field-label" htmlFor="ev-guests">Guests</label>

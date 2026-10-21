@@ -110,7 +110,7 @@ export default function Uploads() {
           </p>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">
             <li><b>Everyone in this workspace</b> can open and download {pending?.length === 1 ? "it" : "them"}: EAs, managers and admins.</li>
-            <li><b>Madeline can read {pending?.length === 1 ? "it" : "them"}</b> to answer questions and run AI actions for your team.</li>
+            <li><b>Madeline can find {pending?.length === 1 ? "it" : "them"} by name</b> when anyone on the team asks her about a document.</li>
             <li>Clients can't see the team shelf from their portal.</li>
           </ul>
           <ul className="mt-3 max-h-32 space-y-1 overflow-y-auto rounded-lg border border-border p-2 text-xs">

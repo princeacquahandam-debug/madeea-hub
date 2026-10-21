@@ -1,6 +1,7 @@
 import {
   Camera,
   LayoutDashboard,
+  UserSquare,
   CheckSquare,
   Mail,
   Users,
@@ -105,6 +106,9 @@ export const NAV: NavItem[] = [
 
      Calendar would be the first item here. It is §5.7, parked pending OQ-3. */
   { to: "/", label: "Dashboard", icon: LayoutDashboard, group: "Today" },
+  /* A workspace per member (21 Oct 2026): your work, reports, memory and
+     knowledge base. Managers and up open any member's from here. */
+  { to: "/workspace", label: "My workspace", icon: UserSquare, group: "Today" },
   /* The route stays /inbox. Seventeen places link to it, the name is the
      only thing anyone sees, and renaming the path would buy nothing but a
      round of dead links. /communication already redirects here. */

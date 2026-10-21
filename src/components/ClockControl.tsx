@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Play, Pause, Square, CameraOff, Camera } from "lucide-react";
 import { entrySeconds, pausedSession, useClients, useTimeEntries, useTimeMutations, useEffectiveTimeSettings } from "@/data/hooks";
@@ -82,6 +83,19 @@ export function ClockControl() {
   const screenshotsExpected = settings?.screenshotsEnabled !== false;
   const notCapturing = Boolean(running) && screenshotsExpected && capture.state !== "capturing";
 
+  /* Sharing stopped from the browser's own bar while clocked in: the clock
+     pauses itself, so tracked time is always time with screenshots, and the gap
+     shows on the timesheet as a break. Resume asks to share again. Once per
+     stop: the ref remembers the state we last acted on. */
+  const lastState = useRef(capture.state);
+  useEffect(() => {
+    const was = lastState.current;
+    lastState.current = capture.state;
+    if (capture.state === "stopped" && was !== "stopped" && running && screenshotsExpected && !pause.isPending) {
+      pause.mutate(running.id);
+    }
+  }, [capture.state, running, screenshotsExpected, pause]);
+
   /* Resume: same client and note; screen sharing asked for on this click. */
   function resume() {
     if (!paused) return;
@@ -97,7 +111,9 @@ export function ClockControl() {
           onClick={resume}
           onContextMenu={(e) => { e.preventDefault(); nav("/time"); }}
           disabled={start.isPending}
-          title="On a break. Click to resume; clock out from the Time tracker."
+          title={capture.state === "stopped"
+            ? "Paused because screen sharing stopped. Click to resume and share your screen again."
+            : "On a break. Click to resume; clock out from the Time tracker."}
           aria-label="Resume the clock"
         >
           <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />
@@ -164,18 +180,19 @@ export function ClockControl() {
         </button>
       )}
 
-      {/* While the screen is being shared, say so beside the clock and let it be
-          stopped in one click (13 Oct 2026 call: "how do I stop it?"). Stopping
-          sharing keeps the shift running; clocking out ends both. */}
+      {/* While the screen is being shared, say so beside the clock. There is no
+          separate Stop sharing here any more (Reich's testing, 20 Oct 2026):
+          tracked time and screenshots go together, so the way to stop sharing
+          is Pause, which stops both and shows as a break on the timesheet. */}
       {running && capture.state === "capturing" && (
         <button
-          onClick={capture.stop}
+          onClick={() => nav("/time")}
           className="flex h-9 items-center gap-1.5 rounded-lg border border-border px-2.5 text-xs font-semibold text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
-          title="Your screen is being shared for screenshots. Click to stop sharing; your shift keeps running."
-          aria-label="Stop screen sharing"
+          title="Your screen is shared while you're clocked in, for screenshots. To stop sharing, take a break with Pause."
+          aria-label="Screen sharing is on"
         >
           <Camera size={14} className="text-emerald-500" />
-          <span className="hidden md:inline">Stop sharing</span>
+          <span className="hidden md:inline">Sharing</span>
         </button>
       )}
 

@@ -25,6 +25,7 @@ import { decodeEntities } from "@/lib/threads";
 import { useMadelineContext } from "@/hooks/useMadeline";
 import { calendarEventItem, taskItem } from "@/lib/madelineItems";
 import { PREP_MEETING } from "@/lib/madelineActions";
+import { isValidZone, useUserTimeZone, zoneCity } from "@/lib/userTimeZone";
 
 /**
  * The calendar, in the shape Google made everyone fluent in.
@@ -93,7 +94,12 @@ export default function Calendar() {
   const { data: allTasks = [] } = useTasks();
   const sync = useCalendarSync();
 
-  const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  /* Your time zone from Settings (Reich's testing, 20 Oct 2026). "browserTz"
+     kept its name but is now the zone YOU see times in: the one you chose, or
+     the computer's when you have not chosen. */
+  const chosenTz = useUserTimeZone((s) => s.chosen);
+  const deviceTz = useUserTimeZone((s) => s.device);
+  const browserTz = useUserTimeZone((s) => s.zone);
   const [anchor, setAnchor] = useState<DayKey>(() => todayKey(browserTz));
 
   useEffect(() => {
@@ -145,7 +151,12 @@ export default function Calendar() {
      Google renders in and what the team means when it says "3pm". The browser
      is the fallback only when nothing has been synced yet. */
   const calendarTz = events.find((e) => e.event_timezone && !e.source?.endsWith("-client"))?.event_timezone ?? null;
-  const tz = tzOverride ?? calendarTz ?? browserTz;
+  /* A zone you CHOSE in Settings wins over the calendar's, so the calendar
+     agrees with every other screen (Reich's testing, 20 Oct 2026). Without a
+     choice it is as before: the calendar's own zone, then the computer's.
+     The grid, the day buckets and every label below all take this one `tz`,
+     so an event is positioned and labelled in the same zone. */
+  const tz = tzOverride ?? chosenTz ?? calendarTz ?? browserTz;
   const today = todayKey(tz);
 
   /* Weekends is a filter on COLUMNS, not on data. Hiding Saturday removes the
@@ -175,7 +186,10 @@ export default function Calendar() {
       if (!t.due_at) continue;
       const done = t.status === "done";
       if (done && !prefs.completedTasks) continue;
-      push(dayKeyOf(t.due_at, tz), {
+      /* Due dates are whole days stored as UTC midnight and shown in UTC on
+         the Tasks page. Bucketing them in a zone west of UTC put Thursday's
+         task on Wednesday (Reich's testing, 20 Oct 2026). */
+      push(dayKeyOf(t.due_at, "UTC"), {
         kind: "task", id: `task-${t.id}`, title: t.title, at: t.due_at,
         task: t, done, allDay: true,
       });
@@ -314,8 +328,8 @@ export default function Calendar() {
           onClick={() => setTzOverride(tz === browserTz ? (calendarTz ?? browserTz) : browserTz)}
           title={
             tz === browserTz
-              ? `Showing this device's timezone (${tz}).${calendarTz ? ` Click to use the calendar's (${calendarTz}).` : ""}`
-              : `Showing the calendar's timezone (${tz}). Click to use this device's (${browserTz}).`
+              ? `Showing your time zone (${tz}${chosenTz ? ", from Settings" : ", this computer's"}).${calendarTz && calendarTz !== tz ? ` Click to use the calendar's (${calendarTz}).` : ""}`
+              : `Showing the calendar's timezone (${tz}). Click to use yours (${browserTz}).`
           }
           className="rounded-full border border-border px-2 py-1 text-[11px] text-faint hover:text-text"
         >
@@ -394,6 +408,14 @@ export default function Calendar() {
         </button>
       </div>
 
+      {/* The grid is drawn in `tz`, not the computer's clock, so this is
+          information, not a warning that something is off. */}
+      {tz !== deviceTz && zoneLabel(tz, anchor) !== zoneLabel(deviceTz, anchor) && (
+        <p className="mb-3 text-[12px] text-faint">
+          Your computer is on {zoneCity(deviceTz)} ({zoneLabel(deviceTz, anchor)}); times here are shown in {zoneCity(tz)} ({zoneLabel(tz, anchor)}).
+        </p>
+      )}
+
       {sync.isSuccess && !sync.isPending && (
         <p className="mb-3 text-[12.5px] text-emerald-300">
           Synced {sync.data.synced} of {sync.data.scanned} events from Google.
@@ -421,6 +443,7 @@ export default function Calendar() {
         <NewEventDialog
           day={anchor}
           tz={tz}
+          myTz={browserTz}
           canCreate={Boolean(google?.canCreate)}
           onClose={() => setCreating(false)}
         />
@@ -432,7 +455,7 @@ export default function Calendar() {
           tz={tz}
           onClose={() => setDetail(null)}
           onPrepare={prepare}
-          onPlanDay={() => planThisDay(dayKeyOf(detail.at, tz))}
+          onPlanDay={() => planThisDay(itemDay(detail, tz))}
         />
       )}
     </div>
@@ -465,10 +488,19 @@ function EventDetail({ item, tz, onClose, onPrepare, onPlanDay }: {
           <div className="min-w-0 flex-1">
             <h3 className="text-base font-semibold leading-snug">{item.title}</h3>
             <p className="mt-0.5 text-xs text-faint">
-              {dayLabel(dayKeyOf(item.at, tz), { weekday: "long", day: "numeric", month: "long" })}
+              {dayLabel(itemDay(item, tz), { weekday: "long", day: "numeric", month: "long" })}
               {!item.allDay && ` · ${timeLabel(item.at, tz)}`}
               {e?.ends_at && !item.allDay && ` to ${timeLabel(e.ends_at, tz)}`}
+              {!item.allDay && ` ${zoneLabel(tz, itemDay(item, tz))}`}
             </p>
+            {/* Booked in another zone (a client's, say): show it there too, so
+                "is this 9am for them?" needs no arithmetic. */}
+            {e && isValidZone(e.event_timezone) && !item.allDay && e.event_timezone !== tz && (
+              <p className="mt-0.5 text-[11.5px] text-faint">
+                {timeLabel(item.at, e.event_timezone)}
+                {e.ends_at && ` to ${timeLabel(e.ends_at, e.event_timezone)}`} in {zoneCity(e.event_timezone)}, the event's own zone
+              </p>
+            )}
           </div>
           <button className="btn-ghost grid h-7 w-7 place-items-center p-0" onClick={onClose} aria-label="Close">
             <X size={15} />
@@ -529,6 +561,11 @@ function EventDetail({ item, tz, onClose, onPrepare, onPlanDay }: {
       </div>
     </div>
   );
+}
+
+/** The day an item belongs to. Tasks are date-only (UTC), events are instants. */
+function itemDay(item: CalendarItem, tz: string): DayKey {
+  return dayKeyOf(item.at, item.kind === "task" ? "UTC" : tz);
 }
 
 function Notice({ children }: { children: React.ReactNode }) {

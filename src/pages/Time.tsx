@@ -540,13 +540,20 @@ function CapturePanel({ capture, minutes }: { capture: MonitoringStatus; minutes
           </p>
         </div>
         {capture.state === "capturing" ? (
-          <button className="btn-ghost border border-border" onClick={capture.stop}>Stop sharing</button>
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-500"><Camera size={13} /> Sharing</span>
         ) : (
           <button className="btn-primary" onClick={() => void capture.start()}>
             <MonitorPlay size={14} /> Start screen sharing
           </button>
         )}
       </div>
+
+      {/* How the two fit together (Reich's testing, 20 Oct 2026). */}
+      <p className="mt-2 text-[12px] leading-relaxed text-muted">
+        While you're clocked in, your whole screen is shared and a screenshot is taken about every {minutes} minutes.
+        To stop sharing for a break or for privacy, press <b>Pause</b>: the clock and screenshots stop together, and the
+        break shows on your timesheet. If sharing is stopped another way, the clock pauses by itself until you resume.
+      </p>
 
       {/* Running and producing nothing. Louder than the tab warning because
           it is worse: that one records weak evidence, this one records none,

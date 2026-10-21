@@ -12,6 +12,7 @@ import { DoNotContactPanel } from "@/components/DoNotContactPanel";
 import { useFollowUpSettings } from "@/store/followupSettings";
 import { useUI } from "@/store/ui";
 import { APP_VERSION } from "@/lib/changelog";
+import { TimeZoneSettings } from "@/components/TimeZoneSettings";
 
 const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 
@@ -55,6 +56,9 @@ export default function Settings() {
             </div>
           </div>
         </section>
+
+        {/* Reich's testing, 20 Oct 2026: one zone for every time the Hub shows. */}
+        <TimeZoneSettings />
 
         <ChangePassword />
 

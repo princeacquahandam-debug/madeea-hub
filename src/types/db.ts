@@ -79,6 +79,8 @@ export interface Task {
    * created it. Null is a legitimate state: nobody has picked it up yet.
    */
   assignee_id?: string | null;
+  /** Who created it. "My tasks" includes unassigned tasks I created. */
+  owner_id?: string | null;
   /** Blocked and why (migration 0016). Rolls straight into the EOD draft. */
   blocked?: boolean;
   blocker_note?: string | null;
@@ -373,6 +375,21 @@ export interface Message {
      Instagram IGSID, a WhatsApp wa_id. Deliberately not sender_email, which
      every other screen treats as something you can put in a mail client. */
   reply_target?: string | null;
+  /* Read state and personal labels (Reich's testing, 20 Oct 2026). useMessages
+     does not map these, so the inbox merges them in from useMessageMeta
+     (src/data/mailLabels.ts). Absent means "not known", not "unread". */
+  is_read?: boolean;
+  /** Ids of the viewer's own mail_labels (0091). Ids that are not theirs are ignored. */
+  label_ids?: string[];
+}
+
+/** A personal email label (0091). Only its owner ever sees it. */
+export type MailLabelColor = "slate" | "red" | "amber" | "green" | "blue" | "violet" | "pink";
+export interface MailLabel {
+  id: string;
+  name: string;
+  color: MailLabelColor;
+  created_at?: string;
 }
 
 // ---------- Meeting Intelligence ----------

@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { Client, Message } from "@/types/db";
+import type { Client, MailLabel, Message } from "@/types/db";
 import type { Thread } from "@/lib/threads";
 import { MessageRow } from "@/components/MessageRow";
 import { dayLength, formatDuration, isBreaching, waitingHours } from "@/lib/sla";
@@ -45,7 +45,7 @@ import type { SlaConfig } from "@/store/slaSettings";
  * ranking of causes, not as what a user experiences.
  */
 export function ThreadList({
-  threads, selectedId, clients, cfg, now, showChannel, onSelect, clientFor, emptyState,
+  threads, selectedId, clients, cfg, now, showChannel, onSelect, clientFor, emptyState, labels = [],
 }: {
   threads: Thread[];
   selectedId: string | null;
@@ -56,6 +56,8 @@ export function ThreadList({
   onSelect: (m: Message) => void;
   clientFor: (m: Message) => Client | null;
   emptyState: React.ReactNode;
+  /** The viewer's own mail labels, shown as chips (Reich's testing, 20 Oct 2026). */
+  labels?: MailLabel[];
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const dl = dayLength(cfg);
@@ -108,6 +110,9 @@ export function ThreadList({
                 breached={breached}
                 threadCount={t.count}
                 unread={t.unread}
+                labels={labels}
+                // A label on any message in the conversation shows on its row.
+                labelIds={labels.length ? [...new Set(t.messages.flatMap((x) => x.label_ids ?? []))] : undefined}
                 showChannel={showChannel}
                 waitingLabel={waiting !== null ? formatDuration(waiting, dl) : undefined}
                 onSelect={() => onSelect(m)}

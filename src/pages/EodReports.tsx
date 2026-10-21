@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronRight, Link2, Send, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Link2, Lock, Send, Trash2 } from "lucide-react";
 import { Badge, PageHeader } from "@/components/ui";
 import { EOD_DATA, type CellStatus } from "@/data/eod";
 import { EOD_DATES } from "@/data/eodImport";
@@ -700,6 +700,7 @@ function ReportCard({
   onDelete: () => Promise<unknown>;
 }) {
   const links = entry.links ?? [];
+  const deletable = entry.report_date === todayIso();
   const [confirm, setConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
@@ -737,7 +738,7 @@ function ReportCard({
       const m = err instanceof Error ? err.message.toLowerCase() : "";
       setError(
         m.includes("row-level") || m.includes("policy") || m.includes("permission")
-          ? "You can only delete your own reports."
+          ? "You can only delete your own report, and only on the day it's for."
           : "Couldn't delete that. Please try again.",
       );
       setConfirm(false);
@@ -764,9 +765,15 @@ function ReportCard({
         {entry.blockers.length > 0 && <Badge tone="urgent">{entry.blockers.length} blocked</Badge>}
         {entry.plans.length > 0 && <Badge tone="reply">{entry.plans.length} planned</Badge>}
 
-        {/* Deleting is permanent, so it asks first. Always visible. Hover-only
-            controls are undiscoverable and don't exist on touch at all. */}
-        {confirm ? (
+        {/* Deleting is permanent, so it asks first. Only today's report can be
+            deleted: once a day has passed it's part of the record and nobody
+            can delete it (Reich's testing, 20 Oct 2026; the database enforces
+            the same rule). It can still be updated. */}
+        {!deletable ? (
+          <span className="rounded-md p-1.5 text-faint" title="Past reports are kept on record and can't be deleted." aria-label="Past reports can't be deleted">
+            <Lock size={14} />
+          </span>
+        ) : confirm ? (
           <span className="flex items-center gap-1.5">
             <span className="text-xs text-muted">Delete this report?</span>
             <button

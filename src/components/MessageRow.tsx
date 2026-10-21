@@ -1,5 +1,6 @@
 import { AlertTriangle, Paperclip } from "lucide-react";
-import type { Message } from "@/types/db";
+import type { MailLabel, Message } from "@/types/db";
+import { LabelChips } from "@/components/MailLabels";
 import { REAL_CHANNELS } from "@/lib/channels";
 import { initials, cn } from "@/lib/utils";
 import { relativeTime, fullTime, avatarHue, avatarColors } from "@/lib/relativeTime";
@@ -28,6 +29,7 @@ import { decodeEntities } from "@/lib/threads";
  */
 export function MessageRow({
   m, selected, breached, waitingLabel, onSelect, now, threadCount = 1, showChannel = true, unread: unreadProp,
+  labels = [], labelIds,
 }: {
   m: Message;
   selected: boolean;
@@ -42,6 +44,9 @@ export function MessageRow({
   showChannel?: boolean;
   /** Unread for the whole thread, not just its newest message. */
   unread?: boolean;
+  /** The viewer's own labels, and the ids on this conversation (Reich's testing, 20 Oct 2026). */
+  labels?: MailLabel[];
+  labelIds?: string[];
 }) {
   const unread = unreadProp ?? (m.direction !== "outbound" && !m.first_reply_at);
   /* Every row carries its channel's logo, on the corner of the avatar, so one
@@ -81,6 +86,7 @@ export function MessageRow({
         aria-hidden="true"
         className={cn("mt-[15px] h-2 w-2 shrink-0 rounded-full", unread ? "bg-accent" : "bg-transparent")}
       />
+      {unread && <span className="sr-only">Unread. </span>}
 
       {/* Stand-in for a profile photo: a stable colour per sender, so the same
           person is the same circle every time. */}
@@ -108,6 +114,8 @@ export function MessageRow({
           <span className={cn("min-w-0 truncate text-sm", unread ? "font-semibold text-text" : "text-muted")}>
             {decodeEntities(m.sender_name ?? "")}
           </span>
+          {/* Personal labels, small, on the name line so the row stays 62px. */}
+          <LabelChips ids={labelIds ?? m.label_ids} labels={labels} />
           {threadCount > 1 && (
             <span
               className="shrink-0 rounded-full bg-[var(--chip-bg)] px-1.5 text-[10px] font-semibold tabular-nums text-muted"

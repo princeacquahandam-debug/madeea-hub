@@ -17,6 +17,8 @@ import { GuidedTour } from "@/components/GuidedTour";
 import { useUI } from "@/store/ui";
 import { useSlaSettings } from "@/store/slaSettings";
 import { useRoutineRunner } from "@/hooks/useRoutineRunner";
+import { useAuth } from "@/hooks/useAuth";
+import { useUserTimeZoneSync } from "@/lib/userTimeZone";
 
 export function AppShell() {
   const { navOpen, setNavOpen } = useUI();
@@ -31,6 +33,10 @@ export function AppShell() {
      routine up once and never go back, so anchoring it to that page meant
      Monday's task might never be created. */
   useRoutineRunner();
+  /* Your chosen time zone (Settings, Reich's testing, 20 Oct 2026), loaded once
+     per sign-in so every screen formats times in the same zone. */
+  const { user } = useAuth();
+  useUserTimeZoneSync(user?.id);
 
   return (
     <MonitoringProvider>

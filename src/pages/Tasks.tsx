@@ -27,6 +27,9 @@ import { PrioritizePanel } from "@/components/tasks/PrioritizePanel";
 import { StuckCard } from "@/components/tasks/StuckCard";
 import { UndoToast } from "@/components/tasks/UndoToast";
 import { useMadeline } from "@/store/madeline";
+import { useAuth } from "@/hooks/useAuth";
+import { isMine, sortTasks } from "@/lib/taskSort";
+import { DeleteTaskDialog, RecentlyDeleted } from "@/components/tasks/TaskTrash";
 
 /* Each column is colour-washed, the way Wing's board is: To Do, In Progress and
    Done read as three different places at a glance rather than three identical
@@ -100,16 +103,23 @@ const DUE_TONE: Record<"over" | "soon" | "plain", string> = {
 };
 
 type Board = Record<TaskStatus, Task[]>;
-const group = (tasks: Task[]): Board => ({
-  todo: tasks.filter((t) => t.status === "todo"),
-  in_progress: tasks.filter((t) => t.status === "in_progress"),
-  follow_up: tasks.filter((t) => t.status === "follow_up"),
-  review: tasks.filter((t) => t.status === "review"),
-  done: tasks.filter((t) => t.status === "done"),
-});
+// Every column sorted by due date, then priority (Reich's testing, 20 Oct 2026).
+const group = (tasks: Task[]): Board => {
+  const sorted = sortTasks(tasks);
+  return {
+    todo: sorted.filter((t) => t.status === "todo"),
+    in_progress: sorted.filter((t) => t.status === "in_progress"),
+    follow_up: sorted.filter((t) => t.status === "follow_up"),
+    review: sorted.filter((t) => t.status === "review"),
+    done: sorted.filter((t) => t.status === "done"),
+  };
+};
 
-function CardBody({ task, blocked, onDelete, onEdit, onComplete, onSave, isSaved, comments = 0, overlay }: { task: Task; blocked?: boolean; onDelete?: () => void; onEdit?: () => void; onComplete?: () => void; onSave?: () => void; isSaved?: boolean; comments?: number; overlay?: boolean }) {
-  const stop = (e: React.PointerEvent) => e.stopPropagation();
+/** How many checklist items a card shows before "+N more". */
+const CARD_CHECKLIST_MAX = 5;
+
+function CardBody({ task, blocked, onDelete, onEdit, onComplete, onSave, onToggleSub, isSaved, comments = 0, overlay }: { task: Task; blocked?: boolean; onDelete?: () => void; onEdit?: () => void; onComplete?: () => void; onSave?: () => void; onToggleSub?: (subId: string) => void; isSaved?: boolean; comments?: number; overlay?: boolean }) {
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
   const subDone = task.subtasks.filter((s) => s.done).length;
   const due = relativeDue(task);
   const links = task.attachments?.length ?? 0;
@@ -158,6 +168,33 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, onSave, isSaved
           what it is called. Truncated to two lines; the rest is one click away. */}
       {task.notes?.trim() && (
         <p className="mt-1 line-clamp-2 text-xs leading-snug text-muted">{task.notes}</p>
+      )}
+
+      {/* The checklist on the card, so pending and done items show at a glance
+          without opening the task (Reich's testing, 20 Oct 2026). Ticking one
+          here saves it; the events stop at the checkbox so it never starts a drag. */}
+      {task.subtasks.length > 0 && (
+        <ul className="mt-1.5 space-y-0.5" aria-label="Checklist">
+          {task.subtasks.slice(0, CARD_CHECKLIST_MAX).map((s) => (
+            <li key={s.id} className="flex items-start gap-1.5 text-[11.5px] leading-snug">
+              <input
+                type="checkbox"
+                className="mt-[2px] h-3 w-3 shrink-0 cursor-pointer accent-[#fd5812]"
+                checked={s.done}
+                disabled={!onToggleSub}
+                onPointerDown={stop}
+                onKeyDown={stop}
+                onClick={stop}
+                onChange={() => onToggleSub?.(s.id)}
+                aria-label={s.label}
+              />
+              <span className={cn("min-w-0 flex-1", s.done ? "text-faint line-through" : "text-muted")}>{s.label}</span>
+            </li>
+          ))}
+          {task.subtasks.length > CARD_CHECKLIST_MAX && (
+            <li className="pl-[18px] text-[11px] text-faint">+{task.subtasks.length - CARD_CHECKLIST_MAX} more</li>
+          )}
+        </ul>
       )}
 
       <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-faint">
@@ -213,7 +250,7 @@ interface BoardAi {
 }
 const BoardAiContext = createContext<BoardAi | null>(null);
 
-function SortableCard({ task, blocked, onDelete, onEdit, onComplete, onSave, isSaved, comments, focused, justDropped }: { task: Task; blocked: boolean; onDelete: () => void; onEdit: () => void; onComplete: () => void; onSave: () => void; isSaved: boolean; comments?: number; focused?: boolean; justDropped?: boolean }) {
+function SortableCard({ task, blocked, onDelete, onEdit, onComplete, onSave, onToggleSub, isSaved, comments, focused, justDropped }: { task: Task; blocked: boolean; onDelete: () => void; onEdit: () => void; onComplete: () => void; onSave: () => void; onToggleSub: (subId: string) => void; isSaved: boolean; comments?: number; focused?: boolean; justDropped?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const ai = useContext(BoardAiContext);
   return (
@@ -230,13 +267,13 @@ function SortableCard({ task, blocked, onDelete, onEdit, onComplete, onSave, isS
         (focused || ai?.selectedId === task.id) && "ring-2 ring-accent ring-offset-2 ring-offset-bg",
         ai?.picking && task.status !== "done" && "cursor-pointer hover:ring-2 hover:ring-accent/60",
       )}>
-      <CardBody task={task} blocked={blocked} onDelete={onDelete} onEdit={onEdit} onComplete={onComplete} onSave={onSave} isSaved={isSaved} comments={comments} />
+      <CardBody task={task} blocked={blocked} onDelete={onDelete} onEdit={onEdit} onComplete={onComplete} onSave={onSave} onToggleSub={onToggleSub} isSaved={isSaved} comments={comments} />
       {ai?.preview(task)}
     </div>
   );
 }
 
-function Column({ status, label, dot, wash, edge, items, blockedIds, onDelete, onEdit, onComplete, onAdd, onSave, savedIds, commentCounts, focusId, justDroppedId, dropActive }: { status: TaskStatus; label: string; dot: string; wash: string; edge: string; items: Task[]; blockedIds: Set<string>; onDelete: (id: string) => void; onEdit: (t: Task) => void; onComplete: (id: string) => void; onAdd: (status: TaskStatus) => void; onSave: (t: Task) => void; savedIds: Set<string>; commentCounts: Record<string, number>; focusId?: string | null; justDroppedId?: string | null; dropActive?: boolean }) {
+function Column({ status, label, dot, wash, edge, items, blockedIds, onDelete, onEdit, onComplete, onAdd, onSave, onToggleSub, savedIds, commentCounts, focusId, justDroppedId, dropActive }: { status: TaskStatus; label: string; dot: string; wash: string; edge: string; items: Task[]; blockedIds: Set<string>; onDelete: (t: Task) => void; onEdit: (t: Task) => void; onComplete: (id: string) => void; onAdd: (status: TaskStatus) => void; onSave: (t: Task) => void; onToggleSub: (t: Task, subId: string) => void; savedIds: Set<string>; commentCounts: Record<string, number>; focusId?: string | null; justDroppedId?: string | null; dropActive?: boolean }) {
   /* useDroppable, not useSortable. A column is a container you drop INTO; it is
      never itself dragged. useSortable additionally registered each column as a
      draggable and, because it reads the nearest SortableContext above it. Of
@@ -268,7 +305,7 @@ function Column({ status, label, dot, wash, edge, items, blockedIds, onDelete, o
       </div>
       <SortableContext id={status} items={items.map((t) => t.id)} strategy={verticalListSortingStrategy}>
         <div ref={setNodeRef} className="min-h-[180px] flex-1 space-y-2 p-2">
-          {items.map((t) => <SortableCard key={t.id} task={t} blocked={blockedIds.has(t.id)} onDelete={() => onDelete(t.id)} onEdit={() => onEdit(t)} onComplete={() => onComplete(t.id)} onSave={() => onSave(t)} isSaved={savedIds.has(t.id)} comments={commentCounts[t.id] ?? 0} focused={focusId === t.id} justDropped={justDroppedId === t.id} />)}
+          {items.map((t) => <SortableCard key={t.id} task={t} blocked={blockedIds.has(t.id)} onDelete={() => onDelete(t)} onEdit={() => onEdit(t)} onComplete={() => onComplete(t.id)} onSave={() => onSave(t)} onToggleSub={(subId) => onToggleSub(t, subId)} isSaved={savedIds.has(t.id)} comments={commentCounts[t.id] ?? 0} focused={focusId === t.id} justDropped={justDroppedId === t.id} />)}
           {items.length === 0 && (
             <p className="rounded-lg border border-dashed border-border py-8 text-center text-xs text-faint">No tasks</p>
           )}
@@ -488,10 +525,17 @@ export default function Tasks() {
   const { data: clients = [] } = useClients();
   const { clientId: scopeId } = useClientContext();
   const { data: members = [] } = useWorkspaceMembers();
-  // "mine" | "all" | a specific member id
-  const [who, setWho] = useState<string>("all");
+  const { user } = useAuth();
+  /* The filters are remembered per person until they change them (Reich's
+     testing, 20 Oct 2026: "My tasks" reset to everyone's on every visit). */
+  const filterKey = `madeea-task-filters-${user?.id ?? "anon"}`;
+  const saved = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem(filterKey) ?? "{}") as Partial<Record<"who" | "client" | "prio" | "due", string>>; } catch { return {}; }
+  }, [filterKey]);
   // Deep link from the client activity timeline: /tasks?task=<id>
   const [params, setParams] = useSearchParams();
+  // "mine" | "all" | "unassigned" | a specific member id. ?who=mine comes from the Dashboard's count.
+  const [who, setWho] = useState<string>(() => params.get("who") ?? saved.who ?? "all");
   const focusId = params.get("task");
   const [board, setBoard] = useState<Board>(group([]));
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -517,9 +561,22 @@ export default function Tasks() {
   const markTried = () => { try { localStorage.setItem("madeea-ai-actions-tried", "1"); } catch { /* storage blocked */ } setTried(true); };
   const [q, setQ] = useState("");
   // Deck slide 5: Assignee, Client, Priority and Due date beside search.
-  const [clientF, setClientF] = useState("all");
-  const [prioF, setPrioF] = useState("all");
-  const [dueF, setDueF] = useState("all");
+  const [clientF, setClientF] = useState(saved.client ?? "all");
+  const [prioF, setPrioF] = useState(saved.prio ?? "all");
+  const [dueF, setDueF] = useState(saved.due ?? "all");
+  useEffect(() => {
+    try { localStorage.setItem(filterKey, JSON.stringify({ who, client: clientF, prio: prioF, due: dueF })); } catch { /* storage blocked */ }
+  }, [filterKey, who, clientF, prioF, dueF]);
+  // A remembered client or teammate that no longer exists falls back to everyone.
+  useEffect(() => {
+    if (clients.length && clientF !== "all" && !clients.some((c) => c.id === clientF)) setClientF("all");
+  }, [clients, clientF]);
+  useEffect(() => {
+    if (members.length && !["all", "mine", "unassigned"].includes(who) && !members.some((m) => m.user_id === who)) setWho("all");
+  }, [members, who]);
+  // Delete asks first and goes to Recently deleted (Reich's testing, 20 Oct 2026).
+  const [confirmDel, setConfirmDel] = useState<Task | null>(null);
+  const [trashOpen, setTrashOpen] = useState(false);
   // Drives the drop-bounce animation on the card that was just released.
   const [justDroppedId, setJustDroppedId] = useState<string | null>(null);
   const [modal, setModal] = useState(false);
@@ -540,7 +597,7 @@ export default function Tasks() {
          their name would misrepresent what they are being billed for. */
       if (scopeId && t.client_id !== scopeId) return false;
       if (who === "unassigned" && t.assignee_id) return false;
-      if (who === "mine" && t.assignee_id !== me?.user_id) return false;
+      if (who === "mine" && !isMine(t, me?.user_id ?? user?.id)) return false;
       if (who !== "all" && who !== "mine" && who !== "unassigned" && t.assignee_id !== who) return false;
       if (clientF !== "all" && t.client_id !== clientF) return false;
       if (prioF !== "all" && t.priority !== prioF) return false;
@@ -561,7 +618,7 @@ export default function Tasks() {
         .toLowerCase()
         .includes(needle);
     });
-  }, [tasks, who, q, me?.user_id, scopeId, clientF, prioF, dueF]);
+  }, [tasks, who, q, me?.user_id, user?.id, scopeId, clientF, prioF, dueF]);
 
   useEffect(() => { if (!activeId) setBoard(group(visible)); }, [visible, activeId]);
 
@@ -826,6 +883,7 @@ export default function Tasks() {
         }
         action={
           <div className="flex gap-2">
+            <button className="btn-ghost border border-border" onClick={() => setTrashOpen(true)} title="Deleted tasks, kept for 30 days"><Trash2 size={15} /> <span className="hidden sm:inline">Recently deleted</span></button>
             <button className="btn-ghost border border-border" onClick={() => setTemplates(true)}><Copy size={15} /> Templates</button>
             {/* Wrapped, not passed directly: startCreate's first argument is the
                 column to create in, and onClick would hand it a MouseEvent. */}
@@ -929,7 +987,7 @@ export default function Tasks() {
           {/* One row of five on wide screens (deck slide 5). */}
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
             {COLUMNS.map((col) => (
-              <Column key={col.key} status={col.key} label={col.label} dot={col.dot} wash={col.wash} edge={col.edge} items={board[col.key]} blockedIds={blockedIds} onDelete={(id) => remove.mutate(id)} onEdit={startEdit} onComplete={(id) => setStatus.mutate({ id, status: "done" })} onAdd={startCreate} onSave={(t) => saveToggle.mutate({ kind: "task", targetId: t.id, label: t.title, saved: savedIds.has(t.id) })} savedIds={savedIds} commentCounts={commentCounts} focusId={focusId} justDroppedId={justDroppedId} dropActive={activeId !== null && overCol === col.key} />
+              <Column key={col.key} status={col.key} label={col.label} dot={col.dot} wash={col.wash} edge={col.edge} items={board[col.key]} blockedIds={blockedIds} onDelete={(t) => setConfirmDel(t)} onToggleSub={(t, subId) => update.mutate({ id: t.id, subtasks: t.subtasks.map((s) => (s.id === subId ? { ...s, done: !s.done } : s)) } as Parameters<typeof update.mutate>[0])} onEdit={startEdit} onComplete={(id) => setStatus.mutate({ id, status: "done" })} onAdd={startCreate} onSave={(t) => saveToggle.mutate({ kind: "task", targetId: t.id, label: t.title, saved: savedIds.has(t.id) })} savedIds={savedIds} commentCounts={commentCounts} focusId={focusId} justDroppedId={justDroppedId} dropActive={activeId !== null && overCol === col.key} />
             ))}
           </div>
           <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
@@ -956,6 +1014,23 @@ export default function Tasks() {
         />
       )}
       {toast && <UndoToast message={toast.message} onUndo={toast.undo} onDone={() => setToast(null)} />}
+
+      <DeleteTaskDialog
+        task={confirmDel}
+        pending={remove.isPending}
+        onCancel={() => setConfirmDel(null)}
+        onConfirm={() => {
+          const t = confirmDel;
+          if (!t) return;
+          remove.mutate(t.id, { onSuccess: () => setConfirmDel(null) });
+        }}
+      />
+      <RecentlyDeleted open={trashOpen} onClose={() => setTrashOpen(false)} />
+      {remove.isError && (
+        <p role="alert" className="fixed bottom-4 left-1/2 z-[80] -translate-x-1/2 rounded-lg bg-red-600 px-3 py-2 text-sm text-white shadow-lg">
+          Couldn't delete the task: {remove.error instanceof Error ? remove.error.message : "please try again."}
+        </p>
+      )}
 
       {/* Add / Edit */}
       <Modal open={modal} onClose={() => { setModal(false); setEditingId(null); }}>

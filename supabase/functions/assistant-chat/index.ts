@@ -356,6 +356,43 @@ const TOOLS = [
       },
     },
   },
+  /* Each account's own memory and knowledge base (21 Oct 2026). Both read
+     through the caller's RLS: memories are private to their owner (0090), and
+     the knowledge base is the person's personal shelf plus the team shelf (0067),
+     so one person's notes never reach another person's chat. */
+  {
+    type: "function",
+    function: {
+      name: "recall_memory",
+      description:
+        "What the user has asked you to remember: their preferences, facts about their clients, commitments " +
+        "and goals. Private to this user. Use it for anything about how they like things done, or before " +
+        "drafting for a client.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Words to look for. Omit for the pinned and most recent." },
+          limit: { type: "integer", minimum: 1, maximum: 30 },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_knowledge_base",
+      description:
+        "The user's knowledge base: files on their personal shelf and the team shelf (names, shelf, client, " +
+        "when added). Returns names, not the files' contents.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Words from the file name. Omit to list the latest." },
+          limit: { type: "integer", minimum: 1, maximum: 20 },
+        },
+      },
+    },
+  },
 ];
 
 /* Tool rounds per question. Each round is a paid gpt-4o call; four covers
@@ -859,7 +896,47 @@ async function listMeetingNotes(ctx: ToolCtx, a: Record<string, unknown>) {
   };
 }
 
-const SOURCE_KINDS = ["tasks", "meetings", "emails", "clients", "sops", "meeting_notes"];
+async function recallMemory(ctx: ToolCtx, a: Record<string, unknown>) {
+  const limit = cap(a.limit, 15, 30);
+  let q = ctx.db.from("memories")
+    .select("kind,body,pinned,client_id,updated_at")
+    .order("pinned", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+  const s = term(a.query);
+  if (s) q = q.ilike("body", `%${s}%`);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return {
+    ...(s && !data?.length ? { note: "Nothing in their memory matches. Say so plainly." } : {}),
+    memories: (data ?? []).map((m: any) => ({
+      kind: m.kind, text: clip(m.body, 400), pinned: !!m.pinned, updated: localTime(m.updated_at, ctx.tz),
+    })),
+  };
+}
+
+async function searchKnowledgeBase(ctx: ToolCtx, a: Record<string, unknown>) {
+  const limit = cap(a.limit, 10, 20);
+  let q = ctx.db.from("files")
+    .select("name,scope,mime_type,created_at,clients(name)")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  const s = term(a.query);
+  if (s) q = q.ilike("name", `%${s}%`);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return {
+    ...(s && !data?.length ? { note: "No file with that name. Say so plainly." } : {}),
+    files: (data ?? []).map((f: any) => ({
+      name: f.name,
+      shelf: f.scope === "personal" ? "their personal shelf" : "team shelf",
+      client: f.clients?.name ?? null,
+      added: localTime(f.created_at, ctx.tz),
+    })),
+  };
+}
+
+const SOURCE_KINDS = ["tasks", "meetings", "emails", "clients", "sops", "meeting_notes", "memories", "files"];
 
 const RUNNERS: Record<string, (ctx: ToolCtx, a: Record<string, unknown>) => Promise<unknown>> = {
   list_tasks: listTasks,
@@ -868,6 +945,8 @@ const RUNNERS: Record<string, (ctx: ToolCtx, a: Record<string, unknown>) => Prom
   find_clients: findClients,
   search_sops: searchSops,
   list_meeting_notes: listMeetingNotes,
+  recall_memory: recallMemory,
+  search_knowledge_base: searchKnowledgeBase,
 };
 
 /* Never throws: a failed lookup goes back to the model as an error it can
@@ -1410,6 +1489,11 @@ Deno.serve(async (req) => {
         "(clients, meetings, emails, tasks). Then give a short brief from what you know in general, clearly " +
         "marked as general knowledge to verify, and the 3 to 5 things worth checking or asking. You can't " +
         "browse the web, so don't pretend to, and don't stop at \"there's nothing in the database\".\n\n" +
+        "THEIR OWN MEMORY AND KNOWLEDGE BASE. Each person has a private memory (what they asked you to " +
+        "remember: preferences, client facts, commitments, goals) and a knowledge base (their personal shelf " +
+        "and the team shelf). Call recall_memory before drafting for a client or when they ask how they like " +
+        "something done, and follow what it says. Use search_knowledge_base when they ask about a document. " +
+        "Never claim to have read a file's contents: you see its name, shelf and client only.\n\n" +
         "PASSWORDS AND LOGINS. You can never see or show a password: they are encrypted and only open in " +
         "the Password Manager. Each person sees only the logins an admin has shared with them. If asked for " +
         "a password or login, say so kindly, point to the Password Manager, and say an admin can grant " +

@@ -42,6 +42,7 @@ const mapTask = (r: TaskRow): Task => ({
   // Keep the FK, not just the joined name, the timeline needs to match on id.
   client_id: r.client_id ?? null,
   assignee_id: (r as { assignee_id?: string | null }).assignee_id ?? null,
+  owner_id: (r as { owner_id?: string | null }).owner_id ?? null,
   /* blocked / blocker_note were being dropped here. The row carried them (the
      select is `*`) but this mapper never copied them across, so in LIVE mode
      every task arrived unblocked and the EOD draft's blockers section could
@@ -317,6 +318,14 @@ export function useTaskMutations() {
       const { error } = await supabase.from("tasks").update(fields).eq("id", id);
       if (error) throw error;
     },
+    // Shown straight away (a checklist tick on a card mustn't wait for the round trip).
+    onMutate: async ({ id, ...fields }) => {
+      await qc.cancelQueries({ queryKey: ["tasks"] });
+      const prev = qc.getQueryData<Task[]>(["tasks"]);
+      qc.setQueryData<Task[]>(["tasks"], (ts) => (ts ?? []).map((t) => (t.id === id ? { ...t, ...(fields as Partial<Task>) } : t)));
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => ctx?.prev && qc.setQueryData(["tasks"], ctx.prev),
     onSettled: invalidate,
   });
 
@@ -2600,8 +2609,13 @@ export function useDeleteEod() {
         removeDemoEod(id);
         return;
       }
-      const { error } = await supabase.from("eod_reports").delete().eq("id", id);
+      /* A delete the policy refuses isn't an error to Postgres, it just matches
+         nothing. Without asking for the rows back, a refused delete looked like
+         it worked and the report quietly reappeared. 0090: only today's report
+         can be deleted, your own or (as an admin) anyone's. */
+      const { data, error } = await supabase.from("eod_reports").delete().eq("id", id).select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error("permission: past reports can't be deleted");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["eod_reports"] }),
   });

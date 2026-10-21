@@ -83,6 +83,7 @@ function NavScroller({ className, children }: { className?: string; children: Re
 import { NAV, NAV_GROUPS, SIDEBAR_NAV, type NavGroup, type NavItem } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyRole } from "@/data/hooks";
+import { useUnreadCount } from "@/data/mailLabels";
 import { useUI } from "@/store/ui";
 import { cn } from "@/lib/utils";
 
@@ -118,6 +119,16 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
     return NAV_GROUPS.filter((g) => present.has(g));
   }, [nav]);
   const collapsed = sidebarCollapsed && !forceExpanded;
+
+  /* "Inbox – 5" (Reich's testing, 20 Oct 2026): unread incoming mail on the
+     Inbox row, refreshed every minute and cleared as conversations are opened.
+     Counted live rather than written into NAV, whose badges are static. */
+  const { data: unread = 0 } = useUnreadCount();
+  const unreadText = unread > 99 ? "99+" : String(unread);
+  const liveBadge = (item: NavItem) => (item.to === "/inbox" && unread > 0 ? unreadText : null);
+  const a11yLabel = (item: NavItem) => (item.to === "/inbox" && unread > 0 ? `${item.label}, ${unread} unread` : item.label);
+  // A closed group still says it is holding unread mail, or collapsing Work hides the count.
+  const groupUnread = (group: NavGroup) => unread > 0 && nav.some((n) => n.group === group && n.to === "/inbox");
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     // Which groups you left open is a preference, and re-collapsing them on
@@ -216,31 +227,45 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
                        scrollbar appears, so with all five groups open (1131px
                        of rows into 855px) the icons would be squeezed shorter
                        instead of scrolling. */
-                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-[var(--chip-bg)]",
+                    "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-[var(--chip-bg)]",
                     open ? "text-accent" : "text-faint",
                   )}
                 >
                   <GroupIcon size={18} className="shrink-0" />
+                  {!open && groupUnread(group) && (
+                    <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent" />
+                  )}
                 </button>
                 {open &&
-                  nav.filter((n) => n.group === group).map((item) => (
+                  nav.filter((n) => n.group === group).map((item) => {
+                    const badge = liveBadge(item);
+                    return (
                     <NavLink
                       key={item.to}
                       to={item.to}
                       end={item.to === "/"}
                       onClick={onNavigate}
-                      title={item.label}
-                      aria-label={item.label}
+                      title={a11yLabel(item)}
+                      aria-label={a11yLabel(item)}
                       className={() =>
                         cn(
-                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text",
+                          "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text",
                           isHere(item) && "bg-[var(--nav-active-bg)] text-[color:var(--nav-active-text)]",
                         )
                       }
                     >
                       <item.icon size={19} className="shrink-0" />
+                      {badge && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute -right-0.5 -top-0.5 min-w-[16px] rounded-full bg-accent px-1 text-center text-[9px] font-bold leading-4 text-white tabular-nums"
+                        >
+                          {badge}
+                        </span>
+                      )}
                     </NavLink>
-                  ))}
+                    );
+                  })}
               </div>
             );
           })}
@@ -335,6 +360,9 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
               >
                 <GroupIcon size={16} className={cn("shrink-0", here ? "text-accent" : "text-muted")} />
                 <span className="flex-1 truncate">{group}</span>
+                {!open && groupUnread(group) && (
+                  <span className="pill bg-accent/15 px-1.5 text-[10px] tabular-nums text-accent-soft" aria-label={`${unread} unread in Inbox`}>{unreadText}</span>
+                )}
                 <ChevronRight size={15} className={cn("shrink-0 text-faint transition-transform duration-150", open && "rotate-90")} />
               </button>
               {open && (
@@ -346,8 +374,14 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
                       end={item.to === "/"}
                       onClick={onNavigate}
                       className={() => cn("nav-item py-1.5 pl-[2.375rem]", isHere(item) && "active")}
+                      aria-label={a11yLabel(item)}
                     >
                       <span className="flex-1 truncate">{item.label}</span>
+                      {liveBadge(item) && (
+                        <span className="pill bg-accent/15 px-1.5 text-[10px] font-semibold tabular-nums text-accent-soft" aria-hidden="true">
+                          {liveBadge(item)}
+                        </span>
+                      )}
                       {item.badge && (
                         <span className="pill bg-accent/15 text-accent-soft text-[10px]">{item.badge}</span>
                       )}

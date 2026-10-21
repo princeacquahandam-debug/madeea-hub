@@ -1,3 +1,4 @@
+import { currentZone } from "@/lib/userTimeZone";
 /**
  * Inbox timestamps: "3m", "5h", "2w", "4 Aug", "22 Mar 2025".
  *
@@ -49,9 +50,10 @@ export function fullTime(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
+  // In the time zone chosen in Settings (Reich's testing, 20 Oct 2026).
   return d.toLocaleString([], {
     weekday: "short", day: "numeric", month: "short", year: "numeric",
-    hour: "numeric", minute: "2-digit",
+    hour: "numeric", minute: "2-digit", timeZone: currentZone(),
   });
 }
 

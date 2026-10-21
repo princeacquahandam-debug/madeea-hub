@@ -1,4 +1,5 @@
 import { InlineAiActions } from "@/components/madeline/PageAiActions";
+import { fmtDateTime } from "@/lib/userTimeZone";
 import { useEffect, useMemo, useState } from "react";
 import { useNow } from "@/hooks/useNow";
 import { Link, useSearchParams } from "react-router-dom";
@@ -30,6 +31,18 @@ import { ClientScopeBanner } from "@/components/ClientSwitcher";
 import { AccountSwitcher } from "@/components/AccountSwitcher";
 import { useMadelineContext } from "@/hooks/useMadeline";
 import { emailItem } from "@/lib/madelineItems";
+import { useAuth } from "@/hooks/useAuth";
+import { useLabelFilter, useMailLabels, useMarkRead, useMessageMeta } from "@/data/mailLabels";
+import { LabelChips, LabelFilter, LabelPicker, ManageLabelsDialog } from "@/components/MailLabels";
+
+/* The key groupThreads groups by, so a filter can keep or drop a whole
+   conversation rather than splitting one. */
+const threadKey = (m: Message) => (m.thread_id ? `t:${m.thread_id}` : `m:${m.id}`);
+/* Unread is "not opened yet" now that opening marks it read (Reich's testing,
+   20 Oct 2026). Where read state is unknown (meta not loaded yet) it falls back
+   to the old meaning, unanswered, so the list does not flash all-bold. */
+const isUnreadMsg = (m: Message) =>
+  m.direction !== "outbound" && (m.is_read === undefined ? !m.first_reply_at : !m.is_read);
 
 /* The only navigation inside the inbox. A view is a saved question about what
    needs you; it is not a place messages live. Source used to be a second
@@ -64,7 +77,29 @@ const THREAD_PAGE_PHONE = 15;
 export default function Communication() {
   const [composing, setComposing] = useState(false);
   const [seed, setSeed] = useState<ComposeSeed | undefined>(undefined);
-  const { data: messages = [], isLoading, refetch: refetchMessages } = useMessages();
+  const { data: rawMessages, isLoading, refetch: refetchMessages } = useMessages();
+  /* is_read and label_ids, which useMessages does not map, merged in by id
+     (Reich's testing, 20 Oct 2026). See src/data/mailLabels.ts. */
+  const { data: meta } = useMessageMeta();
+  const messages = useMemo<Message[]>(() => {
+    const base = rawMessages ?? [];
+    if (!meta) return base;
+    return base.map((m) => {
+      const x = meta.byId[m.id];
+      return x ? { ...m, is_read: x.is_read, label_ids: x.label_ids } : m;
+    });
+  }, [rawMessages, meta]);
+  const { data: allLabels = [] } = useMailLabels();
+  // Hidden entirely until 0091 is applied, rather than offering a button that errors.
+  const labelsReady = meta?.labelsReady ?? false;
+  const labels = labelsReady ? allLabels : [];
+  const { user } = useAuth();
+  const [labelPref, setLabelFilter] = useLabelFilter(user?.id);
+  // A remembered label that has since been deleted means "any".
+  const labelFilter = labels.some((l) => l.id === labelPref) ? labelPref : "";
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [managingLabels, setManagingLabels] = useState(false);
+  const markRead = useMarkRead();
   const { data: clients = [] } = useClients();
   const cfg = useSlaSettings((s) => s.config);
   const dl = dayLength(cfg);
@@ -142,15 +177,35 @@ export default function Communication() {
 
   const inTab = (t: (typeof TABS)[number]) => (m: Message) =>
     t === "Waiting on others" ? m.category !== "archive" && (TAB_FILTER[t](m) || deadIds.has(m.id)) : TAB_FILTER[t](m);
+  /* Label and Unread are properties of a CONVERSATION, unlike the filters
+     above: labels are applied to the whole thread, and a thread with one new
+     reply is unread. So they keep or drop whole threads, and the thread being
+     read stays put under "Unread" even though opening it just marked it read. */
+  const labelThreads = useMemo(
+    () => new Set(labelFilter ? messages.filter((m) => m.label_ids?.includes(labelFilter)).map(threadKey) : []),
+    [messages, labelFilter],
+  );
+  const unreadThreads = useMemo(
+    () => new Set(unreadOnly ? messages.filter(isUnreadMsg).map(threadKey) : []),
+    [messages, unreadOnly],
+  );
+  const openKey = (() => { const m = messages.find((x) => x.id === selectedId); return m ? threadKey(m) : null; })();
+
   const list = messages.filter(inTab(tab))
     .filter(inChannel)
     .filter((m) => messageInClient(m, scopeId, clients))
-    .filter(matches);
+    .filter(matches)
+    .filter((m) => !labelFilter || labelThreads.has(threadKey(m)))
+    .filter((m) => !unreadOnly || unreadThreads.has(threadKey(m)) || threadKey(m) === openKey);
 
   /* Grouped AFTER filtering, never before. Grouping first would let a thread
      survive a filter because one old message in it matched, so "Urgent" would
-     show conversations that are not urgent. */
-  const threads = useMemo(() => groupThreads(list), [list]);
+     show conversations that are not urgent.
+     `unread` is recomputed from read state (see isUnreadMsg). */
+  const threads = useMemo(
+    () => groupThreads(list).map((t) => ({ ...t, unread: t.messages.some(isUnreadMsg) })),
+    [list],
+  );
 
   /* The list opens at four conversations and asks before showing the rest.
      Every other list on this page (the reader, the reply box) sits beside a
@@ -162,7 +217,7 @@ export default function Communication() {
      should not leave Slack expanded to nothing in particular. */
   const firstPage = typeof window !== "undefined" && window.innerWidth < 1024 ? THREAD_PAGE_PHONE : THREAD_PAGE;
   const [visibleThreads, setVisibleThreads] = useState(firstPage);
-  useEffect(() => { setVisibleThreads(firstPage); }, [tab, sources, q, firstPage]);
+  useEffect(() => { setVisibleThreads(firstPage); }, [tab, sources, q, firstPage, labelFilter, unreadOnly]);
 
   const shownThreads = threads.slice(0, visibleThreads);
   const hiddenThreads = threads.length - shownThreads.length;
@@ -203,6 +258,22 @@ export default function Communication() {
   const selectedThread = selected ? threads.find((t) => t.messages.some((m) => m.id === selected.id))?.messages : undefined;
   useMadelineContext(selected ? emailItem(selected, selectedThread) : null);
 
+  /* Opening a conversation marks its incoming messages read, which is what
+     clears the sidebar's "Inbox 5" (Reich's testing, 20 Oct 2026). Only a
+     conversation somebody actually opened: the desktop reader falls back to
+     the first row so it is never blank, and that fallback must not quietly
+     mark the newest mail read the moment the page loads. Each id is tried
+     once per visit, so a failed update cannot turn into a request loop. */
+  const [triedRead] = useState(() => new Set<string>());
+  useEffect(() => {
+    if (!selectedId || !selected || selected.id !== selectedId || !selectedThread) return;
+    const toMark = selectedThread.filter((m) => m.direction !== "outbound" && m.is_read === false && !triedRead.has(m.id));
+    if (toMark.length === 0) return;
+    toMark.forEach((m) => triedRead.add(m.id));
+    markRead.mutate(toMark);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, selected?.id, selectedThread]);
+
 
   /* Result counts, spoken. A search that narrows 89 conversations to 2 is a
      large change that was previously visible only as a number on screen. */
@@ -218,7 +289,7 @@ export default function Communication() {
      hold is a Gmail snippet, and dressing a snippet up as the full original
      would imply we are quoting more than we actually have. */
   function quoted(m: Message): string {
-    const when = m.received_at ? new Date(m.received_at).toLocaleString() : "earlier";
+    const when = m.received_at ? fmtDateTime(m.received_at) : "earlier";
     const who = m.sender_email ? `${m.sender_name} <${m.sender_email}>` : m.sender_name;
     const esc = escapeHtml;
     const original = esc(m.body ?? m.preview ?? "")
@@ -337,9 +408,27 @@ export default function Communication() {
                 </h2>
                 {selected.received_at && (
                   <p className="mt-0.5 text-xs text-faint">
-                    {new Date(selected.received_at).toLocaleString()}
+                    {fmtDateTime(selected.received_at)}
                   </p>
                 )}
+
+                {/* Personal labels on the whole conversation (Reich's testing,
+                    20 Oct 2026). Hidden until 0091 is applied. */}
+                {labelsReady && (() => {
+                  const convo = selectedThread ?? [selected];
+                  const applied = new Set(convo.flatMap((m) => m.label_ids ?? []));
+                  return (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <LabelChips ids={[...applied]} labels={labels} max={6} className="flex-wrap" />
+                      <LabelPicker
+                        labels={labels}
+                        applied={applied}
+                        messageIds={convo.map((m) => m.id)}
+                        onManage={() => setManagingLabels(true)}
+                      />
+                    </div>
+                  );
+                })()}
 
                 {/* The message as text, not as a quoted block inside the pane
                     whose entire job is to show it. */}
@@ -513,6 +602,20 @@ export default function Communication() {
         {/* Sources, and "Connect a channel", in one menu. The keyboard
             shortcuts sheet is still on `?`; its button went (deck slide 4). */}
         <SourceMenu active={sources} counts={counts} onToggle={toggleSource} />
+        {/* Unread and Label filters (Reich's testing, 20 Oct 2026). */}
+        <button
+          onClick={() => setUnreadOnly((v) => !v)}
+          aria-pressed={unreadOnly}
+          className={cn(
+            "flex h-9 shrink-0 items-center rounded-lg border px-3 text-sm transition-colors hover:bg-[var(--chip-bg)]",
+            unreadOnly ? "border-accent/50 bg-accent/10 text-accent-soft" : "border-border text-text",
+          )}
+        >
+          Unread
+        </button>
+        {labelsReady && (
+          <LabelFilter labels={labels} value={labelFilter} onChange={setLabelFilter} onManage={() => setManagingLabels(true)} />
+        )}
         {/* The Slack button used to sit here. It was a third way to do
             something there are already two better ways to do: picking Slack in
             the channel row opens its composer by itself, and a Slack message in
@@ -590,6 +693,8 @@ export default function Communication() {
         </div>
       )}
 
+      <ManageLabelsDialog open={managingLabels} onClose={() => setManagingLabels(false)} labels={labels} />
+
       <ComposeWindow
         open={composing}
         onClose={() => setComposing(false)}
@@ -625,12 +730,17 @@ export default function Communication() {
               now={now}
               showChannel={showChannel}
               clientFor={clientFor}
+              labels={labels}
               onSelect={(m) => { setSelectedId(m.id); setReaderOpen(true); }}
               emptyState={
   <div className="px-4 py-10 text-center">
                       <p className="text-sm font-medium">
                         {q
                           ? `Nothing matches "${query}".`
+                          : labelFilter
+                            ? `No conversations labelled "${labels.find((l) => l.id === labelFilter)?.name ?? ""}" in this view.`
+                          : unreadOnly
+                            ? "You're all caught up. Nothing unread in this view."
                           : tab === "Waiting on others"
                             ? "Nothing is waiting on anyone else."
                             : `No ${soleSource ? soleSource.label + " " : ""}messages in this view.`}
