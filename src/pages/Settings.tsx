@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 import { useTour } from "@/store/tour";
 import { atLeast, useMyRole } from "@/data/hooks";
+import { AnalyticsSetting } from "@/components/AnalyticsConsent";
 import { useSlaSettings } from "@/store/slaSettings";
 import { useAlertRoutes, useAlertRouteMutations, type AlertRoute } from "@/data/hooks";
 import { AiSpendPanel } from "@/components/AiSpendPanel";
@@ -59,6 +60,8 @@ export default function Settings() {
 
         {/* Reich's testing, 20 Oct 2026: one zone for every time the Hub shows. */}
         <TimeZoneSettings />
+
+        <AnalyticsSetting user={user ? { id: user.id, name: user.name, role: role ?? null, portal: "hub" } : null} />
 
         <ChangePassword />
 

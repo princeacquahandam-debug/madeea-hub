@@ -19,6 +19,11 @@ import { useSlaSettings } from "@/store/slaSettings";
 import { useRoutineRunner } from "@/hooks/useRoutineRunner";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserTimeZoneSync } from "@/lib/userTimeZone";
+import { AnalyticsConsent } from "@/components/AnalyticsConsent";
+import { useMyRole } from "@/data/hooks";
+
+const PRIVATE_PAGES = ["/credentials", "/clients", "/screenshots"];
+const MASKED_PAGES = ["/inbox", "/meeting-intelligence", "/notes"];
 
 export function AppShell() {
   const { navOpen, setNavOpen } = useUI();
@@ -37,9 +42,12 @@ export function AppShell() {
      per sign-in so every screen formats times in the same zone. */
   const { user } = useAuth();
   useUserTimeZoneSync(user?.id);
+  const { data: role } = useMyRole();
 
   return (
     <MonitoringProvider>
+    {/* PostHog for the team test (Abder, 21 Oct 2026): asks first, then records. */}
+    <AnalyticsConsent user={user ? { id: user.id, name: user.name, role: role ?? null, portal: "hub" } : null} />
     <div className="relative z-10 flex h-screen overflow-hidden bg-transparent">
       <AmbientBackground />
       {/* Desktop sidebar */}
@@ -68,7 +76,10 @@ export function AppShell() {
             <SectionTabs />
             {/* Keyed by path so page content fades up on every route change.
                 Suspense shows the shimmer skeleton while a lazy page chunk loads. */}
-            <div key={location.pathname} className="page-enter">
+            {/* Session recordings (PostHog) leave these pages out entirely, and
+                mask the text of mail: passwords, client records, screenshots
+                and email content are never recorded. */}
+            <div key={location.pathname} className={`page-enter ${PRIVATE_PAGES.some((p) => location.pathname.startsWith(p)) ? "ph-no-capture" : MASKED_PAGES.some((p) => location.pathname.startsWith(p)) ? "ph-mask" : ""}`}>
               <Suspense fallback={<PageSkeleton />}>
                 {blocked === "checking" ? <PageSkeleton /> : blocked ? <RoleBlocked label={blocked} /> : <><PageAiActions /><Outlet /></>}
               </Suspense>

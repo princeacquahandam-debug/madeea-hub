@@ -21,13 +21,15 @@ import { TASK_TEMPLATES, type TaskTemplate } from "@/lib/taskTemplates";
 import { cn } from "@/lib/utils";
 import { useMadelineContext } from "@/hooks/useMadeline";
 import { taskItem } from "@/lib/madelineItems";
-import { prioritize, findStuck, type PrioritizeResult, type RankedRow, type StuckRow } from "@/lib/taskInsights";
+import { findStuck, type PrioritizeResult, type RankedRow, type StuckRow } from "@/lib/taskInsights";
 import { breakDownTask, type Step } from "@/lib/taskBreakdown";
+import { prioritizeWithAi } from "@/lib/taskPrioritizeAi";
 import { PrioritizePanel } from "@/components/tasks/PrioritizePanel";
 import { StuckCard } from "@/components/tasks/StuckCard";
 import { UndoToast } from "@/components/tasks/UndoToast";
 import { useMadeline } from "@/store/madeline";
 import { useAuth } from "@/hooks/useAuth";
+import { track } from "@/lib/analytics";
 import { isMine, sortTasks } from "@/lib/taskSort";
 import { DeleteTaskDialog, RecentlyDeleted } from "@/components/tasks/TaskTrash";
 
@@ -622,10 +624,20 @@ export default function Tasks() {
 
   useEffect(() => { if (!activeId) setBoard(group(visible)); }, [visible, activeId]);
 
-  // Prioritize board: worked out from the board in view (it follows the filters).
-  const runPrioritize = () => {
+  /* Prioritize board: the AI reads every open task in view (it follows the
+     filters) and decides today's order (Abder, 21 Oct 2026). Falls back to the
+     rules if it can't be reached; the panel says which. */
+  const [prioritizing, setPrioritizing] = useState(false);
+  const runPrioritize = async () => {
     markTried();
-    setPanel({ result: prioritize(visible, { now: new Date(), members, clients }), at: new Date() });
+    setPrioritizing(true);
+    try {
+      const result = await prioritizeWithAi(visible, { now: new Date(), members, clients });
+      track("ai_prioritize_result", { ai: result.ai, rows: result.rows.length, changes: result.changes });
+      setPanel({ result, at: new Date() });
+    } finally {
+      setPrioritizing(false);
+    }
   };
   // Find stuck tasks: same board, updated live as the board changes.
   const stuck = useMemo(() => (stuckOpen ? findStuck(visible, new Date()) : null), [stuckOpen, visible]);
@@ -869,14 +881,14 @@ export default function Tasks() {
               <button
                 key={label}
                 type="button"
-                onClick={run}
-                disabled={!visible.some((t) => t.status !== "done")}
+                onClick={() => { track("ai_action", { action: label, page: "/tasks" }); void run(); }}
+                disabled={!visible.some((t) => t.status !== "done") || (label === "Prioritize board" && prioritizing)}
                 className={cn(
                   "flex h-8 items-center gap-1.5 rounded-full border border-accent/50 bg-[var(--nav-active-bg)] px-3 text-xs font-semibold text-[color:var(--nav-active-text)] transition-colors hover:border-accent hover:bg-accent hover:text-white disabled:pointer-events-none disabled:opacity-40",
                   !tried && "ai-attention",
                 )}
               >
-                <Sparkles size={12} /> {label}
+                {label === "Prioritize board" && prioritizing ? <><Loader2 size={12} className="animate-spin" /> Reviewing your board…</> : <><Sparkles size={12} /> {label}</>}
               </button>
             ))}
           </div>

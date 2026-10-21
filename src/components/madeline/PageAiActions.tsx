@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { track } from "@/lib/analytics";
 import { useLocation } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { useMessages, useTasks } from "@/data/hooks";
@@ -119,6 +120,7 @@ function ActionButtons({ page, compact }: { page: PageConfig; compact: boolean }
     : messages.some((m) => m.category !== "archive");
 
   function run(a: PageAction) {
+    track("ai_action", { action: a.label, page: window.location.pathname });
     try { localStorage.setItem(TRIED_KEY, "1"); } catch { /* storage blocked */ }
     setTried(true);
     const item = a.onTask && focus ? taskItem(focus) : undefined;

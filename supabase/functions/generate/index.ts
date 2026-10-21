@@ -186,6 +186,30 @@ Rules for steps:
 If the task is too vague to split sensibly (for example a single word with no notes), return {"question": ...}
 with ONE short question that would let you split it. Never guess.`;
 
+  /* "Prioritize board", the AI version (Abder, 21 Oct 2026 call): not the order
+     anyone can see by eye, but a read of every open task in every stage, to
+     catch what's been forgotten. The app sends each task's real facts (stage,
+     days since its last update, due date, blocker, approval) and checks every
+     id and change that comes back, so the reply must parse. */
+  if (tool === "task_prioritize")
+    return `${BASE} You are reviewing an executive assistant's whole task board to decide what they should work on TODAY, in order.
+
+Look at every task in every stage, not only To do. What matters most:
+- Overdue tasks, and tasks due today, especially Urgent and High.
+- Forgotten work: In progress, Waiting or Review with no update for a long time (2 weeks or more is a warning, 4 weeks is serious). Say so plainly, e.g. "In progress for 5 weeks with no update. Follow up or close it."
+- Blocked tasks: say what is blocking it (from the blocker note) and the next step to unblock it.
+- Work waiting on approval for days: someone needs chasing.
+- Then the rest by due date and priority.
+
+Reply with JSON only, no prose and no code fence, in exactly this shape:
+{"summary":string,"rows":[{"id":string,"reason":string,"change":null|{"field":"due"|"priority"|"stage","to":string}}]}
+
+Rules:
+- "rows": at most 10 open tasks, most important first. Use only ids from the list.
+- "reason": at most 20 words, built from the task's real facts (days, stage, due date, blocker). Never invent names, dates or facts.
+- "change": only when a change clearly helps, at most 5 in total. "due" takes a YYYY-MM-DD date after today (for an overdue task that needs a new date); "priority" takes urgent, high, normal or low; "stage" takes todo, in_progress, follow_up (Waiting) or review. Never mark anything done.
+- "summary": one or two short sentences on the state of the board and what to do first today.`;
+
   if (tool === "studio")
     return `${BASE} You are producing a "${format}". Match the requested tone exactly. Return only the finished document, no preamble.`;
   if (tool === "bookkeeping")

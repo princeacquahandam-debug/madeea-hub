@@ -16,6 +16,7 @@ import { ClientCalendar } from "@/components/client/ClientCalendar";
 import { ClientNotes } from "@/components/client/ClientNotes";
 import { ClientPeople } from "@/components/client/ClientPeople";
 import { ClientDelegation } from "@/components/client/ClientDelegation";
+import { AnalyticsConsent } from "@/components/AnalyticsConsent";
 import { ClientShell, type ClientNavItem } from "@/components/client/ClientShell";
 import { ClientSettings } from "@/components/client/ClientSettings";
 import { ClientMyWork } from "@/components/client/ClientMyWork";
@@ -307,6 +308,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
       onOpenSettings={() => setTab("settings")}
       settingsActive={tab === "settings"}
     >
+      <AnalyticsConsent user={user ? { id: user.id, name: header?.client_name ?? null, role: isMember ? "client staff" : isViewer ? "client viewer" : "client", portal: "client" } : null} />
       {PANES[tab] ? (
         <>
           {tab === "overview" ? <ClientOverview onSeeActivity={() => setTab("activity")} readOnly={isViewer} /> : null}
