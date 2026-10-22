@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { setSuper, track } from "@/lib/analytics";
 
 /**
  * Which client you are currently working on, borrowed from GoHighLevel's
@@ -45,6 +46,10 @@ interface ClientContextState {
 export const useClientContext = create<ClientContextState>((set) => ({
   clientId: initial(),
   setClient: (id) => {
+    // PostHog plan: client_switched, and "client" sent with every event.
+    const from = useClientContext.getState().clientId;
+    if (from !== id) track("client_switched", { from_client_id: from ?? "all", to_client_id: id ?? "all" });
+    setSuper({ client: id ?? "all" });
     if (typeof window !== "undefined") {
       if (id) window.localStorage.setItem(KEY, id);
       else window.localStorage.removeItem(KEY);

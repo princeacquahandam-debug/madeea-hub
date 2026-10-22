@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { track } from "@/lib/analytics";
 import type { ToolResult } from "@/lib/command-center/types";
 
 /**
@@ -166,10 +167,18 @@ function initialTurns(): MadelineTurn[] {
   }
 }
 
+/** How the next open came about, for the madeline_opened event. */
+let openEntry: string | null = null;
+
 export const useMadeline = create<MadelineState>((set, get) => ({
   routePath: "/",
   open: initialOpen(),
-  setOpen: (v) => set({ open: v, ...(v ? {} : { view: "chat" as MadelineView }) }),
+  setOpen: (v) => {
+    // madeline_opened {entry, page}: the button unless ask() said otherwise.
+    if (v && !get().open) track("madeline_opened", { entry: openEntry ?? "button", page: get().routePath });
+    openEntry = null;
+    set({ open: v, ...(v ? {} : { view: "chat" as MadelineView }) });
+  },
   toggle: () => get().setOpen(!get().open),
 
   item: null,
@@ -186,7 +195,10 @@ export const useMadeline = create<MadelineState>((set, get) => ({
     return q;
   },
   insight: null,
-  setInsight: (v) => set({ insight: v }),
+  setInsight: (v) => {
+    if (v) track("ai_result_shown", { action: (v as { title?: string }).title ?? "page_action", output_type: "modal" });
+    set({ insight: v });
+  },
   ask: (prompt, opts = {}) => {
     if (opts.item) set({ item: { ...opts.item, path: get().routePath } });
     /* One-click actions (client review, 6 Oct): run now, answer in a pop-up
@@ -196,6 +208,7 @@ export const useMadeline = create<MadelineState>((set, get) => ({
       set({ queued: { prompt, display: "modal", title: opts.title } });
       return;
     }
+    openEntry = opts.send ? "continue_in_chat" : "suggestion";
     get().setOpen(true);
     if (opts.send) set({ queued: { prompt, display: "panel" } });
     else set({ draft: prompt, focusToken: get().focusToken + 1 });

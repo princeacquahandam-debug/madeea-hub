@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { track } from "@/lib/analytics";
 import { AlertTriangle, ChevronDown, ChevronRight, Link2, Lock, Send, Trash2 } from "lucide-react";
 import { Badge, PageHeader } from "@/components/ui";
 import { EOD_DATA, type CellStatus } from "@/data/eod";
@@ -132,6 +133,8 @@ export default function EodReports() {
   }, [autoDraft, myReportForDate, touched]);
 
   const editDraft = (next: typeof draft) => {
+    // eod_report_started: the first edit on a report, with how much was prefilled.
+    if (!touched) track("eod_report_started", { prefilled_items: draft.done.length + draft.blockers.length + draft.plans.length, is_update: !!myReportForDate });
     setTouched(true);
     setDraft(next);
   };
@@ -205,7 +208,7 @@ export default function EodReports() {
               key={k}
               role="tab"
               aria-selected={tab === k}
-              onClick={() => setTab(k)}
+              onClick={() => { setTab(k); if (k === "team") track("team_reports_viewed", { period: "month", ea_filter: "all" }); }}
               className={cn(
                 "-mb-px border-b-2 pb-2 text-sm font-medium transition-colors",
                 tab === k ? "border-accent text-text" : "border-transparent text-muted hover:text-text",

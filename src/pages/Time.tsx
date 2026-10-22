@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { track } from "@/lib/analytics";
 import { ClockWatch } from "@/components/ClockWatch";
 import { Play, Pause, Square, Trash2, Camera, ShieldAlert, Info, MonitorPlay } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui";
@@ -389,7 +390,7 @@ export default function Time() {
           <div className="flex gap-0.5 rounded-lg bg-surface-2 p-0.5" role="tablist" aria-label="Period">
             {(["today", "week", "custom"] as Range[]).map((r) => (
               <button
-                key={r} role="tab" onClick={() => setRange(r)} aria-selected={range === r}
+                key={r} role="tab" onClick={() => { setRange(r); track("timesheet_period_changed", { period: r }); }} aria-selected={range === r}
                 className={
                   "min-h-[28px] rounded-md px-3 text-[13px] font-medium transition-colors " +
                   (range === r ? "bg-surface text-text shadow-sm" : "text-muted hover:text-text")

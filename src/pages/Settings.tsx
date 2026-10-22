@@ -61,7 +61,7 @@ export default function Settings() {
         {/* Reich's testing, 20 Oct 2026: one zone for every time the Hub shows. */}
         <TimeZoneSettings />
 
-        <AnalyticsSetting user={user ? { id: user.id, name: user.name, role: role ?? null, portal: "hub" } : null} />
+        <AnalyticsSetting user={user ? { id: user.id, role: role ?? null, portal: "hub" } : null} />
 
         <ChangePassword />
 

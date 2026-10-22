@@ -632,8 +632,9 @@ export default function Tasks() {
     markTried();
     setPrioritizing(true);
     try {
+      const t0 = performance.now();
       const result = await prioritizeWithAi(visible, { now: new Date(), members, clients });
-      track("ai_prioritize_result", { ai: result.ai, rows: result.rows.length, changes: result.changes });
+      track("ai_result_shown", { action: "prioritize_board", output_type: "panel", items_count: result.rows.length, changes_suggested: result.changes, latency_ms: Math.round(performance.now() - t0), used_ai: result.ai });
       setPanel({ result, at: new Date() });
     } finally {
       setPrioritizing(false);
@@ -648,10 +649,11 @@ export default function Tasks() {
     const write = (id: string, patch: Partial<Task>) =>
       patch.status ? setStatus.mutate({ id, status: patch.status }) : update.mutate({ id, ...patch } as Parameters<typeof update.mutate>[0]);
     for (const r of rows) if (r.change) write(r.task.id, r.change.patch);
+    track("ai_result_applied", { action: "prioritize_board", changes_suggested: panel?.result.changes ?? rows.length, changes_applied: rows.length });
     setPanel(null);
     setToast({
       message: `Applied ${rows.length} ${rows.length === 1 ? "change" : "changes"}`,
-      undo: () => { for (const r of rows) if (r.change) write(r.task.id, r.change.undo); },
+      undo: () => { track("ai_result_dismissed", { action: "prioritize_board", how: "undo" }); for (const r of rows) if (r.change) write(r.task.id, r.change.undo); },
     });
   }
 
@@ -668,8 +670,10 @@ export default function Tasks() {
     setPicking(false);
     setSelectedId(t.id);
     setBd({ taskId: t.id, state: "loading" });
+    const t0 = performance.now();
     try {
       const r = await breakDownTask(t, t.client_name || null, answer);
+      track("ai_result_shown", { action: "break_down", output_type: "steps" in r ? "inline" : "question", items_count: "steps" in r ? r.steps.length : 0, latency_ms: Math.round(performance.now() - t0) });
       setBd("steps" in r ? { taskId: t.id, state: "steps", steps: r.steps } : { taskId: t.id, state: "question", question: r.question });
       setBdAnswer("");
     } catch (e) {
@@ -686,6 +690,7 @@ export default function Tasks() {
     const before = t.subtasks ?? [];
     const added = steps.map((s, i) => ({ id: `${Date.now()}-${i}`, label: s.minutes ? `${s.text} (~${s.minutes} min)` : s.text, done: false }));
     update.mutate({ id: t.id, subtasks: [...before, ...added] } as Parameters<typeof update.mutate>[0]);
+    track("ai_result_applied", { action: "break_down", changes_suggested: steps.length, changes_applied: added.length });
     setBd(null);
     setToast({ message: `Added ${added.length} steps to "${t.title}"`, undo: () => update.mutate({ id: t.id, subtasks: before } as Parameters<typeof update.mutate>[0]) });
   }
@@ -738,7 +743,7 @@ export default function Tasks() {
               </ol>
               <div className="flex gap-1.5">
                 <button className="btn-primary px-2.5 py-1 text-xs" onClick={() => keepSteps(t, bd.steps!)}>Keep all</button>
-                <button className="btn-ghost border border-border px-2.5 py-1 text-xs" onClick={() => setBd(null)}>Undo</button>
+                <button className="btn-ghost border border-border px-2.5 py-1 text-xs" onClick={() => { track("ai_result_dismissed", { action: "break_down", how: "undo" }); setBd(null); }}>Undo</button>
               </div>
             </>
           )}
@@ -831,10 +836,12 @@ export default function Tasks() {
      in In Progress starts there instead of appearing in To Do to be dragged. */
   function startCreate(status: TaskStatus = "todo") { setForm({ ...BLANK, status }); setEditingId(null); setModal(true); }
   function startEdit(t: Task) {
+    track("task_opened", { stage: t.status, is_overdue: !!t.due_at && t.status !== "done" && t.due_at.slice(0, 10) < todayIso() });
     setForm({ title: t.title, priority: t.priority, due: t.due_at ? t.due_at.slice(0, 10) : "", subtasks: t.subtasks ?? [], recurrence: t.recurrence ?? "none", dependsOn: t.depends_on ?? "", clientId: clients.find((c) => c.name === t.client_name)?.id ?? "", assigneeId: t.assignee_id ?? "", blockerNote: t.blocker_note ?? "", clientBlocker: t.client_visible_blocker ?? "", notes: t.notes ?? "", progress: t.progress ?? [], attachments: t.attachments ?? [], status: t.status, requiresApproval: t.requires_approval ?? false });
     setEditingId(t.id); setModal(true);
   }
   function fromTemplate(t: TaskTemplate) {
+    track("template_used", { template_id: t.name });
     setForm({ title: t.title, priority: t.priority, due: "", recurrence: "none", dependsOn: "", clientId: "", assigneeId: "", blockerNote: "", clientBlocker: "", notes: "", progress: [], attachments: [], status: "todo", requiresApproval: false, subtasks: t.subtasks.map((l, i) => ({ id: `${Date.now()}-${i}`, label: l, done: false })) });
     setEditingId(null); setTemplates(false); setModal(true);
   }
@@ -876,12 +883,12 @@ export default function Tasks() {
             {([
               ["Prioritize board", runPrioritize],
               ["Break down a task", startBreakdown],
-              ["Find stuck tasks", () => { markTried(); setStuckOpen(true); }],
+              ["Find stuck tasks", () => { markTried(); track("ai_result_shown", { action: "find_stuck", output_type: "inline", items_count: findStuck(visible, new Date()).rows.length, latency_ms: 0 }); setStuckOpen(true); }],
             ] as const).map(([label, run]) => (
               <button
                 key={label}
                 type="button"
-                onClick={() => { track("ai_action", { action: label, page: "/tasks" }); void run(); }}
+                onClick={() => { track("ai_action_clicked", { action: label, page: "/tasks" }); void run(); }}
                 disabled={!visible.some((t) => t.status !== "done") || (label === "Prioritize board" && prioritizing)}
                 className={cn(
                   "flex h-8 items-center gap-1.5 rounded-full border border-accent/50 bg-[var(--nav-active-bg)] px-3 text-xs font-semibold text-[color:var(--nav-active-text)] transition-colors hover:border-accent hover:bg-accent hover:text-white disabled:pointer-events-none disabled:opacity-40",
@@ -938,7 +945,7 @@ export default function Tasks() {
         <select
           className="input w-auto"
           value={who}
-          onChange={(e) => setWho(e.target.value)}
+          onChange={(e) => { setWho(e.target.value); track("task_filter_applied", { filter: "assignee", value: ["all", "mine", "unassigned"].includes(e.target.value) ? e.target.value : "member", value_count: 1 }); }}
           aria-label="Whose tasks"
         >
           <option value="all">Assignee: Anyone</option>
@@ -951,16 +958,16 @@ export default function Tasks() {
           )}
         </select>
         {!scopeId && (
-          <select className="input w-auto" value={clientF} onChange={(e) => setClientF(e.target.value)} aria-label="Client">
+          <select className="input w-auto" value={clientF} onChange={(e) => { setClientF(e.target.value); track("task_filter_applied", { filter: "client", value_count: e.target.value === "all" ? 0 : 1 }); }} aria-label="Client">
             <option value="all">Client: All</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         )}
-        <select className="input w-auto" value={prioF} onChange={(e) => setPrioF(e.target.value)} aria-label="Priority">
+        <select className="input w-auto" value={prioF} onChange={(e) => { setPrioF(e.target.value); track("task_filter_applied", { filter: "priority", value: e.target.value, value_count: e.target.value === "all" ? 0 : 1 }); }} aria-label="Priority">
           <option value="all">Priority: All</option>
           {Object.entries(priorityLabel).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
-        <select className="input w-auto" value={dueF} onChange={(e) => setDueF(e.target.value)} aria-label="Due date">
+        <select className="input w-auto" value={dueF} onChange={(e) => { setDueF(e.target.value); track("task_filter_applied", { filter: "due_date", value: e.target.value, value_count: e.target.value === "all" ? 0 : 1 }); }} aria-label="Due date">
           <option value="all">Due date: Any</option>
           <option value="overdue">Overdue</option>
           <option value="today">Due today</option>
@@ -973,7 +980,7 @@ export default function Tasks() {
         <StuckCard
           rows={stuck.rows}
           checked={stuck.checked}
-          onClose={() => setStuckOpen(false)}
+          onClose={() => { track("ai_result_dismissed", { action: "find_stuck", how: "close" }); setStuckOpen(false); }}
           onOpen={(r: StuckRow) => startEdit(r.task)}
           onSetDate={(r: StuckRow, day: string) => {
             const before = r.task.due_at;
@@ -1018,7 +1025,7 @@ export default function Tasks() {
         <PrioritizePanel
           result={panel.result}
           generatedAt={panel.at}
-          onClose={() => setPanel(null)}
+          onClose={() => { track("ai_result_dismissed", { action: "prioritize_board", how: "close" }); setPanel(null); }}
           onRefresh={runPrioritize}
           onOpenTask={(r) => setParams({ task: r.task.id })}
           onApply={applyChanges}

@@ -1320,6 +1320,22 @@ export const DEMO_ME = "demo-1";
 
 // Current user's role. NOTE: this is for UI gating only, the real boundary is
 // Postgres RLS (admins-only writes on memberships, workspace isolation).
+/** The workspace this person belongs to: the "organization" analytics groups by. */
+export function useMyWorkspaceId() {
+  return useQuery<string | null>({
+    queryKey: ["my-workspace-id"],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      if (!supabase) return null;
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user?.id) return null;
+      const { data } = await supabase.from("memberships").select("workspace_id").eq("user_id", auth.user.id)
+        .order("created_at", { ascending: true }).limit(1).maybeSingle();
+      return (data?.workspace_id as string | undefined) ?? null;
+    },
+  });
+}
+
 export function useMyRole() {
   return useQuery<MemberRole>({
     queryKey: ["my-role"],

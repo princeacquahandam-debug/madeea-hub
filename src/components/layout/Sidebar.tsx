@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { track } from "@/lib/analytics";
 import type { LucideIcon } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { ClientSwitcher } from "@/components/ClientSwitcher";
@@ -172,6 +173,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
     setOpenGroups((s) => {
       const visible = g in s ? s[g] : g === activeGroup;
       const next = { ...s, [g]: !visible };
+      track("sidebar_section_toggled", { section: g, expanded: !visible });
       try { localStorage.setItem(OPEN_KEY, JSON.stringify(next)); } catch { /* private mode */ }
       return next;
     });

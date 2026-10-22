@@ -217,6 +217,33 @@ export function Privacy() {
         </p>
       </S>
 
+      {/* PostHog tracking plan, privacy slide: "mention analytics in the privacy policy". */}
+      <S title="Usage analytics">
+        <p>
+          With your permission, the Hub records how it is used, so the team can see which features help and
+          where people get stuck. It is asked for once, and can be turned off at any time in Settings. Nothing
+          is recorded for anyone who has not agreed.
+        </p>
+        <p>
+          <strong className="text-zinc-200">What is recorded:</strong> which pages are opened and which
+          buttons are used, as named events (for example "a task was created", "an EOD report was submitted",
+          "an AI action was applied"), with counts and short categories such as a task's stage or priority.
+          For team accounts, some sessions (about one in five) are also recorded as a replay of the screen,
+          with all text and everything typed hidden.
+        </p>
+        <p>
+          <strong className="text-zinc-200">What is never recorded:</strong> names, email addresses, task
+          titles, notes or message text. The Inbox is never recorded, and the Password Manager, Client Vault,
+          Screenshots and Uploads pages are left out of replays entirely. Client portal accounts send page and
+          button events only, never a replay. For AI features, only the model, the number of tokens, the cost
+          and the time taken are recorded, never the question or the answer.
+        </p>
+        <p>
+          The service used is PostHog, hosted in the EU (Frankfurt). Only MadeEA's admins can see the data.
+          Events are kept for twelve months and replays for thirty days.
+        </p>
+      </S>
+
       <S title="How long it is kept">
         <p>
           Screenshots are retained for a configurable period, ninety days by default. Deleting a screenshot
@@ -247,8 +274,9 @@ export function Privacy() {
       <S title="Your choices">
         <p>
           An assistant can decline the screen-share prompt, stop sharing mid-shift from the browser’s own
-          indicator, and see at any time what has been recorded about them on the Screenshots and Time
-          pages. Declining has employment consequences that are a matter between the assistant and the
+          indicator (which pauses the clock until sharing resumes), and see at any time what has been
+          recorded about them on the Screenshots and Time pages. Usage analytics can be turned on or off in
+          Settings at any time. Declining has employment consequences that are a matter between the assistant and the
           agency, not something this software decides; it is stated here so the choice is not presented as
           more free than it is.
         </p>

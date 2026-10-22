@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { lengthBucket, track } from "@/lib/analytics";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { ArrowUp, Check, CheckSquare, Copy, History, Paperclip, Sparkles, SquarePen, ThumbsDown, ThumbsUp, X } from "lucide-react";
@@ -202,6 +203,7 @@ export function MadelinePanel() {
 
   function submit() {
     if (running || !draft.trim()) return;
+    track("madeline_message_sent", { length_bucket: lengthBucket(draft.trim().length), from_suggested_prompt: false, has_attachment: false });
     send(draft);
   }
 
@@ -209,6 +211,7 @@ export function MadelinePanel() {
      pop-up from the chat "doesn't make sense"). The pop-up is for the AI
      action buttons on the pages themselves. */
   function runAction(a: Action) {
+    track("madeline_message_sent", { length_bucket: lengthBucket(a.prompt.length), from_suggested_prompt: true, has_attachment: false });
     useMadeline.getState().ask(a.prompt, { item: a.item, send: true });
   }
 
@@ -245,7 +248,7 @@ export function MadelinePanel() {
             </p>
           </div>
           <button
-            onClick={() => setView("history")}
+            onClick={() => { track("madeline_history_opened", { chats_count: chats.length }); setView("history"); }}
             title="Chat history"
             aria-label="Chat history"
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
@@ -593,6 +596,7 @@ export function AiReply({ turn, bare = false }: { turn: MadelineTurn; bare?: boo
   function rate(r: 1 | -1) {
     const rating = turn.rating === r ? undefined : r;
     useMadeline.getState().patchTurn(turn.id, { rating });
+    if (rating) track("ai_feedback_given", { action: "madeline_chat", rating: rating === 1 ? "up" : "down" });
     if (!supabase || demo || !user || !rating) return;
     void supabase.from("madeline_feedback").upsert({
       user_id: user.id,

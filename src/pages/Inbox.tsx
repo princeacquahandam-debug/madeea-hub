@@ -1,6 +1,7 @@
 import { InlineAiActions } from "@/components/madeline/PageAiActions";
+import { track } from "@/lib/analytics";
 import { fmtDateTime } from "@/lib/userTimeZone";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useNow } from "@/hooks/useNow";
 import { Link, useSearchParams } from "react-router-dom";
 import { Wand2, Lock, Search, X, ArrowLeft, Keyboard, Mail, Plus } from "lucide-react";
@@ -265,6 +266,14 @@ export default function Communication() {
      mark the newest mail read the moment the page loads. Each id is tried
      once per visit, so a failed update cannot turn into a request loop. */
   const [triedRead] = useState(() => new Set<string>());
+  // message_opened: once per message somebody actually opened (not the reader's fallback).
+  const openedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedId || !selected || selected.id !== selectedId || openedRef.current === selectedId) return;
+    openedRef.current = selectedId;
+    const age = selected.received_at ? Math.round((Date.now() - new Date(selected.received_at).getTime()) / 36e5) : null;
+    track("message_opened", { source: selected.source ?? "gmail", is_unread: selected.is_read === false, age_hours: age });
+  }, [selectedId, selected]);
   useEffect(() => {
     if (!selectedId || !selected || selected.id !== selectedId || !selectedThread) return;
     const toMark = selectedThread.filter((m) => m.direction !== "outbound" && m.is_read === false && !triedRead.has(m.id));
@@ -526,6 +535,7 @@ export default function Communication() {
   }, !composing);
 
   function toggleSource(id: ChannelId) {
+    track("inbox_tab_changed", { tab: String(tab).toLowerCase().replace(/\s+/g, "_"), source: id });
     setSources((prev) => {
       if (id === "all") return new Set();
       const next = new Set(prev);
@@ -566,7 +576,7 @@ export default function Communication() {
               <button
                 key={t}
                 role="tab"
-                onClick={() => setTab(t)}
+                onClick={() => { setTab(t); track("inbox_tab_changed", { tab: String(t).toLowerCase().replace(/\s+/g, "_"), source: sources.size ? [...sources].join(",") : "all" }); }}
                 aria-selected={tab === t}
                 className={cn(
                   "min-h-[30px] rounded-md px-3 text-[13px] font-medium transition-colors",

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { track } from "@/lib/analytics";
 import { createPortal } from "react-dom";
 import { useAnchoredPanel, ANCHORED_PANEL_CLASS } from "@/hooks/useAnchoredPanel";
 import { Bell, AlertCircle, CheckSquare, CalendarClock, Clock, Plus, X, BellOff, MailQuestion, Clock3 } from "lucide-react";
@@ -114,7 +115,10 @@ export function Notifications() {
   const unread = items.filter((i) => !read.has(i.id)).length + dueReminders.length;
 
   function persist(next: Set<string>) { setRead(next); localStorage.setItem(STORE, JSON.stringify([...next])); }
-  function pick(n: Notif) { persist(new Set(read).add(n.id)); nav(n.path); setOpen(false); }
+  function pick(n: Notif) {
+    track("notification_opened", { notification_type: (n as { kind?: string }).kind ?? n.path.split(/[/?]/)[1] ?? "other" });
+    persist(new Set(read).add(n.id)); nav(n.path); setOpen(false);
+  }
   function markAll() { persist(new Set(items.map((i) => i.id))); }
   function addReminder() {
     if (!label.trim()) return;

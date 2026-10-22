@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { track } from "@/lib/analytics";
 import { useNavigate } from "react-router-dom";
 import { BellOff, MailQuestion, Clock3, ArrowRight } from "lucide-react";
 import { useSnoozeMutations } from "@/data/hooks";
@@ -25,6 +26,7 @@ export function FollowUpRow({ flag, onAction }: { flag: Flag; onAction?: () => v
       // Await the write and only dismiss the row once it actually took. If the DB
       // refused it, keep the nag on screen with the reason rather than pretending
       // it was silenced.
+      track("follow_up_actioned", { action: "snooze", kind: flag.kind, days_quiet: (flag as { days?: number }).days ?? null });
       await snooze.mutateAsync({ item_type: flag.itemType, item_id: flag.itemId, days: snoozeDays });
       onAction?.();
     } catch (e) {
@@ -54,6 +56,7 @@ export function FollowUpRow({ flag, onAction }: { flag: Flag; onAction?: () => v
         <button
           className="btn-primary shrink-0 px-2.5 py-1 text-xs"
           onClick={() => {
+            track("follow_up_actioned", { action: "follow_up", kind: flag.kind, days_quiet: (flag as { days?: number }).days ?? null });
             nav(flag.path);
             onAction?.();
           }}

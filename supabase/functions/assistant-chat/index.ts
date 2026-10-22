@@ -26,7 +26,13 @@ type ChatTurn =
   | { role: "tool"; tool_call_id: string; content: string };
 
 /** What one model call spent, taken from the provider's own response. */
-interface Spend { model: string; input: number; output: number }
+interface Spend {
+  model: string; input: number; output: number;
+  /* For PostHog only, never stored: seconds the call took, the provider's
+     HTTP status, whether it failed (then tokens are 0 and no spend row is
+     written), and a short fixed name for what the call was doing. */
+  latency?: number; status?: number; error?: boolean; action?: string;
+}
 
 /* Recorded per call so Settings can show usage per account (migration 0069).
    Takes the auth header rather than a client so it works from anywhere in the
@@ -45,24 +51,155 @@ async function recordSpend(
   feature: string,
   provider: "openai" | "anthropic",
   s: Spend,
+  ph?: Ph,
 ): Promise<void> {
+  const work = (async () => {
+    // A failed call spent nothing, so it has no spend row; it only goes to PostHog.
+    let cost: number | null = null;
+    if (!s.error) {
+      try {
+        const db = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_ANON_KEY")!,
+          { global: { headers: { Authorization: authHeader } } },
+        );
+        const row = {
+          feature,
+          provider,
+          model: s.model,
+          input_tokens: s.input,
+          output_tokens: s.output,
+        };
+        if (ph && PH_TOKEN) {
+          /* Read back the price the ai_spend_priced trigger (0069) set, so
+             PostHog shows the same cost as Settings and no price list is
+             duplicated here. The select policy covers every row the insert
+             policy allows (own row, own workspace). */
+          const { data, error } = await db.from("ai_spend").insert(row).select("cost_usd").maybeSingle();
+          if (error) console.error("ai_spend insert failed", error.message);
+          else if (data?.cost_usd != null) cost = Number(data.cost_usd);
+        } else {
+          const { error } = await db.from("ai_spend").insert(row);
+          if (error) console.error("ai_spend insert failed", error.message);
+        }
+      } catch (e) {
+        console.error("ai_spend insert threw", e);
+      }
+    }
+    phGeneration(ph, provider, s, cost, feature);
+  })();
+  phKeepAlive(work);
+  return work;
+}
+
+/* ── PostHog LLM analytics, privacy mode (tracking plan, Oct 2026) ─────────
+   One `$ai_generation` event per model call: model, tokens, cost, latency,
+   status. NEVER the prompt or the answer: no $ai_input, no $ai_output_choices.
+   Sent only when POSTHOG_TOKEN is set AND the caller said yes to analytics
+   (profiles.analytics_consent = 'yes', read as the caller, once per request).
+   Fire-and-forget with a short timeout: analytics never fails or slows a reply.
+   Inlined for the same standalone-deploy reason as recordSpend. */
+const PH_TOKEN = Deno.env.get("POSTHOG_TOKEN") ?? "";
+const PH_HOST = (Deno.env.get("POSTHOG_HOST") ?? "https://eu.i.posthog.com").replace(/\/+$/, "");
+
+interface PhWho { id: string; role: string | null; org: string | null }
+/** Per request: the caller's token, which function this is, and one trace id. */
+interface Ph { auth: string; feature: string; trace: string; who?: Promise<PhWho | null> }
+
+function phStart(auth: string, feature: string): Ph {
+  return { auth, feature, trace: crypto.randomUUID() };
+}
+
+/** Keep a background promise alive after the response is sent, where the runtime allows it. */
+function phKeepAlive(p: Promise<unknown>): void {
   try {
+    // deno-lint-ignore no-explicit-any
+    (globalThis as any).EdgeRuntime?.waitUntil?.(p.catch(() => {}));
+  } catch { /* not available: the promise simply runs un-awaited */ }
+}
+
+/** A short, fixed identifier or "other". Keeps free text out of event properties. */
+function phSlug(v: unknown): string {
+  const s = String(v ?? "");
+  return /^[A-Za-z0-9_-]{1,40}$/.test(s) ? s : "other";
+}
+
+/** The caller's user id, role and workspace, or null when they have not consented. */
+function phWho(ph: Ph): Promise<PhWho | null> {
+  ph.who ??= (async (): Promise<PhWho | null> => {
+    // The JWT's subject. Not trusted on its own: the reads below go through
+    // PostgREST with the same token, which verifies it, and RLS only returns
+    // the caller's own profile row for it.
+    const part = ph.auth.replace(/^Bearer\s+/i, "").split(".")[1] ?? "";
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const sub = String(JSON.parse(atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4)))?.sub ?? "");
+    if (!sub) return null;
     const db = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
+      { global: { headers: { Authorization: ph.auth } } },
     );
-    const { error } = await db.from("ai_spend").insert({
-      feature,
-      provider,
-      model: s.model,
-      input_tokens: s.input,
-      output_tokens: s.output,
+    const [{ data: prof }, { data: mem }] = await Promise.all([
+      db.from("profiles").select("analytics_consent").eq("id", sub).maybeSingle(),
+      db.from("memberships").select("workspace_id, role").eq("user_id", sub)
+        .order("created_at", { ascending: true }).limit(1).maybeSingle(),
+    ]);
+    if (prof?.analytics_consent !== "yes") return null;
+    return { id: sub, role: mem?.role ?? null, org: mem?.workspace_id ?? null };
+  })().catch(() => null);
+  return ph.who;
+}
+
+/** Send one event as the caller. Never throws, never awaited by the reply. */
+function phSend(ph: Ph | undefined, event: string, props: Record<string, unknown>): void {
+  if (!ph || !PH_TOKEN) return;
+  const timestamp = new Date().toISOString();
+  phKeepAlive((async () => {
+    const who = await phWho(ph);
+    if (!who) return;
+    await fetch(`${PH_HOST}/i/v0/e/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: PH_TOKEN,
+        event,
+        distinct_id: who.id,
+        timestamp,
+        properties: {
+          ...props,
+          feature: ph.feature,
+          role: who.role,
+          organization: who.org,
+          ...(who.org ? { $groups: { organization: who.org } } : {}),
+          $lib: "madeea-edge",
+        },
+      }),
+      signal: AbortSignal.timeout(3_000),
     });
-    if (error) console.error("ai_spend insert failed", error.message);
-  } catch (e) {
-    console.error("ai_spend insert threw", e);
-  }
+  })().catch(() => {}));
+}
+
+/** `$ai_generation` for one model call. Counts only: no prompt, no output. */
+function phGeneration(
+  ph: Ph | undefined,
+  provider: "openai" | "anthropic",
+  s: Spend,
+  cost: number | null,
+  feature: string,
+): void {
+  if (!ph) return;
+  phSend(ph, "$ai_generation", {
+    $ai_trace_id: ph.trace,
+    $ai_model: s.model,
+    $ai_provider: provider,
+    $ai_input_tokens: s.input,
+    $ai_output_tokens: s.output,
+    ...(cost != null ? { $ai_total_cost_usd: cost } : {}),
+    ...(s.latency != null ? { $ai_latency: s.latency } : {}),
+    $ai_http_status: s.status ?? 200,
+    $ai_is_error: !!s.error,
+    action: phSlug(s.action ?? (feature !== ph.feature ? feature.replace(/-/g, "_") : "call")),
+  });
 }
 
 
@@ -74,6 +211,9 @@ async function complete(
   onUsage?: (s: Spend) => void,
 ): Promise<{ content: string | null; tool_calls?: ToolCall[] }> {
   if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
+  const t0 = Date.now();
+  const failed = (status: number) =>
+    onUsage?.({ model: "gpt-4o", input: 0, output: 0, latency: (Date.now() - t0) / 1000, status, error: true });
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
@@ -84,8 +224,9 @@ async function complete(
       max_tokens: 1500,
       ...(tools ? { tools, tool_choice: "auto" } : {}),
     }),
-  });
+  }).catch((e) => { failed(0); throw e; });
   if (!res.ok) {
+    failed(res.status);
     const body = await res.text();
     console.error("openai error", res.status, body);
     /* Carry OpenAI's own error code out of here. "upstream model error" alone
@@ -100,12 +241,15 @@ async function complete(
     throw new Error(`upstream model error ${res.status} ${code}`.trim());
   }
   const data = await res.json();
+  const msg = data.choices?.[0]?.message ?? {};
   onUsage?.({
     model: "gpt-4o",
     input: data.usage?.prompt_tokens ?? 0,
     output: data.usage?.completion_tokens ?? 0,
+    latency: (Date.now() - t0) / 1000,
+    status: res.status,
+    action: msg.tool_calls?.length ? "tool_call" : "answer",
   });
-  const msg = data.choices?.[0]?.message ?? {};
   return { content: msg.content ?? null, tool_calls: msg.tool_calls };
 }
 
@@ -166,6 +310,9 @@ const APP_ACTION =
 
 async function isOnTopic(text: string, onUsage?: (s: Spend) => void): Promise<boolean> {
   if (!OPENAI_API_KEY || !text.trim()) return true;
+  const t0 = Date.now();
+  const failed = (status: number) =>
+    onUsage?.({ model: "gpt-4o-mini", input: 0, output: 0, latency: (Date.now() - t0) / 1000, status, error: true });
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -181,6 +328,7 @@ async function isOnTopic(text: string, onUsage?: (s: Spend) => void): Promise<bo
       }),
     });
     if (!res.ok) {
+      failed(res.status);
       console.error("topic check failed", res.status, await res.text());
       return true;
     }
@@ -189,9 +337,13 @@ async function isOnTopic(text: string, onUsage?: (s: Spend) => void): Promise<bo
       model: "gpt-4o-mini",
       input: data.usage?.prompt_tokens ?? 0,
       output: data.usage?.completion_tokens ?? 0,
+      latency: (Date.now() - t0) / 1000,
+      status: res.status,
+      action: "topic_check",
     });
     return !String(data.choices?.[0]?.message?.content ?? "").trim().toUpperCase().startsWith("OFF");
   } catch (e) {
+    failed(0);
     console.error("topic check threw", e);
     return true;
   }
@@ -1246,14 +1398,15 @@ async function memberTool(db: SupabaseClient, tz: string, name: string, a: Recor
   return { error: "Unknown tool " + name + "." };
 }
 
-async function memberChat(db: SupabaseClient, authHeader: string, history: LlmMessage[], tz: string): Promise<Response> {
+async function memberChat(db: SupabaseClient, authHeader: string, history: LlmMessage[], tz: string, ph: Ph): Promise<Response> {
   const { data: allowed, error: rlErr } = await db.rpc("check_ai_rate_limit", { p_fn: "assistant-chat-member", p_max: 30 });
   if (rlErr) console.error("check_ai_rate_limit (member) failed", rlErr.message);
   if (allowed !== true) return json({ error: "You've asked a lot this hour. Please try again a little later." }, 429);
 
   const latest = history[history.length - 1];
   if (latest.role === "user" && !ALWAYS_ON.test(latest.content) &&
-      !(await isOnTopic("Latest user message: " + latest.content, (s) => void recordSpend(authHeader, "topic-check", "openai", s)))) {
+      !(await isOnTopic("Latest user message: " + latest.content, (s) => void recordSpend(authHeader, "topic-check", "openai", s, ph)))) {
+    phSend(ph, "topic_gate_blocked", { category: "assistant-chat", surface: "member" });
     return json({ reply: "That one's outside what I can help with here. Ask me about your work: your tasks, your hours, or your daily report." });
   }
 
@@ -1280,7 +1433,7 @@ async function memberChat(db: SupabaseClient, authHeader: string, history: LlmMe
   };
 
   const convo: ChatTurn[] = [system, ...history];
-  const onUsage = (s: Spend) => void recordSpend(authHeader, "assistant-chat", "openai", s);
+  const onUsage = (s: Spend) => void recordSpend(authHeader, "assistant-chat", "openai", s, ph);
   const sources = new Map<string, number>();
   for (let round = 0; ; round++) {
     const msg = await complete(convo, round < MAX_TOOL_ROUNDS ? MEMBER_TOOLS : undefined, onUsage);
@@ -1308,9 +1461,9 @@ async function memberChat(db: SupabaseClient, authHeader: string, history: LlmMe
 }
 
 async function clientChat(
-  db: SupabaseClient, authHeader: string, history: LlmMessage[], tz: string, role: string,
+  db: SupabaseClient, authHeader: string, history: LlmMessage[], tz: string, role: string, ph: Ph,
 ): Promise<Response> {
-  if (role === "member") return await memberChat(db, authHeader, history, tz);
+  if (role === "member") return await memberChat(db, authHeader, history, tz, ph);
   // A lower cap than staff: a client asks about their account, not their day's work.
   const { data: allowed, error: rlErr } = await db.rpc("check_ai_rate_limit", { p_fn: "assistant-chat-client", p_max: 30 });
   if (rlErr) console.error("check_ai_rate_limit (client) failed", rlErr.message);
@@ -1318,7 +1471,8 @@ async function clientChat(
 
   const latest = history[history.length - 1];
   if (latest.role === "user" && !ALWAYS_ON.test(latest.content) &&
-      !(await isOnTopic("Latest user message: " + latest.content, (s) => void recordSpend(authHeader, "topic-check", "openai", s)))) {
+      !(await isOnTopic("Latest user message: " + latest.content, (s) => void recordSpend(authHeader, "topic-check", "openai", s, ph)))) {
+    phSend(ph, "topic_gate_blocked", { category: "assistant-chat", surface: "client" });
     return json({ reply: "That one's outside what I can help with here. Ask me about your account: what's been done, what's coming up, or something you need." });
   }
 
@@ -1353,7 +1507,7 @@ async function clientChat(
   };
 
   const convo: ChatTurn[] = [system, ...history];
-  const onUsage = (s: Spend) => void recordSpend(authHeader, "assistant-chat", "openai", s);
+  const onUsage = (s: Spend) => void recordSpend(authHeader, "assistant-chat", "openai", s, ph);
   const sources = new Map<string, number>();
   for (let round = 0; ; round++) {
     const msg = await complete(convo, round < MAX_TOOL_ROUNDS ? CLIENT_TOOLS : undefined, onUsage);
@@ -1387,6 +1541,8 @@ Deno.serve(async (req) => {
     // is required for browser CORS preflight to pass).
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "unauthorized" }, 401);
+    // One PostHog trace per chat request; sends nothing without consent (0093).
+    const ph = phStart(authHeader, "assistant-chat");
     const { messages = [], timezone, context } = await req.json();
     const tz = validZone(timezone);
     const where = pageContext(context);
@@ -1417,7 +1573,7 @@ Deno.serve(async (req) => {
     const { data: clientId } = await supabase.rpc("my_client");
     if (clientId) {
       const { data: clientRole } = await supabase.rpc("my_client_role");
-      return await clientChat(supabase, authHeader, history, tz, String(clientRole ?? "primary"));
+      return await clientChat(supabase, authHeader, history, tz, String(clientRole ?? "primary"), ph);
     }
 
     // Per-user quota, keyed off auth.uid() server-side. gpt-4o with no ceiling
@@ -1438,7 +1594,8 @@ Deno.serve(async (req) => {
     const topicText =
       (prior ? `Previous assistant reply (context only): ${prior.content.slice(0, 500)}\n\n` : "") +
       `Latest user message: ${latest.content}`;
-    if (latest.role === "user" && !ALWAYS_ON.test(latest.content) && !APP_ACTION.test(latest.content.trim()) && !(await isOnTopic(topicText, (s) => void recordSpend(authHeader, "topic-check", "openai", s)))) {
+    if (latest.role === "user" && !ALWAYS_ON.test(latest.content) && !APP_ACTION.test(latest.content.trim()) && !(await isOnTopic(topicText, (s) => void recordSpend(authHeader, "topic-check", "openai", s, ph)))) {
+      phSend(ph, "topic_gate_blocked", { category: "assistant-chat", surface: "staff" });
       return json({ reply: OFF_TOPIC_REPLY });
     }
 
@@ -1540,7 +1697,7 @@ Deno.serve(async (req) => {
 
     const ctx: ToolCtx = { db: supabase, userId: authed.user.id, tz };
     const convo: ChatTurn[] = [system, ...history];
-    const onUsage = (s: Spend) => void recordSpend(authHeader, "assistant-chat", "openai", s);
+    const onUsage = (s: Spend) => void recordSpend(authHeader, "assistant-chat", "openai", s, ph);
 
     /* The tool loop. The last round offers no tools, so it has to answer.
        `sources` counts what came back, by kind, so the panel can show

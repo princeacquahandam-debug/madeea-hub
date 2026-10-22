@@ -120,7 +120,7 @@ function ActionButtons({ page, compact }: { page: PageConfig; compact: boolean }
     : messages.some((m) => m.category !== "archive");
 
   function run(a: PageAction) {
-    track("ai_action", { action: a.label, page: window.location.pathname });
+    track("ai_action_clicked", { action: a.label, page: window.location.pathname });
     try { localStorage.setItem(TRIED_KEY, "1"); } catch { /* storage blocked */ }
     setTried(true);
     const item = a.onTask && focus ? taskItem(focus) : undefined;

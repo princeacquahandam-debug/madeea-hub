@@ -308,7 +308,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
       onOpenSettings={() => setTab("settings")}
       settingsActive={tab === "settings"}
     >
-      <AnalyticsConsent user={user ? { id: user.id, name: header?.client_name ?? null, role: isMember ? "client staff" : isViewer ? "client viewer" : "client", portal: "client" } : null} />
+      <AnalyticsConsent user={user ? { id: user.id, role: isMember ? "client_staff" : isViewer ? "client_viewer" : "client", portal: "client" } : null} />
       {PANES[tab] ? (
         <>
           {tab === "overview" ? <ClientOverview onSeeActivity={() => setTab("activity")} readOnly={isViewer} /> : null}

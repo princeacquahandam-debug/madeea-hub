@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { track } from "@/lib/analytics";
 import { useNavigate } from "react-router-dom";
 import { ClipboardList, CheckCircle2, ArrowRight, AlertTriangle } from "lucide-react";
 import { useEodReports, useTasks, useWorkspaceMembers } from "@/data/hooks";
@@ -50,7 +51,7 @@ export function EodCard() {
           <span className="pill bg-surface-2 text-muted">Not submitted</span>
         )}
         <button
-          onClick={() => nav("/eod")}
+          onClick={() => { track("home_card_action_clicked", { card: "eod", action: "open_report" }); nav("/eod"); }}
           className="ml-auto inline-flex items-center gap-1 text-[13px] font-semibold text-accent-soft hover:text-accent"
         >
           {filed ? "Open" : "Submit report"} <ArrowRight size={14} />

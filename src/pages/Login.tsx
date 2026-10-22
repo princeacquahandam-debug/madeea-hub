@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { noteLogin } from "@/lib/analytics";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AmbientBackground } from "@/components/layout/AmbientBackground";
@@ -53,6 +54,7 @@ export default function Login() {
     setError("");
     try {
       await signInWithPassword(email, password);
+      noteLogin("password");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed");
     } finally {

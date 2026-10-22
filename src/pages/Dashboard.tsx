@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { track } from "@/lib/analytics";
 import { CheckSquare, Calendar, Mail, Workflow, Sparkles, AlertTriangle, Timer, BellRing } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui";
@@ -169,7 +170,7 @@ export default function Dashboard() {
           return (
             <Cell
               key={kpi.label}
-              onClick={kpi.onClick}
+              onClick={kpi.onClick ? () => { track("home_card_action_clicked", { card: "stats", action: kpi.label.toLowerCase().replace(/\s+/g, "_") }); kpi.onClick!(); } : undefined}
               className={`-mb-px -mr-px border-b border-r border-border px-4 py-3.5 text-left ${kpi.onClick ? "transition-colors hover:bg-[var(--chip-bg)]" : ""}`}
             >
               <span className="block text-xs text-muted">{kpi.label}</span>
@@ -276,14 +277,14 @@ export default function Dashboard() {
                     does, and does it where every other AI request goes. */}
                 <button
                   className="flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-semibold text-muted transition-colors hover:border-accent hover:text-accent"
-                  onClick={() => useMadeline.getState().ask(PREP_MEETING.prompt, { item: meetingItem(m), display: "modal", title: PREP_MEETING.title })}
+                  onClick={() => { track("home_card_action_clicked", { card: "meetings", action: "prep_with_ai" }); useMadeline.getState().ask(PREP_MEETING.prompt, { item: meetingItem(m), display: "modal", title: PREP_MEETING.title }); }}
                   aria-label={`Ask Madeline to prep you for ${m.title}`}
                 >
                   <Sparkles size={13} /> Prep me
                 </button>
                 <button
                   className="shrink-0 rounded-md px-2 py-1 text-xs text-faint transition-colors hover:bg-[var(--chip-bg)] hover:text-text"
-                  onClick={() => setPrepFor(m)}
+                  onClick={() => { track("home_card_action_clicked", { card: "meetings", action: "open_prep" }); setPrepFor(m); }}
                   aria-label={`Open details for ${m.title}`}
                 >
                   Details

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
 /**
@@ -77,6 +78,7 @@ export function DraftList({
         onSubmit={(e) => {
           e.preventDefault();
           if (!add.trim()) return;
+          track("eod_item_added", { section: title.toLowerCase().replace(/[^a-z]+/g, "_").replace(/^_|_$/g, ""), source: "manual" });
           onChange([...items, add.trim()]);
           setAdd("");
         }}

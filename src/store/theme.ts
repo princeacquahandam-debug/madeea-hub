@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { setSuper, track } from "@/lib/analytics";
 
 /* Light, dark, or follow the device (the default, per the 12 Oct 2026 UI
    review, slide 12). Persisted to localStorage; the resolved theme is put on
@@ -51,6 +52,8 @@ export const useTheme = create<ThemeState>((set, get) => {
     theme,
     setChoice: (c) => {
       const t = resolve(c);
+      track("theme_changed", { theme: c });
+      setSuper({ theme: c });
       apply(t);
       window.localStorage.setItem(KEY, c);
       set({ choice: c, theme: t });

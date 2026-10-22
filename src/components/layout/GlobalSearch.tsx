@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { track } from "@/lib/analytics";
 import { createPortal } from "react-dom";
 import { Search, Users, CheckSquare, Mail, ClipboardCheck, StickyNote } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -44,6 +45,8 @@ export function GlobalSearch() {
   const total = r ? r.clients.length + r.tasks.length + r.messages.length + r.sops.length + r.notes.length : 0;
 
   function go(path: string) {
+    const type = path.split(/[/?]/)[1] || "home";
+    track("global_search_used", { query_length: q.trim().length, results_count: total, result_type_clicked: type });
     nav(path);
     setOpen(false);
     setQ("");
