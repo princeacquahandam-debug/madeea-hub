@@ -14,7 +14,7 @@ export interface Step { text: string; minutes: number | null }
 export type Breakdown = { steps: Step[] } | { question: string };
 
 export async function breakDownTask(task: Task, clientName: string | null, answer?: string): Promise<Breakdown> {
-  const output = await generate({
+  const ask = (insist: boolean) => generate({
     tool: "task_breakdown",
     format: "Break down a task",
     inputs: {
@@ -25,9 +25,19 @@ export async function breakDownTask(task: Task, clientName: string | null, answe
       Attachments: (task.attachments ?? []).map((a) => a.label || a.url).join("; "),
       // The answer to Madeline's question, when the first try was too vague.
       "Extra detail from me": answer ?? "",
+      ...(insist ? { Instruction: "I've already answered your question. Return the steps now; do not ask another question." } : {}),
     },
   });
-  return parse(output);
+  const result = parse(await ask(false));
+  /* One question, then steps (Abder's spec). Once the person has answered, a
+     second question would leave them in a loop with nothing to keep, so ask
+     once more insisting on steps, and fail plainly if it still won't. */
+  if (answer && "question" in result) {
+    const retry = parse(await ask(true));
+    if ("question" in retry) throw new Error("Couldn't break this task down from that answer. Add a little more detail to the task's notes and try again.");
+    return retry;
+  }
+  return result;
 }
 
 /** Only well-formed answers get through; anything else is an error, never a guess. */

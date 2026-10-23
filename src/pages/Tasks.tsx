@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors,
@@ -628,6 +628,9 @@ export default function Tasks() {
      filters) and decides today's order (Abder, 21 Oct 2026). Falls back to the
      rules if it can't be reached; the panel says which. */
   const [prioritizing, setPrioritizing] = useState(false);
+  /* Whether the open panel has already been applied or dismissed, so a close
+     that fires more than once (×, Discard and Escape all close it) counts once. */
+  const panelSettled = useRef(true);
   const runPrioritize = async () => {
     markTried();
     setPrioritizing(true);
@@ -635,6 +638,7 @@ export default function Tasks() {
       const t0 = performance.now();
       const result = await prioritizeWithAi(visible, { now: new Date(), members, clients });
       track("ai_result_shown", { action: "prioritize_board", output_type: "panel", items_count: result.rows.length, changes_suggested: result.changes, latency_ms: Math.round(performance.now() - t0), used_ai: result.ai });
+      panelSettled.current = false;
       setPanel({ result, at: new Date() });
     } finally {
       setPrioritizing(false);
@@ -649,6 +653,7 @@ export default function Tasks() {
     const write = (id: string, patch: Partial<Task>) =>
       patch.status ? setStatus.mutate({ id, status: patch.status }) : update.mutate({ id, ...patch } as Parameters<typeof update.mutate>[0]);
     for (const r of rows) if (r.change) write(r.task.id, r.change.patch);
+    panelSettled.current = true;
     track("ai_result_applied", { action: "prioritize_board", changes_suggested: panel?.result.changes ?? rows.length, changes_applied: rows.length });
     setPanel(null);
     setToast({
@@ -1025,7 +1030,10 @@ export default function Tasks() {
         <PrioritizePanel
           result={panel.result}
           generatedAt={panel.at}
-          onClose={() => { track("ai_result_dismissed", { action: "prioritize_board", how: "close" }); setPanel(null); }}
+          onClose={(how) => {
+            if (!panelSettled.current) { panelSettled.current = true; track("ai_result_dismissed", { action: "prioritize_board", how }); }
+            setPanel(null);
+          }}
           onRefresh={runPrioritize}
           onOpenTask={(r) => setParams({ task: r.task.id })}
           onApply={applyChanges}

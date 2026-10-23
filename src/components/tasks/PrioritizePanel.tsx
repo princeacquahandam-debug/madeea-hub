@@ -19,7 +19,8 @@ export function PrioritizePanel({
 }: {
   result: PrioritizeResult;
   generatedAt: Date;
-  onClose: () => void;
+  /** How it was closed, for analytics: the ×, Discard, or Escape. */
+  onClose: (how: "close" | "discard" | "escape") => void;
   onRefresh: () => void;
   onOpenTask: (row: RankedRow) => void;
   onApply: (rows: RankedRow[]) => void;
@@ -31,7 +32,7 @@ export function PrioritizePanel({
   const count = withChange.filter((r) => checked.has(r.task.id)).length;
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose("escape"); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -54,7 +55,7 @@ export function PrioritizePanel({
           <p className="text-xs text-faint">Madeline · {result.reviewed} {result.reviewed === 1 ? "task" : "tasks"} reviewed · {when}</p>
         </div>
         <button onClick={onRefresh} aria-label="Review again" title="Review again" className="icon-btn text-faint hover:text-text"><RotateCw size={15} /></button>
-        <button onClick={onClose} aria-label="Close" className="icon-btn text-faint hover:text-text"><X size={16} /></button>
+        <button onClick={() => onClose("close")} aria-label="Close" className="icon-btn text-faint hover:text-text"><X size={16} /></button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3">
@@ -102,7 +103,7 @@ export function PrioritizePanel({
           <button className="btn-primary flex-1 justify-center" disabled={count === 0} onClick={() => onApply(withChange.filter((r) => checked.has(r.task.id)))}>
             Apply {count} {count === 1 ? "change" : "changes"}
           </button>
-          <button className="btn-ghost border border-border" onClick={onClose}>Discard</button>
+          <button className="btn-ghost border border-border" onClick={() => onClose("discard")}>Discard</button>
         </div>
         <div className="mt-2 flex items-center justify-between text-[11px]">
           <span className="text-faint">Nothing changes until you apply.</span>

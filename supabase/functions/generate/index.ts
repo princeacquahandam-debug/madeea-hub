@@ -335,7 +335,10 @@ Rules for steps:
 - Use only what the task says; never invent names, dates or facts.
 
 If the task is too vague to split sensibly (for example a single word with no notes), return {"question": ...}
-with ONE short question that would let you split it. Never guess.`;
+with ONE short question that would let you split it. Never guess.
+
+You may ask only once. If the details include "Extra detail from me", the person has already answered your
+question: return {"steps": ...} built from the task and that answer. Never ask a second question.`;
 
   /* "Prioritize board", the AI version (Abder, 21 Oct 2026 call): not the order
      anyone can see by eye, but a read of every open task in every stage, to
