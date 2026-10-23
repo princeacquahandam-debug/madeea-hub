@@ -9,12 +9,12 @@
       "destination": "https://bglduxferbjmoeqzyypx.supabase.co/functions/v1/integration-oauth-callback"
     },
     {
-      "source": "/ingest/static/:path*",
-      "destination": "https://eu-assets.i.posthog.com/static/:path*"
+      "source": "/ingest/static/(.*)",
+      "destination": "https://eu-assets.i.posthog.com/static/$1"
     },
     {
-      "source": "/ingest/:path*",
-      "destination": "https://eu.i.posthog.com/:path*"
+      "source": "/ingest/(.*)",
+      "destination": "https://eu.i.posthog.com/$1"
     },
     {
       "source": "/(.*)",
