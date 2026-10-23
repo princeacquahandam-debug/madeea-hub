@@ -77,6 +77,10 @@ async function load(): Promise<PostHog | null> {
           autocapture: false,
           capture_pageview: "history_change",
           capture_pageleave: true,
+          /* Send each event straight away. Batching held them for a few seconds,
+             and an EA who clicked Keep all and closed the tab lost the event.
+             The Hub sends a handful of events per person, so batching saved nothing. */
+          request_batching: false,
           disable_external_dependency_loading: true,
           disable_surveys: true,
           opt_out_capturing_by_default: true,
