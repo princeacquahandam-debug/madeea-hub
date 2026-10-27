@@ -91,6 +91,8 @@ export function ComposeWindow({
   const [minimised, setMinimised] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  // Started from an AI draft (PostHog: message_sent ai_drafted).
+  const [aiDrafted, setAiDrafted] = useState(false);
   /* Shared with the reading pane's inline reply, so both report the same
      failures from the same code. */
   const { state, setState, send: sendEmail } = useSendEmail();
@@ -258,6 +260,7 @@ export function ComposeWindow({
         // Above whatever is already there, which on a reply is the quote.
         const asHtml = out.split("\n").map((l) => `<div>${l || "<br>"}</div>`).join("");
         el.innerHTML = asHtml + el.innerHTML;
+        setAiDrafted(true);
       }
     } catch (e) {
       setState({ kind: "error", detail: e instanceof Error ? e.message : String(e) });
@@ -276,6 +279,7 @@ export function ComposeWindow({
       inReplyTo: seed?.inReplyTo,
       replyToOutlookId: seed?.replyToOutlookId,
       provider,
+      aiDrafted,
     });
     // Long enough to read the confirmation, short enough to sit there.
     if (ok) setTimeout(onClose, 1600);

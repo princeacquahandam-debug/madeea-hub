@@ -67,3 +67,15 @@ export function draftFromTasks(tasks: Task[], myId: string | undefined, day: str
     plans: open.filter((t) => !blockedIds.has(t.id)).map((t) => t.title),
   };
 }
+
+/**
+ * How much of the board's draft made it into the submitted report, for
+ * PostHog's eod_report_submitted (0094): drafted items kept as they were,
+ * and drafted items removed or reworded. Counts only, never the text.
+ */
+export function draftUse(drafted: EodDraft, sent: EodDraft): { count: number; edited: number } {
+  const all = (d: EodDraft) => [...d.done, ...d.blockers, ...d.plans];
+  const auto = new Set(all(drafted));
+  const kept = new Set(all(sent).filter((x) => auto.has(x)));
+  return { count: kept.size, edited: auto.size - kept.size };
+}

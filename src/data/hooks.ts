@@ -116,6 +116,13 @@ function demoTask(id: string): Task | undefined {
   return patch ? { ...base, ...patch } : base;
 }
 
+/**
+ * Details for a server-side PostHog event that only the app knows (how a task
+ * was moved, how much of an EOD the draft wrote). Sent as a header on the one
+ * request that makes the change; the trigger reads it (0094). Never content.
+ */
+export const PH_HINT = "x-madeea-ph";
+
 export function useTaskMutations() {
   const qc = useQueryClient();
   const invalidate = () => {
@@ -154,7 +161,9 @@ export function useTaskMutations() {
   });
 
   const setStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
+    /* method: how the move was made, for PostHog's task_stage_changed (0094).
+       Drag and AI say so; anything else is counted as the menu. */
+    mutationFn: async ({ id, status, method }: { id: string; status: TaskStatus; method?: "drag" | "menu" | "ai" }) => {
       if (!supabase) {
         /* The same rule the 0030 trigger enforces, so dragging a card to Done in
            demo behaves the way it will in production rather than differing in
@@ -180,7 +189,8 @@ export function useTaskMutations() {
         }
         return;
       }
-      const { error } = await supabase.from("tasks").update({ status }).eq("id", id);
+      const q = supabase.from("tasks").update({ status }).eq("id", id);
+      const { error } = await (method ? q.setHeader(PH_HINT, JSON.stringify({ method })) : q);
       if (error) throw error;
       // Recurring tasks spawn their next instance on completion.
       if (status === "done") {
@@ -2584,7 +2594,9 @@ export function useTimeMutations() {
 export function useSubmitEod() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (report: Omit<EodReport, "id" | "owner_id">) => {
+    /* ai: how much of the board's prefilled draft was kept and how much was
+       removed or reworded, for PostHog's eod_report_submitted (0094). */
+    mutationFn: async ({ ai, ...report }: Omit<EodReport, "id" | "owner_id"> & { ai?: { count: number; edited: number } }) => {
       if (!supabase) {
         saveDemoEod({ ...report, id: demoId(), owner_id: "demo" } as EodReport);
         return;
@@ -2593,7 +2605,7 @@ export function useSubmitEod() {
       // overwrites person_name with the owner's profile name. So the value sent
       // here is only a fallback: two devices on the same account, or a stale
       // cached name, can no longer file under a second identity.
-      const { error } = await supabase.from("eod_reports").upsert(
+      const q = supabase.from("eod_reports").upsert(
         {
           person_name: report.person,
           report_date: report.report_date,
@@ -2607,6 +2619,7 @@ export function useSubmitEod() {
            or the upsert compares against a key the database no longer has. */
         { onConflict: "workspace_id,person_name,report_date" },
       );
+      const { error } = await (ai ? q.setHeader(PH_HINT, JSON.stringify({ ai_items_count: ai.count, ai_items_edited: ai.edited })) : q);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["eod_reports"] }),

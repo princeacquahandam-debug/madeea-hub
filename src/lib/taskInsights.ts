@@ -197,6 +197,8 @@ export interface StuckRow {
   why: string;
   days: number;
   action: StuckAction;
+  /** The next step, when the AI found it (lib/taskStuckAi). The rules leave it out. */
+  next?: string;
 }
 
 export function findStuck(visible: Task[], now: Date): { checked: number; rows: StuckRow[] } {

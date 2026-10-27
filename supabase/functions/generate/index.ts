@@ -364,6 +364,27 @@ Rules:
 - "change": only when a change clearly helps, at most 5 in total. "due" takes a YYYY-MM-DD date after today (for an overdue task that needs a new date); "priority" takes urgent, high, normal or low; "stage" takes todo, in_progress, follow_up (Waiting) or review. Never mark anything done.
 - "summary": one or two short sentences on the state of the board and what to do first today.`;
 
+  if (tool === "task_stuck")
+    return `${BASE} You are checking an executive assistant's task board for work that is STUCK, the way a good manager would, and saying what to do about each one.
+
+Each open task shows its stage and how long it has been in that stage, its last update, due date, blocker, approval and checklist. A task is stuck when:
+- It has sat in the same stage for 2 weeks or more. 4 weeks or more is serious: always include it.
+- It is overdue.
+- It is blocked, especially with no reason given or for more than a few days.
+- It has waited for approval for 3 days or more.
+- It is In progress, Waiting or Review with no update for a long time.
+A task in To do that was made recently, is not due yet and is not blocked is NOT stuck. Do not pad the list: if nothing is stuck, return no rows.
+
+Reply with JSON only, no prose and no code fence, in exactly this shape:
+{"summary":string,"rows":[{"id":string,"why":string,"next":string,"action":"set_date"|"nudge"|"open"}]}
+
+Rules:
+- "rows": at most 15, the most stuck first. Use only ids from the list.
+- "why": at most 15 words, from the task's real facts, e.g. "In progress for 5 weeks, no update since 12 Sep". Never invent names, dates or facts.
+- "next": at most 15 words, one concrete next step, e.g. "Ask the client for the missing login, or close it".
+- "action": "set_date" for an overdue task that needs a new date; "nudge" when the person assigned should be chased; "open" otherwise.
+- "summary": one short sentence on how stuck the board is and what to clear first.`;
+
   if (tool === "studio")
     return `${BASE} You are producing a "${format}". Match the requested tone exactly. Return only the finished document, no preamble.`;
   if (tool === "bookkeeping")

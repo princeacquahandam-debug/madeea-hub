@@ -5,7 +5,7 @@ import { Badge, PageHeader } from "@/components/ui";
 import { EOD_DATA, type CellStatus } from "@/data/eod";
 import { EOD_DATES } from "@/data/eodImport";
 import { atLeast, useDeleteEod, useEodReports, useMyRole, useSubmitEod, useTaskMutations, useTasks, useWorkspaceMembers } from "@/data/hooks";
-import { draftFromTasks, todayIso, type EodDraft as EodDraftState } from "@/lib/eodDraft";
+import { draftFromTasks, draftUse, todayIso, type EodDraft as EodDraftState } from "@/lib/eodDraft";
 import { DraftList } from "@/components/EodDraftList";
 import type { EodReport } from "@/types/db";
 import { cn } from "@/lib/utils";
@@ -243,6 +243,7 @@ export default function EodReports() {
                 blockers: draft.blockers,
                 plans: draft.plans,
                 notes,
+                ai: draftUse(autoDraft, draft),
               })
             }
             onPushPlan={pushPlanToBoard}

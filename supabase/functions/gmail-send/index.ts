@@ -331,9 +331,15 @@ Deno.serve(async (req) => {
       }, send.status);
     }
 
+    /* Written as the caller, with one detail for PostHog's message_sent
+       (0094): whether the reply started from an AI draft. The trigger reads
+       it from this header; nothing about it is stored. */
+    const recorder = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: auth, "x-madeea-ph": JSON.stringify({ ai_drafted: body.ai_drafted === true }) } },
+    });
     // Record it, so a sent mail shows in the Communication Center and can reach
     // the EOD. A failure to record is reported, not swallowed: the mail DID go.
-    const { error: writeErr } = await supa.from("messages").insert({
+    const { error: writeErr } = await recorder.from("messages").insert({
       source: "gmail",
       direction: "outbound",
       sender_name: u.user.email ?? "MadeEA",

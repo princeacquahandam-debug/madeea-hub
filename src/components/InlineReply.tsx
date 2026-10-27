@@ -50,6 +50,8 @@ export function InlineReply({
   const [text, setText] = useState("");
   const [drafting, setDrafting] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
+  // This reply started from an AI draft (PostHog: message_sent ai_drafted).
+  const [aiDrafted, setAiDrafted] = useState(false);
   const { state, setState, send } = useSendEmail();
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -60,6 +62,7 @@ export function InlineReply({
   useEffect(() => {
     setText("");
     setDraftError(null);
+    setAiDrafted(false);
     setState({ kind: "idle" });
   }, [message.id, setState]);
 
@@ -102,8 +105,9 @@ export function InlineReply({
       html: textToHtml(text) + quotedHtml,
       threadId: (message as { thread_id?: string | null }).thread_id ?? null,
       inReplyTo: (message as { rfc_message_id?: string | null }).rfc_message_id ?? null,
+      aiDrafted,
     });
-    if (ok) { setText(""); onSent(); }
+    if (ok) { setText(""); setAiDrafted(false); onSent(); }
   }
 
   async function onDraft() {
@@ -120,6 +124,7 @@ export function InlineReply({
          starting point you edit. An earlier version rendered it read-only, so
          using it meant retyping it. */
       setText(out.trim());
+      setAiDrafted(true);
       requestAnimationFrame(() => ref.current?.focus());
     } catch (e) {
       setDraftError(e instanceof Error ? e.message : String(e));

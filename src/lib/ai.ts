@@ -46,7 +46,8 @@ export type GenerateTool =
   | "briefing"
   | "decision"
   | "task_breakdown"
-  | "task_prioritize";
+  | "task_prioritize"
+  | "task_stuck";
 
 export interface GeneratePayload {
   tool: GenerateTool;

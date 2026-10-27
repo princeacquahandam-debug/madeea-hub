@@ -1,6 +1,7 @@
 import { generate } from "@/lib/ai";
 import type { Priority, Task, TaskStatus } from "@/types/db";
 import { MAX_CHANGES, MAX_ROWS, STAGE_LABEL, dayKey, prioritize, shortDate, type Assignable, type Change, type ClientLead, type PrioritizeResult, type RankedRow } from "@/lib/taskInsights";
+import { fetchStageSince } from "@/lib/taskStageSince";
 
 /**
  * "Prioritize board" with the AI doing the thinking (Abder, 21 Oct 2026 call).
@@ -28,8 +29,11 @@ const daysAgo = (iso: string | null | undefined, now: Date) => {
 };
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
-function line(ref: string, t: Task, now: Date, today: string, name: (id: string | null | undefined) => string): string {
-  const parts = [`${ref} | "${t.title.slice(0, 80)}"`, `stage: ${STAGE_LABEL[t.status]}`, `priority: ${PRIORITY_LABEL[t.priority]}`];
+/** One task as the AI reads it. `since` = when it entered its current stage (lib/taskStageSince). */
+export function taskLine(ref: string, t: Task, now: Date, today: string, name: (id: string | null | undefined) => string, since?: string): string {
+  const inStage = since ? daysAgo(since, now) : null;
+  const stage = `stage: ${STAGE_LABEL[t.status]}${inStage !== null ? ` (in this stage ${inStage === 0 ? "since today" : `for ${plural(inStage, "day")}`})` : ""}`;
+  const parts = [`${ref} | "${t.title.slice(0, 80)}"`, stage, `priority: ${PRIORITY_LABEL[t.priority]}`];
   const due = t.due_at?.slice(0, 10);
   if (due) {
     const d = Math.round((Date.parse(`${due}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / DAY);
@@ -110,12 +114,13 @@ export async function prioritizeWithAi(
   const byRef = new Map(sent.map((t, i) => [`T${i + 1}`, t]));
 
   try {
+    const since = await fetchStageSince(sent.map((t) => t.id));
     const output = await generate({
       tool: "task_prioritize",
       format: "Prioritize board",
       inputs: {
         Today: `${today} (${opts.now.toLocaleDateString("en-GB", { weekday: "long" })})`,
-        "Open tasks": "\n" + [...byRef].map(([ref, t]) => line(ref, t, opts.now, today, name)).join("\n"),
+        "Open tasks": "\n" + [...byRef].map(([ref, t]) => taskLine(ref, t, opts.now, today, name, since.get(t.id))).join("\n"),
         ...(open.length > sent.length ? { Note: `${open.length - sent.length} more open tasks not listed.` } : {}),
       },
     });

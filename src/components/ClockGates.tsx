@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Send, Target, TriangleAlert } from "lucide-react";
 import { Modal } from "@/components/ui";
 import { DraftList } from "@/components/EodDraftList";
-import { draftFromTasks, type EodDraft } from "@/lib/eodDraft";
+import { draftFromTasks, draftUse, type EodDraft } from "@/lib/eodDraft";
 import { eodForDay, focusForDay } from "@/lib/clockGates";
 import { useEodReports, useSubmitEod, useTasks, useTimeEntries, useWorkspaceMembers } from "@/data/hooks";
 import { workDate } from "@/lib/workday";
@@ -192,6 +192,7 @@ function EodGate({
         blockers: current.blockers,
         plans: current.plans,
         notes,
+        ai: draftUse(auto, current),
       });
       onDone(null);
     } catch (e) {

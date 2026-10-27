@@ -21,7 +21,8 @@ import { TASK_TEMPLATES, type TaskTemplate } from "@/lib/taskTemplates";
 import { cn } from "@/lib/utils";
 import { useMadelineContext } from "@/hooks/useMadeline";
 import { taskItem } from "@/lib/madelineItems";
-import { findStuck, type PrioritizeResult, type RankedRow, type StuckRow } from "@/lib/taskInsights";
+import { type PrioritizeResult, type RankedRow, type StuckRow } from "@/lib/taskInsights";
+import { findStuckWithAi, type StuckResult } from "@/lib/taskStuckAi";
 import { breakDownTask, type Step } from "@/lib/taskBreakdown";
 import { prioritizeWithAi } from "@/lib/taskPrioritizeAi";
 import { PrioritizePanel } from "@/components/tasks/PrioritizePanel";
@@ -553,7 +554,8 @@ export default function Tasks() {
 
   /* ── AI quick actions (Abder's answer spec, 14 Oct 2026) ── */
   const [panel, setPanel] = useState<{ result: PrioritizeResult; at: Date } | null>(null);
-  const [stuckOpen, setStuckOpen] = useState(false);
+  const [stuckRes, setStuckRes] = useState<StuckResult | null>(null);
+  const [findingStuck, setFindingStuck] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [bd, setBd] = useState<{ taskId: string; state: "loading" | "steps" | "question" | "error"; steps?: Step[]; question?: string; error?: string } | null>(null);
@@ -624,9 +626,14 @@ export default function Tasks() {
 
   useEffect(() => { if (!activeId) setBoard(group(visible)); }, [visible, activeId]);
 
-  /* Prioritize board: the AI reads every open task in view (it follows the
-     filters) and decides today's order (Abder, 21 Oct 2026). Falls back to the
-     rules if it can't be reached; the panel says which. */
+  /* What the AI actions read: every task, whatever the search and filters
+     show (Abder: "prioritize ALL the tasks"). Only the client you are working
+     as narrows it, since that is whose work this is. */
+  const scoped = useMemo(() => (scopeId ? tasks.filter((t) => t.client_id === scopeId) : tasks), [tasks, scopeId]);
+
+  /* Prioritize board: the AI reads every open task and decides today's order
+     (Abder, 21 Oct 2026). Falls back to the rules if it can't be reached;
+     the panel says which. */
   const [prioritizing, setPrioritizing] = useState(false);
   /* Whether the open panel has already been applied or dismissed, so a close
      that fires more than once (×, Discard and Escape all close it) counts once. */
@@ -636,7 +643,7 @@ export default function Tasks() {
     setPrioritizing(true);
     try {
       const t0 = performance.now();
-      const result = await prioritizeWithAi(visible, { now: new Date(), members, clients });
+      const result = await prioritizeWithAi(scoped, { now: new Date(), members, clients });
       track("ai_result_shown", { action: "prioritize_board", output_type: "panel", items_count: result.rows.length, changes_suggested: result.changes, latency_ms: Math.round(performance.now() - t0), used_ai: result.ai });
       panelSettled.current = false;
       setPanel({ result, at: new Date() });
@@ -644,14 +651,36 @@ export default function Tasks() {
       setPrioritizing(false);
     }
   };
-  // Find stuck tasks: same board, updated live as the board changes.
-  const stuck = useMemo(() => (stuckOpen ? findStuck(visible, new Date()) : null), [stuckOpen, visible]);
+  /* Find stuck tasks: the AI reads every open task with its time in stage
+     (lib/taskStuckAi). Kept current afterwards: a task finished or deleted
+     since drops off, and an edited one shows its new title. */
+  const runFindStuck = async () => {
+    markTried();
+    setFindingStuck(true);
+    try {
+      const t0 = performance.now();
+      const result = await findStuckWithAi(scoped, { now: new Date(), members });
+      track("ai_result_shown", { action: "find_stuck", output_type: "inline", items_count: result.rows.length, latency_ms: Math.round(performance.now() - t0), used_ai: result.ai });
+      setStuckRes(result);
+    } finally {
+      setFindingStuck(false);
+    }
+  };
+  const stuck = useMemo(() => {
+    if (!stuckRes) return null;
+    const byId = new Map(tasks.map((t) => [t.id, t]));
+    const rows = stuckRes.rows.flatMap((r) => {
+      const t = byId.get(r.task.id);
+      return t && t.status !== "done" ? [{ ...r, task: t }] : [];
+    });
+    return { ...stuckRes, rows };
+  }, [stuckRes, tasks]);
   const stuckIds = useMemo(() => new Set(stuck?.rows.map((r) => r.task.id) ?? []), [stuck]);
 
   /** Write the checked changes; Undo puts every one back for ten seconds. */
   function applyChanges(rows: RankedRow[]) {
     const write = (id: string, patch: Partial<Task>) =>
-      patch.status ? setStatus.mutate({ id, status: patch.status }) : update.mutate({ id, ...patch } as Parameters<typeof update.mutate>[0]);
+      patch.status ? setStatus.mutate({ id, status: patch.status, method: "ai" }) : update.mutate({ id, ...patch } as Parameters<typeof update.mutate>[0]);
     for (const r of rows) if (r.change) write(r.task.id, r.change.patch);
     panelSettled.current = true;
     track("ai_result_applied", { action: "prioritize_board", changes_suggested: panel?.result.changes ?? rows.length, changes_applied: rows.length });
@@ -834,7 +863,7 @@ export default function Tasks() {
       });
     }
     const serverTask = tasks.find((t) => t.id === active.id);
-    if (serverTask && col && serverTask.status !== col) setStatus.mutate({ id: serverTask.id, status: col });
+    if (serverTask && col && serverTask.status !== col) setStatus.mutate({ id: serverTask.id, status: col, method: "drag" });
   }
 
   /* `status` comes from whichever column's Add was clicked, so a task created
@@ -888,19 +917,21 @@ export default function Tasks() {
             {([
               ["Prioritize board", runPrioritize],
               ["Break down a task", startBreakdown],
-              ["Find stuck tasks", () => { markTried(); track("ai_result_shown", { action: "find_stuck", output_type: "inline", items_count: findStuck(visible, new Date()).rows.length, latency_ms: 0 }); setStuckOpen(true); }],
+              ["Find stuck tasks", runFindStuck],
             ] as const).map(([label, run]) => (
               <button
                 key={label}
                 type="button"
                 onClick={() => { track("ai_action_clicked", { action: label, page: "/tasks" }); void run(); }}
-                disabled={!visible.some((t) => t.status !== "done") || (label === "Prioritize board" && prioritizing)}
+                disabled={!(label === "Break down a task" ? visible : scoped).some((t) => t.status !== "done") || (label === "Prioritize board" && prioritizing) || (label === "Find stuck tasks" && findingStuck)}
                 className={cn(
                   "flex h-8 items-center gap-1.5 rounded-full border border-accent/50 bg-[var(--nav-active-bg)] px-3 text-xs font-semibold text-[color:var(--nav-active-text)] transition-colors hover:border-accent hover:bg-accent hover:text-white disabled:pointer-events-none disabled:opacity-40",
                   !tried && "ai-attention",
                 )}
               >
-                {label === "Prioritize board" && prioritizing ? <><Loader2 size={12} className="animate-spin" /> Reviewing your board…</> : <><Sparkles size={12} /> {label}</>}
+                {label === "Prioritize board" && prioritizing ? <><Loader2 size={12} className="animate-spin" /> Reviewing your board…</>
+                  : label === "Find stuck tasks" && findingStuck ? <><Loader2 size={12} className="animate-spin" /> Checking your board…</>
+                  : <><Sparkles size={12} /> {label}</>}
               </button>
             ))}
           </div>
@@ -985,7 +1016,9 @@ export default function Tasks() {
         <StuckCard
           rows={stuck.rows}
           checked={stuck.checked}
-          onClose={() => { track("ai_result_dismissed", { action: "find_stuck", how: "close" }); setStuckOpen(false); }}
+          summary={stuck.summary}
+          ai={stuck.ai}
+          onClose={() => { track("ai_result_dismissed", { action: "find_stuck", how: "close" }); setStuckRes(null); }}
           onOpen={(r: StuckRow) => startEdit(r.task)}
           onSetDate={(r: StuckRow, day: string) => {
             const before = r.task.due_at;

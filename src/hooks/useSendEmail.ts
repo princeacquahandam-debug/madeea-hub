@@ -54,6 +54,8 @@ export interface SendInput {
   replyToOutlookId?: string | null;
   /** Which mailbox sends it. Defaults to Gmail, which is what shipped first. */
   provider?: MailProvider;
+  /** Started from an AI draft. Only a yes/no, for PostHog's message_sent (0094). */
+  aiDrafted?: boolean;
 }
 
 const FUNCTION: Record<MailProvider, string> = {
@@ -91,6 +93,7 @@ export function useSendEmail() {
           // in step with the two functions.
           in_reply_to: input.inReplyTo ?? undefined,
           reply_to_outlook_id: input.replyToOutlookId ?? undefined,
+          ai_drafted: input.aiDrafted === true,
         },
       });
 

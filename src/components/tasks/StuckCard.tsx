@@ -7,14 +7,21 @@ import { APPROVAL_DAYS, STALE_DAYS, nextWorkingDay, type StuckRow } from "@/lib/
  * board, with the stuck cards outlined on the board itself (Tasks.tsx). One row
  * per task: title · why it's stuck · days stuck · one action. Five at most,
  * then "Show N more". The source line states the thresholds used.
+ *
+ * Since 27 Oct 2026 the AI decides what is stuck (lib/taskStuckAi): each row
+ * then carries a next step, and the source line says the AI read the board.
+ * When it can't be reached the rules answer, and the summary says so.
  */
 const SHOWN = 5;
 
 export function StuckCard({
-  rows, checked, onClose, onOpen, onSetDate, onNudge,
+  rows, checked, summary, ai, onClose, onOpen, onSetDate, onNudge,
 }: {
   rows: StuckRow[];
   checked: number;
+  summary?: string;
+  /** True when the AI made the list; false for the rules. */
+  ai?: boolean;
   onClose: () => void;
   onOpen: (row: StuckRow) => void;
   onSetDate: (row: StuckRow, day: string) => void;
@@ -36,14 +43,17 @@ export function StuckCard({
             {rows.length ? `${rows.length} stuck ${rows.length === 1 ? "task" : "tasks"}` : "Nothing is stuck"}
           </h2>
           <p className="text-xs text-faint">
-            Madeline · {checked} open {checked === 1 ? "task" : "tasks"} checked · Stuck = overdue, blocked, no update in {STALE_DAYS}+ days, or waiting for approval {APPROVAL_DAYS}+ days
+            Madeline · {checked} open {checked === 1 ? "task" : "tasks"} checked · {ai
+              ? "Read with each task's time in its stage, due date and blockers"
+              : <>Stuck = overdue, blocked, no update in {STALE_DAYS}+ days, or waiting for approval {APPROVAL_DAYS}+ days</>}
           </p>
+          {summary && <p className="mt-1 text-sm text-muted">{summary}</p>}
         </div>
         <button onClick={onClose} aria-label="Close" className="icon-btn text-faint hover:text-text"><X size={16} /></button>
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-muted">Nothing is stuck. Every open task moved in the last {STALE_DAYS} days.</p>
+        <p className="text-sm text-muted">{ai ? "Nothing is stuck. Every open task is moving." : `Nothing is stuck. Every open task moved in the last ${STALE_DAYS} days.`}</p>
       ) : (
         <ul className="divide-y divide-border">
           {shown.map((r) => (
@@ -63,6 +73,7 @@ export function StuckCard({
                 ? <span className="inline-flex h-7 items-center gap-1 text-xs font-semibold text-emerald-600"><Check size={12} /> Nudged</span>
                 : <button className={actionBtn} onClick={() => { onNudge(r); setNudged((s) => new Set(s).add(r.task.id)); }}><MessageSquare size={12} /> Nudge assignee</button>)}
               {r.action === "open" && <button className={actionBtn} onClick={() => onOpen(r)}>Open</button>}
+              {r.next && <p className="w-full text-xs text-faint">Next: {r.next}</p>}
             </li>
           ))}
         </ul>

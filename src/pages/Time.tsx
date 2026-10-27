@@ -15,6 +15,7 @@ import { useClockGate } from "@/components/ClockGates";
 import type { MonitoringStatus } from "@/hooks/useMonitoring";
 import { useClientContext } from "@/store/clientContext";
 import { surfaceLabel } from "@/components/client/format";
+import { fmtTime, isValidZone, useTimeZone, zoneCity } from "@/lib/userTimeZone";
 
 /**
  * 30720 -> "8:32". Hours and minutes, which is how a timesheet is read and how
@@ -73,6 +74,23 @@ export default function Time() {
   const [note, setNote] = useState("");
   const [earlyReason, setEarlyReason] = useState("");
   const [askEarly, setAskEarly] = useState(false);
+
+  /* Every time on this page is in YOUR time zone (Settings), not the
+     computer's, so Reich's "one zone everywhere" holds here too. A client in
+     another zone also gets their own local time beside their name. */
+  const zone = useTimeZone();
+  const zoneOf = (id: string | null | undefined) => {
+    const tz = clients.find((c) => c.id === id)?.timezone;
+    return isValidZone(tz) && tz !== zone ? tz : null;
+  };
+  const clientClock = (id: string | null | undefined) => {
+    const tz = zoneOf(id);
+    return tz ? `${fmtTime(now, tz)} in ${zoneCity(tz)}` : null;
+  };
+  const clientSpan = (e: TimeEntry) => {
+    const tz = zoneOf(e.client_id);
+    return tz ? `${fmtTime(e.started_at, tz)} – ${e.ended_at ? fmtTime(e.ended_at, tz) : "now"} in ${zoneCity(tz)}` : undefined;
+  };
 
   const today = workDate();
   const [range, setRange] = useState<Range>("today");
@@ -265,9 +283,9 @@ export default function Time() {
           <span className="ml-auto mt-1 flex items-center gap-1.5 text-xs text-muted">
             <span className={`h-1.5 w-1.5 rounded-full ${running ? "bg-emerald-500" : paused ? "bg-amber-500" : "bg-[rgb(var(--c-faint))]"}`} />
             {running
-              ? `Clocked in since ${new Date(running.started_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+              ? `Clocked in since ${fmtTime(running.started_at, zone)}`
               : paused
-                ? `Paused since ${new Date(paused.ended_at!).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+                ? `Paused since ${fmtTime(paused.ended_at!, zone)}`
                 : "Not clocked in"}
           </span>
         </div>
@@ -286,6 +304,7 @@ export default function Time() {
                 {running.client_name ?? "No client"}
                 {running.note?.trim() ? ` · ${running.note}` : ""}
               </p>
+              {clientClock(running.client_id) && <p className="text-xs text-faint">It's {clientClock(running.client_id)}</p>}
             </div>
 
             <div className="ml-auto flex flex-col items-end gap-2">
@@ -335,6 +354,7 @@ export default function Time() {
                 <option value="">{clients.length ? "Select a client" : "No clients assigned to you"}</option>
                 {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
+              {clientClock(clientId) && <p className="mt-1 text-xs text-faint">It's {clientClock(clientId)}</p>}
             </div>
             <div className="min-w-[220px] flex-[1.4]">
               {/* Replaces "What are you working on?". An EA does email, a Zoom
@@ -436,10 +456,10 @@ export default function Time() {
                 <div className="space-y-1">
                   {rows.map((e) => (
                     <div key={e.id} className="group flex items-center gap-3 rounded-lg bg-surface-2 px-3 py-2">
-                      <span className="w-[104px] shrink-0 text-xs tabular-nums text-faint">
-                        {new Date(e.started_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      <span className="w-[128px] shrink-0 text-xs tabular-nums text-faint" title={clientSpan(e)}>
+                        {fmtTime(e.started_at, zone)}
                         {" – "}
-                        {e.ended_at ? new Date(e.ended_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "now"}
+                        {e.ended_at ? fmtTime(e.ended_at, zone) : "now"}
                       </span>
                       <span className="min-w-0 flex-1 truncate text-sm">
                         {e.client_name ?? <span className="text-faint">No client</span>}
@@ -528,14 +548,13 @@ function CapturePanel({ capture, minutes }: { capture: MonitoringStatus; minutes
             {capture.state === "capturing"
               ? `Sharing your ${capture.surface && capture.surface !== "unknown" ? surfaceLabel(capture.surface) : "screen"}. A screenshot every ${minutes} minutes.` +
                 (capture.lastCaptureAt
-                  ? ` Last at ${capture.lastCaptureAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}, ` +
+                  ? ` Last at ${fmtTime(capture.lastCaptureAt)}, ` +
                     /* The next one, worked out from the last rather than from a
                        countdown: a number that ticks invites watching, and the
                        question people have is "is this still running", not
                        "how many seconds". Approximate on purpose, because the
                        interval is randomised so captures cannot be timed. */
-                    `next around ${new Date(capture.lastCaptureAt.getTime() + minutes * 60_000)
-                      .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`
+                    `next around ${fmtTime(capture.lastCaptureAt.getTime() + minutes * 60_000)}.`
                   : " Waiting for the first screenshot.")
               : `Screenshots every ${minutes} minutes while you are clocked in. Your browser has to ask you first.`}
           </p>
