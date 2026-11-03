@@ -9,7 +9,7 @@ import { Avatar } from "@/components/Avatar";
 import { SlaBadge, TrendArrow, TREND_LABEL } from "@/components/SlaBadge";
 import { ClientActivity } from "@/components/ClientActivity";
 import { AssigneeAvatar } from "@/components/Assignee";
-import { useWorkspaceMembers } from "@/data/hooks";
+import { useReadyRoster, useWorkspaceMembers } from "@/data/hooks";
 import { useClientLogins, useClients, useTasks, useMeetings, useMessages, useClientMutations } from "@/data/hooks";
 import { useSlaSettings } from "@/store/slaSettings";
 import { clientSla, dayLength, formatDuration } from "@/lib/sla";
@@ -32,6 +32,9 @@ export default function ClientVault() {
   const { data: messages = [] } = useMessages();
   const { create, update, remove } = useClientMutations();
   const { data: members = [] } = useWorkspaceMembers();
+  // Made Ready Academy status for the Lead EA picker (0096). Null = can't tell; no warning then.
+  const { data: ready = null } = useReadyRoster(true);
+  const readyOf = (uid: string) => ready?.find((r) => r.user_id === uid);
   const cfg = useSlaSettings((s) => s.config);
   const dl = dayLength(cfg);
   const [open, setOpen] = useState<Client | null>(null);
@@ -421,8 +424,28 @@ export default function ClientVault() {
             <label className="field-label" htmlFor="client-lead">Lead EA</label>
             <select id="client-lead" className="input" value={form.lead_ea_id} onChange={set("lead_ea_id")}>
               <option value="">No lead EA</option>
-              {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}
+              {members.map((m) => (
+                <option key={m.user_id} value={m.user_id}>
+                  {m.name}{readyOf(m.user_id) && !readyOf(m.user_id)!.made_ready ? " (not Made Ready yet)" : ""}
+                </option>
+              ))}
             </select>
+            {/* The course is meant to be finished before client onboarding
+                (Made Ready outline, Nov 2026). A warning, not a block: the
+                team decides, but nobody assigns a client without knowing. */}
+            {(() => {
+              const r = form.lead_ea_id ? readyOf(form.lead_ea_id) : undefined;
+              if (!r || r.made_ready) return null;
+              const name = members.find((m) => m.user_id === form.lead_ea_id)?.name ?? "This EA";
+              return (
+                <p role="status" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.06] px-3 py-2 text-[12.5px] leading-snug">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-400" />
+                  <span>
+                    {name} hasn't finished the Made Ready Academy yet ({r.modules_passed} of {r.modules_total} quizzes, {r.practicals_passed} of {r.practicals_total} practicals passed). The course is meant to be done before client onboarding. You can still save.
+                  </span>
+                </p>
+              );
+            })()}
           </div>
           {/* Set at onboarding (19 Oct 2026), so everyone sees the client's
               own time before scheduling or messaging them. */}

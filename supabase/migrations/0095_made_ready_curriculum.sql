@@ -689,7 +689,7 @@ $t$Remote trust is built through reliability you can see.
 
 Over time, trust means your executive delegates more, and that is where you add the most value.$t$);
     insert into academy_lessons (module_id, title, kind, minutes, position, body) values (m10, $t$Final client simulation (90 minutes)$t$, 'practical', 90, 6,
-$t$Capstone. Your work is reviewed by an admin. Your trainer gives you the scenario materials when you start.
+$t$Capstone. Your work is reviewed by an admin. Everything you need is on this page: the CEO's profile, the calendar and the files. Press Start when you have 90 uninterrupted minutes. Emails keep arriving while the clock runs.
 
 You are supporting a CEO. During the 90 minutes:
 • 18 emails arrive

@@ -540,7 +540,7 @@ For urgent requests: confirm what "urgent" means (within the hour or today), rep
 
 Over time, trust means your executive delegates more, and that is where you add the most value.`),
   L(10, 6, "Final client simulation (90 minutes)", "practical", 90,
-`Capstone. Your work is reviewed by an admin. Your trainer gives you the scenario materials when you start.
+`Capstone. Your work is reviewed by an admin. Everything you need is on this page: the CEO's profile, the calendar and the files. Press Start when you have 90 uninterrupted minutes. Emails keep arriving while the clock runs.
 
 You are supporting a CEO. During the 90 minutes:
 • 18 emails arrive

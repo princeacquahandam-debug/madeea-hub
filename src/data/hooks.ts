@@ -2806,6 +2806,66 @@ export function useAcademyResources() {
   });
 }
 
+/**
+ * Marking guides for the practicals (0096), keyed by lesson id. Admins only:
+ * RLS returns nothing to anyone else, and the guides are not in the bundle, so
+ * demo mode has none.
+ */
+export function useAcademyTrainerNotes(enabled: boolean) {
+  return useQuery<Record<string, string>>({
+    queryKey: ["academy-trainer-notes"],
+    enabled,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      if (!supabase) return {};
+      const { data, error } = await supabase.from("academy_trainer_notes").select("lesson_id,notes");
+      if (error) return {};
+      return Object.fromEntries((data ?? []).map((r) => [r.lesson_id as string, r.notes as string]));
+    },
+    retry: false,
+  });
+}
+
+export interface ReadyRow {
+  user_id: string;
+  modules_passed: number;
+  modules_total: number;
+  practicals_passed: number;
+  practicals_total: number;
+  made_ready: boolean;
+}
+
+/**
+ * Who has finished the Made Ready Academy, for the Lead EA picker (0096).
+ * Managers can't read other people's attempts, so this goes through a function
+ * that returns counts and a yes/no only. Null when it can't be told (0096 not
+ * run, or not a manager), and then the picker simply shows no warning.
+ */
+export function useReadyRoster(enabled: boolean) {
+  return useQuery<ReadyRow[] | null>({
+    queryKey: ["academy-ready-roster"],
+    enabled,
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!supabase) {
+        const passed = new Set(loadDemoAttempts().filter((a) => a.passed).map((a) => a.module_id)).size;
+        const modules = academy.MODULES.length;
+        const practicals = academy.LESSONS.filter((l) => l.kind === "practical").length;
+        const practicalsPassed = loadDemoSubmissions().filter((x) => x.status === "passed").length;
+        return demoMembers().map((m) => {
+          const mp = m.is_me ? passed : 0, pp = m.is_me ? practicalsPassed : 0;
+          return { user_id: m.user_id, modules_passed: mp, modules_total: modules, practicals_passed: pp, practicals_total: practicals,
+            made_ready: mp >= modules && pp >= practicals };
+        });
+      }
+      const { data, error } = await supabase.rpc("academy_ready_roster");
+      if (error || !data || (data as ReadyRow[]).length === 0) return null;
+      return data as ReadyRow[];
+    },
+    retry: false,
+  });
+}
+
 export function useAcademyMutations() {
   const qc = useQueryClient();
 
@@ -2907,6 +2967,7 @@ export function useAcademyMutations() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["academy-submissions"] });
       qc.invalidateQueries({ queryKey: ["academy-roster"] });
+      qc.invalidateQueries({ queryKey: ["academy-ready-roster"] });
     },
   });
 

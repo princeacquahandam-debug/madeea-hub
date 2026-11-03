@@ -1,4 +1,5 @@
 import { LoomVideos } from "@/components/LoomVideos";
+import { SimulationPack } from "@/components/academy/SimulationPack";
 import { Fragment, useMemo, useState } from "react";
 import {
   ArrowLeft, ArrowRight, Award, BookOpen, Check, CircleCheckBig, ClipboardCheck, FlaskConical, Library, Link2, Lock,
@@ -7,9 +8,10 @@ import {
 import { PageHeader, Badge } from "@/components/ui";
 import { atLeast,
   useAcademyAttempts, useAcademyCourse, useAcademyMutations, useAcademyProgress, useAcademyResources,
-  useAcademyRoster, useAcademySubmissions, useMyRole, useWorkspaceMembers,
+  useAcademyRoster, useAcademySubmissions, useAcademyTrainerNotes, useMyRole, useWorkspaceMembers,
 } from "@/data/hooks";
 import { CERTIFICATE_TITLE, DAY_TITLES } from "@/data/academySeed";
+import { isSimulationLesson } from "@/data/academySimulation";
 import type { AcademyLesson, AcademyModule, AcademySubmission, GradeResult, LessonKind, SubmissionStatus } from "@/types/db";
 import { cn } from "@/lib/utils";
 
@@ -142,6 +144,8 @@ export default function Academy() {
         {openLesson.body && (
           <p className="mb-6 whitespace-pre-line text-[15px] leading-relaxed text-muted">{openLesson.body}</p>
         )}
+
+        {openLesson.kind === "practical" && isSimulationLesson(openLesson.title) && <SimulationPack lessonId={openLesson.id} />}
 
         {openLesson.kind === "practical" ? (
           <PracticalPanel lesson={openLesson} submission={submissionFor(openLesson.id)} />
@@ -606,6 +610,7 @@ function ReviewQueue({ lessons, moduleNo }: { lessons: AcademyLesson[]; moduleNo
   const { data: rows = [], isLoading } = useAcademySubmissions("team");
   const { data: members = [] } = useWorkspaceMembers();
   const { reviewPractical } = useAcademyMutations();
+  const { data: guides = {} } = useAcademyTrainerNotes(true);
   const [feedback, setFeedback] = useState<Record<string, string>>({});
   const [error, setError] = useState<Record<string, string>>({});
   const name = (id: string) => members.find((m) => m.user_id === id)?.name ?? "Unknown";
@@ -641,6 +646,12 @@ function ReviewQueue({ lessons, moduleNo }: { lessons: AcademyLesson[]; moduleNo
                   <span className="text-[12px] text-faint">sent {new Date(s.submitted_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
                 </div>
                 <p className="whitespace-pre-line rounded-xl border border-border px-4 py-3 text-[14px] leading-relaxed"><Linked text={s.body} /></p>
+                {guides[s.lesson_id] && (
+                  <details className="rounded-xl border border-border bg-black/10">
+                    <summary className="cursor-pointer px-4 py-2.5 text-[13px] font-semibold">Marking guide</summary>
+                    <p className="whitespace-pre-line border-t border-border px-4 py-3 text-[13px] leading-relaxed text-muted">{guides[s.lesson_id]}</p>
+                  </details>
+                )}
                 <textarea
                   className="input min-h-[70px] w-full py-2 text-[14px]"
                   placeholder="Feedback for them (needed if you send it back)"
