@@ -597,7 +597,8 @@ export interface Generation {
  * lives in a table the API cannot read, and grading happens in Postgres. That
  * is the difference between a gate and a suggestion.
  */
-export type LessonKind = "reading" | "video" | "simulation";
+/** practical: the learner submits work and an admin passes it or sends it back (0095). */
+export type LessonKind = "reading" | "video" | "simulation" | "practical";
 
 export interface AcademyModule {
   id: string;
@@ -657,4 +658,30 @@ export interface AcademyStatus {
   modules_total: number;
   modules_passed: number;
   last_passed_at: string | null;
+  /** 0095. Made Ready also needs every practical assessment passed. */
+  practicals_total: number;
+  practicals_passed: number;
+}
+
+export type SubmissionStatus = "submitted" | "passed" | "needs_work";
+
+/** A practical assessment handed in for review (0095). */
+export interface AcademySubmission {
+  id: string;
+  user_id: string;
+  lesson_id: string;
+  body: string;
+  status: SubmissionStatus;
+  feedback: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  submitted_at: string;
+}
+
+export interface AcademyResource {
+  id: string;
+  title: string;
+  /** Null until the resource exists; the Training Center says it's being prepared. */
+  url: string | null;
+  position: number;
 }

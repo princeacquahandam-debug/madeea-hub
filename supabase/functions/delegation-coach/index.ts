@@ -42,7 +42,7 @@ const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 /** MadeEA's own n8n. Overridable by env so a staging flow does not need a redeploy. */
 const WEBHOOK = Deno.env.get("DELEGATION_WEBHOOK_URL")
-  ?? "https://madeeas.app.n8n.cloud/webhook/delegate/ai";
+  ?? "https://n8n.madeea.io/webhook/delegate/ai";
 
 const line = (label: string, v: unknown) => (v ? `${label}: ${v}\n` : "");
 

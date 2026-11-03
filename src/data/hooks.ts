@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { edgeFailure } from "@/lib/edgeError";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MailConnection, MailProvider, Integration, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, KbScope, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MailConnection, MailProvider, Integration, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, KbScope, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult, AcademySubmission, AcademyResource, SubmissionStatus } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
@@ -15,7 +15,7 @@ import { addDemoRecording, loadDemoRecordings, removeDemoRecording } from "@/sto
 import { addDemoActivity, addDemoComment, loadDemoActivity, loadDemoComments, removeDemoComment } from "@/store/demoComments";
 import { addDemoFile, addDemoSaved, loadDemoFiles, loadDemoSaved, removeDemoFile, removeDemoSaved } from "@/store/demoFiles";
 import { addDemoRoutine, claimDemoRun, loadDemoRoutines, removeDemoRoutine, updateDemoRoutine } from "@/store/demoRoutines";
-import { addDemoAttempt, loadDemoAttempts, loadDemoProgress, setDemoProgress } from "@/store/demoAcademy";
+import { addDemoAttempt, loadDemoAttempts, loadDemoProgress, loadDemoResourceLinks, loadDemoSubmissions, saveDemoSubmission, setDemoProgress, setDemoResourceLink } from "@/store/demoAcademy";
 import * as academy from "@/data/academySeed";
 import { isoDate, nextOccurrences } from "@/lib/recurrence";
 import type { Sealed } from "@/lib/vault";
@@ -2742,16 +2742,65 @@ export function useAcademyRoster(enabled: boolean) {
         // others are shown as not started rather than invented as complete.
         const passed = new Set(loadDemoAttempts().filter((a) => a.passed).map((a) => a.module_id));
         const total = academy.MODULES.filter((m) => m.is_published).length;
+        const practicals = academy.LESSONS.filter((l) => l.kind === "practical").length;
+        const practicalsPassed = loadDemoSubmissions().filter((x) => x.status === "passed").length;
         return demoMembers().map((m) => ({
           user_id: m.user_id,
           modules_total: total,
           modules_passed: m.is_me ? passed.size : 0,
           last_passed_at: m.is_me ? (loadDemoAttempts().find((a) => a.passed)?.created_at ?? null) : null,
+          practicals_total: practicals,
+          practicals_passed: m.is_me ? practicalsPassed : 0,
         }));
       }
       const { data, error } = await supabase.from("academy_status").select("*");
       if (error) return [];
       return data as AcademyStatus[];
+    },
+    retry: false,
+  });
+}
+
+/**
+ * Practical assessments (0095). "mine" is the signed-in learner's own work;
+ * "team" is everyone's, for the admin review queue (RLS returns only your own
+ * rows to anyone who isn't an admin).
+ */
+export function useAcademySubmissions(scope: "mine" | "team", enabled = true) {
+  return useQuery<AcademySubmission[]>({
+    queryKey: ["academy-submissions", scope],
+    enabled,
+    queryFn: async () => {
+      if (!supabase) return loadDemoSubmissions();
+      let q = supabase.from("academy_submissions")
+        .select("id,user_id,lesson_id,body,status,feedback,reviewed_by,reviewed_at,submitted_at")
+        .order("submitted_at", { ascending: true });
+      if (scope === "mine") {
+        const { data: auth } = await supabase.auth.getUser();
+        if (!auth.user) return [];
+        q = q.eq("user_id", auth.user.id);
+      }
+      const { data, error } = await q;
+      if (error) return []; // 0095 not run yet
+      return data as AcademySubmission[];
+    },
+    retry: false,
+  });
+}
+
+/** "Resources Included" from the course outline, with links as they are added. */
+export function useAcademyResources() {
+  return useQuery<AcademyResource[]>({
+    queryKey: ["academy-resources"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!supabase) {
+        const links = loadDemoResourceLinks();
+        return academy.RESOURCES.map((title, i) => ({ id: `ar-${i + 1}`, title, url: links[`ar-${i + 1}`] ?? null, position: i + 1 }));
+      }
+      const { data, error } = await supabase.from("academy_resources").select("id,title,url,position").order("position");
+      if (error) return [];
+      return data as AcademyResource[];
     },
     retry: false,
   });
@@ -2814,7 +2863,63 @@ export function useAcademyMutations() {
     },
   });
 
-  return { setLessonDone, grade };
+  /** Hand in (or hand in again) a practical. Also marks the lesson done, so the quiz can open while it waits for review. */
+  const submitPractical = useMutation({
+    mutationFn: async ({ lessonId, body, existing }: { lessonId: string; body: string; existing?: AcademySubmission }) => {
+      if (!supabase) {
+        saveDemoSubmission({
+          id: existing?.id ?? demoId(), user_id: DEMO_ME, lesson_id: lessonId, body,
+          status: "submitted", feedback: existing?.feedback ?? null, reviewed_by: null, reviewed_at: null,
+          submitted_at: new Date().toISOString(),
+        });
+        setDemoProgress(lessonId, true);
+        return;
+      }
+      const { data: auth } = await supabase.auth.getUser();
+      // The database forces status back to 'submitted' whatever is sent.
+      const { error } = existing
+        ? await supabase.from("academy_submissions").update({ body }).eq("id", existing.id)
+        : await supabase.from("academy_submissions").insert({ lesson_id: lessonId, body, user_id: auth.user?.id });
+      if (error) throw error;
+      await supabase.from("academy_progress")
+        .upsert({ lesson_id: lessonId, user_id: auth.user?.id }, { onConflict: "user_id,lesson_id" });
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["academy-submissions"] });
+      qc.invalidateQueries({ queryKey: ["academy-progress"] });
+    },
+  });
+
+  /** An admin's verdict on someone else's practical. */
+  const reviewPractical = useMutation({
+    mutationFn: async ({ submission, status, feedback }: { submission: AcademySubmission; status: Exclude<SubmissionStatus, "submitted">; feedback: string }) => {
+      const fb = feedback.trim() || null;
+      if (!supabase) {
+        saveDemoSubmission({ ...submission, status, feedback: fb, reviewed_by: DEMO_ME, reviewed_at: new Date().toISOString() });
+        return;
+      }
+      const { data, error } = await supabase.from("academy_submissions")
+        .update({ status, feedback: fb }).eq("id", submission.id).select("status").single();
+      if (error) throw error;
+      // The trigger quietly keeps 'submitted' when an admin reviews their own work.
+      if (data?.status !== status) throw new Error("Your own work has to be reviewed by another admin.");
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["academy-submissions"] });
+      qc.invalidateQueries({ queryKey: ["academy-roster"] });
+    },
+  });
+
+  const setResourceLink = useMutation({
+    mutationFn: async ({ id, url }: { id: string; url: string | null }) => {
+      if (!supabase) { setDemoResourceLink(id, url); return; }
+      const { error } = await supabase.from("academy_resources").update({ url }).eq("id", id);
+      if (error) throw error;
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["academy-resources"] }),
+  });
+
+  return { setLessonDone, grade, submitPractical, reviewPractical, setResourceLink };
 }
 
 // ---------------- alert routing (migration 0036) ----------------
