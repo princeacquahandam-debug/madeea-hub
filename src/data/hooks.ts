@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { edgeFailure } from "@/lib/edgeError";
 import * as seed from "@/data/seed";
-import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MailConnection, MailProvider, Integration, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, KbScope, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult, AcademySubmission, AcademyResource, SubmissionStatus } from "@/types/db";
+import type { Task, TaskStatus, Client, Meeting, Message, MailboxSync, MailConnection, MailProvider, Integration, MeetingNote, MeetingDecision, FathomSyncState, Automation, Sop, SopRun, AutomationRun, Reminder, Snooze, TaskEvent, EodReport, TimeEntry, Recording, TaskComment, TaskActivity, WorkspaceFile, KbScope, SavedItem, Routine, Credential, AcademyModule, AcademyLesson, AcademyQuestion, AcademyAttempt, AcademyStatus, GradeResult, AcademySubmission, AcademyResource, SubmissionStatus, AcademyPlan } from "@/types/db";
 import type { ClientDoc } from "@/lib/meetingPrep";
 import type { MemoryEntry } from "@/lib/memory";
 import type { Note } from "@/lib/notes";
@@ -15,7 +15,7 @@ import { addDemoRecording, loadDemoRecordings, removeDemoRecording } from "@/sto
 import { addDemoActivity, addDemoComment, loadDemoActivity, loadDemoComments, removeDemoComment } from "@/store/demoComments";
 import { addDemoFile, addDemoSaved, loadDemoFiles, loadDemoSaved, removeDemoFile, removeDemoSaved } from "@/store/demoFiles";
 import { addDemoRoutine, claimDemoRun, loadDemoRoutines, removeDemoRoutine, updateDemoRoutine } from "@/store/demoRoutines";
-import { addDemoAttempt, loadDemoAttempts, loadDemoProgress, loadDemoResourceLinks, loadDemoSubmissions, saveDemoSubmission, setDemoProgress, setDemoResourceLink } from "@/store/demoAcademy";
+import { addDemoAttempt, loadDemoAttempts, loadDemoPlans, loadDemoProgress, loadDemoResourceLinks, loadDemoSubmissions, saveDemoPlan, saveDemoSubmission, setDemoProgress, setDemoResourceLink } from "@/store/demoAcademy";
 import * as academy from "@/data/academySeed";
 import { isoDate, nextOccurrences } from "@/lib/recurrence";
 import type { Sealed } from "@/lib/vault";
@@ -1269,21 +1269,42 @@ export const atLeast = (role: string | null | undefined, min: MemberRole): boole
   (ROLE_RANK[role ?? ""] ?? 0) >= (ROLE_RANK[min] ?? 0);
 
 /**
- * What to call a role on screen.
+ * What to call an ACCESS level on screen.
  *
- * "EA" rather than "Employee", for both spellings of the same rank. This is an
- * EA agency: the people in it are EAs to their clients, to each other and on
- * every other screen in the product, and "Employee" was the only place that
- * called them something else.
+ * Was "EA" for both spellings of the lowest rank, when everyone in the
+ * workspace was an EA. Since 30 Oct 2026 the EOS also serves AI Specialists,
+ * Marketing Specialists and operations roles, so the access level says
+ * "Team member" and the job lives in job_function (0098, JOB_FUNCTION_LABEL).
  *
  * The stored VALUES are untouched — rows still carry "ea" or "employee", and
- * ROLE_RANK still ranks them identically. Renaming what a role is called is a
- * label change; renaming what it IS would mean rewriting live rows to no
- * purpose.
+ * ROLE_RANK still ranks them identically.
  */
 export const ROLE_LABEL: Record<string, string> = {
-  owner: "Owner", admin: "Admin", manager: "Manager", employee: "EA", ea: "EA",
+  owner: "Owner", admin: "Admin", manager: "Manager", employee: "Team member", ea: "Team member",
 };
+
+/**
+ * What someone does (0098), as opposed to what they may access (role). It
+ * grants nothing: labels, Madeline's framing and which training applies.
+ */
+export type JobFunction = "ea" | "ai_specialist" | "marketing_specialist" | "operations" | "other";
+
+export const JOB_FUNCTIONS: JobFunction[] = ["ea", "ai_specialist", "marketing_specialist", "operations", "other"];
+
+export const JOB_FUNCTION_LABEL: Record<JobFunction, string> = {
+  ea: "Executive Assistant",
+  ai_specialist: "AI Specialist",
+  marketing_specialist: "Marketing Specialist",
+  operations: "Operations",
+  other: "Support",
+};
+
+/** "Executive Assistant", or "Admin · Operations" for the people who run things. */
+export function memberTitle(role: string | null | undefined, fn: JobFunction | null | undefined): string {
+  const job = fn ? JOB_FUNCTION_LABEL[fn] : null;
+  if (atLeast(role, "manager")) return job ? `${ROLE_LABEL[role!]} · ${job}` : ROLE_LABEL[role!];
+  return job ?? ROLE_LABEL[role ?? "employee"] ?? "Team member";
+}
 
 /** One line on what the role is for, shown beside the picker. */
 export const ROLE_BLURB: Record<string, string> = {
@@ -1296,6 +1317,8 @@ export const ROLE_BLURB: Record<string, string> = {
 export interface Member {
   user_id: string;
   role: MemberRole;
+  /** 0098. Undefined until it runs. */
+  job_function?: JobFunction;
   name: string;
   initials: string;
   joined_at: string;
@@ -1308,9 +1331,9 @@ export interface Member {
 // looked real and wasn't. They're derived from the demo tasks/clients below, the
 // same way live mode derives them.
 const DEMO_MEMBER_BASE: Omit<Member, "open_tasks" | "clients">[] = [
-  { user_id: "demo-1", role: "admin", name: "You (Admin)", initials: "AD", joined_at: "2026-01-10", is_me: true },
-  { user_id: "demo-2", role: "ea", name: "Bryan Sumait", initials: "BS", joined_at: "2026-03-02", is_me: false },
-  { user_id: "demo-3", role: "ea", name: "Belle Reyes", initials: "BR", joined_at: "2026-04-15", is_me: false },
+  { user_id: "demo-1", role: "admin", job_function: "operations", name: "You (Admin)", initials: "AD", joined_at: "2026-01-10", is_me: true },
+  { user_id: "demo-2", role: "ea", job_function: "ea", name: "Bryan Sumait", initials: "BS", joined_at: "2026-03-02", is_me: false },
+  { user_id: "demo-3", role: "ea", job_function: "ai_specialist", name: "Belle Reyes", initials: "BR", joined_at: "2026-04-15", is_me: false },
 ];
 
 function demoMembers(): Member[] {
@@ -1385,9 +1408,12 @@ export function useWorkspaceMembers() {
       if (!supabase) return applyDemo("members", demoMembers(), "user_id");
       const { data: auth } = await supabase.auth.getUser();
       const myId = auth.user?.id ?? "";
-      const { data: mem, error } = await supabase
-        .from("memberships").select("user_id, role, created_at").order("created_at", { ascending: true });
-      if (error) throw error;
+      const read = (cols: string) => supabase!.from("memberships").select(cols).order("created_at", { ascending: true });
+      let res = await read("user_id, role, job_function, created_at");
+      // 0098 not run yet: the column is missing, so read without it.
+      if (res.error) res = await read("user_id, role, created_at");
+      if (res.error) throw res.error;
+      const mem = (res.data ?? []) as unknown as { user_id: string; role: string; job_function?: JobFunction; created_at: string }[];
       const ids = (mem ?? []).map((m) => m.user_id);
       const [profsRes, tasksRes, clientsRes] = await Promise.all([
         supabase.from("profiles").select("id, full_name, initials").in("id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]),
@@ -1402,6 +1428,7 @@ export function useWorkspaceMembers() {
       return (mem ?? []).map((m) => ({
         user_id: m.user_id,
         role: m.role as MemberRole,
+        job_function: m.job_function,
         name: pm[m.user_id]?.full_name ?? "Team member",
         initials: pm[m.user_id]?.initials ?? "EA",
         joined_at: m.created_at,
@@ -1436,7 +1463,22 @@ export function useMemberMutations() {
     },
     onSuccess: invalidate,
   });
-  return { setRole, remove };
+  const setFunction = useMutation({
+    mutationFn: async ({ user_id, job_function }: { user_id: string; job_function: JobFunction }) => {
+      if (!supabase) { demoPatch("members", user_id, { job_function }); return; }
+      const { data, error } = await supabase.from("memberships").update({ job_function }).eq("user_id", user_id).select("user_id");
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Change not saved. Admin rights required.");
+    },
+    onSuccess: invalidate,
+  });
+  return { setRole, remove, setFunction };
+}
+
+/** The signed-in person's job function (0098); undefined until known. */
+export function useMyFunction(): JobFunction | undefined {
+  const { data: members = [] } = useWorkspaceMembers();
+  return members.find((m) => m.is_me)?.job_function;
 }
 
 // Invite a teammate. The edge function verifies the caller is an admin and uses
@@ -2833,6 +2875,9 @@ export interface ReadyRow {
   practicals_passed: number;
   practicals_total: number;
   made_ready: boolean;
+  /** 0097. Missing until it runs. */
+  due_date?: string | null;
+  approved_at?: string | null;
 }
 
 /**
@@ -2854,13 +2899,32 @@ export function useReadyRoster(enabled: boolean) {
         const practicalsPassed = loadDemoSubmissions().filter((x) => x.status === "passed").length;
         return demoMembers().map((m) => {
           const mp = m.is_me ? passed : 0, pp = m.is_me ? practicalsPassed : 0;
+          const plan = loadDemoPlans().find((p) => p.user_id === m.user_id);
           return { user_id: m.user_id, modules_passed: mp, modules_total: modules, practicals_passed: pp, practicals_total: practicals,
-            made_ready: mp >= modules && pp >= practicals };
+            made_ready: mp >= modules && pp >= practicals, due_date: plan?.due_date ?? null, approved_at: plan?.approved_at ?? null };
         });
       }
       const { data, error } = await supabase.rpc("academy_ready_roster");
       if (error || !data || (data as ReadyRow[]).length === 0) return null;
       return data as ReadyRow[];
+    },
+    retry: false,
+  });
+}
+
+/**
+ * Training plans (0097): due dates and approval for client work. RLS returns
+ * your own row, or everyone's in the workspace to an admin. Empty until 0097 runs.
+ */
+export function useAcademyPlans() {
+  return useQuery<AcademyPlan[]>({
+    queryKey: ["academy-plans"],
+    queryFn: async () => {
+      if (!supabase) return loadDemoPlans();
+      const { data, error } = await supabase.from("academy_plan")
+        .select("user_id,due_date,approved_by,approved_at,approval_note");
+      if (error) return [];
+      return data as AcademyPlan[];
     },
     retry: false,
   });
@@ -2980,7 +3044,42 @@ export function useAcademyMutations() {
     onSettled: () => qc.invalidateQueries({ queryKey: ["academy-resources"] }),
   });
 
-  return { setLessonDone, grade, submitPractical, reviewPractical, setResourceLink };
+  const plansChanged = () => {
+    qc.invalidateQueries({ queryKey: ["academy-plans"] });
+    qc.invalidateQueries({ queryKey: ["academy-ready-roster"] });
+  };
+
+  /** An admin sets (or clears) the date someone should finish the course by. */
+  const setDueDate = useMutation({
+    mutationFn: async ({ userId, due }: { userId: string; due: string | null }) => {
+      if (!supabase) { saveDemoPlan(userId, { due_date: due }); return; }
+      const { error } = await supabase.rpc("academy_set_due", { p_user: userId, p_due: due });
+      if (error) throw error;
+    },
+    onSettled: plansChanged,
+  });
+
+  /**
+   * An admin signs someone off for client work, or takes it back. The database
+   * refuses self-approval and anyone not Made Ready; demo mode does the same.
+   */
+  const approve = useMutation({
+    mutationFn: async ({ userId, approve, note, madeReady }: { userId: string; approve: boolean; note?: string; madeReady: boolean }) => {
+      if (!supabase) {
+        if (userId === DEMO_ME) throw new Error("Someone else has to approve you.");
+        if (approve && !madeReady) throw new Error("They have to be Made Ready first.");
+        saveDemoPlan(userId, approve
+          ? { approved_by: DEMO_ME, approved_at: new Date().toISOString(), approval_note: note?.trim() || null }
+          : { approved_by: null, approved_at: null, approval_note: null });
+        return;
+      }
+      const { error } = await supabase.rpc("academy_approve", { p_user: userId, p_approve: approve, p_note: note ?? null });
+      if (error) throw new Error(error.message);
+    },
+    onSettled: plansChanged,
+  });
+
+  return { setLessonDone, grade, submitPractical, reviewPractical, setResourceLink, setDueDate, approve };
 }
 
 // ---------------- alert routing (migration 0036) ----------------

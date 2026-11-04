@@ -35,6 +35,13 @@ export default function ClientVault() {
   // Made Ready Academy status for the Lead EA picker (0096). Null = can't tell; no warning then.
   const { data: ready = null } = useReadyRoster(true);
   const readyOf = (uid: string) => ready?.find((r) => r.user_id === uid);
+  // approved_at is undefined (not null) until 0097 runs; then only Made Ready counts.
+  const readyNote = (uid: string) => {
+    const r = readyOf(uid);
+    if (!r) return "";
+    if (!r.made_ready) return " (not Made Ready yet)";
+    return r.approved_at === null ? " (not approved for client work yet)" : "";
+  };
   const cfg = useSlaSettings((s) => s.config);
   const dl = dayLength(cfg);
   const [open, setOpen] = useState<Client | null>(null);
@@ -426,7 +433,7 @@ export default function ClientVault() {
               <option value="">No lead EA</option>
               {members.map((m) => (
                 <option key={m.user_id} value={m.user_id}>
-                  {m.name}{readyOf(m.user_id) && !readyOf(m.user_id)!.made_ready ? " (not Made Ready yet)" : ""}
+                  {m.name}{readyNote(m.user_id)}
                 </option>
               ))}
             </select>
@@ -435,8 +442,14 @@ export default function ClientVault() {
                 team decides, but nobody assigns a client without knowing. */}
             {(() => {
               const r = form.lead_ea_id ? readyOf(form.lead_ea_id) : undefined;
-              if (!r || r.made_ready) return null;
+              if (!r || (r.made_ready && r.approved_at !== null)) return null;
               const name = members.find((m) => m.user_id === form.lead_ea_id)?.name ?? "This EA";
+              if (r.made_ready) return (
+                <p role="status" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.06] px-3 py-2 text-[12.5px] leading-snug">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-400" />
+                  <span>{name} is Made Ready but hasn't been approved for client work yet. An admin approves them in Training Center → Team. You can still save.</span>
+                </p>
+              );
               return (
                 <p role="status" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.06] px-3 py-2 text-[12.5px] leading-snug">
                   <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-400" />

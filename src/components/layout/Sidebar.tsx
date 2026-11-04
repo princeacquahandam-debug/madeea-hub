@@ -3,7 +3,7 @@ import { track } from "@/lib/analytics";
 import type { LucideIcon } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { ClientSwitcher } from "@/components/ClientSwitcher";
-import { atLeast, ROLE_LABEL } from "@/data/hooks";
+import { atLeast, memberTitle, useMyFunction } from "@/data/hooks";
 import {
   Settings as SettingsIcon,
   ChevronLeft,
@@ -92,6 +92,7 @@ import { cn } from "@/lib/utils";
 export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void; forceExpanded?: boolean }) {
   const { user } = useAuth();
   const { data: role } = useMyRole();
+  const fn = useMyFunction();
   const { sidebarCollapsed, toggleSidebar } = useUI();
   const { pathname } = useLocation();
   /* Filtered ONCE, and everything below reads this rather than NAV.
@@ -424,7 +425,7 @@ export function Sidebar({ onNavigate, forceExpanded }: { onNavigate?: () => void
                 for anybody whose title is not that. Read the real role. */}
             {/* One label source. This tested role === "admin" and said "Elite EA" for
                 everything else, so an owner and a manager both read as an EA. */}
-            <p className="truncate text-xs text-faint">{ROLE_LABEL[role ?? "employee"] ?? "EA"}</p>
+            <p className="truncate text-xs text-faint">{memberTitle(role, fn)}</p>
           </div>
           <SettingsIcon size={15} className="text-faint transition-colors group-hover:text-text" />
         </NavLink>

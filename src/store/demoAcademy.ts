@@ -5,7 +5,7 @@
  * the attempts table has no insert policy. Here anything in this file can write
  * one. Demo mode reviews the app; it does not certify anybody.
  */
-import type { AcademyAttempt, AcademySubmission } from "@/types/db";
+import type { AcademyAttempt, AcademyPlan, AcademySubmission } from "@/types/db";
 
 const P_KEY = "madeea-demo-academy-progress";
 const A_KEY = "madeea-demo-academy-attempts";
@@ -48,4 +48,16 @@ export const setDemoResourceLink = (id: string, url: string | null): void => {
   const links = loadDemoResourceLinks();
   if (url) links[id] = url; else delete links[id];
   localStorage.setItem(R_KEY, JSON.stringify(links));
+};
+
+// ── Due dates and approval for client work (0097) ──
+const PL_KEY = "madeea-demo-academy-plans";
+
+export const loadDemoPlans = (): AcademyPlan[] => read<AcademyPlan>(PL_KEY);
+
+export const saveDemoPlan = (userId: string, change: Partial<AcademyPlan>): void => {
+  const rows = loadDemoPlans();
+  const was = rows.find((p) => p.user_id === userId)
+    ?? { user_id: userId, due_date: null, approved_by: null, approved_at: null, approval_note: null };
+  write(PL_KEY, [{ ...was, ...change }, ...rows.filter((p) => p.user_id !== userId)]);
 };

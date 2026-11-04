@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { ShieldCheck, ArrowLeft, UserPlus, Trash2, ArrowUpCircle, ArrowDownCircle, Users, Lock } from "lucide-react";
 import { PageHeader } from "@/components/ui";
-import { ROLE_LABEL, ROLE_RANK, ROLE_BLURB, useGrantableRoles, useRoleCapabilities, type MemberRole, useMyRole, useWorkspaceMembers, useMemberMutations, useInviteMember, useTasks } from "@/data/hooks";
+import { JOB_FUNCTIONS, JOB_FUNCTION_LABEL, type JobFunction, memberTitle, ROLE_LABEL, ROLE_RANK, ROLE_BLURB, useGrantableRoles, useRoleCapabilities, type MemberRole, useMyRole, useWorkspaceMembers, useMemberMutations, useInviteMember, useTasks } from "@/data/hooks";
 import { AssigneeAvatar } from "@/components/Assignee";
 import { TimePolicyCard } from "@/components/TimePolicyCard";
 import { CredentialsHandover, StartingPassword } from "@/components/StartingPassword";
@@ -26,7 +26,7 @@ export default function Admin() {
   /* Each person's zone from Settings, so booking a handover across the team
      does not start with "what time is it for you?" (Reich's testing, 20 Oct 2026). */
   const { data: memberZones = {} } = useMemberTimeZones(members.map((m) => m.user_id));
-  const { setRole, remove } = useMemberMutations();
+  const { setRole, remove, setFunction } = useMemberMutations();
   const invite = useInviteMember();
   const [inviteRole, setInviteRole] = useState<MemberRole>("employee");
   const { data: tasks = [] } = useTasks();
@@ -67,7 +67,8 @@ export default function Admin() {
   /* Counted by rank rather than by an equality test, so an owner is included
      in "admins or above" instead of vanishing from both tallies. */
   const adminCount = members.filter((m) => ROLE_RANK[m.role] >= 30).length;
-  const eaCount = members.filter((m) => ROLE_RANK[m.role] <= 10).length;
+  // By job once 0098 has run (an EA can be a manager); by access level before.
+  const eaCount = members.filter((m) => (m.job_function ? m.job_function === "ea" : ROLE_RANK[m.role] <= 10)).length;
   const openTasks = members.reduce((n, m) => n + m.open_tasks, 0);
 
   async function sendInvite(e: React.FormEvent) {
@@ -111,6 +112,13 @@ export default function Admin() {
     setNotice(null);
     setRole.mutate({ user_id, role }, {
       onError: () => setNotice({ kind: "err", text: "Couldn't update role. Your account may not have admin rights." }),
+    });
+  }
+
+  function changeFunction(user_id: string, job_function: JobFunction) {
+    setNotice(null);
+    setFunction.mutate({ user_id, job_function }, {
+      onError: () => setNotice({ kind: "err", text: "Couldn't update their job. Your account may not have admin rights." }),
     });
   }
 
@@ -171,7 +179,7 @@ export default function Admin() {
                     {w.member.name}
                     {w.member.is_me && <span className="text-faint"> (you)</span>}
                   </p>
-                  <p className="truncate text-xs text-faint">{ROLE_LABEL[w.member.role] ?? w.member.role}</p>
+                  <p className="truncate text-xs text-faint">{memberTitle(w.member.role, w.member.job_function)}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-4 text-xs">
                   <span className="text-center">
@@ -344,6 +352,20 @@ export default function Admin() {
                         not a promote/demote pair. The list comes from the
                         database, so it can never offer something the server
                         will refuse. */}
+                    {/* What they do (0098), beside what they may access. */}
+                    {m.job_function && (
+                      <>
+                        <label className="sr-only" htmlFor={`fn-${m.user_id}`}>Job for {m.name}</label>
+                        <select
+                          id={`fn-${m.user_id}`}
+                          className="input h-8 w-auto py-0 text-xs"
+                          value={m.job_function}
+                          onChange={(e) => changeFunction(m.user_id, e.target.value as JobFunction)}
+                        >
+                          {JOB_FUNCTIONS.map((f) => <option key={f} value={f}>{JOB_FUNCTION_LABEL[f]}</option>)}
+                        </select>
+                      </>
+                    )}
                     <label className="sr-only" htmlFor={`role-${m.user_id}`}>Role for {m.name}</label>
                     <select
                       id={`role-${m.user_id}`}

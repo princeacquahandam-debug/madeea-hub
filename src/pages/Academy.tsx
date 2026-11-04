@@ -8,7 +8,7 @@ import {
 import { PageHeader, Badge } from "@/components/ui";
 import { atLeast,
   useAcademyAttempts, useAcademyCourse, useAcademyMutations, useAcademyProgress, useAcademyResources,
-  useAcademyRoster, useAcademySubmissions, useAcademyTrainerNotes, useMyRole, useWorkspaceMembers,
+  JOB_FUNCTION_LABEL, useAcademyPlans, useAcademyRoster, useAcademySubmissions, useAcademyTrainerNotes, useMyRole, useWorkspaceMembers,
 } from "@/data/hooks";
 import { CERTIFICATE_TITLE, DAY_TITLES } from "@/data/academySeed";
 import { isSimulationLesson } from "@/data/academySimulation";
@@ -107,6 +107,9 @@ export default function Academy() {
       .sort().at(-1) ?? null
     : null;
   const me = members.find((m) => m.is_me);
+  const { data: plans = [] } = useAcademyPlans();
+  const myPlan = me ? plans.find((p) => p.user_id === me.user_id) : undefined;
+  const approver = myPlan?.approved_by ? members.find((m) => m.user_id === myPlan.approved_by)?.name : undefined;
 
   if (isLoading) return <div><PageHeader title="Training Center" subtitle="Loading the course…" /></div>;
 
@@ -203,6 +206,14 @@ export default function Academy() {
         )}
       />
 
+      {/* The Made Ready course is the EA track. Other jobs (0098) are told so
+          rather than told to finish it before meeting a client. */}
+      {me?.job_function && me.job_function !== "ea" && tab === "course" && (
+        <p role="note" className="card mb-5 px-5 py-3 text-[13.5px] text-muted">
+          This course is the Executive Assistant track. Training for your role ({JOB_FUNCTION_LABEL[me.job_function]}) will be added here; you're welcome to take this one too.
+        </p>
+      )}
+
       {/* Training videos, recorded in Loom (19 Oct 2026 team meeting). */}
       <div id="videos" className="card mb-5 p-5">
         <LoomVideos sopId={null} title="Training videos" empty="No training videos yet. Managers can add a Loom link or record one here." />
@@ -226,6 +237,11 @@ export default function Academy() {
                 All {modules.length} modules and {practicals.length} practical assessments passed
                 {certifiedAt && <> · {new Date(certifiedAt).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}</>}
               </p>
+              <p className="mt-3 text-[13px] font-medium">
+                {myPlan?.approved_at
+                  ? <>Approved for client work{approver && <> by {approver}</>} on {longDate(myPlan.approved_at)}</>
+                  : <span className="text-muted">Waiting for an admin to approve you for client work.</span>}
+              </p>
             </div>
           ) : (
             <div className="card mb-6 flex flex-wrap items-center gap-4 p-5">
@@ -233,7 +249,10 @@ export default function Academy() {
                 <ShieldCheck size={24} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="font-bold">Not yet Made Ready</p>
+                <p className="font-bold">
+                  Not yet Made Ready
+                  {myPlan?.due_date && <DueBadge due={myPlan.due_date} />}
+                </p>
                 <p className="text-[13px] text-muted">
                   {quizzesPassed} of {modules.length} module quizzes passed · {practicalsPassed} of {practicals.length} practicals passed · {totalDone} of {allLessons.length} lessons complete
                 </p>
@@ -677,12 +696,42 @@ function ReviewQueue({ lessons, moduleNo }: { lessons: AcademyLesson[]; moduleNo
   );
 }
 
+// ------------------------------------------------------------ due dates
+const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local
+const longDate = (d: string) =>
+  new Date(d.length === 10 ? d + "T12:00:00" : d).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+
+/** "Due 20 Nov", red once the date has passed. Only shown while the course isn't finished. */
+function DueBadge({ due }: { due: string }) {
+  const late = due < today();
+  return (
+    <span className={cn("ml-2 align-middle text-[12px] font-semibold", late ? "text-red-400" : "text-muted")}>
+      {late ? "Overdue: was due " : "Due "}
+      {new Date(due + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+    </span>
+  );
+}
+
 // ------------------------------------------------- who has finished what
-/** R-5.2.3. Admins only, both here and in the RLS policy behind it. */
+/**
+ * R-5.2.3. Admins only, both here and in the RLS policy behind it.
+ * 0097 adds a finish-by date per person and the sign-off for client work.
+ */
 function Roster() {
   const { data: rows = [], isLoading } = useAcademyRoster(true);
   const { data: members = [] } = useWorkspaceMembers();
+  const { data: plans = [] } = useAcademyPlans();
+  const { setDueDate, approve } = useAcademyMutations();
+  const [error, setError] = useState<Record<string, string>>({});
   const name = (id: string) => members.find((m) => m.user_id === id)?.name ?? "Unknown";
+  const meId = members.find((m) => m.is_me)?.user_id;
+
+  async function run(uid: string, job: () => Promise<unknown>) {
+    setError((e) => ({ ...e, [uid]: "" }));
+    try { await job(); } catch (e) {
+      setError((x) => ({ ...x, [uid]: e instanceof Error ? e.message : "Couldn't save that." }));
+    }
+  }
 
   if (isLoading) return <div className="card p-6 text-sm text-faint">Loading…</div>;
 
@@ -690,7 +739,7 @@ function Roster() {
     <div className="card overflow-hidden">
       <div className="border-b border-border px-5 py-3">
         <p className="font-semibold">Made Ready status</p>
-        <p className="text-[12.5px] text-faint">Nobody should be handed to a client before this reads complete.</p>
+        <p className="text-[12.5px] text-faint">Give each person a date to finish by. Once they're Made Ready, approve them for client work; you can't approve yourself.</p>
       </div>
       <ul className="divide-y divide-border">
         {rows.map((r) => {
@@ -698,8 +747,10 @@ function Roster() {
           const pTotal = r.practicals_total ?? 0, pPassed = r.practicals_passed ?? 0;
           const complete = r.modules_total > 0 && r.modules_passed >= r.modules_total && pPassed >= pTotal;
           const started = r.modules_passed > 0 || pPassed > 0;
+          const plan = plans.find((p) => p.user_id === r.user_id);
+          const late = !complete && !!plan?.due_date && plan.due_date < today();
           return (
-            <li key={r.user_id} className="flex flex-wrap items-center gap-3 px-5 py-3">
+            <li key={r.user_id} className="flex flex-wrap items-center gap-3 px-5 py-3" data-person={r.user_id}>
               <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
                 complete ? "bg-emerald-500/15 text-emerald-400" : "bg-white/5 text-faint")}>
                 <ShieldCheck size={16} />
@@ -709,7 +760,43 @@ function Roster() {
               {pTotal > 0 && <span className="text-[13px] text-muted">{pPassed}/{pTotal} practicals</span>}
               {complete
                 ? <Badge tone="done">Made Ready</Badge>
+                : late ? <Badge tone="urgent">Overdue</Badge>
                 : <Badge tone={started ? "high" : "low"}>{started ? "In progress" : "Not started"}</Badge>}
+              <div className="flex w-full flex-wrap items-center gap-2 pl-11 text-[12.5px]">
+                {!complete && (
+                  <label className="flex items-center gap-1.5 whitespace-nowrap text-muted">
+                    Finish by
+                    <input
+                      type="date"
+                      className="input h-8 px-2 py-0 text-[12.5px]"
+                      value={plan?.due_date ?? ""}
+                      aria-label={`Finish-by date for ${name(r.user_id)}`}
+                      onChange={(e) => void run(r.user_id, () => setDueDate.mutateAsync({ userId: r.user_id, due: e.target.value || null }))}
+                    />
+                  </label>
+                )}
+                {complete && (plan?.approved_at ? (
+                  <>
+                    <span className="font-medium text-emerald-400">
+                      <CircleCheckBig size={13} className="mr-1 inline" />
+                      Approved for client work {longDate(plan.approved_at)}
+                      {plan.approved_by && <> by {name(plan.approved_by)}</>}
+                    </span>
+                    <button className="text-faint underline-offset-2 hover:underline"
+                      onClick={() => void run(r.user_id, () => approve.mutateAsync({ userId: r.user_id, approve: false, madeReady: complete }))}>
+                      Take back
+                    </button>
+                  </>
+                ) : r.user_id === meId ? (
+                  <span className="text-faint">Another admin approves you for client work.</span>
+                ) : (
+                  <button className="btn-primary h-8 px-3 text-[12.5px]" disabled={approve.isPending}
+                    onClick={() => void run(r.user_id, () => approve.mutateAsync({ userId: r.user_id, approve: true, madeReady: complete }))}>
+                    <Check size={14} /> Approve for client work
+                  </button>
+                ))}
+                {error[r.user_id] && <span className="text-red-400">{error[r.user_id]}</span>}
+              </div>
             </li>
           );
         })}

@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Brain, CalendarDays, CheckSquare, FileText, Lock, Pin, PinOff, Plus, Trash2, Upload } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui";
 import { Avatar } from "@/components/Avatar";
-import { atLeast, useEodReports, useFiles, useMemories, useMemoryMutations, useMyRole, useTasks, useWorkspaceMembers } from "@/data/hooks";
+import { atLeast, useEodReports, useFiles, useMemories, useMemoryMutations, useMyRole, useTasks, useWorkspaceMembers, memberTitle } from "@/data/hooks";
 import { useAuth } from "@/hooks/useAuth";
 import { isMine, sortTasks } from "@/lib/taskSort";
 import { todayIso } from "@/lib/eodDraft";
@@ -19,7 +19,6 @@ import { cn } from "@/lib/utils";
  * their work and reports. A member's memory and personal shelf stay private
  * even then: they're notes to Madeline, not work output.
  */
-const ROLE_LABEL: Record<string, string> = { owner: "Owner", admin: "Admin", manager: "Manager", employee: "Employee", ea: "EA" };
 const PRIORITY: Record<string, string> = { urgent: "Urgent", high: "High", normal: "Normal", low: "Low" };
 
 function daysAgo(iso: string, n: number): boolean {
@@ -88,7 +87,7 @@ export default function Workspace() {
             >
               <Avatar name={m.name} className="h-5 w-5 text-[9px]" />
               {m.is_me ? "You" : m.name.split(" ")[0]}
-              <span className="text-faint">{ROLE_LABEL[m.role] ?? m.role}</span>
+              <span className="text-faint">{memberTitle(m.role, m.job_function)}</span>
             </button>
           ))}
         </div>

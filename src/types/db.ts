@@ -678,6 +678,18 @@ export interface AcademySubmission {
   submitted_at: string;
 }
 
+/**
+ * A person's training plan (0097): the date to finish the course by, and the
+ * admin sign-off for client work once they are Made Ready.
+ */
+export interface AcademyPlan {
+  user_id: string;
+  due_date: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  approval_note: string | null;
+}
+
 export interface AcademyResource {
   id: string;
   title: string;

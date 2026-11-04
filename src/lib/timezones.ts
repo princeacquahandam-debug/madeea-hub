@@ -11,6 +11,8 @@ export function timeZones(): string[] {
 const FALLBACK = [
   "UTC", "Europe/London", "Europe/Paris", "Asia/Dubai", "Asia/Manila", "Asia/Singapore", "Asia/Tokyo",
   "Australia/Sydney", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+  // Talent regions from 30 Oct 2026 (Colombia, Guatemala, Kenya).
+  "America/Bogota", "America/Guatemala", "Africa/Nairobi",
 ];
 
 export function zoneOffset(tz: string, at = new Date()): string {

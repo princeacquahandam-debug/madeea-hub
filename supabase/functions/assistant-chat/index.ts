@@ -265,9 +265,11 @@ async function complete(
    Duplicated in generate/index.ts for the same standalone-deploy reason as
    recordSpend. */
 const SCOPE =
-  "SCOPE. You help only with executive-assistant and business work for this team: email and messages, " +
-  "calendar and meetings, tasks and follow-ups, clients, SOPs, documents, writing and editing, " +
-  "bookkeeping and finance admin, research for a work task, translation, and using this app. " +
+  "SCOPE. You help only with work for this team (executive assistants, AI specialists, marketing " +
+  "specialists and operations staff): email and messages, calendar and meetings, tasks and follow-ups, " +
+  "clients, SOPs, documents, writing and editing, bookkeeping and finance admin, research for a work task, " +
+  "translation, marketing, social media content and recruitment, AI tools, prompts and automations, and " +
+  "using this app. " +
   "If a request has nothing to do with that work (sport, celebrities, entertainment, trivia, general " +
   "knowledge, history, recipes, personal advice, school homework, games), do not answer it, not even " +
   "partly. Reply with one short, friendly sentence saying you can only help with work, and suggest one " +
@@ -275,16 +277,27 @@ const SCOPE =
 
 /* Friendly first, then useful: a one-line "no" read as a scolding in review.
    It still names what Madeline is for and hands over a next question. */
+/** One sentence per job (0098) so Madeline frames work for the person asking. */
+const JOB_LINE: Record<string, string> = {
+  ea: "They are an Executive Assistant supporting clients: inbox, calendar, travel, research and follow-ups. ",
+  ai_specialist: "They are an AI Specialist: they build and run automations, prompts and AI workflows for MadeEA and its clients. Technical detail is welcome. ",
+  marketing_specialist: "They are a Marketing Specialist: content, campaigns, social media and leads. Help with briefs, copy and planning as well as their tasks. ",
+  operations: "They help run MadeEA: team, clients, reporting and operations. Lead with what needs a decision. ",
+  other: "They are part of MadeEA's support team. ",
+};
+
 const OFF_TOPIC_REPLY =
   "Ha, that one's outside my lane! I'm here for your work: tasks, meetings, emails, clients and SOPs. " +
   "Want me to check what's due today, or draft a follow-up?";
 
 const TOPIC_CHECK =
-  "You are a filter for an executive-assistant work app. Decide whether the user's latest message is " +
-  "something an executive assistant could reasonably ask at work.\n" +
+  "You are a filter for a work app used by executive assistants, AI specialists, marketing specialists " +
+  "and operations staff. Decide whether the user's latest message is " +
+  "something one of them could reasonably ask at work.\n" +
   "Answer ON when it is, or could be, work: emails, messages, calendar, meetings, tasks, clients, SOPs, " +
   "documents, writing, rewriting, summarising, translating, finance or bookkeeping, business research, " +
-  "work travel, formulas or code for work tools, questions about this app or about the assistant itself " +
+  "work travel, formulas or code for work tools, marketing, social media content ideas and recruitment " +
+  "posts, AI tools, prompts, automations and integrations, questions about this app or about the assistant itself " +
   "(who or what it is, what it can do), passwords, logins and access to client accounts, research on a " +
   "company or person ahead of a meeting, planning the user's day or calendar (even when it holds personal " +
   "events like exercise, prayer or family time), greetings, thanks, and short " +
@@ -1600,12 +1613,17 @@ Deno.serve(async (req) => {
     }
 
     const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", authed.user.id).maybeSingle();
+    /* What they do (0098). The EOS now serves AI Specialists, Marketing
+       Specialists and operations roles as well as EAs (30 Oct 2026), so the
+       help is framed for their job. Null before 0098 runs: no job line then. */
+    const { data: member } = await supabase.from("memberships").select("job_function").eq("user_id", authed.user.id).limit(1).maybeSingle();
+    const job = JOB_LINE[(member as { job_function?: string } | null)?.job_function ?? ""] ?? "";
     const now = Date.now();
 
     const system: LlmMessage = {
       role: "system",
       content:
-        "You are Madeline, MadeEA's assistant for executive assistants. Be concise, proactive and " +
+        "You are Madeline, MadeEA's work assistant for the MadeEA team. Be concise, proactive and " +
         "British-English. If asked who or what you are, or which model you run on, say you're Madeline, " +
         "MadeEA's assistant, and say what you can help with. Don't name a model or AI provider.\n\n" +
         "SHAPE OF EVERY ANSWER. Answer first: one summary sentence, then 2 to 4 short bullets if they help. " +
@@ -1658,7 +1676,7 @@ Deno.serve(async (req) => {
         "HOW-TO QUESTIONS. Search the SOPs with the key words (\"travel\", \"invoice\"), not the whole " +
         "sentence. If one matches, answer from it and name it. If none does, say first that there's no SOP " +
         "for it yet, then give brief general steps labelled as general guidance, and suggest adding an SOP.\n\n" +
-        `You are talking to ${profile?.full_name ?? "a team member"}. ` +
+        `You are talking to ${profile?.full_name ?? "a team member"}. ${job}` +
         `It is ${localTime(new Date(now).toISOString(), tz)} (${localDate(now, tz)}) in their timezone, ${tz}.\n\n` +
         "You can read this team's real data with tools: tasks, meetings, emails, clients and SOPs. Whenever a " +
         "question touches any of them (\"what's on my plate\", \"what's next\", \"anything from X?\", \"how do " +

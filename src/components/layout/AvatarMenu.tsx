@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { LogOut, Monitor, Moon, Settings as SettingsIcon, Sun } from "lucide-react";
 import { useAnchoredPanel, ANCHORED_PANEL_CLASS } from "@/hooks/useAnchoredPanel";
 import { useAuth } from "@/hooks/useAuth";
-import { ROLE_LABEL, useMyRole } from "@/data/hooks";
+import { memberTitle, useMyFunction, useMyRole } from "@/data/hooks";
 import { useTheme, type ThemeChoice } from "@/store/theme";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +18,7 @@ export function AvatarMenu() {
   const { anchorRef, panelRef, open, setOpen, pos } = useAnchoredPanel<HTMLButtonElement>();
   const { user, signOut } = useAuth();
   const { data: role } = useMyRole();
+  const fn = useMyFunction();
   const nav = useNavigate();
   const { choice, setChoice } = useTheme();
 
@@ -46,7 +47,7 @@ export function AvatarMenu() {
           <div className="border-b border-border px-2.5 pb-2.5 pt-1.5">
             <p className="truncate text-sm font-semibold">{user?.name}</p>
             <p className="truncate text-xs text-muted">{user?.email}</p>
-            <p className="mt-0.5 text-[11px] text-faint">{ROLE_LABEL[role ?? "ea"] ?? "EA"}</p>
+            <p className="mt-0.5 text-[11px] text-faint">{memberTitle(role, fn)}</p>
           </div>
           <div className="py-1">
             <button role="menuitem" className={item} onClick={() => { setOpen(false); nav("/settings"); }}>
