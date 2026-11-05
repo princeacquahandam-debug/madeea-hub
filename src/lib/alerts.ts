@@ -25,13 +25,16 @@ import { supabase } from "@/lib/supabase";
  *   ea_not_clocked_in — internal. Somebody has not started, and the client
  *                       learning that first is how a recoverable morning
  *                       becomes an account review (0075).
+ *   eod_submitted — internal. An EOD report was filed; Rowena and Reichelle
+ *                   asked to get each one by email as well as in the Hub
+ *                   (19 Oct team meeting). One per person per day (0099).
  *
  * The two audiences are opposite on purpose and 0036 spelled out why: a breach
  * alert tells a client we were late at the moment that is least useful to hear,
  * so it stays internal. A time-in is addressed to the client, true when it is
  * sent, and carries nothing they should not see.
  */
-export type AlertEvent = "sla_breach" | "ea_timed_in" | "ea_not_clocked_in";
+export type AlertEvent = "sla_breach" | "ea_timed_in" | "ea_not_clocked_in" | "eod_submitted";
 
 export interface EmitResult {
   ok: boolean;

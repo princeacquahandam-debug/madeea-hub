@@ -166,7 +166,8 @@ export function prioritize(
       reason = waitingApproval(t) ? "Waiting on approval. Nothing to change."
         : od > 0 ? `${plural(od, "day")} overdue in ${STAGE_LABEL[t.status]}.`
         : dueToday(t, today) ? "Due today. Keep it moving."
-        : t.blocked ? "Blocked, already in Waiting."
+        // Say the real stage: a blocked card can sit in Review too (21 Oct call).
+        : t.blocked ? `Blocked in ${STAGE_LABEL[t.status]}${t.blocker_note?.trim() ? `: ${t.blocker_note.trim()}` : ""}. Chase what's blocking it.`
         : due ? `On track, due ${shortDate(due)}.`
         : `No due date, last update ${plural(daysSinceUpdate(t, opts.now), "day")} ago.`;
     }

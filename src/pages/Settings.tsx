@@ -457,6 +457,7 @@ function AlertRouting() {
   const isAdmin = atLeast(role, "admin");
   const sla = routes.find((r) => r.event === "sla_breach");
   const timedIn = routes.find((r) => r.event === "ea_timed_in");
+  const eod = routes.find((r) => r.event === "eod_submitted");
 
   return (
     <section className="card p-5">
@@ -501,6 +502,18 @@ function AlertRouting() {
               <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-400" />
               Telling clients when their EA clocks in isn't switched on yet. Ask your admin.
             </p>
+          )}
+
+          {/* Absent until 0099 is applied. */}
+          {eod && (
+            <RouteCard
+              route={eod}
+              label="EOD report submitted"
+              who="to the team leads, by email"
+              placeholder="eod-submitted"
+              isAdmin={isAdmin}
+              onChange={(patch) => setRoute.mutate({ event: "eod_submitted", ...patch })}
+            />
           )}
         </div>
       )}

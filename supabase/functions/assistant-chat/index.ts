@@ -1,9 +1,11 @@
-// Supabase Edge Function: assistant-chat  (self-contained. Paste as-is)
+// Supabase Edge Function: assistant-chat. Two files (index.ts + hubGuide.ts):
+// deploy with the Supabase CLI, which bundles both, rather than pasting.
 // POST { messages: [{role, content}], timezone? } -> { reply }
 // Context-aware EA assistant: reads the caller's tasks, meetings, emails,
 // clients and SOPs through tools, as the caller, so RLS decides what it sees.
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { HUB_GUIDE } from "./hubGuide.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 
@@ -489,13 +491,31 @@ const TOOLS = [
     function: {
       name: "search_sops",
       description:
-        "Find the team's standard operating procedures, with their steps and success criteria. " +
-        "Use it whenever the user asks how to do something.",
+        "Find the team's own standard operating procedures, with their steps and success criteria. " +
+        "Use it when the user asks how the team does a piece of work (a process, a client task). For how " +
+        "to use the MadeEA Hub app itself, use hub_guide instead.",
       parameters: {
         type: "object",
         properties: {
           query: { type: "string", description: "Words from the title or description. Omit to list all." },
           limit: { type: "integer", minimum: 1, maximum: 20 },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "hub_guide",
+      description:
+        "Built-in guide to the MadeEA Hub app itself: where things are and how features work (clocking in, " +
+        "pausing, screenshots, EOD reports, tasks and routines, the AI buttons, inbox and connecting email " +
+        "accounts, settings, time zones, Training Center, admin-only pages, the client portal). Use it first " +
+        "for any question about using the Hub.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Key words, e.g. \"pause\", \"eod\", \"gmail\". Omit to list every topic." },
         },
       },
     },
@@ -1025,6 +1045,32 @@ async function searchSops(ctx: ToolCtx, a: Record<string, unknown>) {
   };
 }
 
+/* How to use the Hub itself (hubGuide.ts). Static text, so no database and
+   no RLS: entries whose topic, keywords or text hold any query word, best
+   match first. No query lists the topics so Madeline can pick one. */
+const GUIDE_STOP = new Set(["the", "and", "for", "how", "what", "where", "with", "can", "does", "use", "using",
+  "hub", "app", "madeea", "this", "that", "into", "from", "who", "why", "when", "are", "there", "get", "see"]);
+
+function hubGuide(_ctx: ToolCtx, a: Record<string, unknown>): Promise<unknown> {
+  const words = [...new Set(String(a.query ?? "").toLowerCase().replace(/[^a-z0-9/ ]/g, " ").split(" ")
+    .filter((w) => w.length >= 3 && !GUIDE_STOP.has(w))
+    // Crude stem, so "screenshots" finds "screenshot" and "pausing" finds "paus(e)".
+    .map((w) => (w.length > 4 ? w.replace(/(ing|es|s)$/, "") : w)))].slice(0, 8);
+  if (!words.length) return Promise.resolve({ topics: HUB_GUIDE.map((e) => e.topic) });
+  const ranked = HUB_GUIDE.map((e) => {
+    const topic = e.topic.toLowerCase();
+    const keys = e.keywords.join(" ").toLowerCase();
+    const how = e.how.toLowerCase();
+    const score = words.reduce((n, w) =>
+      n + (topic.includes(w) ? 3 : 0) + (keys.includes(w) ? 2 : 0) + (how.includes(w) ? 1 : 0), 0);
+    return { e, score };
+  }).filter((x) => x.score > 0).sort((x, y) => y.score - x.score).slice(0, 5);
+  return Promise.resolve({
+    ...(ranked.length ? {} : { note: "No guide entry matches. Call hub_guide with no query to see the topics." }),
+    guide: ranked.map(({ e }) => ({ topic: e.topic, how: e.how })),
+  });
+}
+
 async function listMeetingNotes(ctx: ToolCtx, a: Record<string, unknown>) {
   const limit = cap(a.limit, 3, 10);
   const people = (Array.isArray(a.people) ? a.people : []).map((p) => term(p).toLowerCase()).filter(Boolean).slice(0, 10);
@@ -1109,6 +1155,7 @@ const RUNNERS: Record<string, (ctx: ToolCtx, a: Record<string, unknown>) => Prom
   list_emails: listEmails,
   find_clients: findClients,
   search_sops: searchSops,
+  hub_guide: hubGuide,
   list_meeting_notes: listMeetingNotes,
   recall_memory: recallMemory,
   search_knowledge_base: searchKnowledgeBase,
@@ -1673,7 +1720,10 @@ Deno.serve(async (req) => {
         "the Password Manager. Each person sees only the logins an admin has shared with them. If asked for " +
         "a password or login, say so kindly, point to the Password Manager, and say an admin can grant " +
         "access if the one they need isn't there.\n\n" +
-        "HOW-TO QUESTIONS. Search the SOPs with the key words (\"travel\", \"invoice\"), not the whole " +
+        "USING THE HUB (\"where does my EOD go?\", \"how do I pause the clock?\", \"how do I connect a second " +
+        "Gmail?\"). Call hub_guide first with the key words and answer from it, giving the exact menu path. " +
+        "If something is for admins or managers only, say so. Don't invent menus or buttons it doesn't mention.\n\n" +
+        "HOW-TO QUESTIONS about the team's own work and procedures. Search the SOPs with the key words (\"travel\", \"invoice\"), not the whole " +
         "sentence. If one matches, answer from it and name it. If none does, say first that there's no SOP " +
         "for it yet, then give brief general steps labelled as general guidance, and suggest adding an SOP.\n\n" +
         `You are talking to ${profile?.full_name ?? "a team member"}. ${job}` +

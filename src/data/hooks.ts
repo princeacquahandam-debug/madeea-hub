@@ -2178,9 +2178,12 @@ export function useFileMutations() {
   const invalidate = () => qc.invalidateQueries({ queryKey: ["files"] });
 
   const upload = useMutation({
-    mutationFn: async ({ file, clientId, scope = "team" }: {
+    mutationFn: async ({ file, clientId, scope = "team", sopId }: {
       file: File;
       clientId?: string | null;
+      /** Attach to an SOP (0100). Sent only when given, so uploads elsewhere
+          keep working before that migration is run. */
+      sopId?: string | null;
       /** Which shelf it lands on. Team unless asked, because the shared KB is
           the one a covering EA can find. */
       scope?: KbScope;
@@ -2222,6 +2225,7 @@ export function useFileMutations() {
       const { error } = await supabase.from("files").insert({
         name: file.name, mime_type: file.type || null, size_bytes: file.size,
         storage_key: key, client_id: clientId ?? null, scope,
+        ...(sopId ? { sop_id: sopId } : {}),
       });
       if (error) throw error;
     },
@@ -2241,6 +2245,26 @@ export function useFileMutations() {
   });
 
   return { upload, remove };
+}
+
+/** Files attached to one SOP (19 Oct team meeting; 0100). Its own query so the
+    main file list doesn't depend on that migration having run. */
+export function useSopFiles(sopId: string | null) {
+  return useQuery<WorkspaceFile[]>({
+    queryKey: ["files", "sop", sopId],
+    enabled: Boolean(sopId),
+    queryFn: async () => {
+      if (!supabase || !sopId) return [];
+      const { data, error } = await supabase
+        .from("files")
+        .select("id,folder_id,client_id,task_id,name,mime_type,size_bytes,storage_key,uploaded_by,scope,created_at")
+        .eq("sop_id", sopId)
+        .order("created_at", { ascending: true });
+      if (error) return []; // 0100 not applied yet
+      return data as WorkspaceFile[];
+    },
+    retry: false,
+  });
 }
 
 /** A signed URL to download. Private bucket, so links expire. */
@@ -2663,6 +2687,18 @@ export function useSubmitEod() {
       );
       const { error } = await (ai ? q.setHeader(PH_HINT, JSON.stringify({ ai_items_count: ai.count, ai_items_edited: ai.edited })) : q);
       if (error) throw error;
+      /* Rowena and Reichelle asked for each EOD in their email too (19 Oct).
+         The route decides where it goes and is off until an admin connects it.
+         One per person per day: the subject is the person and the date, so a
+         correction later that day doesn't send a second email. */
+      void emitAlert("eod_submitted", `${report.person}:${report.report_date}`, {
+        person: report.person,
+        report_date: report.report_date,
+        done: report.done,
+        blockers: report.blockers,
+        plans: report.plans,
+        notes: report.notes ?? null,
+      });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["eod_reports"] }),
   });
@@ -3106,6 +3142,7 @@ export function useAlertRoutes() {
         return [
           { event: "sla_breach", channel: "none", target: null, audience: "internal", is_active: false },
           { event: "ea_timed_in", channel: "none", target: null, audience: "client", is_active: false },
+          { event: "eod_submitted", channel: "none", target: null, audience: "internal", is_active: false },
         ];
       }
       const { data, error } = await supabase

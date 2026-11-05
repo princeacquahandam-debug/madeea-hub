@@ -64,6 +64,9 @@ export function GlobalSearch() {
         // and it disappears as soon as anything is typed.
         aria-label="Search clients, tasks and emails"
         placeholder="Search tasks, clients, messages"
+        /* Asked for in the 19 Oct team meeting: hovering should say what the
+           shortcut does. The kbd hint can't hold a tooltip (pointer-events-none). */
+        title={`Search tasks, clients and messages. Press ${isMac ? "⌘K" : "Ctrl K"} on any page to jump to a page or ask Madeline.`}
         value={q}
         onChange={(e) => { setQ(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}

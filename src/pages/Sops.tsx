@@ -8,6 +8,7 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 import { atLeast, useSops, useSopRuns, useSopMutations, useClients, useRecordings, useRecordingMutations, recordingUrl, useTasks, useTaskMutations, useMyRole, DEMO_ME } from "@/data/hooks";
 import { ScreenRecorder } from "@/components/ScreenRecorder";
 import { LoomVideos } from "@/components/LoomVideos";
+import { SopFiles } from "@/components/SopFiles";
 import { generate } from "@/lib/ai";
 import { OutputViewer } from "@/components/OutputViewer";
 import { useSopWidget } from "@/store/sopWidget";
@@ -327,6 +328,9 @@ export default function Sops() {
 
                 {/* A Loom walkthrough for this SOP (19 Oct 2026). */}
                 <LoomVideos sopId={openSop.id} title="Video walkthrough" empty="No walkthrough yet. A manager can add a Loom showing how this is done." />
+
+                {/* Files for this SOP: templates, checklists, examples (19 Oct). */}
+                <SopFiles sopId={openSop.id} />
 
                 {/* Runs already open, one per client, and always visible while
                     any exist rather than only before you pick one.
