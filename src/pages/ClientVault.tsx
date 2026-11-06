@@ -16,6 +16,7 @@ import { clientSla, dayLength, formatDuration } from "@/lib/sla";
 import { supabase } from "@/lib/supabase";
 import { useMadelineContext } from "@/hooks/useMadeline";
 import { clientItem } from "@/lib/madelineItems";
+import { ACADEMY_LIVE } from "@/lib/features";
 
 const STATUS_LABEL: Record<string, string> = {
   todo: "To Do", in_progress: "In Progress", follow_up: "Waiting", review: "Review", done: "Done",
@@ -33,8 +34,8 @@ export default function ClientVault() {
   const { create, update, remove } = useClientMutations();
   const { data: members = [] } = useWorkspaceMembers();
   // Made Ready Academy status for the Lead EA picker (0096). Null = can't tell; no warning then.
-  const { data: ready = null } = useReadyRoster(true);
-  const readyOf = (uid: string) => ready?.find((r) => r.user_id === uid);
+  const { data: ready = null } = useReadyRoster(ACADEMY_LIVE);
+  const readyOf = (uid: string) => (ACADEMY_LIVE ? ready?.find((r) => r.user_id === uid) : undefined);
   // approved_at is undefined (not null) until 0097 runs; then only Made Ready counts.
   const readyNote = (uid: string) => {
     const r = readyOf(uid);

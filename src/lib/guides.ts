@@ -16,9 +16,11 @@ export const GUIDES: Record<string, Guide> = {
   "/tasks": {
     title: "How the Task Manager works",
     points: [
-      "Drag a task between columns (To Do, In Progress, Follow-up, Review, Done) to update its status. It saves instantly.",
-      "“Add Task” to create one with a priority and a real due date.",
-      "Hover a task for the ✏️ edit and 🗑️ delete controls.",
+      "Drag a task between columns (To Do, In Progress, Waiting, Review, Done) to update its status. It saves instantly.",
+      "Cards show the title, who it is for, the client, the due date and the priority. Click a card for its notes, checklist, files and progress.",
+      "Click a due date to open that day in the calendar.",
+      "Prioritize board ranks your open tasks and marks where to start; Find stuck tasks gives the next action for each stuck one; Break down a task writes the steps. A click outside closes the result.",
+      "Hover a task for the edit and delete controls.",
     ],
   },
   "/eod": {

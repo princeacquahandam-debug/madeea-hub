@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
+import { ACADEMY_LIVE } from "@/lib/features";
 
 /* ---------------------------------------------------------------------------
    Nav groups, in sidebar order.
@@ -181,7 +182,8 @@ export const NAV: NavItem[] = [
   /* The Academy was routed but never in the nav. The only way in was a promo
      card in the sidebar footer, which is dismissible, so dismissing it hid the
      training entirely. "Training Center" is what the team calls it. */
-  { to: "/academy", label: "Training Center", icon: GraduationCap, group: "Learn" },
+  // Paused 6 Nov 2026 until the new Academy design is agreed (lib/features).
+  ...(ACADEMY_LIVE ? [{ to: "/academy", label: "Training Center", icon: GraduationCap, group: "Learn" } as NavItem] : []),
 
   /* ---- Setup --------------------------------------------------------------
      Configured once, then forgotten. Bottom of the list, away from daily work

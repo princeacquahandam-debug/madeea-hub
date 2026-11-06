@@ -14,6 +14,7 @@ import { CERTIFICATE_TITLE, DAY_TITLES } from "@/data/academySeed";
 import { isSimulationLesson } from "@/data/academySimulation";
 import type { AcademyLesson, AcademyModule, AcademySubmission, GradeResult, LessonKind, SubmissionStatus } from "@/types/db";
 import { cn } from "@/lib/utils";
+import { ACADEMY_LIVE } from "@/lib/features";
 
 /**
  * The Made Ready Academy. Audit §5.2, rebuilt to the HR course outline
@@ -56,7 +57,7 @@ function Linked({ text }: { text: string }) {
   );
 }
 
-export default function Academy() {
+function AcademyCourse() {
   const { data: course, isLoading } = useAcademyCourse();
   const { data: doneIds = [] } = useAcademyProgress();
   const { data: attempts = [] } = useAcademyAttempts();
@@ -802,6 +803,19 @@ function Roster() {
         })}
         {rows.length === 0 && <li className="px-5 py-6 text-sm text-faint">No team members yet.</li>}
       </ul>
+    </div>
+  );
+}
+
+/** While the Academy is paused (lib/features), only the training videos show here. */
+export default function Academy() {
+  if (ACADEMY_LIVE) return <AcademyCourse />;
+  return (
+    <div className="mx-auto max-w-4xl">
+      <PageHeader title="Training videos" subtitle="Loom walkthroughs of how the work is done." />
+      <div id="videos" className="card mb-5 p-5">
+        <LoomVideos sopId={null} title="Training videos" empty="No training videos yet. Managers can add a Loom link or record one here." />
+      </div>
     </div>
   );
 }

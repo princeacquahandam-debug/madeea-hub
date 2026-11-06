@@ -14,6 +14,7 @@ import { useFollowUpSettings } from "@/store/followupSettings";
 import { useUI } from "@/store/ui";
 import { APP_VERSION } from "@/lib/changelog";
 import { TimeZoneSettings } from "@/components/TimeZoneSettings";
+import { ACADEMY_LIVE } from "@/lib/features";
 
 const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 
@@ -300,13 +301,13 @@ export default function Settings() {
             <button className="btn-ghost border border-border" onClick={replay}>
               <PlayCircle size={15} /> Replay tutorial
             </button>
-            {academyPromoDismissed && (
+            {ACADEMY_LIVE && academyPromoDismissed && (
               <button className="btn-ghost border border-border" onClick={restoreAcademyPromo}>
                 <GraduationCap size={15} /> Show Training Center tip
               </button>
             )}
           </div>
-          {academyPromoDismissed && (
+          {ACADEMY_LIVE && academyPromoDismissed && (
             <p className="mt-2 text-xs text-faint">The Training Center tip is hidden in your sidebar. This browser only.</p>
           )}
         </section>

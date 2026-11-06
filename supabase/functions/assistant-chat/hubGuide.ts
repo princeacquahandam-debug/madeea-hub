@@ -17,7 +17,7 @@ export const HUB_GUIDE: HubGuideEntry[] = [
     topic: "Finding your way around",
     keywords: ["menu", "sidebar", "navigation", "where", "find", "page", "tabs", "layout"],
     how:
-      "The sidebar has six groups: Today (Dashboard, My workspace, Calendar), Work (Inbox, Tasks), Time & Reports (Time tracker, EOD reports), Clients & Files (managers and up only), Learn (SOP, Training Center) and Settings (Integrations, plus Admin Panel for admins). " +
+      "The sidebar has six groups: Today (Dashboard, My workspace, Calendar), Work (Inbox, Tasks), Time & Reports (Time tracker, EOD reports), Clients & Files (managers and up only), Learn (SOP, Training videos) and Settings (Integrations, plus Admin Panel for admins). " +
       "Some pages have tabs along the top, for example Tasks → Routines and Time tracker → Screenshots. " +
       "Your own settings are under your initials, top right → Profile & settings.",
   },
@@ -207,21 +207,21 @@ export const HUB_GUIDE: HubGuideEntry[] = [
     topic: "Training Center (Made Ready Academy)",
     keywords: ["training", "academy", "course", "made ready", "lesson", "quiz", "practical", "certificate", "onboarding"],
     how:
-      "Learn → Training Center (or Learn in the header → Training Center) holds the Made Ready Academy course, by day, with lessons, a quiz per module and practical assessments. " +
-      "Quizzes are graded automatically and practicals are passed by an admin; passing all of them makes you Made Ready and earns the certificate. Admins also see a Team tab to follow everyone's progress.",
+      "The Made Ready Academy is paused while it is redesigned as its own learning space, so the Training Center is hidden for now. " +
+      "Training videos are still under Learn in the header → Training videos. Your manager will say when the new Academy opens.",
   },
   {
     topic: "Training videos and Loom",
     keywords: ["video", "videos", "loom", "record", "walkthrough", "tutorial", "screen recording"],
     how:
-      "Learn in the header → Training videos opens the videos in the Training Center; each SOP also has a Video walkthrough. Managers and up can Record a Loom or Add a Loom link there. " +
+      "Learn in the header → Training videos opens the training videos; each SOP also has a Video walkthrough. Managers and up can Record a Loom or Add a Loom link there. " +
       "There's also a Loom card at the bottom of Settings → Integrations for recording your screen and camera; its Record a Loom button appears once the workspace's Loom app is set up.",
   },
   {
     topic: "Learn menu and guided tour",
     keywords: ["learn", "help", "tour", "guide", "how this page works", "tutorial"],
     how:
-      "Press Learn in the header for How this page works, Replay the guided tour, Training Center, Training videos and SOPs.",
+      "Press Learn in the header for How this page works, Replay the guided tour, Training videos and SOPs.",
   },
   {
     topic: "Settings, theme and password",

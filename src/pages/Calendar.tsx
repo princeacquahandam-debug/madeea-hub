@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronLeft, ChevronRight, RefreshCw, Link2, MapPin, Users, Check,
   ExternalLink, Sparkles, AlertTriangle, CalendarDays, ChevronDown, X, Plus,
@@ -100,7 +100,12 @@ export default function Calendar() {
   const chosenTz = useUserTimeZone((s) => s.chosen);
   const deviceTz = useUserTimeZone((s) => s.device);
   const browserTz = useUserTimeZone((s) => s.zone);
-  const [anchor, setAnchor] = useState<DayKey>(() => todayKey(browserTz));
+  /* ?date=YYYY-MM-DD opens that day: a task's due date links here (6 Nov 2026
+     call: the task card is the entry point to the calendar, rather than tasks
+     drawn on the calendar). */
+  const [params] = useSearchParams();
+  const linkedDay = params.get("date");
+  const [anchor, setAnchor] = useState<DayKey>(() => (linkedDay && /^\d{4}-\d{2}-\d{2}$/.test(linkedDay) ? linkedDay : todayKey(browserTz)));
 
   useEffect(() => {
     try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* not worth failing over */ }

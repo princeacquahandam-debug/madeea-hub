@@ -5,6 +5,7 @@ import { BookOpen, ClipboardCheck, GraduationCap, HelpCircle, Info, PlayCircle, 
 import { useAnchoredPanel, ANCHORED_PANEL_CLASS } from "@/hooks/useAnchoredPanel";
 import { GUIDES } from "@/lib/guides";
 import { useTour } from "@/store/tour";
+import { ACADEMY_LIVE } from "@/lib/features";
 
 /**
  * "Learn" in the header (13 Oct 2026 call with Abder): how to use the Hub, in
@@ -47,10 +48,13 @@ export function LearnMenu() {
             <HelpCircle size={16} className="mt-0.5 shrink-0 text-accent" />
             <span><span className="block font-medium">Replay the guided tour</span><span className="block text-xs text-faint">A two-minute walk through the Hub</span></span>
           </button>
-          <button role="menuitem" className={item} onClick={() => { setOpen(false); nav("/academy"); }}>
-            <GraduationCap size={16} className="mt-0.5 shrink-0 text-accent" />
-            <span><span className="block font-medium">Training Center</span><span className="block text-xs text-faint">Lessons and the Made Ready course</span></span>
-          </button>
+          {/* Paused 6 Nov 2026 until the new Academy design is agreed (lib/features). */}
+          {ACADEMY_LIVE && (
+            <button role="menuitem" className={item} onClick={() => { setOpen(false); nav("/academy"); }}>
+              <GraduationCap size={16} className="mt-0.5 shrink-0 text-accent" />
+              <span><span className="block font-medium">Training Center</span><span className="block text-xs text-faint">Lessons and the Made Ready course</span></span>
+            </button>
+          )}
           <button role="menuitem" className={item} onClick={() => { setOpen(false); nav("/academy#videos"); }}>
             <PlayCircle size={16} className="mt-0.5 shrink-0 text-accent" />
             <span><span className="block font-medium">Training videos</span><span className="block text-xs text-faint">Loom walkthroughs of how the work is done</span></span>

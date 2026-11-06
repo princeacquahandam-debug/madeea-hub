@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors,
   useDroppable, closestCorners, type DragEndEvent, type DragOverEvent, type DragStartEvent,
@@ -29,6 +29,7 @@ import { PrioritizePanel } from "@/components/tasks/PrioritizePanel";
 import { StuckCard } from "@/components/tasks/StuckCard";
 import { UndoToast } from "@/components/tasks/UndoToast";
 import { useMadeline } from "@/store/madeline";
+import { useOutsideClose } from "@/hooks/useOutsideClose";
 import { useAuth } from "@/hooks/useAuth";
 import { track } from "@/lib/analytics";
 import { isMine, sortTasks } from "@/lib/taskSort";
@@ -81,6 +82,13 @@ function todayIso(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+/** What each AI action does, for its hover text and the first-visit tip. */
+const AI_ACTION_HELP: Record<string, string> = {
+  "Prioritize board": "ranks your open tasks for today, marks where to start, and suggests up to five fixes (a new date, priority or stage). Nothing changes until you apply.",
+  "Break down a task": "click a task first, then this. Madeline writes the steps, and Keep all adds them to the checklist.",
+  "Find stuck tasks": "lists what isn't moving and the next action for each, with a one-click fix.",
+};
+
 function relativeDue(t: Task): { label: string; tone: "over" | "soon" | "plain" } | null {
   if (!t.due_at) return t.due_label ? { label: t.due_label, tone: "plain" } : null;
   const p = (n: number) => String(n).padStart(2, "0");
@@ -119,14 +127,12 @@ const group = (tasks: Task[]): Board => {
 };
 
 /** How many checklist items a card shows before "+N more". */
-const CARD_CHECKLIST_MAX = 5;
 
 function CardBody({ task, blocked, onDelete, onEdit, onComplete, onSave, onToggleSub, isSaved, comments = 0, overlay }: { task: Task; blocked?: boolean; onDelete?: () => void; onEdit?: () => void; onComplete?: () => void; onSave?: () => void; onToggleSub?: (subId: string) => void; isSaved?: boolean; comments?: number; overlay?: boolean }) {
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
   const subDone = task.subtasks.filter((s) => s.done).length;
   const due = relativeDue(task);
-  const links = task.attachments?.length ?? 0;
-  const progress = task.progress?.length ?? 0;
+  const navigate = useNavigate();
   return (
     <div className={cn("relative rounded-lg border border-border bg-surface p-3", overlay && "shadow-xl ring-2 ring-accent/60 rotate-1")}>
       {/* The reference, so this card can be named in a message or an EOD line.
@@ -167,52 +173,35 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, onSave, onToggl
             avatar, since a menu inside a drag preview makes no sense. */}
         {overlay ? <AssigneeAvatar member={null} /> : <AssigneePicker task={task} />}
       </div>
-      {/* A line of the notes, so the card says what the job IS rather than only
-          what it is called. Truncated to two lines; the rest is one click away. */}
-      {task.notes?.trim() && (
-        <p className="mt-1 line-clamp-2 text-xs leading-snug text-muted">{task.notes}</p>
-      )}
-
-      {/* The checklist on the card, so pending and done items show at a glance
-          without opening the task (Reich's testing, 20 Oct 2026). Ticking one
-          here saves it; the events stop at the checkbox so it never starts a drag. */}
-      {task.subtasks.length > 0 && (
-        <ul className="mt-1.5 space-y-0.5" aria-label="Checklist">
-          {task.subtasks.slice(0, CARD_CHECKLIST_MAX).map((s) => (
-            <li key={s.id} className="flex items-start gap-1.5 text-[11.5px] leading-snug">
-              <input
-                type="checkbox"
-                className="mt-[2px] h-3 w-3 shrink-0 cursor-pointer accent-[#fd5812]"
-                checked={s.done}
-                disabled={!onToggleSub}
-                onPointerDown={stop}
-                onKeyDown={stop}
-                onClick={stop}
-                onChange={() => onToggleSub?.(s.id)}
-                aria-label={s.label}
-              />
-              <span className={cn("min-w-0 flex-1", s.done ? "text-faint line-through" : "text-muted")}>{s.label}</span>
-            </li>
-          ))}
-          {task.subtasks.length > CARD_CHECKLIST_MAX && (
-            <li className="pl-[18px] text-[11px] text-faint">+{task.subtasks.length - CARD_CHECKLIST_MAX} more</li>
-          )}
-        </ul>
-      )}
-
+      {/* The card shows only what you scan the board for: title, who, client,
+          due date, priority and any warning. Notes, checklist items, links and
+          progress live in the task's details, which keep growing (6 Nov 2026
+          call with Abder; this replaces the notes line and the checklist that
+          Reich's testing put on the card on 20 Oct). */}
       <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-faint">
         {task.client_name}
         {due && (
           <>
             <span>·</span>
-            <CalendarDays size={11} />
-            <span className={DUE_TONE[due.tone]}>{due.label}</span>
+            {/* The way into the calendar from a task (6 Nov 2026 call): rather
+                than drawing tasks on the calendar, the date opens that day. */}
+            {overlay ? (
+              <span className="inline-flex items-center gap-1"><CalendarDays size={11} /><span className={DUE_TONE[due.tone]}>{due.label}</span></span>
+            ) : (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded hover:underline"
+                onPointerDown={stop}
+                onClick={(e) => { e.stopPropagation(); navigate(`/calendar?date=${task.due_at!.slice(0, 10)}`); }}
+                title="Open this day in the calendar"
+              >
+                <CalendarDays size={11} />
+                <span className={DUE_TONE[due.tone]}>{due.label}</span>
+              </button>
+            )}
           </>
         )}
         {task.subtasks.length > 0 && <><span>·</span><CheckSquare size={11} />{subDone}/{task.subtasks.length}</>}
-        {links > 0 && <><span>·</span><Link2 size={11} />{links}</>}
-        {comments > 0 && <><span>·</span><MessageSquare size={11} />{comments}</>}
-        {progress > 0 && <><span>·</span><ListIcon size={11} />{progress}</>}
         {task.recurrence !== "none" && <Repeat size={11} className="text-accent-soft" />}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -640,6 +629,8 @@ export default function Tasks() {
   const panelSettled = useRef(true);
   const runPrioritize = async () => {
     markTried();
+    setStuckRes(null);
+    setBd(null);
     setPrioritizing(true);
     try {
       const t0 = performance.now();
@@ -656,6 +647,8 @@ export default function Tasks() {
      since drops off, and an edited one shows its new title. */
   const runFindStuck = async () => {
     markTried();
+    setPanel(null);
+    setBd(null);
     setFindingStuck(true);
     try {
       const t0 = performance.now();
@@ -703,6 +696,8 @@ export default function Tasks() {
   async function runBreakdown(t: Task, answer?: string) {
     setPicking(false);
     setSelectedId(t.id);
+    setPanel(null);
+    setStuckRes(null);
     setBd({ taskId: t.id, state: "loading" });
     const t0 = performance.now();
     try {
@@ -730,6 +725,11 @@ export default function Tasks() {
   }
 
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  const bdRef = useRef<HTMLDivElement>(null);
+  useOutsideClose(bdRef, () => {
+    if (bd?.state === "steps") track("ai_result_dismissed", { action: "break_down", how: "outside" });
+    setBd(null);
+  }, bd?.state === "steps" || bd?.state === "error");
   const boardAi: BoardAi = {
     selectedId,
     stuckIds,
@@ -742,7 +742,7 @@ export default function Tasks() {
     preview: (t) => {
       if (bd?.taskId !== t.id) return null;
       return (
-        <div onPointerDown={stop} onClick={stop} className="mt-1.5 cursor-default rounded-lg border border-accent/40 bg-[var(--nav-active-bg)] p-2.5 text-xs">
+        <div ref={bdRef} onPointerDown={stop} onClick={stop} className="mt-1.5 cursor-default rounded-lg border border-accent/40 bg-[var(--nav-active-bg)] p-2.5 text-xs">
           <p className="mb-1.5 flex items-center gap-1 font-semibold text-[color:var(--nav-active-text)]"><Sparkles size={12} /> Break down</p>
           {bd.state === "loading" && <p className="flex items-center gap-1.5 text-muted"><Loader2 size={12} className="animate-spin" /> Breaking this down…</p>}
           {bd.state === "error" && (
@@ -922,6 +922,7 @@ export default function Tasks() {
               <button
                 key={label}
                 type="button"
+                title={AI_ACTION_HELP[label]}
                 onClick={() => { track("ai_action_clicked", { action: label, page: "/tasks" }); void run(); }}
                 disabled={!(label === "Break down a task" ? visible : scoped).some((t) => t.status !== "done") || (label === "Prioritize board" && prioritizing) || (label === "Find stuck tasks" && findingStuck)}
                 className={cn(
@@ -946,6 +947,21 @@ export default function Tasks() {
           </div>
         }
       />
+
+      {/* A short how-to, once, until an AI action is used or the tip is closed
+          (6 Nov 2026 call: show people how the quick actions work). */}
+      {!tried && (
+        <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-accent/40 bg-[var(--nav-active-bg)] px-3 py-2.5 text-[13px]">
+          <Sparkles size={15} className="mt-0.5 shrink-0 text-accent" />
+          <div className="min-w-0 flex-1 space-y-0.5 text-muted">
+            <p className="font-semibold text-[color:var(--nav-active-text)]">Madeline can read your board for you</p>
+            {Object.entries(AI_ACTION_HELP).map(([label, help]) => (
+              <p key={label}><b className="text-text">{label}:</b> {help}</p>
+            ))}
+          </div>
+          <button className="shrink-0 text-xs font-semibold text-accent-soft hover:underline" onClick={markTried}>Got it</button>
+        </div>
+      )}
 
       {picking && (
         <div className="mb-3 flex items-center gap-2 rounded-lg border border-accent/40 bg-[var(--nav-active-bg)] px-3 py-2 text-sm text-[color:var(--nav-active-text)]">

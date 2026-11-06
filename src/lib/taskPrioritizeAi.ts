@@ -98,6 +98,25 @@ export function parsePrioritize(output: string, byRef: Map<string, Task>, today:
   return { summary, rows, changes };
 }
 
+/**
+ * The same board should offer the same fixes every time (6 Nov 2026 call: one
+ * run offered changes, "Review again" offered none). The AI's own changes come
+ * first; where it left a task without one, the board's rules fill it in (an
+ * overdue task always gets a new date, for example), up to the usual five.
+ */
+export function withRuleChanges(rows: RankedRow[], aiChanges: number, ruleRows: RankedRow[]): { rows: RankedRow[]; changes: number } {
+  const ruleChange = new Map(ruleRows.filter((r) => r.change).map((r) => [r.task.id, r.change!]));
+  let changes = aiChanges;
+  const out = rows.map((r) => {
+    if (r.change || changes >= MAX_CHANGES) return r;
+    const c = ruleChange.get(r.task.id);
+    if (!c) return r;
+    changes++;
+    return { ...r, change: c };
+  });
+  return { rows: out, changes };
+}
+
 export async function prioritizeWithAi(
   visible: Task[],
   opts: { now: Date; members: Assignable[]; clients: ClientLead[] },
@@ -124,8 +143,9 @@ export async function prioritizeWithAi(
         ...(open.length > sent.length ? { Note: `${open.length - sent.length} more open tasks not listed.` } : {}),
       },
     });
-    const { summary, rows, changes } = parsePrioritize(output, byRef, today);
-    return { reviewed: visible.length, summary, rows, changes, ai: true };
+    const parsed = parsePrioritize(output, byRef, today);
+    const { rows, changes } = withRuleChanges(parsed.rows, parsed.changes, prioritize(visible, opts).rows);
+    return { reviewed: visible.length, summary: parsed.summary, rows, changes, ai: true };
   } catch (e) {
     console.error("AI prioritize failed, using the rules", e);
     const fallback = prioritize(visible, opts);

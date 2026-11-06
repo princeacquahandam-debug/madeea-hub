@@ -1,6 +1,14 @@
-import { useState } from "react";
-import { AlertTriangle, CalendarDays, Check, MessageSquare, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { AlertTriangle, ArrowRight, CalendarDays, Check, MessageSquare, X } from "lucide-react";
 import { APPROVAL_DAYS, STALE_DAYS, nextWorkingDay, type StuckRow } from "@/lib/taskInsights";
+import { useOutsideClose } from "@/hooks/useOutsideClose";
+
+/** When the rules (not the AI) found the task, the next step follows from its action. */
+const FALLBACK_NEXT: Record<StuckRow["action"], string> = {
+  set_date: "Agree a new due date and set it.",
+  nudge: "Ask the assignee for an update today.",
+  open: "Open it and decide the next step.",
+};
 
 /**
  * "Find stuck tasks" (Abder's spec, 14 Oct 2026): an inline card above the
@@ -33,9 +41,12 @@ export function StuckCard({
   const [nudged, setNudged] = useState<Set<string>>(new Set());
   const shown = all ? rows : rows.slice(0, SHOWN);
   const actionBtn = "inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-semibold transition-colors hover:bg-[var(--chip-bg)]";
+  // A click anywhere else closes it (6 Nov 2026 call).
+  const ref = useRef<HTMLElement>(null);
+  useOutsideClose(ref, onClose);
 
   return (
-    <section className="card mb-4 p-4" aria-label="Stuck tasks">
+    <section ref={ref} className="card mb-4 p-4" aria-label="Stuck tasks">
       <div className="mb-2 flex items-start gap-2">
         <AlertTriangle size={16} className="mt-0.5 shrink-0 text-accent" />
         <div className="min-w-0 flex-1">
@@ -73,7 +84,12 @@ export function StuckCard({
                 ? <span className="inline-flex h-7 items-center gap-1 text-xs font-semibold text-emerald-600"><Check size={12} /> Nudged</span>
                 : <button className={actionBtn} onClick={() => { onNudge(r); setNudged((s) => new Set(s).add(r.task.id)); }}><MessageSquare size={12} /> Nudge assignee</button>)}
               {r.action === "open" && <button className={actionBtn} onClick={() => onOpen(r)}>Open</button>}
-              {r.next && <p className="w-full text-xs text-faint">Next: {r.next}</p>}
+              {/* The next action is the point of this card (6 Nov 2026 call:
+                  "you are ignoring it" in small grey type), so it stands out. */}
+              <p className="flex w-full items-start gap-1.5 rounded-md bg-[var(--nav-active-bg)] px-2.5 py-1.5 text-[13px] font-semibold text-[color:var(--nav-active-text)]">
+                <ArrowRight size={14} className="mt-[3px] shrink-0 text-accent" />
+                <span><span className="text-accent">Next:</span> {r.next || FALLBACK_NEXT[r.action]}</span>
+              </p>
             </li>
           ))}
         </ul>
