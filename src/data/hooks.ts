@@ -247,7 +247,7 @@ export function useTaskMutations() {
         // The id is returned, not just written. A caller that needs to link
         // something to the new task (a workflow run, 0035) cannot do that if
         // create() reports nothing back.
-        const id = `local-${Date.now()}`;
+        const id = `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         addDemoTask({
           id,
           title: input.title,

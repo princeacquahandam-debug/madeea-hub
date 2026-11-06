@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { track } from "@/lib/analytics";
 import { AlertTriangle, ChevronDown, ChevronRight, Link2, Lock, Send, Trash2 } from "lucide-react";
 import { Badge, PageHeader } from "@/components/ui";
 import { EOD_DATA, type CellStatus } from "@/data/eod";
 import { EOD_DATES } from "@/data/eodImport";
-import { atLeast, useDeleteEod, useEodReports, useMyRole, useSubmitEod, useTaskMutations, useTasks, useWorkspaceMembers } from "@/data/hooks";
+import { atLeast, useClients, useDeleteEod, useEodReports, useMessages, useMyRole, useSubmitEod, useTaskMutations, useTasks, useWorkspaceMembers, type Member } from "@/data/hooks";
 import { draftFromTasks, draftUse, todayIso, type EodDraft as EodDraftState } from "@/lib/eodDraft";
 import { DraftList } from "@/components/EodDraftList";
-import type { EodReport } from "@/types/db";
+import type { Client, EodReport, Task } from "@/types/db";
+import { AiActionBar } from "@/components/ai/AiResult";
+import { useTeamAi } from "@/components/eod/TeamAi";
+import { draftCount, draftFacts, draftSourceLine, DRAFT_EMPTY, runEodDraft, runEodPolish } from "@/lib/eodAi";
 import { cn } from "@/lib/utils";
 
 /*
@@ -91,6 +94,7 @@ export default function EodReports() {
   const { data: reports = [], isLoading: eodLoading, isError: eodError, error: eodErr, refetch: refetchEod } = useEodReports();
   const { data: tasks = [] } = useTasks();
   const { data: members = [] } = useWorkspaceMembers();
+  const { data: clients = [] } = useClients();
   const submit = useSubmitEod();
   const remove = useDeleteEod();
   const { create: createTask } = useTaskMutations();
@@ -149,11 +153,107 @@ export default function EodReports() {
     setNotes(next);
   };
 
+  /* ---- ✦ AI quick actions (AI quick actions deck, 6 Nov 2026) ----
+     "Write it in seconds": Madeline drafts or rewords, in place, and the EA
+     edits and submits. Madeline never submits. Her lines stay highlighted
+     (.ai-filled) until edited; "Undo draft" puts back what was there. The
+     board's rules-based draft above (autoDraft) stays as the fallback. */
+  const { data: messages = [] } = useMessages();
+  type Sec = keyof EodDraftState;
+  const [aiDraft, setAiDraft] = useState<{ prev: EodDraftState; prevTouched: boolean; line: string; base: EodDraftState } | null>(null);
+  const [aiText, setAiText] = useState<Set<string>>(new Set());
+  /** Polish wording: new text -> the old, until accepted or reverted. */
+  const [review, setReview] = useState<Map<string, string>>(new Map());
+  const [aiMsg, setAiMsg] = useState<string | null>(null);
+  const [drafting, setDrafting] = useState(false);
+  const [polishing, setPolishing] = useState(false);
+  const clearAi = () => { setAiDraft(null); setAiText(new Set()); setReview(new Map()); setAiMsg(null); };
+  const reportTotal = draft.done.length + draft.blockers.length + draft.plans.length;
+
+  async function runDraft() {
+    setAiMsg(null);
+    const facts = draftFacts(tasks, messages, me?.user_id, reportDate);
+    if (!draftCount(facts)) { setAiMsg(DRAFT_EMPTY); return; }
+    setDrafting(true);
+    try {
+      const r = await runEodDraft(facts);
+      setAiDraft({ prev: aiDraft?.prev ?? draft, prevTouched: aiDraft?.prevTouched ?? touched, line: draftSourceLine(facts, reportDate === today), base: r.data });
+      setAiText(new Set([...r.data.done, ...r.data.blockers, ...r.data.plans]));
+      setReview(new Map());
+      setTouched(true);
+      setDraft(r.data);
+    } catch (e) {
+      setAiMsg(`${e instanceof Error ? e.message : "Madeline couldn't be reached."} Your board's own draft is unchanged.`);
+    } finally {
+      setDrafting(false);
+    }
+  }
+
+  function undoDraft() {
+    if (!aiDraft) return;
+    setDraft(aiDraft.prev);
+    setTouched(aiDraft.prevTouched);
+    clearAi();
+  }
+
+  async function runPolish() {
+    setAiMsg(null);
+    setPolishing(true);
+    try {
+      const r = await runEodPolish(draft);
+      if (!r.data.length) { setAiMsg("Every item already reads clearly. Nothing was changed."); return; }
+      const next: EodDraftState = { done: [...draft.done], blockers: [...draft.blockers], plans: [...draft.plans] };
+      const rev = new Map(review);
+      const ai = new Set(aiText);
+      for (const p of r.data) {
+        next[p.section][p.index] = p.text;
+        rev.set(p.text, rev.get(p.old) ?? p.old);
+        ai.add(p.text);
+      }
+      setTouched(true);
+      setDraft(next);
+      setReview(rev);
+      setAiText(ai);
+      setAiMsg(`Reworded ${r.data.length} of ${reportTotal} ${reportTotal === 1 ? "item" : "items"}. Accept or revert each change.`);
+    } catch (e) {
+      setAiMsg(e instanceof Error ? e.message : "Madeline couldn't be reached. Try again.");
+    } finally {
+      setPolishing(false);
+    }
+  }
+
+  const acceptPolish = (sec: Sec, i: number) => {
+    const m = new Map(review); m.delete(draft[sec][i]); setReview(m);
+  };
+  const revertPolish = (sec: Sec, i: number) => {
+    const now = draft[sec][i];
+    const old = review.get(now);
+    if (old === undefined) return;
+    const m = new Map(review); m.delete(now); setReview(m);
+    const ai = new Set(aiText); ai.delete(now); setAiText(ai);
+    setDraft({ ...draft, [sec]: draft[sec].map((x, j) => (j === i ? old : x)) });
+  };
+  const listAi = (sec: Sec) => ({
+    editable: true,
+    aiFilled: (t: string) => aiText.has(t),
+    review: (t: string) => review.get(t),
+    onAccept: (i: number) => acceptPolish(sec, i),
+    onRevert: (i: number) => revertPolish(sec, i),
+  });
+  const aiNotice: ReactNode = (aiDraft || aiMsg) && (
+    <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-accent/30 bg-[var(--nav-active-bg)] px-3 py-2 text-xs" role="status" data-testid="eod-ai-notice">
+      {aiDraft && <span className="font-semibold text-[color:var(--nav-active-text)]">✦ {aiDraft.line}. Highlighted lines are Madeline's until you edit them.</span>}
+      {aiMsg && <span className="text-muted">{aiMsg}</span>}
+      {aiDraft && <button className="ml-auto font-semibold text-accent-soft hover:underline" onClick={undoDraft}>Undo draft</button>}
+    </div>
+  );
+
   /** Switching day discards an unsaved draft and loads that day's instead. */
   const changeReportDate = (next: string) => {
     setReportDate(next);
     setTouched(false);
     setNotes("");
+    clearAi();
   };
 
   /**
@@ -199,7 +299,22 @@ export default function EodReports() {
       )}
       {eodLoading && <p className="mb-3 text-sm text-faint">Loading reports…</p>}
 
-      <PageHeader title="EOD reports" />
+      <PageHeader
+        title="EOD reports"
+        titleAside={(tab === "mine" || !canTeam) && me ? (
+          /* Two clear buttons beat a filler third (AI quick actions deck, 6 Nov 2026). */
+          <AiActionBar
+            page="/eod"
+            actions={[
+              { label: "Draft my report", help: "Fills Completed, Blockers and Plan from today's tasks, sent emails and blockers. You edit and submit.", run: () => void runDraft(), busy: drafting },
+              {
+                label: "Polish wording", help: "Rewords each item to read clearly to a client. Same facts; accept or revert each change.",
+                run: () => void runPolish(), busy: polishing, disabled: reportTotal === 0, disabledHelp: "Disabled when the report is empty. Add or draft items first.",
+              },
+            ]}
+          />
+        ) : undefined}
+      />
 
       {canTeam && (
         <div className="-mt-2 mb-4 flex gap-5 border-b border-border" role="tablist" aria-label="EOD views">
@@ -221,7 +336,7 @@ export default function EodReports() {
       )}
 
       {tab === "team" && canTeam ? (
-        <TeamTab reports={reports} members={members.map((m) => m.name)} today={today} onDelete={(id) => remove.mutateAsync(id)} />
+        <TeamTab reports={reports} members={members.map((m) => m.name)} memberList={members} tasks={tasks} clients={clients} sender={me?.name} today={today} onDelete={(id) => remove.mutateAsync(id)} />
       ) : (
         <>
           <TodayEod
@@ -243,10 +358,13 @@ export default function EodReports() {
                 blockers: draft.blockers,
                 plans: draft.plans,
                 notes,
-                ai: draftUse(autoDraft, draft),
+                // Measured against Madeline's draft when one was used, else the board's.
+                ai: draftUse(aiDraft?.base ?? autoDraft, draft),
               })
             }
             onPushPlan={pushPlanToBoard}
+            notice={aiNotice}
+            listAi={listAi}
           />
 
           <section className="card mt-4 overflow-hidden">
@@ -284,10 +402,14 @@ export default function EodReports() {
 /* ---------------------------------------------------------------- Team tab */
 
 function TeamTab({
-  reports, members, today, onDelete,
+  reports, members, memberList, tasks, clients, sender, today, onDelete,
 }: {
   reports: EodReport[];
   members: string[];
+  memberList: Member[];
+  tasks: Task[];
+  clients: Client[];
+  sender?: string;
   today: string;
   onDelete: (id: string) => Promise<unknown>;
 }) {
@@ -405,6 +527,31 @@ function TeamTab({
 
   const monthLabel = (m: string) => `${MONTHS_LONG[Number(m.slice(5)) - 1]} ${m.slice(0, 4)}`;
 
+  /* ✦ AI quick actions for admins (AI quick actions deck, 6 Nov 2026). They
+     follow the month and EA filters above; the rate is the page's own. */
+  const reportsRef = useRef<HTMLElement>(null);
+  const toReports = () => window.setTimeout(() => reportsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  const teamAi = useTeamAi({
+    scope: {
+      reports: scoped,
+      people: scopePeople,
+      label: `${monthLabel(month)}, ${ea === "all" ? "all EAs" : ea}`,
+      rate: pct(expected ? scoped.length / expected : 0),
+      submitted: scoped.length,
+      expected,
+    },
+    allReports: reports,
+    month,
+    today,
+    tasks,
+    clients,
+    ea,
+    sender,
+    idOf: (name) => memberList.find((m) => m.name.trim().toLowerCase() === name.trim().toLowerCase())?.user_id,
+    onOpenReport: (r) => { setPerson(r.person ?? "all"); setDate(r.report_date); setBlockersOnly(false); toReports(); },
+    onViewReports: (p) => { setEa(p); setDate("all"); setBlockersOnly(false); toReports(); },
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -415,7 +562,10 @@ function TeamTab({
           <option value="all">All EAs</option>
           {people.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
+        <div className="ml-auto">{teamAi.bar}</div>
       </div>
+
+      {teamAi.result}
 
       {/* Four stats in one strip. */}
       <div className="card grid grid-cols-2 overflow-hidden lg:grid-cols-4">
@@ -527,7 +677,7 @@ function TeamTab({
           </div>
         </section>
 
-        <section className="card min-w-0 p-5">
+        <section ref={reportsRef} className="card min-w-0 scroll-mt-4 p-5" data-testid="team-reports">
           <div className="mb-3 flex items-center gap-2">
             <h2 className="text-[15px] font-semibold">Reports</h2>
             <span className="ml-auto text-xs text-faint">{visible.length} shown</span>
@@ -581,6 +731,8 @@ function TodayEod({
   onDateChange,
   onSubmit,
   onPushPlan,
+  notice,
+  listAi,
 }: {
   me?: string;
   draft: EodDraftState;
@@ -594,6 +746,10 @@ function TodayEod({
   onDateChange: (d: string) => void;
   onSubmit: () => void;
   onPushPlan: (title: string) => void;
+  /** The ✦ draft's notice line ("Drafted from …" + Undo draft). */
+  notice?: ReactNode;
+  /** Highlight, inline edit and Accept / Revert for each section's lines. */
+  listAi?: (sec: keyof EodDraftState) => Partial<Parameters<typeof DraftList>[0]>;
 }) {
   const total = draft.done.length + draft.blockers.length + draft.plans.length;
   const isToday = reportDate === today;
@@ -631,8 +787,10 @@ function TodayEod({
         <span className="ml-auto text-xs text-faint">Pre-filled from your task board</span>
       </div>
 
+      {notice}
       <div className="grid gap-3 md:grid-cols-3">
         <DraftList
+          {...listAi?.("done")}
           boxed
           title={isToday ? "Completed today" : `Completed on ${fmtDate(reportDate)}`}
           items={draft.done}
@@ -641,6 +799,7 @@ function TodayEod({
           onChange={(done) => onChange({ ...draft, done })}
         />
         <DraftList
+          {...listAi?.("blockers")}
           boxed
           title="Blockers"
           items={draft.blockers}
@@ -649,6 +808,7 @@ function TodayEod({
           onChange={(blockers) => onChange({ ...draft, blockers })}
         />
         <DraftList
+          {...listAi?.("plans")}
           boxed
           title="Plan for tomorrow"
           items={draft.plans}

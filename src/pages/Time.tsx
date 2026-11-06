@@ -1,12 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { track } from "@/lib/analytics";
 import { ClockWatch } from "@/components/ClockWatch";
 import { Play, Pause, Square, Trash2, Camera, ShieldAlert, Info, MonitorPlay } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui";
 import { atLeast,
   entrySeconds, pausedSession, useMyClients, useMyRole, useTimeEntries, useTimeMutations,
-  useTimeSettings, useEffectiveTimeSettings, workDate,
+  useTimeSettings, useEffectiveTimeSettings, workDate, useTasks, useWorkspaceMembers,
 } from "@/data/hooks";
+import { AiActionBar } from "@/components/ai/AiResult";
+import { MissingCard, WeekCard } from "@/components/time/TimeAiCards";
+import {
+  correctionMessage, findMissingHours, NOTE_EMPTY, runShiftNote, runWeekSummary, saveShiftNote, tasksWorkedToday, weekFacts,
+  type MissingRow, type WeekAnswer,
+} from "@/lib/timeAi";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { useMadeline } from "@/store/madeline";
+import { cn } from "@/lib/utils";
 import type { TimeEntry } from "@/types/db";
 import { dayTotal, type BreakRule } from "@/lib/breakDeduction";
 import { useNow } from "@/hooks/useNow";
@@ -175,6 +185,119 @@ export default function Time() {
     return days * dailySeconds;
   }, [range, lo, hi, dailySeconds]);
 
+  /* ---- ✦ AI quick actions (AI quick actions deck, 6 Nov 2026) ----
+     "Hours without surprises": every total is worked out in lib/timeAi with
+     the timesheet's own break rule; the AI only words the week and the note.
+     One result open at a time. */
+  const { data: tasks = [] } = useTasks();
+  const { data: members = [] } = useWorkspaceMembers();
+  const me = members.find((m) => m.is_me);
+  const qc = useQueryClient();
+  const timesheetRef = useRef<HTMLElement>(null);
+  /* Your own shifts: an admin's timesheet also lists the team's (RLS lets
+     admins read every row), and "my week" must not count theirs. Demo rows
+     carry a placeholder owner, so they are all yours there. */
+  const myEntries = useMemo(
+    () => (isSupabaseConfigured && me ? entries.filter((e) => e.owner_id === me.user_id) : entries),
+    [entries, me],
+  );
+  const clientName = (id: string | null | undefined, fallback?: string | null) =>
+    clients.find((c) => c.id === id)?.name ?? fallback ?? "No client";
+  const [aiOpen, setAiOpen] = useState<"week" | "missing" | null>(null);
+  const [aiAt, setAiAt] = useState(() => new Date());
+  const [week, setWeek] = useState<{ loading: boolean; error: string | null; answer: WeekAnswer | null; empty: boolean }>(
+    { loading: false, error: null, answer: null, empty: false },
+  );
+  const [missing, setMissing] = useState<{ rows: MissingRow[]; period: string }>({ rows: [], period: "" });
+
+  async function runWeek() {
+    setAiOpen("week");
+    setAiAt(new Date());
+    const facts = weekFacts({ entries: myEntries, today, now: Date.now(), dailySeconds, rule: breakRule, clientName });
+    if (!facts.shifts) { setWeek({ loading: false, error: null, answer: null, empty: true }); return; }
+    setWeek({ loading: true, error: null, answer: null, empty: false });
+    try {
+      const r = await runWeekSummary(facts);
+      setWeek({ loading: false, error: null, answer: r.data, empty: false });
+    } catch (e) {
+      setWeek({ loading: false, error: e instanceof Error ? e.message : "Madeline couldn't be reached. Try again.", answer: null, empty: false });
+    }
+  }
+
+  /* Computed in code, no AI call: the deck's point is that a missing day is a
+     fact, not an opinion. Follows the timesheet's period; on "Today" it looks
+     at this week so far, since today on its own can't be missing yet. */
+  function runMissing() {
+    const [mlo, mhi, period] = range === "today" ? [weekStart, today, "this week so far"] : [lo, hi, `${fmtDay(lo)} – ${fmtDay(hi)}`];
+    setMissing({ rows: findMissingHours({ entries: myEntries, lo: mlo, hi: mhi, today, now: Date.now(), dailySeconds, rule: breakRule }), period });
+    setAiOpen("missing");
+    setAiAt(new Date());
+    track("ai_result_shown", { action: "time_missing", page: "/time", latency_ms: 0, used_ai: false });
+  }
+
+  /* "Request correction". The app has no way to message an admin directly
+     (alerts are a fixed set of server events, and there are no DMs), so the
+     request is drafted in Madeline's box, unsent, for the EA to edit, and
+     copied to the clipboard so it can be pasted to the admin wherever the
+     team talks. Nothing is sent by this click. */
+  function requestCorrection(row: MissingRow) {
+    const text = correctionMessage(row, me?.name);
+    try { void navigator.clipboard?.writeText(text).catch(() => undefined); } catch { /* clipboard blocked: the draft is still in Madeline */ }
+    useMadeline.getState().ask(text, { send: false });
+  }
+
+  /* "Write shift note": fill in place. Before clocking in it fills the Note
+     field; during a shift it fills an editable note for the running session,
+     saved only on Save. Highlighted (.ai-filled) until edited. */
+  const noteClientId = running ? running.client_id ?? "" : clientId;
+  const [noteBusy, setNoteBusy] = useState(false);
+  const [noteMsg, setNoteMsg] = useState<string | null>(null);
+  const [noteAi, setNoteAi] = useState<{ text: string; prev: string } | null>(null);
+  const [shiftNote, setShiftNote] = useState<{ text: string; ai: string; saving?: boolean; error?: string } | null>(null);
+  useEffect(() => { setShiftNote(null); }, [running?.id]);
+
+  async function runNote() {
+    setNoteMsg(null);
+    setAiOpen(null);
+    const worked = tasksWorkedToday(tasks, me?.user_id, noteClientId, today);
+    if (!worked.length) { setNoteMsg(NOTE_EMPTY); return; }
+    setNoteBusy(true);
+    try {
+      const r = await runShiftNote(clientName(noteClientId, running?.client_name), worked, today);
+      if (running) setShiftNote({ text: r.data.note, ai: r.data.note });
+      else { setNoteAi({ text: r.data.note, prev: note }); setNote(r.data.note); }
+    } catch (e) {
+      setNoteMsg(e instanceof Error ? e.message : "Madeline couldn't be reached. Try again.");
+    } finally {
+      setNoteBusy(false);
+    }
+  }
+
+  async function saveRunningNote() {
+    if (!running || !shiftNote) return;
+    setShiftNote({ ...shiftNote, saving: true, error: undefined });
+    try {
+      await saveShiftNote(running.id, shiftNote.text);
+      await qc.invalidateQueries({ queryKey: ["time_entries"] });
+      setShiftNote(null);
+    } catch (e) {
+      setShiftNote({ ...shiftNote, saving: false, error: e instanceof Error ? e.message : "Couldn't save the note." });
+    }
+  }
+
+  const aiActions = [
+    { label: "Summarize my week", help: "Your hours this week, by client, against your expected hours", run: () => void runWeek(), busy: week.loading },
+    { label: "Check missing hours", help: "Weekdays in this period with no shift or a short one (no AI, worked out from your shifts)", run: runMissing },
+    {
+      label: "Write shift note",
+      help: "Writes the note for this shift from today's tasks for the selected client",
+      run: () => void runNote(),
+      busy: noteBusy,
+      disabled: !!paused || !noteClientId,
+      disabledHelp: paused ? "Resume your shift first: a paused session can't be changed." : "Pick a client first.",
+    },
+  ];
+
   /**
    * Clocking in and out, both gated on reporting (components/ClockGates).
    *
@@ -201,6 +324,7 @@ export default function Time() {
     onClockIn: (focus) => {
       start.mutate({ client_id: clientId || null, note: note.trim() || null, focus });
       setNote("");
+      setNoteAi(null);
       if (effective?.screenshotsEnabled !== false && capture.state !== "capturing") {
         void capture.start();
       }
@@ -254,7 +378,32 @@ export default function Time() {
       <PageHeader
         title="Time tracker"
         subtitle="Your clock-ins are used for attendance and payroll."
+        titleAside={<AiActionBar actions={aiActions} page="/time" />}
       />
+
+      {aiOpen === "week" && (
+        <WeekCard
+          at={aiAt}
+          {...week}
+          onClose={() => setAiOpen(null)}
+          onRefresh={() => void runWeek()}
+          onViewTimesheet={() => {
+            setRange("week");
+            setAiOpen(null);
+            timesheetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+        />
+      )}
+      {aiOpen === "missing" && (
+        <MissingCard
+          at={aiAt}
+          rows={missing.rows}
+          period={missing.period}
+          dailyLabel={`${dailyHours}:00`}
+          onClose={() => setAiOpen(null)}
+          onRequest={requestCorrection}
+        />
+      )}
 
       {/* Your shift first, the team beside it (12 Oct 2026, UI review deck
           slide 6). Team today renders nothing below manager, and then the
@@ -363,15 +512,43 @@ export default function Time() {
                   noise nobody read. The client is the unit that matters. */}
               <label className="field-label" htmlFor="time-note">Note (optional)</label>
               <input
-                id="time-note" className="input" placeholder="Add a note for this shift"
+                id="time-note" className={cn("input", noteAi && note === noteAi.text && "ai-filled")} placeholder="Add a note for this shift"
                 value={note} onChange={(e) => setNote(e.target.value)}
               />
+              {noteAi && note === noteAi.text && (
+                <p className="mt-1 text-[11px] text-faint">
+                  Written by Madeline from today's tasks. Edit it freely.{" "}
+                  <button className="font-semibold text-accent-soft hover:underline" onClick={() => { setNote(noteAi.prev); setNoteAi(null); }}>Undo</button>
+                </p>
+              )}
             </div>
             <button className="btn-primary shrink-0" onClick={gate.requestClockIn} disabled={start.isPending}>
               <Play size={15} /> Clock in
             </button>
           </div>
         )}
+
+        {/* The running shift's note, filled by "Write shift note". Nothing is
+            saved until Save. */}
+        {running && shiftNote && (
+          <div className="mt-3">
+            <label className="field-label" htmlFor="shift-note">Note for this shift</label>
+            <div className="flex flex-wrap gap-2">
+              <input
+                id="shift-note"
+                className={cn("input min-w-0 flex-1", shiftNote.text === shiftNote.ai && "ai-filled")}
+                value={shiftNote.text}
+                onChange={(e) => setShiftNote({ ...shiftNote, text: e.target.value })}
+              />
+              <button className="btn-primary shrink-0" onClick={() => void saveRunningNote()} disabled={shiftNote.saving}>
+                {shiftNote.saving ? "Saving…" : "Save note"}
+              </button>
+              <button className="btn-ghost shrink-0 border border-border" onClick={() => setShiftNote(null)}>Discard</button>
+            </div>
+            {shiftNote.error && <p className="mt-1 text-xs text-red-500">{shiftNote.error}</p>}
+          </div>
+        )}
+        {noteMsg && <p className="mt-2 text-xs text-muted" role="status" data-testid="note-msg">{noteMsg}</p>}
 
         {/* Early clock-out reason, asked only when the day is actually short. */}
         {askEarly && (running || paused) && (
@@ -403,7 +580,7 @@ export default function Time() {
       {screenshotsOn && running && <CapturePanel capture={capture} minutes={settings?.screenshot_minutes ?? 10} />}
 
       {/* ---- the timesheet ---- */}
-      <section className="card p-5">
+      <section ref={timesheetRef} className="card scroll-mt-4 p-5">
         {/* Period and total live in the header (deck slide 6). */}
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <h2 className="text-[15px] font-semibold">Timesheet</h2>

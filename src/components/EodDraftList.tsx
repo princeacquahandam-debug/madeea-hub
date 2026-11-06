@@ -20,6 +20,11 @@ export function DraftList({
   onPush,
   pushLabel,
   boxed = false,
+  editable = false,
+  aiFilled,
+  review,
+  onAccept,
+  onRevert,
 }: {
   title: string;
   items: string[];
@@ -32,8 +37,24 @@ export function DraftList({
   /** A bordered box with a dashed "Add item" field, for three side by side
       (12 Oct 2026, UI review deck slide 7). */
   boxed?: boolean;
+  /** Click a line to reword it in place. */
+  editable?: boolean;
+  /** ✦ Lines Madeline wrote, highlighted (.ai-filled) until edited (AI quick actions deck, 6 Nov 2026). */
+  aiFilled?: (text: string) => boolean;
+  /** "Polish wording": the line's old text when it was reworded, for Accept / Revert. */
+  review?: (text: string) => string | undefined;
+  onAccept?: (index: number) => void;
+  onRevert?: (index: number) => void;
 }) {
   const [add, setAdd] = useState("");
+  const [editing, setEditing] = useState<number | null>(null);
+  const [value, setValue] = useState("");
+  const commit = (i: number) => {
+    const v = value.trim();
+    setEditing(null);
+    if (!v) onChange(items.filter((_, j) => j !== i));
+    else if (v !== items[i]) onChange(items.map((x, j) => (j === i ? v : x)));
+  };
   /* Which lines have been pushed, by index. Local and deliberately not
      persisted: it exists so you can see the click landed and not create the
      same task three times in one sitting. The board is the real record. */
@@ -43,10 +64,30 @@ export function DraftList({
     <div className={cn(boxed && "flex min-w-0 flex-col rounded-lg border border-border p-3")}>
       <p className={boxed ? "mb-1.5 text-[13px] font-semibold" : "eyebrow mb-1.5"}>{title}</p>
       <ul className={cn("space-y-1", boxed && "flex-1")}>
-        {items.map((t, i) => (
-          <li key={i} className="group flex items-start gap-2 rounded-md px-1 py-0.5 hover:bg-surface-2/60">
+        {items.map((t, i) => {
+          const was = review?.(t);
+          return (
+          <li key={i} className={cn("group flex flex-wrap items-start gap-x-2 rounded-md px-1 py-0.5 hover:bg-surface-2/60", aiFilled?.(t) && "ai-filled")} data-ai={aiFilled?.(t) ? "1" : undefined}>
             <span className={cn("mt-2 h-1.5 w-1.5 shrink-0 rounded-sm", dot)} />
-            <span className="min-w-0 flex-1 text-sm text-zinc-200">{t}</span>
+            {editable && editing === i ? (
+              <textarea
+                autoFocus
+                rows={2}
+                className="input min-w-0 flex-1 py-1 text-sm"
+                aria-label={`Edit "${t}"`}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onBlur={() => commit(i)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commit(i); }
+                  if (e.key === "Escape") setEditing(null);
+                }}
+              />
+            ) : editable ? (
+              <button type="button" className="min-w-0 flex-1 cursor-text text-left text-sm text-zinc-200" title="Click to edit" onClick={() => { setValue(t); setEditing(i); }}>{t}</button>
+            ) : (
+              <span className="min-w-0 flex-1 text-sm text-zinc-200">{t}</span>
+            )}
             {onPush && (
               <button
                 className={cn(
@@ -69,8 +110,17 @@ export function DraftList({
             >
               Remove
             </button>
+            {/* Polish wording: the old line beside the new, nothing kept until chosen. */}
+            {was !== undefined && (
+              <div className="mt-1 flex w-full flex-wrap items-center gap-2 pl-3.5 text-[11px]" data-testid="polish-review">
+                <span className="min-w-0 flex-1 text-faint">Was: <span className="line-through decoration-faint/60">{was}</span></span>
+                <button type="button" className="font-semibold text-emerald-500 hover:underline" onClick={() => onAccept?.(i)}>Accept</button>
+                <button type="button" className="font-semibold text-muted hover:text-text hover:underline" onClick={() => onRevert?.(i)}>Revert</button>
+              </div>
+            )}
           </li>
-        ))}
+          );
+        })}
         {items.length === 0 && <li className="px-1 text-xs text-faint">{empty}</li>}
       </ul>
       <form

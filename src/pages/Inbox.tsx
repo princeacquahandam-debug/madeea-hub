@@ -1,4 +1,5 @@
-import { InlineAiActions } from "@/components/madeline/PageAiActions";
+import { AiActionBar } from "@/components/ai/AiResult";
+import { useInboxAi } from "@/components/inbox/useInboxAi";
 import { track } from "@/lib/analytics";
 import { fmtDateTime } from "@/lib/userTimeZone";
 import { useEffect, useMemo, useState, useRef } from "react";
@@ -258,6 +259,17 @@ export default function Communication() {
   // With the rest of its thread, so "Summarize thread" reads the conversation.
   const selectedThread = selected ? threads.find((t) => t.messages.some((m) => m.id === selected.id))?.messages : undefined;
   useMadelineContext(selected ? emailItem(selected, selectedThread) : null);
+
+  /* The ✦ quick actions (AI quick actions deck, 6 Nov 2026). They read `list`,
+     the messages in view, so the tab, sources, client, search and Unread
+     filters all apply. Opening a message from a result opens it here. */
+  const ai = useInboxAi({
+    inView: list,
+    all: messages,
+    clients,
+    viewLabel: tab,
+    onOpen: (m) => { setSelectedId(m.id); setReaderOpen(true); },
+  });
 
   /* Opening a conversation marks its incoming messages read, which is what
      clears the sidebar's "Inbox 5" (Reich's testing, 20 Oct 2026). Only a
@@ -557,7 +569,7 @@ export default function Communication() {
       <div className="mb-2.5 flex flex-wrap items-center gap-2">
         <h1 className="shrink-0 text-xl font-semibold">Inbox</h1>
         {/* AI actions right beside the title, as in Abder’s mockup (13 Oct call). */}
-        <div className="mr-auto"><InlineAiActions path="/inbox" /></div>
+        <div className="mr-auto"><AiActionBar actions={ai.actions} page="/inbox" /></div>
         {/* Only for an EA a client has shared their mailbox with (0086). */}
         {/* Every mailbox you can read, by address: your Gmail and Outlook, and any
             client mailbox shared with you (19 Oct 2026). */}
@@ -635,6 +647,8 @@ export default function Communication() {
       </div>
 
       <ClientScopeBanner note="Messages are matched to a client by their sender's email domain." />
+
+      {ai.result}
 
       {/* Announced, never shown. Selection changes, triage results and load
           states were all silent to a screen reader, so the only way to learn

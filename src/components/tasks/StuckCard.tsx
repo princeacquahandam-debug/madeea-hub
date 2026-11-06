@@ -16,9 +16,9 @@ const FALLBACK_NEXT: Record<StuckRow["action"], string> = {
  * per task: title · why it's stuck · days stuck · one action. Five at most,
  * then "Show N more". The source line states the thresholds used.
  *
- * Since 27 Oct 2026 the AI decides what is stuck (lib/taskStuckAi): each row
- * then carries a next step, and the source line says the AI read the board.
- * When it can't be reached the rules answer, and the summary says so.
+ * Since the 6 Nov 2026 deck the rules decide what is stuck (at most 5) and the
+ * AI writes each reason and next step (lib/taskStuckAi). When it can't be
+ * reached the rules' own wording shows, and the summary says so.
  */
 const SHOWN = 5;
 
@@ -54,9 +54,7 @@ export function StuckCard({
             {rows.length ? `${rows.length} stuck ${rows.length === 1 ? "task" : "tasks"}` : "Nothing is stuck"}
           </h2>
           <p className="text-xs text-faint">
-            Madeline · {checked} open {checked === 1 ? "task" : "tasks"} checked · {ai
-              ? "Read with each task's time in its stage, due date and blockers"
-              : <>Stuck = overdue, blocked, no update in {STALE_DAYS}+ days, or waiting for approval {APPROVAL_DAYS}+ days</>}
+            Madeline · {checked} open {checked === 1 ? "task" : "tasks"} checked · <>Stuck = overdue, blocked, no update in {STALE_DAYS}+ days, or waiting for approval {APPROVAL_DAYS}+ days{ai ? "; reasons by Madeline" : ""}</>
           </p>
           {summary && <p className="mt-1 text-sm text-muted">{summary}</p>}
         </div>
@@ -64,7 +62,7 @@ export function StuckCard({
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-muted">{ai ? "Nothing is stuck. Every open task is moving." : `Nothing is stuck. Every open task moved in the last ${STALE_DAYS} days.`}</p>
+        <p className="text-sm text-muted">Nothing is stuck.</p>
       ) : (
         <ul className="divide-y divide-border">
           {shown.map((r) => (

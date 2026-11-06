@@ -47,7 +47,21 @@ export type GenerateTool =
   | "decision"
   | "task_breakdown"
   | "task_prioritize"
-  | "task_stuck";
+  | "task_stuck"
+  /* The ✦ quick actions on Home, Inbox, Time tracker and EOD (6 Nov 2026 deck). */
+  | "home_plan_day"
+  | "home_catch_up"
+  | "home_follow_ups"
+  | "inbox_summary"
+  | "inbox_replies"
+  | "inbox_actions"
+  | "time_week"
+  | "time_shift_note"
+  | "eod_draft"
+  | "eod_polish"
+  | "team_summary"
+  | "team_attention"
+  | "client_weekly";
 
 export interface GeneratePayload {
   tool: GenerateTool;

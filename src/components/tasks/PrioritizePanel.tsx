@@ -135,7 +135,7 @@ export function PrioritizePanel({
       <div className="border-t border-border px-4 py-3">
         {withChange.length === 0 ? (
           <>
-            <p className="mb-2 text-xs text-muted">Nothing on the board needs changing. Work through the tasks in this order.</p>
+            <p className="mb-2 text-xs text-muted">Your board is in good order. Nothing to change.</p>
             <button className="btn-primary w-full justify-center" onClick={() => onClose("close")}>Done</button>
           </>
         ) : (

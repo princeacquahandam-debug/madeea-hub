@@ -38,3 +38,7 @@ __pycache__/
 # Report screenshots: they contain real inbox contents.
 scripts/report-*.jpg
 scripts/out-*.png
+
+# AI switch-rule check: real request text and its reports
+scripts/ai-eval/requests.json
+scripts/ai-eval/report-*.json

@@ -21,6 +21,8 @@ import type { Meeting } from "@/types/db";
 import { useFollowUpSettings } from "@/store/followupSettings";
 import { useClientContext } from "@/store/clientContext";
 import { isMine } from "@/lib/taskSort";
+import { AiActionBar } from "@/components/ai/AiResult";
+import { useHomeAi } from "@/components/home/useHomeAi";
 
 const KPI_ICON_COLORS = ["text-accent", "text-sky-400", "text-amber-400", "text-red-400", "text-amber-400", "text-emerald-400"];
 const priorityLabel: Record<string, string> = { urgent: "Urgent", high: "High", normal: "Normal", low: "Low" };
@@ -59,6 +61,9 @@ export default function Dashboard() {
   }, [params, meetings, setParams]);
   const cfg = useSlaSettings((s) => s.config);
   const { flags } = useFollowUps();
+  /* The ✦ quick actions beside the greeting (AI quick actions deck, 6 Nov
+     2026). "Open meeting" in the plan opens the same prep packet as Details. */
+  const ai = useHomeAi({ onOpenMeeting: setPrepFor });
 
   const slas = useMemo(
     () => clients.map((c) => ({ client: c, sla: clientSla(c, messages, cfg) })),
@@ -157,11 +162,16 @@ export default function Dashboard() {
   return (
     <div>
       <div className="mb-7">
-        <h1 className="greeting-title">{timeOfDay}, {firstName}.</h1>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <h1 className="greeting-title">{timeOfDay}, {firstName}.</h1>
+          <AiActionBar actions={ai.actions} page="/" />
+        </div>
         <p className="mt-1 text-sm text-muted">
           You have {plural(activeCount, "active task", "active tasks")} and {plural(flags.length, "item that needs", "items that need")} a follow-up.
         </p>
       </div>
+
+      {ai.result}
 
       {/* One strip with dividers, not six floating cards. */}
       <div className={`card grid grid-cols-2 overflow-hidden sm:grid-cols-3 ${kpis.length === 6 ? "xl:grid-cols-6" : "xl:grid-cols-5"}`}>

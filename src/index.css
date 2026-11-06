@@ -739,3 +739,7 @@
 /* The Prioritize board side panel slides in from the right (14 Oct 2026). */
 @keyframes slideInRight { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { [style*="slideInRight"] { animation: none !important; } }
+
+/* "Fill in place" (AI quick actions deck, 6 Nov 2026, slide 4): text the AI
+   wrote into a form shows in light orange until the person edits it. */
+.ai-filled { background-color: rgb(var(--c-accent) / 0.08) !important; box-shadow: inset 0 0 0 1px rgb(var(--c-accent) / 0.35); }

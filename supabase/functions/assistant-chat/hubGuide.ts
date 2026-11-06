@@ -95,9 +95,20 @@ export const HUB_GUIDE: HubGuideEntry[] = [
     topic: "AI buttons on Tasks",
     keywords: ["prioritize", "prioritise", "break down", "breakdown", "stuck", "find stuck", "ai", "order", "steps"],
     how:
-      "On Work → Tasks, at the top: Prioritize board reads your open tasks and suggests today's order in a panel you can apply or discard. " +
-      "Break down a task asks you to pick a card, then shows steps on it (it may ask one question first). " +
-      "Find stuck tasks checks how long each open task has sat in its stage and outlines the stalled cards in red.",
+      "On Work → Tasks, at the top: Prioritize board ranks your open tasks, marks where to start, and suggests up to 5 changes in a panel you can apply or discard (Undo after). " +
+      "Break down a task asks you to pick a card, then writes 3 to 7 steps on it; Keep all adds them to the checklist (it may ask one question first). " +
+      "Find stuck tasks lists up to 5 tasks that are overdue, blocked, untouched for 7+ days or waiting 3+ days for approval, with the next action for each, and outlines them on the board.",
+  },
+  {
+    topic: "AI buttons (✦ quick actions) on every page",
+    keywords: ["ai", "quick action", "sparkle", "plan my day", "catch me up", "follow-up", "summarize", "summarise", "draft replies", "action items", "missing hours", "shift note", "draft my report", "polish", "team", "weekly report"],
+    how:
+      "Up to three ✦ buttons sit next to each page title. Today → Dashboard: Plan my day, Catch me up, Draft follow-ups. " +
+      "Work → Inbox: Summarize unread, Draft replies, Find action items. Work → Tasks: Prioritize board, Break down a task, Find stuck tasks. " +
+      "Time & Reports → Time tracker: Summarize my week, Check missing hours, Write shift note. Time & Reports → EOD reports: Draft my report and Polish wording; " +
+      "admins also get Summarize the team, Who needs attention? and Client weekly report on the team view. " +
+      "A summary shows as a card at the top of the page; drafts and changes open in a side panel with a checkbox each and change nothing until you press Apply, Send or Create; " +
+      "form helpers write into the form in light orange so you can edit before you submit. Click outside a result to close it. Each person has a daily AI allowance that resets every day.",
   },
   {
     topic: "Routines (repetitive tasks)",

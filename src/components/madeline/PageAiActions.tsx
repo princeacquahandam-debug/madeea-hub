@@ -67,29 +67,8 @@ const PAGES: PageConfig[] = [
       },
     ],
   },
-  {
-    // Abder's Inbox mockup: three buttons beside the title.
-    path: "/inbox",
-    placement: "inline",
-    needs: "messages",
-    actions: [
-      {
-        label: "Summarize unread",
-        prompt:
-          "Summarise my unread and unanswered messages across every channel: for each, who it's from, what they want, and whether it needs a reply from me. Put anything urgent first. Keep it to one line per message.",
-      },
-      {
-        label: "Draft replies",
-        prompt:
-          "Draft replies to the messages waiting on me (incoming and not yet answered), most urgent first, up to three. Write each one ready for me to review and edit, in my voice. Don't send anything.",
-      },
-      {
-        label: "Find action items",
-        prompt:
-          "Go through my recent messages and pull out the action items: what I've been asked to do, by whom, and any deadline mentioned. List them most urgent first and offer to turn them into tasks.",
-      },
-    ],
-  },
+  /* The Inbox entry went on 6 Nov 2026: the Inbox now runs its own quick
+     actions with checked answers (components/inbox/useInboxAi). */
 ];
 
 const at = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() : NaN);
