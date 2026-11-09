@@ -44,6 +44,12 @@ const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const WEBHOOK = Deno.env.get("DELEGATION_WEBHOOK_URL")
   ?? "https://n8n.madeea.io/webhook/delegate/ai";
 
+/* The webhook's shared secret (9 Nov 2026): n8n's Webhook node checks this
+   header, so only the Hub and the Delegation Coach app can spend MadeEA's AI
+   credits through it. Sent only when set, so this deploys safely before n8n
+   starts requiring it. */
+const WEBHOOK_KEY = Deno.env.get("DELEGATION_WEBHOOK_KEY") ?? "";
+
 const line = (label: string, v: unknown) => (v ? `${label}: ${v}\n` : "");
 
 /** The only thing that differs between the four original functions. */
@@ -144,7 +150,7 @@ Deno.serve(async (req) => {
 
     const upstream = await fetch(WEBHOOK, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(WEBHOOK_KEY ? { "X-Coach-Key": WEBHOOK_KEY } : {}) },
       body: JSON.stringify({
         session_id: crypto.randomUUID(),
         function_type: spec.type,
