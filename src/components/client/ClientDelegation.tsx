@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle, ArrowRight, CheckCircle2, Loader2, Send, Sparkles, Target,
+  AlertTriangle, ArrowRight, CheckCircle2, Copy, Loader2, Send, Sparkles, Target,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { dateOnly, dayLabel, localDayKey } from "./format";
+import { DelegationSort, type SortPick } from "./DelegationSort";
 
 /**
  * The Delegation Coach, in the client portal.
@@ -27,7 +28,22 @@ import { dateOnly, dayLabel, localDayKey } from "./format";
  * navigation, a wizard shell and four URLs to hold three text boxes each. A
  * client delegating one task is doing one sitting of work; the step state lives
  * in this component and the portal keeps its flat tab structure.
+ *
+ * FOR THE FOUNDER, AND NOT ONLY TO THE ASSISTANT (11 Nov 2026 call). Prince:
+ * the coach exists so a founder keeps only the few things they should be doing
+ * and hands everything else "to the correct members of that particular team",
+ * because "the EA can't do everything". So the list screen opens with the
+ * keep-or-hand-over sort (DelegationSort), and a plan can go to the assistant
+ * (a task on their board), to one of the client's own team members on MadeEA
+ * (a task on theirs, 0102), or to someone outside MadeEA (the founder sends the
+ * message; the plan is marked handed over).
  */
+
+/** Who the plan goes to. */
+type Recipient =
+  | { kind: "assistant" }
+  | { kind: "member"; email: string }
+  | { kind: "other" };
 
 interface Plan {
   id: string;
@@ -59,10 +75,51 @@ const EMPTY_PLAN = {
   autonomy_level: "act_inform", support_needed: "", deadline: "",
 };
 
-export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
+export function ClientDelegation({
+  readOnly = false, assistantName = null,
+}: { readOnly?: boolean; assistantName?: string | null }) {
   const qc = useQueryClient();
   const [step, setStep] = useState<Step>("list");
   const [error, setError] = useState("");
+  const [to, setTo] = useState<Recipient>({ kind: "assistant" });
+  /* Started from the sort: the assessment is skipped, so Back returns to the list. */
+  const [fromSort, setFromSort] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const assistant = assistantName?.trim() || "your assistant";
+
+  /* The client's own team members on MadeEA (0078). Emails are the primary's only (0074). */
+  const { data: members = [] } = useQuery({
+    queryKey: ["client-portal", "people"],
+    enabled: isSupabaseConfigured && !readOnly,
+    queryFn: async () => {
+      const { data, error } = await supabase!.from("client_people").select("role, email");
+      if (error) throw error;
+      return (data ?? []) as { role: string; email: string | null }[];
+    },
+    select: (rows) => rows.filter((p) => p.role === "member" && p.email).map((p) => p.email as string),
+  });
+
+  function startFromSort(pick: SortPick) {
+    const member = pick.who
+      ? members.find((m) => m.toLowerCase() === pick.who!.toLowerCase() || m.split("@")[0].toLowerCase() === pick.who!.toLowerCase())
+      : undefined;
+    const recipient: Recipient =
+      pick.decision === "assistant" ? { kind: "assistant" }
+      : member ? { kind: "member", email: member }
+      : { kind: "other" };
+    setTo(recipient);
+    setDraft({
+      ...EMPTY_PLAN,
+      task_name: pick.task,
+      team_member:
+        recipient.kind === "assistant" ? assistant
+        : recipient.kind === "member" ? recipient.email
+        : pick.decision === "new_role" ? "" : pick.who ?? "",
+    });
+    setFromSort(true);
+    setStep("describe");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   const [assessment, setAssessment] = useState({
     draining_tasks: "", tasks_not_delegating: "", delegation_barriers: "", team_members: "",
@@ -125,6 +182,7 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
     onSuccess: ({ id, text }) => {
       setAssessmentId(id);
       setInsights(text);
+      setDraft((d) => ({ ...d, team_member: d.team_member || assistant }));
       setStep("describe");
     },
   });
@@ -152,7 +210,12 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
       });
       if (error) throw error;
       if (handOff) {
-        const { error: hoErr } = await supabase!.rpc("client_hand_off_plan", { p_plan_id: id });
+        const { error: hoErr } =
+          to.kind === "assistant"
+            ? await supabase!.rpc("client_hand_off_plan", { p_plan_id: id })
+            : to.kind === "member"
+              ? await supabase!.rpc("client_hand_off_plan_to_member", { p_plan_id: id, p_email: to.email })
+              : await supabase!.rpc("client_mark_plan_sent", { p_plan_id: id });
         if (hoErr) throw hoErr;
       }
       return id as string;
@@ -162,6 +225,9 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
       setGenerated(null);
       setAssessmentId(null);
       setInsights("");
+      setTo({ kind: "assistant" });
+      setFromSort(false);
+      setCopied(false);
       setStep("list");
       qc.invalidateQueries({ queryKey: ["client-portal", "delegation-plans"] });
       qc.invalidateQueries({ queryKey: ["client-portal", "tasks"] });
@@ -199,15 +265,16 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
 
       {step === "list" ? (
         <>
+          <DelegationSort assistantName={assistantName} members={members} onPlan={startFromSort} />
           <section>
             <h2 className="mb-1 text-[15px] font-semibold">Hand something over</h2>
             <p className="text-faint mb-3 text-sm">
               Work through one task at a time: what to let go of, what good looks like, and
-              the message that hands it to your assistant. The plan becomes a real task on
-              your account when you are ready.
+              the message that hands it over, to {assistant} or to someone on your team. It
+              becomes a real task on their board when you are ready.
             </p>
             <button
-              onClick={() => setStep("assess")}
+              onClick={() => { setFromSort(false); setTo({ kind: "assistant" }); setStep("assess"); }}
               className="btn-primary whitespace-nowrap"
             >
               <Sparkles size={15} /> Start a delegation plan
@@ -261,8 +328,40 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
                  onChange={(v) => setDraft((d) => ({ ...d, outcome: v }))} />
           <Field label="What do they need to know?" value={draft.context}
                  onChange={(v) => setDraft((d) => ({ ...d, context: v }))} />
-          <Field label="Who is taking it?" value={draft.team_member} single
-                 onChange={(v) => setDraft((d) => ({ ...d, team_member: v }))} />
+          <div>
+            <div className="field-label mb-1.5">Who is taking it?</div>
+            <div className="flex flex-col gap-2">
+              <Choice
+                on={to.kind === "assistant"}
+                title={assistantName?.trim() ? `${assistantName.trim()}, your assistant` : "Your assistant"}
+                hint="Goes on their board as a task, with the message attached."
+                onClick={() => { setTo({ kind: "assistant" }); setDraft((d) => ({ ...d, team_member: assistant })); }}
+              />
+              {members.map((m) => (
+                <Choice
+                  key={m}
+                  on={to.kind === "member" && to.email === m}
+                  title={m}
+                  hint="On your team in MadeEA: goes on their board as a task."
+                  onClick={() => { setTo({ kind: "member", email: m }); setDraft((d) => ({ ...d, team_member: m })); }}
+                />
+              ))}
+              <Choice
+                on={to.kind === "other"}
+                title="Someone else on my team"
+                hint="Not on MadeEA. You send them the message yourself."
+                onClick={() => {
+                  setTo({ kind: "other" });
+                  setDraft((d) => ({ ...d, team_member: d.team_member === assistant || members.includes(d.team_member) ? "" : d.team_member }));
+                }}
+              />
+            </div>
+            {to.kind === "other" ? (
+              <input value={draft.team_member} placeholder="Their name and role, e.g. Sam (product)"
+                     onChange={(e) => setDraft((d) => ({ ...d, team_member: e.target.value }))}
+                     className="input mt-2" aria-label="Their name" />
+            ) : null}
+          </div>
 
           <div>
             <div className="text-muted mb-1.5 text-xs font-semibold">How much freedom?</div>
@@ -294,9 +393,9 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
                    className="input sm:w-56" />
           </div>
 
-          <Actions busy={busy} onBack={() => setStep("assess")}
+          <Actions busy={busy} onBack={() => setStep(fromSort ? "list" : "assess")}
                    onNext={() => void run(() => buildPlan.mutateAsync())} nextLabel="Build the plan"
-                   disabled={!draft.task_name.trim()} />
+                   disabled={!draft.task_name.trim() || (to.kind === "other" && !draft.team_member.trim())} />
         </section>
       ) : null}
 
@@ -333,6 +432,15 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
           {generated.handoff_message ? (
             <Block title="The message to send" icon={Send}>
               <p className="whitespace-pre-wrap text-sm">{generated.handoff_message}</p>
+              <button
+                onClick={() => {
+                  void navigator.clipboard?.writeText(generated.handoff_message ?? "").then(() => setCopied(true));
+                }}
+                className="mt-2 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium"
+                style={{ border: "1px solid var(--c-border)" }}
+              >
+                <Copy size={12} /> {copied ? "Copied" : "Copy the message"}
+              </button>
             </Block>
           ) : null}
 
@@ -350,12 +458,15 @@ export function ClientDelegation({ readOnly = false }: { readOnly?: boolean }) {
             <button onClick={() => void run(() => savePlan.mutateAsync(true))} disabled={busy}
                     className="btn-primary whitespace-nowrap">
               {busy ? <Loader2 size={15} className="animate-spin" /> : <ArrowRight size={15} />}
-              Hand it over
+              {to.kind === "other" ? "Mark as handed over" : "Hand it over"}
             </button>
           </div>
           <p className="text-faint text-xs">
-            Handing it over puts this on your assistant&rsquo;s board as a task, with the
-            message above attached.
+            {to.kind === "assistant"
+              ? <>Handing it over puts this on {assistant}&rsquo;s board as a task, with the message above attached.</>
+              : to.kind === "member"
+                ? <>Handing it over puts this on {to.email}&rsquo;s board as a task, with the message above attached.</>
+                : <>Copy the message and send it to {draft.team_member.trim() || "them"} yourself. The plan is then kept as handed over.</>}
           </p>
         </section>
       ) : null}
@@ -387,6 +498,25 @@ function PlanList({ plans, loading }: { plans: Plan[]; loading: boolean }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function Choice({
+  on, title, hint, onClick,
+}: { on: boolean; title: string; hint: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className={cn(
+        "rounded-lg border p-3 text-left text-sm transition-colors",
+        on ? "border-accent bg-accent/15 text-accent-soft" : "border-border bg-surface-2 hover:border-accent/50",
+      )}
+    >
+      <div className="break-all font-medium">{title}</div>
+      <div className="text-xs opacity-75">{hint}</div>
+    </button>
   );
 }
 

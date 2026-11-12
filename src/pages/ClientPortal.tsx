@@ -320,7 +320,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
           {tab === "mytasks" && isMember ? <ClientMemberBoard /> : null}
           {tab === "myreport" && isMember ? <ClientStaffReport /> : null}
           {tab === "staffchat" && !isViewer ? <ClientTeamChat asOwner={!isMember} /> : null}
-          {tab === "delegate" ? <ClientDelegation readOnly={isViewer} /> : null}
+          {tab === "delegate" ? <ClientDelegation readOnly={isViewer || isMember} assistantName={header?.assistant_name} /> : null}
           {tab === "people" ? <ClientPeople readOnly={isViewer} /> : null}
           {tab === "team" ? <ClientTeam /> : null}
           {tab === "mywork" ? <ClientMyWork clientId={clientId} onNavigate={(id) => setTab(id as Tab)} /> : null}

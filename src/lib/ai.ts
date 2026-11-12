@@ -61,7 +61,9 @@ export type GenerateTool =
   | "eod_polish"
   | "team_summary"
   | "team_attention"
-  | "client_weekly";
+  | "client_weekly"
+  /* Client portal, Delegate: keep or hand over (11 Nov 2026 call). */
+  | "delegation_sort";
 
 export interface GeneratePayload {
   tool: GenerateTool;

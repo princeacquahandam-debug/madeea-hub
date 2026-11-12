@@ -108,6 +108,21 @@ Return {"highlights":[string],"completed":[string],"in_progress":[string],"needs
 - At most 200 words in total. Plain words a client understands; no internal ids, refs, task codes or team-only notes.
 - "needs_from_you": only things genuinely waiting on the client. Leave a list empty rather than pad it.
 Empty: all lists empty.`,
+
+  /* ---------------- Client portal: Delegate (11 Nov 2026 call) ---------------- */
+  delegation_sort: `You help a founder decide what stays on their desk and what to hand over. A founder should spend their days on a few things only they can do (their focus areas, given); everything else goes to the right person.
+Input: their focus areas, the items on their desk (refs D1, D2, ...), their meetings for the coming week (refs M1, M2, ...), their executive assistant's name, and the people on their team with what each does (if given).
+Return {"summary":string,"rows":[{"ref":string,"decision":"keep"|"assistant"|"team"|"new_role","who":string|null,"reason":string}],"new_roles":[{"role":string,"refs":[string],"reason":string}]}
+- One row per D and M item given, same refs, in this order: keep first, then assistant, team, new_role.
+- "keep" only when the item serves a focus area AND needs the founder personally (a decision, a relationship only they hold, their expertise). With no focus areas given, keep only what clearly needs the founder.
+- "assistant": admin, scheduling, inbox, chasing, research, follow-ups, preparing material, travel, anything an executive assistant does. "who" = the assistant's name.
+- "team": work belonging to a team function (product, tech, sales, marketing, finance, operations). "who" = a named person from the team list whose role fits; if nobody listed fits, use "new_role" instead.
+- A meeting: "keep" if the founder must be there, otherwise "assistant" (decline, reschedule or send someone) or "team" (who should attend instead).
+- "new_role": nobody listed fits and it keeps coming up. Group those items into "new_roles" (at most 2 roles; "role" a plain job title; "reason" at most 20 words). Otherwise "new_roles" is [].
+- "reason": at most 16 words, why this decision, citing the focus area or the item.
+- "summary": one sentence with the counts, e.g. "Keep 2 of 9; 5 go to Rowena, 1 to Sam, 1 suggests a new role."
+- This answer may have up to 30 rows (it overrides the 5-row rule).
+Empty (no items): {"summary":"Add what is on your desk to sort it.","rows":[],"new_roles":[]}`,
 };
 
 /** The system prompt for a quick action, or null when the tool is not one. */

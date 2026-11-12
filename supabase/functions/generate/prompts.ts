@@ -19,6 +19,8 @@ export const KEEP_LARGER = new Set<string>([]);
 export function specFor(tool: string, format: string): ModelSpec {
   const json = QUICK_ACTION_TOOLS.has(tool) || tool.startsWith("task_");
   if (KEEP_LARGER.has(tool)) return { ...FALLBACK, json };
+  /* Up to 30 rows plus roles: the 600 cap would cut the JSON off mid-answer. */
+  if (tool === "delegation_sort") return { ...QUICK_ACTION, maxTokens: 2000 };
   if (QUICK_ACTION_TOOLS.has(tool) || tool.startsWith("task_")) return QUICK_ACTION;
   if (format === "Plan the Calendar") return writing(500);
   return writing(WRITING_MAX[tool] ?? 600);
