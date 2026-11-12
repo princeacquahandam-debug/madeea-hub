@@ -127,7 +127,7 @@ export default function Login() {
           <p className="mt-2">
             When an assistant connects their Google account, the Hub reads and sends their Gmail and reads and adds
             Google Calendar events, so their client work happens in one place. The{" "}
-            <Link to="/privacy" className="underline underline-offset-2 hover:text-muted">Privacy Policy</Link>{" "}
+            <a href="/privacy" className="underline underline-offset-2 hover:text-muted">Privacy Policy</a>{" "}
             explains how that data is used.
           </p>
         </section>
@@ -136,9 +136,9 @@ export default function Login() {
             monitoring product, and the page where somebody signs into one is
             the page where they should be able to read what it records. */}
         <p className="mt-3 text-center text-xs text-faint">
-          <Link to="/privacy" className="hover:text-muted hover:underline">Privacy</Link>
+          <a href="/privacy" className="hover:text-muted hover:underline">Privacy</a>
           <span className="mx-1.5">·</span>
-          <Link to="/terms" className="hover:text-muted hover:underline">Terms</Link>
+          <a href="/terms" className="hover:text-muted hover:underline">Terms</a>
         </p>
       </div>
     </div>

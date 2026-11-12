@@ -32,7 +32,7 @@ export function Footer() {
   return (
     <footer className="mt-10 border-t border-border pt-4 text-xs text-faint">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <span>Executive OS</span>
+        <span>MadeEA Hub</span>
 
         <a
           href={`${base}/privacy`}
