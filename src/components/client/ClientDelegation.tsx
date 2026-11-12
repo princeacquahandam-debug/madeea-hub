@@ -7,6 +7,7 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { dateOnly, dayLabel, localDayKey } from "./format";
 import { DelegationSort, type SortPick } from "./DelegationSort";
+import { ClientOrg, ORG_KEY, type OrgPerson } from "./ClientOrg";
 
 /**
  * The Delegation Coach, in the client portal.
@@ -42,7 +43,7 @@ import { DelegationSort, type SortPick } from "./DelegationSort";
 /** Who the plan goes to. */
 type Recipient =
   | { kind: "assistant" }
-  | { kind: "member"; email: string }
+  | { kind: "member"; email: string; name: string }
   | { kind: "other" };
 
 interface Plan {
@@ -76,8 +77,8 @@ const EMPTY_PLAN = {
 };
 
 export function ClientDelegation({
-  readOnly = false, assistantName = null,
-}: { readOnly?: boolean; assistantName?: string | null }) {
+  readOnly = false, assistantName = null, founderName = null,
+}: { readOnly?: boolean; assistantName?: string | null; founderName?: string | null }) {
   const qc = useQueryClient();
   const [step, setStep] = useState<Step>("list");
   const [error, setError] = useState("");
@@ -99,13 +100,28 @@ export function ClientDelegation({
     select: (rows) => rows.filter((p) => p.role === "member" && p.email).map((p) => p.email as string),
   });
 
+  /* Who reports to the founder (0102). Filled in before the coach is used. */
+  const { data: org = [], isFetched: orgReady } = useQuery({
+    queryKey: ORG_KEY,
+    enabled: isSupabaseConfigured,
+    queryFn: async () => {
+      const { data, error } = await supabase!.from("client_org")
+        .select("id, name, title, area, handles, member_email").order("position");
+      if (error) throw error;
+      return (data ?? []) as OrgPerson[];
+    },
+  });
+  const [editOrg, setEditOrg] = useState(false);
+  const [orgSkipped, setOrgSkipped] = useState(() => {
+    try { return localStorage.getItem("madeea.deleg.orgSkipped") === "1"; } catch { return false; }
+  });
+  const askOrg = !readOnly && orgReady && org.length === 0 && !orgSkipped;
+
   function startFromSort(pick: SortPick) {
-    const member = pick.who
-      ? members.find((m) => m.toLowerCase() === pick.who!.toLowerCase() || m.split("@")[0].toLowerCase() === pick.who!.toLowerCase())
-      : undefined;
+    const p = pick.person;
     const recipient: Recipient =
       pick.decision === "assistant" ? { kind: "assistant" }
-      : member ? { kind: "member", email: member }
+      : p?.member_email ? { kind: "member", email: p.member_email, name: p.name }
       : { kind: "other" };
     setTo(recipient);
     setDraft({
@@ -113,8 +129,8 @@ export function ClientDelegation({
       task_name: pick.task,
       team_member:
         recipient.kind === "assistant" ? assistant
-        : recipient.kind === "member" ? recipient.email
-        : pick.decision === "new_role" ? "" : pick.who ?? "",
+        : p ? `${p.name}${p.title ? ` (${p.title})` : ""}`
+        : "",
     });
     setFromSort(true);
     setStep("describe");
@@ -258,14 +274,36 @@ export function ClientDelegation({
   return (
     <div className="space-y-6">
       {error ? (
-        <p className="flex items-start gap-2 text-sm" style={{ color: "var(--c-danger)" }}>
+        <p className="flex items-start gap-2 text-sm text-red-500">
           <AlertTriangle size={15} className="mt-0.5 shrink-0" /> {error}
         </p>
       ) : null}
 
       {step === "list" ? (
         <>
-          <DelegationSort assistantName={assistantName} members={members} onPlan={startFromSort} />
+          {askOrg || editOrg ? (
+            <ClientOrg
+              people={org}
+              members={members}
+              assistantName={assistant}
+              founderName={founderName?.trim() || "You"}
+              intro={askOrg && !editOrg}
+              onDone={() => {
+                if (askOrg) {
+                  setOrgSkipped(true);
+                  try { localStorage.setItem("madeea.deleg.orgSkipped", "1"); } catch { /* storage off */ }
+                }
+                setEditOrg(false);
+              }}
+            />
+          ) : (
+            <DelegationSort
+              assistantName={assistantName}
+              org={org}
+              onPlan={startFromSort}
+              onEditOrg={() => setEditOrg(true)}
+            />
+          )}
           <section>
             <h2 className="mb-1 text-[15px] font-semibold">Hand something over</h2>
             <p className="text-faint mb-3 text-sm">
@@ -337,23 +375,38 @@ export function ClientDelegation({
                 hint="Goes on their board as a task, with the message attached."
                 onClick={() => { setTo({ kind: "assistant" }); setDraft((d) => ({ ...d, team_member: assistant })); }}
               />
-              {members.map((m) => (
+              {/* The organisation first (0102), then any MadeEA login not in it. */}
+              {org.map((p) => {
+                const label = `${p.name}${p.title ? ` (${p.title})` : ""}`;
+                return (
+                  <Choice
+                    key={p.id ?? p.name}
+                    on={p.member_email ? to.kind === "member" && to.email === p.member_email : to.kind === "other" && draft.team_member === label}
+                    title={label}
+                    hint={p.member_email
+                      ? "On MadeEA: goes on their board as a task."
+                      : "Not on MadeEA. You send them the message yourself."}
+                    onClick={() => {
+                      setTo(p.member_email ? { kind: "member", email: p.member_email, name: p.name } : { kind: "other" });
+                      setDraft((d) => ({ ...d, team_member: label }));
+                    }}
+                  />
+                );
+              })}
+              {members.filter((m) => !org.some((p) => p.member_email === m)).map((m) => (
                 <Choice
                   key={m}
                   on={to.kind === "member" && to.email === m}
                   title={m}
                   hint="On your team in MadeEA: goes on their board as a task."
-                  onClick={() => { setTo({ kind: "member", email: m }); setDraft((d) => ({ ...d, team_member: m })); }}
+                  onClick={() => { setTo({ kind: "member", email: m, name: m }); setDraft((d) => ({ ...d, team_member: m })); }}
                 />
               ))}
               <Choice
-                on={to.kind === "other"}
-                title="Someone else on my team"
-                hint="Not on MadeEA. You send them the message yourself."
-                onClick={() => {
-                  setTo({ kind: "other" });
-                  setDraft((d) => ({ ...d, team_member: d.team_member === assistant || members.includes(d.team_member) ? "" : d.team_member }));
-                }}
+                on={to.kind === "other" && !org.some((p) => !p.member_email && draft.team_member === `${p.name}${p.title ? ` (${p.title})` : ""}`)}
+                title="Someone else"
+                hint="Not listed. You send them the message yourself."
+                onClick={() => { setTo({ kind: "other" }); setDraft((d) => ({ ...d, team_member: "" })); }}
               />
             </div>
             {to.kind === "other" ? (
@@ -465,7 +518,7 @@ export function ClientDelegation({
             {to.kind === "assistant"
               ? <>Handing it over puts this on {assistant}&rsquo;s board as a task, with the message above attached.</>
               : to.kind === "member"
-                ? <>Handing it over puts this on {to.email}&rsquo;s board as a task, with the message above attached.</>
+                ? <>Handing it over puts this on {to.name}&rsquo;s board as a task, with the message above attached.</>
                 : <>Copy the message and send it to {draft.team_member.trim() || "them"} yourself. The plan is then kept as handed over.</>}
           </p>
         </section>
