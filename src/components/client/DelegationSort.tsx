@@ -460,7 +460,21 @@ function check(v: unknown, items: Record<string, string>, org: OrgPerson[], assi
     const n = obj(x);
     return { role: str(n.role, 60), refs: strs(n.refs, 8).filter((r) => items[r]), reason: str(n.reason, 200) };
   }).filter((n) => n.role);
-  return { summary: str(o.summary, 200), rows, new_roles };
+  return { summary: summarise(rows, assistant), rows, new_roles };
+}
+
+/* The counts line is worked out here, never taken from the model: in the first
+   live test (12 Nov) it said "3 go to Prince" over a list of 5. */
+function summarise(rows: Row[], assistant: string): string {
+  const n = (d: Decision) => rows.filter((r) => r.decision === d).length;
+  const people = new Map<string, number>();
+  for (const r of rows) if (r.decision === "team" && r.who) people.set(r.who, (people.get(r.who) ?? 0) + 1);
+  const parts = [
+    n("assistant") ? `${n("assistant")} to ${assistant}` : "",
+    ...[...people].map(([who, c]) => `${c} to ${who}`),
+    n("new_role") ? `${n("new_role")} need${n("new_role") === 1 ? "s" : ""} someone you don't have yet` : "",
+  ].filter(Boolean);
+  return `Keep ${n("keep")} of ${rows.length}${parts.length ? `; ${parts.join(", ")}` : ""}.`;
 }
 
 /** Demo mode (no Supabase): a rough sort from the same facts. */
