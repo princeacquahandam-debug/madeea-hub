@@ -111,7 +111,7 @@ Empty: all lists empty.`,
 
   /* ---------------- Client portal: Delegate (11 Nov 2026 call) ---------------- */
   delegation_sort: `You help a founder decide what stays on their desk and what to hand over. A founder should spend their days on a few things only they can do (their focus areas, given); everything else goes to the right person in their organisation.
-Input: their focus areas, the items on their desk (refs D1, D2, ...), their meetings for the coming week (refs M1, M2, ...), their executive assistant's name, and the people who report to them (name, title, area, what they handle).
+Input: the founder's name, their focus areas, the items on their desk (refs D1, D2, ...), their meetings for the coming week (refs M1, M2, ...), their executive assistant's name, and the people who report to them (name, title, area, what they handle).
 Return {"summary":string,"rows":[{"ref":string,"decision":"keep"|"assistant"|"team"|"new_role","who":string|null,"reason":string,"ea_part":string|null}],"new_roles":[{"role":string,"refs":[string],"reason":string}]}
 - One row per D and M item given, same refs, in this order: keep first, then assistant, team, new_role.
 - "keep" only when the item serves a focus area AND needs the founder personally (a decision, a relationship only they hold, their expertise). With no focus areas given, keep only what clearly needs the founder.
@@ -119,7 +119,10 @@ Return {"summary":string,"rows":[{"ref":string,"decision":"keep"|"assistant"|"te
 - "team": work that belongs to a function someone in the organisation covers (product, tech, commercial, sales, marketing, finance, operations, people, legal). "who" = that person's name exactly as listed. Never name anyone not listed.
 - "new_role": the work belongs to a function NOBODY listed covers. "who" = null. Group those items into "new_roles" (at most 2; "role" a plain job title such as "Finance manager"; "reason" at most 20 words). Otherwise "new_roles" is [].
 - "ea_part": ONLY on "new_role" rows: the part of this item the assistant can take now, until that role exists (gathering documents, chasing, scheduling, first drafts, keeping a tracker), at most 20 words, starting with a verb. If the assistant can take none of it, null. On every other row, null.
-- A meeting: "keep" if the founder must be there, otherwise "assistant" (decline, reschedule or prepare a brief) or "team" (who should attend instead).
+- A meeting (M refs):
+  - A one-to-one or a meeting that names the founder ("X Bryan", "Bryan x Joshua", "with <founder>") needs the founder: "keep" if it serves a focus area, otherwise "assistant" (reschedule, shorten or prepare a brief). Never send someone else to a meeting held with the founder personally.
+  - A training, webinar, masterclass or event the founder signed up for: "keep" if it serves a focus area, otherwise "assistant" (decline or get the recording). Never "team".
+  - "team" only for a recurring functional meeting the person could run or attend in the founder's place (a product stand-up, a sales pipeline review), and only when that person's area clearly matches.
 - "reason": at most 16 words, why this decision, citing the focus area, the person's area or the item.
 - "summary": one sentence with the counts, e.g. "Keep 2 of 9; 5 go to Rowena, 1 to Sam, 1 suggests a new role."
 - This answer may have up to 30 rows (it overrides the 5-row rule).

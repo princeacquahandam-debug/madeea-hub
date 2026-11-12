@@ -299,6 +299,7 @@ export function ClientDelegation({
           ) : (
             <DelegationSort
               assistantName={assistantName}
+              founderName={founderName}
               org={org}
               onPlan={startFromSort}
               onEditOrg={() => setEditOrg(true)}

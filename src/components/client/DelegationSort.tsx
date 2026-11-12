@@ -56,9 +56,10 @@ function keep(k: string, v: unknown) {
 }
 
 export function DelegationSort({
-  assistantName, org, onPlan, onEditOrg,
+  assistantName, founderName, org, onPlan, onEditOrg,
 }: {
   assistantName: string | null | undefined;
+  founderName?: string | null;
   org: OrgPerson[];
   onPlan: (pick: SortPick) => void;
   onEditOrg: () => void;
@@ -145,6 +146,7 @@ export function DelegationSort({
   }, [deskItems, mtgs]);
 
   const inputs = {
+    founder: founderName?.trim() || "(not given)",
     focus_areas: cleanFocus.length ? cleanFocus.map((f, i) => `${i + 1}. ${f}`).join("\n") : "(none given)",
     assistant,
     team: org.length
