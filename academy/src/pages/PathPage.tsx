@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Award, CheckCircle2, Clock, Lock, PlayCircle, Repeat, Target } from "lucide-react";
-import { fmtDate, useCourses, useLessonIndex, useMyCertificates, useMyExams, useMyProgress, usePathCourses, usePaths } from "@/lib/api";
+import { fmtDate, plural, useCourses, useLessonIndex, useMyCertificates, useMyExams, useMyProgress, usePathCourses, usePaths } from "@/lib/api";
 import { errText, supabase } from "@/lib/supabase";
 import { Loading } from "@/components/Shell";
 import { CourseIcon } from "@/components/CourseIcon";
@@ -50,7 +50,7 @@ export default function PathPage() {
         {path.description && <p className="mt-2 text-muted">{path.description}</p>}
         <div className="mt-4 max-w-md">
           <div className="bar"><span style={{ width: `${s.pct}%` }} /></div>
-          <p className="mt-1.5 text-xs text-faint">{s.done} of {s.total} lessons · {s.pct}%{path.due_days ? ` · due within ${path.due_days} days of assignment` : ""}</p>
+          <p className="mt-1.5 text-xs text-faint">{s.done} of {plural(s.total, "lesson")} · {s.pct}%{path.due_days ? ` · due within ${path.due_days} days of assignment` : ""}</p>
         </div>
       </div>
 
@@ -67,7 +67,7 @@ export default function PathPage() {
                 <CourseIcon icon={c.icon} />
                 <div className="min-w-0 flex-1">
                   <p className="font-bold">{c.title}</p>
-                  <p className="text-sm text-muted">{c.level[0].toUpperCase() + c.level.slice(1)} · {d}/{ls.length} lessons</p>
+                  <p className="text-sm text-muted">{c.level[0].toUpperCase() + c.level.slice(1)} · {d}/{plural(ls.length, "lesson")}</p>
                 </div>
                 {complete ? <CheckCircle2 className="shrink-0 text-good" /> : <span className="btn shrink-0"><PlayCircle size={15} />{d ? "Continue" : "Start"}</span>}
               </Link>

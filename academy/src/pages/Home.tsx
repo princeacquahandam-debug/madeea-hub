@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Award, BookOpen, CheckCircle2, PlayCircle, Route as RouteIcon } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { pct, useCourses, useLessonIndex, useMyCertificates, useMyProgress, usePathCourses, usePaths, type Course, type Path } from "@/lib/api";
+import { pct, plural, useAssignedPathIds, useCourses, useLessonIndex, useMyCertificates, useMyProgress, usePathCourses, usePaths, type Course, type Path } from "@/lib/api";
 import { Empty, Loading, PageTitle } from "@/components/Shell";
 import { CourseIcon } from "@/components/CourseIcon";
 
@@ -18,7 +18,8 @@ export function pathStats(path: Path, pathCourses: { path_id: string; course_id:
 }
 
 export default function Home() {
-  const { me } = useAuth();
+  const { me, isStaff } = useAuth();
+  const assigned = useAssignedPathIds(isStaff);
   const paths = usePaths();
   const pcs = usePathCourses();
   const courses = useCourses();
@@ -26,9 +27,10 @@ export default function Home() {
   const prog = useMyProgress();
   const certs = useMyCertificates();
 
-  if (paths.isLoading || pcs.isLoading || courses.isLoading || idx.isLoading || prog.isLoading) return <Loading />;
+  if (paths.isLoading || pcs.isLoading || courses.isLoading || idx.isLoading || prog.isLoading || (isStaff && assigned.isLoading)) return <Loading />;
 
-  const mine = (paths.data ?? []).filter((p) => p.status === "published");
+  // Staff can see every path in Studio; here, only the ones assigned to them.
+  const mine = (paths.data ?? []).filter((p) => p.status === "published" && (!isStaff || assigned.data?.has(p.id)));
   const stats = mine.map((p) => ({ path: p, ...pathStats(p, pcs.data ?? [], courses.data ?? [], idx.data ?? new Map(), prog.data ?? new Set()) }));
   const certOf = new Set((certs.data ?? []).map((c) => c.path_id));
   const totalLessons = stats.reduce((s, x) => s + x.total, 0);
@@ -48,7 +50,7 @@ export default function Home() {
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <Stat icon={RouteIcon} value={mine.length} label="learning paths for you" />
-        <Stat icon={CheckCircle2} value={`${pct(doneLessons, totalLessons)}%`} label={`${doneLessons} of ${totalLessons} lessons done`} />
+        <Stat icon={CheckCircle2} value={`${pct(doneLessons, totalLessons)}%`} label={`${doneLessons} of ${plural(totalLessons, "lesson")} done`} />
         <Stat icon={Award} value={certs.data?.length ?? 0} label="certificates earned" />
       </div>
 
@@ -83,7 +85,7 @@ export default function Home() {
               {s.path.description && <p className="line-clamp-2 text-sm text-muted">{s.path.description}</p>}
               <div>
                 <div className="bar"><span style={{ width: `${s.pct}%` }} /></div>
-                <p className="mt-1.5 text-xs text-faint">{s.courses.length} course{s.courses.length === 1 ? "" : "s"} · {s.done}/{s.total} lessons · {s.pct}%</p>
+                <p className="mt-1.5 text-xs text-faint">{s.courses.length} course{s.courses.length === 1 ? "" : "s"} · {s.done}/{plural(s.total, "lesson")} · {s.pct}%</p>
               </div>
             </Link>
           ))}

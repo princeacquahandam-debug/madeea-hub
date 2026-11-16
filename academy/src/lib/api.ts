@@ -164,6 +164,37 @@ export const usePeople = (enabled = true) =>
     queryFn: async () => (await must(supabase.rpc("acad_people"))) as Person[],
   });
 
+/** "1 lesson", "2 lessons". */
+export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** "Module 2 · Inbox basics", or just "Module 2" when the title is the default. */
+export const moduleLabel = (i: number, title: string) => (title.trim().toLowerCase() === `module ${i + 1}` ? `Module ${i + 1}` : `Module ${i + 1} · ${title}`);
+
+/**
+ * Paths assigned to the signed-in person. Learners only ever receive their own
+ * paths from the database; staff can read every path (to edit them), so their
+ * Learn page filters by audience here, the same rule acad_path_visible uses.
+ */
+export const useAssignedPathIds = (enabled: boolean) =>
+  useQuery({
+    queryKey: ["assigned-paths"],
+    enabled,
+    queryFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      const uid = u.user?.id ?? "";
+      const [paths, aud, me] = await Promise.all([
+        must(supabase.from("acad_paths").select("id, audience").eq("status", "published")),
+        must(supabase.from("acad_path_audience").select("*")),
+        supabase.from("acad_members").select("region, team").eq("user_id", uid).maybeSingle(),
+      ]);
+      const region = (me.data?.region ?? "").toLowerCase();
+      const team = (me.data?.team ?? "").toLowerCase();
+      const rules = aud as Audience[];
+      return new Set((paths as { id: string; audience: string }[]).filter((p) => p.audience === "all" || rules.some((a) => a.path_id === p.id && (
+        (a.kind === "user" && a.value === uid) || (a.kind === "region" && region && a.value.toLowerCase() === region) || (a.kind === "team" && team && a.value.toLowerCase() === team)))).map((p) => p.id));
+    },
+  });
+
 export function pct(done: number, total: number) {
   return total ? Math.round((done * 100) / total) : 0;
 }

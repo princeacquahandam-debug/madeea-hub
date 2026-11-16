@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, Eye, Layers, ListChecks, Plus, Save, Trash2, Upload } from "lucide-react";
-import { LEVELS, fetchCourseTree, type AnswerKey, type Block, type Course, type Level } from "@/lib/api";
+import { LEVELS, fetchCourseTree, plural, type AnswerKey, type Block, type Course, type Level } from "@/lib/api";
 import { errText, mediaUrl, supabase, uploadMedia } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { BlockEditor } from "@/components/BlockEditor";
@@ -233,7 +233,7 @@ export default function CourseEditor() {
                 </button>
                 <span className="text-xs font-semibold text-faint">Module {mi + 1}</span>
                 <input className="input !h-9 flex-1 font-semibold" value={m.title} onChange={(e) => setModule(mi, { title: e.target.value })} />
-                <span className="hidden text-xs text-faint sm:inline">{m.lessons.length} lessons · {m.cards.length} cards · {m.questions.length} questions</span>
+                <span className="hidden text-xs text-faint sm:inline">{plural(m.lessons.length, "lesson")} · {plural(m.cards.length, "card")} · {plural(m.questions.length, "question")}</span>
                 <button className="btn-ghost" onClick={() => moveModule(mi, -1)} disabled={mi === 0} aria-label="Move module up"><ArrowUp size={14} /></button>
                 <button className="btn-ghost" onClick={() => moveModule(mi, 1)} disabled={mi === d.modules.length - 1} aria-label="Move module down"><ArrowDown size={14} /></button>
                 <button className="btn-ghost" aria-label="Remove module" onClick={() => { if (confirm(`Remove "${m.title}" and its lessons?`)) setD({ ...d, modules: d.modules.filter((_, j) => j !== mi) }); }}><Trash2 size={14} /></button>

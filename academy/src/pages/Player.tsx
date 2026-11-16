@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, Layers, ListChecks, Menu, RotateCcw, Star, X } from "lucide-react";
-import { useCourseTree, useMyProgress, type CourseTree, type Flashcard, type Question } from "@/lib/api";
+import { moduleLabel, useCourseTree, useMyProgress, type CourseTree, type Flashcard, type Question } from "@/lib/api";
 import { errText, supabase } from "@/lib/supabase";
 import { Blocks } from "@/components/Blocks";
 import { Loading } from "@/components/Shell";
@@ -99,7 +99,7 @@ export default function Player({ preview = false }: { preview?: boolean }) {
             {!preview && <p className="mb-3 text-xs text-faint">{doneCount} of {lessonCount} lessons done</p>}
             {modules.map((m, mi) => (
               <div key={m.id} className="mb-4">
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-faint">Module {mi + 1} · {m.title}</p>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-faint">{moduleLabel(mi, m.title)}</p>
                 {steps.map((s, si) => s.moduleIdx !== mi ? null : (
                   <button key={si} onClick={() => { go(si); setOutline(false); setFinished(false); }}
                     className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${si === idx ? "bg-accent/15 text-accent-soft" : "hover:bg-surface-2"}`}>
@@ -121,7 +121,7 @@ export default function Player({ preview = false }: { preview?: boolean }) {
           <CourseDone courseId={course.id} title={course.title} preview={preview} onBack={() => nav(exitTo)} />
         ) : step && mod ? (
           <>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-faint">Module {step.moduleIdx + 1} · {mod.title}</p>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-faint">{moduleLabel(step.moduleIdx, mod.title)}</p>
             {step.kind === "lesson" && lesson && (
               <article>
                 <h1 className="mb-1 text-3xl font-extrabold">{lesson.title}</h1>

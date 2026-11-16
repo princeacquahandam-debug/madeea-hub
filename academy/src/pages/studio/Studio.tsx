@@ -27,6 +27,9 @@ export function useNewCourse() {
     setErr(null);
     const { data, error } = await supabase.from("acad_courses").insert({ title: "Untitled course" }).select("id").single();
     if (error) { setErr(errText(error)); return; }
+    // Start with Module 1 and Lesson 1 ready to write in (16 Nov testing).
+    const { data: mod } = await supabase.from("acad_modules").insert({ course_id: data.id, title: "Module 1", position: 0 }).select("id").single();
+    if (mod) await supabase.from("acad_lessons").insert({ module_id: mod.id, title: "Lesson 1", position: 0, blocks: [{ type: "text", md: "" }] });
     await qc.invalidateQueries({ queryKey: ["courses"] });
     nav(`/studio/courses/${data.id}`);
   };
