@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Award, BookOpen, Copy, Eye, MessageSquare, Pencil, Plus, Route as RouteIcon, Sparkles, Star, Users } from "lucide-react";
-import { fmtDate, pct, useCourses, usePathCourses, usePaths, usePeople, type Course } from "@/lib/api";
+import { fmtDate, pct, plural, useCourses, usePathCourses, usePaths, usePeople, type Course } from "@/lib/api";
 import { errText, mediaUrl, supabase } from "@/lib/supabase";
 import { Empty, Loading, PageTitle } from "@/components/Shell";
 import { CourseIcon } from "@/components/CourseIcon";
@@ -53,7 +53,7 @@ export function StudioOverview() {
   const stuck = ppl.filter((p) => p.lessons_total > 0 && p.lessons_done === 0);
   const avg = reviews.data?.length ? reviews.data.reduce((s, r) => s + r.rating, 0) / reviews.data.length : null;
   const tiles = [
-    { icon: BookOpen, value: courses.data?.filter((c) => c.status === "published").length ?? 0, label: `published courses · ${courses.data?.filter((c) => c.status === "draft").length ?? 0} drafts`, to: "/studio/courses" },
+    { icon: BookOpen, value: courses.data?.filter((c) => c.status === "published").length ?? 0, label: `published · ${plural(courses.data?.filter((c) => c.status === "draft").length ?? 0, "draft")}`, to: "/studio/courses" },
     { icon: RouteIcon, value: paths.data?.filter((p) => p.status === "published").length ?? 0, label: "live learning paths", to: "/studio/paths" },
     { icon: Users, value: ppl.length, label: `people · ${ppl.filter((p) => p.lessons_done > 0).length} learning`, to: "/studio/learners" },
     { icon: Award, value: ppl.reduce((s, p) => s + p.certificates, 0), label: "certificates issued", to: "/studio/reports" },

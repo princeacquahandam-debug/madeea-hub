@@ -105,7 +105,8 @@ export function PathEditor() {
   const available = all.filter((c) => !d.courseIds.includes(c.id));
   const counts = { easy: 0, medium: 0, hard: 0 };
   d.bank.forEach((b) => counts[b.difficulty]++);
-  const personName = (uid: string) => people.data?.find((x) => x.user_id === uid)?.name ?? "Someone";
+  // Name plus email: two accounts can share a name (16 Nov testing).
+  const personName = (uid: string) => { const x = people.data?.find((y) => y.user_id === uid); return x ? `${x.name} (${x.email})` : "Someone"; };
 
   const save = async (status?: "draft" | "published") => {
     if (!p.title.trim()) { setMsg({ ok: false, text: "The path needs a title." }); return; }
@@ -286,7 +287,7 @@ export function PathEditor() {
               {aud.kind === "user" ? (
                 <select className="input !w-auto" value={aud.value} onChange={(e) => setAud({ ...aud, value: e.target.value })}>
                   <option value="">Choose…</option>
-                  {(people.data ?? []).filter((x) => !d.audience.some((a) => a.kind === "user" && a.value === x.user_id)).map((x) => <option key={x.user_id} value={x.user_id}>{x.name}</option>)}
+                  {(people.data ?? []).filter((x) => !d.audience.some((a) => a.kind === "user" && a.value === x.user_id)).map((x) => <option key={x.user_id} value={x.user_id}>{x.name} ({x.email})</option>)}
                 </select>
               ) : (
                 <input className="input !w-48" list={`aud-${aud.kind}`} placeholder={aud.kind === "region" ? "e.g. UK" : "e.g. Operations"} value={aud.value} onChange={(e) => setAud({ ...aud, value: e.target.value })} />
