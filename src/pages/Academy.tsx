@@ -1,4 +1,5 @@
 import { LoomVideos } from "@/components/LoomVideos";
+import { AcademyCard } from "@/components/academy/AcademyCard";
 import { SimulationPack } from "@/components/academy/SimulationPack";
 import { Fragment, useMemo, useState } from "react";
 import {
@@ -812,7 +813,8 @@ export default function Academy() {
   if (ACADEMY_LIVE) return <AcademyCourse />;
   return (
     <div className="mx-auto max-w-4xl">
-      <PageHeader title="Training videos" subtitle="Loom walkthroughs of how the work is done." />
+      <PageHeader title="Training" subtitle="MadeEA Academy, and Loom walkthroughs of how the work is done." />
+      <AcademyCard />
       <div id="videos" className="card mb-5 p-5">
         <LoomVideos sopId={null} title="Training videos" empty="No training videos yet. Managers can add a Loom link or record one here." />
       </div>

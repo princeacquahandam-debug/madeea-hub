@@ -6,6 +6,7 @@ import { useAnchoredPanel, ANCHORED_PANEL_CLASS } from "@/hooks/useAnchoredPanel
 import { GUIDES } from "@/lib/guides";
 import { useTour } from "@/store/tour";
 import { ACADEMY_LIVE } from "@/lib/features";
+import { openAcademy } from "@/lib/academy";
 
 /**
  * "Learn" in the header (13 Oct 2026 call with Abder): how to use the Hub, in
@@ -55,6 +56,11 @@ export function LearnMenu() {
               <span><span className="block font-medium">Training Center</span><span className="block text-xs text-faint">Lessons and the Made Ready course</span></span>
             </button>
           )}
+          {/* The new Academy, on its own site (16 Nov 2026). Opens signed in. */}
+          <button role="menuitem" className={item} onClick={() => { setOpen(false); void openAcademy(); }}>
+            <GraduationCap size={16} className="mt-0.5 shrink-0 text-accent" />
+            <span><span className="block font-medium">MadeEA Academy</span><span className="block text-xs text-faint">Courses, learning paths and certificates</span></span>
+          </button>
           <button role="menuitem" className={item} onClick={() => { setOpen(false); nav("/academy#videos"); }}>
             <PlayCircle size={16} className="mt-0.5 shrink-0 text-accent" />
             <span><span className="block font-medium">Training videos</span><span className="block text-xs text-faint">Loom walkthroughs of how the work is done</span></span>

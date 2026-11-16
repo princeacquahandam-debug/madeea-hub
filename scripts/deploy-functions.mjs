@@ -64,6 +64,8 @@ const NO_JWT = new Set([
      back on and broke Madeline and every generator with CORS errors. */
   "assistant-chat",
   "generate",
+  // The Hub calls it to open the Academy; checks the caller itself.
+  "academy-sso",
   // Live with verification off (checked 1 Oct 2026); checks the caller itself.
   "gmail-send",
   // Called by n8n with the shared secret, which holds no Supabase key at all.

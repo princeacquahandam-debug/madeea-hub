@@ -50,6 +50,7 @@ const Calendar = lazy(() => import("@/pages/Calendar"));
 const Privacy = lazy(() => import("@/pages/Legal").then((m) => ({ default: m.Privacy })));
 const Terms = lazy(() => import("@/pages/Legal").then((m) => ({ default: m.Terms })));
 const ClientPortal = lazy(() => import("@/pages/ClientPortal"));
+const AcademySso = lazy(() => import("@/pages/AcademySso"));
 
 const queryClient = new QueryClient();
 
@@ -95,6 +96,10 @@ function Gate() {
       </Suspense>
     );
   }
+
+  /* The Academy's "Continue with MadeEA Hub" lands here. No app chrome: it
+     forwards straight on to academy.madeea.io, signed in. */
+  if (pathname === "/academy-sso") return <Suspense fallback={null}><AcademySso /></Suspense>;
 
   return (
     <Routes>

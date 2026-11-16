@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Same flat tokens as the Hub (12 Oct 2026 design), so the Academy reads as
+   part of the same product while living on its own address. */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --c-bg: 17 17 19;
+  --c-surface: 28 28 31;
+  --c-surface-2: 39 39 43;
+  --c-muted: 161 161 168;
+  --c-faint: 139 139 147;
+  --c-text: 237 237 239;
+  --c-accent: 232 105 60;
+  --c-accent-soft: 240 138 98;
+  --c-accent-strong: 216 92 48;
+  --c-good: 76 201 141;
+  --c-warn: 232 194 90;
+  --c-border: #2a2a2f;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --c-bg: 246 246 247;
+  --c-surface: 255 255 255;
+  --c-surface-2: 241 241 243;
+  --c-muted: 110 110 115;
+  --c-faint: 116 116 122;
+  --c-text: 28 28 30;
+  --c-accent: 210 86 43;
+  --c-accent-soft: 184 71 31;
+  --c-accent-strong: 197 77 36;
+  --c-good: 22 128 75;
+  --c-warn: 146 104 8;
+  --c-border: #e8e8eb;
+}
+
+html, body, #root { min-height: 100%; }
+body { @apply bg-bg font-sans text-text antialiased; }
+
+@layer components {
+  .card { @apply rounded-xl border border-border bg-surface; }
+  .btn {
+    @apply inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-3 text-sm font-medium
+      transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-accent-strong px-3.5 text-sm font-semibold text-white
+      transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-2 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-text
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .input {
+    @apply h-9 w-full rounded-lg border border-border bg-bg px-3 text-sm outline-none placeholder:text-faint focus:border-accent;
+  }
+  .textarea {
+    @apply w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none placeholder:text-faint focus:border-accent;
+  }
+  .label { @apply mb-1 block text-xs font-semibold text-muted; }
+  .chip { @apply inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted; }
+  .chip-good { @apply inline-flex items-center gap-1 rounded-full bg-good/15 px-2 py-0.5 text-xs font-semibold text-good; }
+  .chip-accent { @apply inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent-soft; }
+  .chip-warn { @apply inline-flex items-center gap-1 rounded-full bg-warn/15 px-2 py-0.5 text-xs font-semibold text-warn; }
+  .bar { @apply h-1.5 w-full overflow-hidden rounded-full bg-surface-2; }
+  .bar > span { @apply block h-full rounded-full bg-accent; }
+  .prose-lesson p { @apply my-3 leading-7; }
+  .prose-lesson h2 { @apply mb-2 mt-6 text-xl font-bold; }
+  .prose-lesson h3 { @apply mb-2 mt-5 text-lg font-bold; }
+  .prose-lesson ul { @apply my-3 list-disc space-y-1 pl-6; }
+  .prose-lesson ol { @apply my-3 list-decimal space-y-1 pl-6; }
+  .prose-lesson a { @apply text-accent-soft underline; }
+  .prose-lesson code { @apply rounded bg-surface-2 px-1 text-[0.9em]; }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; }
+}
