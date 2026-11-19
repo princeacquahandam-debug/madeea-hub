@@ -60,69 +60,16 @@ export default function Integrations() {
     }
   }
 
-  /**
-   * Finish a Microsoft connection.
-   *
-   * The tokens are already at Microsoft's word: what is left is proving they
-   * belong to whoever is sitting here. That is the whole point of the claim
-   * step (see microsoft-oauth-claim) and it is the reason this page, rather
-   * than the callback, is where an Outlook connection becomes real.
-   */
-  async function finishOutlook(claim: string) {
-    if (!supabase) return;
-    setBusy("outlook-claim");
-    try {
-      const { data, error } = await supabase.functions.invoke("microsoft-oauth-claim", { body: { claim } });
-      let payload = (data ?? null) as { ok?: boolean; account_email?: string; error?: string } | null;
-      if (error) {
-        const ctx = (error as { context?: Response }).context;
-        if (ctx && typeof ctx.text === "function") {
-          try { payload = JSON.parse(await ctx.text()); } catch { payload = null; }
-        }
-      }
-      if (error || !payload?.ok) {
-        setNote(payload?.error ?? "Could not finish the Outlook connection. Please connect again.");
-        return;
-      }
-      qc.invalidateQueries({ queryKey: ["mail-connections"] });
-      setNote(
-        payload.account_email
-          ? `Outlook connected as ${payload.account_email}. Pulling your inbox…`
-          : "Outlook connected. Pulling your inbox…",
-      );
-
-      // Straight into a first sync, so the Inbox has something in it when the
-      // person goes looking. A failure here is a sync problem, not a
-      // connection problem, and is reported as one.
-      const { data: sync, error: syncErr } = await supabase.functions.invoke("outlook-sync");
-      const pulled = (sync as { synced?: number })?.synced ?? 0;
-      setNote(
-        syncErr
-          ? "Outlook connected, but the first sync failed. Try Sync mail on the Outlook card."
-          : `Outlook connected. Pulled ${pulled} message${pulled === 1 ? "" : "s"}.`,
-      );
-      qc.invalidateQueries({ queryKey: ["messages"] });
-    } finally {
-      setBusy(null);
-    }
-  }
+  /* The old Outlook "claim" step lived here: the retired microsoft-oauth-callback
+     sent people back with ?claim=… and this page redeemed it through
+     microsoft-oauth-claim. Every provider now goes through
+     integration-oauth-callback, which files the connection itself, so both
+     functions were removed on 19 Nov 2026 (CASA pre-check) and so was this. */
 
   // On return from a provider's consent screen: confirm, then sync.
   useEffect(() => {
     if (handledReturn.current) return;
     handledReturn.current = true;
-
-    const claim = params.get("claim");
-    if (params.get("connect") === "outlook" && claim) {
-      params.delete("connect");
-      params.delete("claim");
-      // Replaced immediately: a claim code in the address bar is a credential,
-      // and one left there ends up in history, in a screenshot, or pasted into
-      // a support chat.
-      setParams(params, { replace: true });
-      void finishOutlook(claim);
-      return;
-    }
 
     if (params.get("connected") === "google") {
       params.delete("connected");

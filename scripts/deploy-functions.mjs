@@ -50,8 +50,6 @@ const PROJECT = process.env.SUPABASE_PROJECT_REF ?? "bglduxferbjmoeqzyypx";
  */
 const NO_JWT = new Set([
   "integration-oauth-callback",
-  "google-oauth-callback",
-  "microsoft-oauth-callback",
   "whatsapp-webhook",
   "invite-member",
   "invite-client",

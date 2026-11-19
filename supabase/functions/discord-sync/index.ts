@@ -62,7 +62,41 @@ interface DiscordMessage {
 const TEXTY = new Set([0, 5]);
 const HUMAN_TYPES = new Set([0, 19]);
 
-Deno.serve(async (req) => {
+/* ── WHICH WEBSITES MAY CALL THIS (CASA pre-check, 19 Nov 2026) ──────────
+   Responses used to say "Access-Control-Allow-Origin: *", which lets a page
+   on any website call this function from a visitor's browser. The caller's
+   sign-in is still checked below, so it was low risk, but there is no reason
+   to allow it. Now only MadeEA's own sites get the header back: the
+   addresses in APP_ORIGINS (the same setting integration-oauth-url uses)
+   plus the defaults here. Any other site's browser gets no CORS permission
+   and stops. Calls with no Origin header (n8n, webhooks, server to server)
+   are not browser calls and are unaffected. */
+const ALLOWED_ORIGINS = new Set([
+  "https://hub.madeea.io",
+  "https://hub.madeeas.com",
+  "https://madeea-hub.vercel.app",
+  "https://academy.madeea.io",
+  ...(Deno.env.get("APP_ORIGINS") ?? "").split(",").map((o) => o.trim()).filter(Boolean),
+]);
+
+function withAllowedOrigin(req: Request, res: Response): Response {
+  if (res.headers.get("Access-Control-Allow-Origin") !== "*") return res;
+  const headers = new Headers(res.headers);
+  const origin = req.headers.get("Origin") ?? "";
+  if (ALLOWED_ORIGINS.has(origin)) {
+    headers.set("Access-Control-Allow-Origin", origin);
+    headers.append("Vary", "Origin");
+  } else {
+    headers.delete("Access-Control-Allow-Origin");
+  }
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
+function serveWithOrigins(handler: (req: Request) => Response | Promise<Response>) {
+  return Deno.serve(async (req: Request) => withAllowedOrigin(req, await handler(req)));
+}
+
+serveWithOrigins(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
     const token = Deno.env.get("DISCORD_BOT_TOKEN");
