@@ -133,7 +133,23 @@ export default function Dashboard() {
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
   const order: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
-  const queue = [...tasks].sort((a, b) => order[a.priority] - order[b.priority]).slice(0, 5);
+  /* WHOSE PRIORITIES (19 Nov 2026). This listed every task on the shared board,
+     finished ones included, so a brand-new assistant's first screen was other
+     people's internal work. Managers and up still see the whole team's. An
+     assistant sees their own open tasks, plus open tasks nobody has picked up
+     for the clients they are lead EA on: that unclaimed client work is exactly
+     what they should notice. Unassigned work with no client stays with
+     managers. */
+  const seesTeam = atLeast(role, "manager");
+  const myClients = useMemo(
+    () => new Set(clients.filter((c) => c.lead_ea_id && c.lead_ea_id === user?.id).map((c) => c.id)),
+    [clients, user?.id],
+  );
+  const queue = tasks
+    .filter((t) => t.status !== "done")
+    .filter((t) => seesTeam || isMine(t, user?.id) || (!t.assignee_id && !!t.client_id && myClients.has(t.client_id)))
+    .sort((a, b) => order[a.priority] - order[b.priority])
+    .slice(0, 5);
 
   /* Both panels are a preview with a way out of them: "View all" and "Open
      Calendar" were already in their headers, and neither list was honouring
