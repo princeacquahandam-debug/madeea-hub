@@ -894,18 +894,31 @@ async function listMeetings(ctx: ToolCtx, a: Record<string, unknown>) {
      user can fix in a minute, so tell them which. */
   let emptyNote: Record<string, unknown> = {};
   if (scope === "mine" && !data?.length) {
-    const [ever, team] = await Promise.all([
+    /* WHETHER THE CALENDAR IS CONNECTED is read from the connection itself,
+       not guessed from whether an event has ever synced (19 Nov 2026). The
+       guess told a newly connected account with an empty calendar that its
+       calendar "isn't connected". google_credentials / microsoft_credentials
+       hold the non-secret record of a connection (connected_at, scopes; no
+       tokens since 0105), and the caller may read their own row. */
+    const [ever, team, google, microsoft] = await Promise.all([
       count(ctx.db.from("meetings").select("id", { count: "exact", head: true }).eq("owner_id", ctx.userId)),
       count(ctx.db.from("meetings").select("id", { count: "exact", head: true })
         .gte("starts_at", startOfDay(from, ctx.tz)).lt("starts_at", startOfDay(addDays(from, days), ctx.tz))),
+      ctx.db.from("google_credentials").select("connected_at, scopes").eq("owner_id", ctx.userId).maybeSingle(),
+      ctx.db.from("microsoft_credentials").select("connected_at").eq("owner_id", ctx.userId).maybeSingle(),
     ]);
+    const googleCalendar = !!google.data && /calendar/.test(String(google.data.scopes ?? "calendar"));
+    const connected = googleCalendar || !!microsoft.data;
     emptyNote = {
+      calendar_connected: connected,
       your_calendar_has_synced: ever > 0,
       teammates_meetings_in_range: team,
-      note: ever > 0
-        ? "Nothing on the user's own calendar in this range."
-        : "No events from the user's calendar have ever reached the app. Their calendar is probably not " +
-          "connected: suggest connecting Google Calendar on the Integrations page.",
+      note: connected
+        ? "The user's calendar IS connected; there are simply no events on it in this range. Say plainly that " +
+          "they have no meetings then. Do not say or suggest that the calendar is not connected."
+        : ever > 0
+          ? "Nothing on the user's own calendar in this range."
+          : "The user has no calendar connected. Suggest connecting Google Calendar on the Integrations page.",
     };
   }
 
