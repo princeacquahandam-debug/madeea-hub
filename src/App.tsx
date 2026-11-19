@@ -153,10 +153,9 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <BrowserRouter
-          basename={import.meta.env.BASE_URL}
-          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-        >
+        {/* React Router 7 (19 Nov 2026, security update). The two v7 future
+            flags this used to set are now simply how v7 behaves. */}
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           {/* MadelineProvider needs the router (navigation) + query client
               (data), so it sits inside BrowserRouter and wraps the app. */}
           <MadelineProvider>
