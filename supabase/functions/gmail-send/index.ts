@@ -24,6 +24,94 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
+/* ── STORED TOKENS, ENCRYPTED (CASA pre-check, 19 Nov 2026) ───────────────
+   The connection is read from `integrations`, where tokens are AES-256-GCM
+   ciphertext, base64(iv || ciphertext || tag), with the key in
+   INTEGRATION_ENCRYPTION_KEY and never in the database. This function used to
+   read the plain-text copy in google_credentials / microsoft_credentials,
+   which the old sign-in kept writing alongside; those copies are being wiped.
+   Same scheme as gmail-sync's token manager. Edge Functions here are deployed
+   one file at a time, so it is repeated in each function that needs it. */
+async function tokAesKey(usage: KeyUsage[]) {
+  const raw = Deno.env.get("INTEGRATION_ENCRYPTION_KEY");
+  if (!raw) throw new Error("INTEGRATION_ENCRYPTION_KEY is not configured");
+  return await crypto.subtle.importKey(
+    "raw", Uint8Array.from(atob(raw), (c) => c.charCodeAt(0)),
+    { name: "AES-GCM" }, false, usage,
+  );
+}
+
+async function tokEncrypt(plain: string): Promise<string> {
+  const key = await tokAesKey(["encrypt"]);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cipher = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(plain)),
+  );
+  const out = new Uint8Array(iv.length + cipher.length);
+  out.set(iv);
+  out.set(cipher, iv.length);
+  return btoa(String.fromCharCode(...out));
+}
+
+async function tokDecrypt(payload: string | null | undefined): Promise<string | null> {
+  if (!payload) return null;
+  try {
+    const key = await tokAesKey(["decrypt"]);
+    const bytes = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: bytes.slice(0, 12) }, key, bytes.slice(12));
+    return new TextDecoder().decode(plain);
+  } catch {
+    // Encrypted under a key that has since changed: same fix as no connection, reconnect.
+    console.error("could not decrypt a stored token; the encryption key may have changed");
+    return null;
+  }
+}
+
+/** This person's own connection for a provider: refresh token decrypted, plus the granted scopes.
+    user_id and provider, always both. Rows without a stored token (0058's
+    reauth placeholders) and disconnected rows are skipped. Oldest first, the
+    same choice gmail-sync makes, so send and sync use the same account. */
+// deno-lint-ignore no-explicit-any
+async function storedConnection(admin: any, userId: string, provider: "google" | "microsoft"):
+  Promise<{ id: string; refresh_token: string | null; scopes: string | null } | null> {
+  const { data, error } = await admin
+    .from("integrations")
+    .select("id, refresh_token_encrypted, scopes")
+    .eq("user_id", userId)
+    .eq("provider", provider)
+    .neq("status", "disconnected")
+    .not("refresh_token_encrypted", "is", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error("integrations read failed", error.message);
+    throw new Error("Could not read the connection.");
+  }
+  if (!data) return null;
+  return {
+    id: data.id as string,
+    refresh_token: await tokDecrypt(data.refresh_token_encrypted as string | null),
+    scopes: (data.scopes as string | null) ?? null,
+  };
+}
+
+/** Keep a refreshed token, encrypted. Microsoft rotates refresh tokens; Google does not. */
+// deno-lint-ignore no-explicit-any
+async function saveRefreshedTokens(admin: any, connectionId: string,
+  t: { access_token: string; refresh_token?: string | null; expires_in?: number | string | null }) {
+  const patch: Record<string, unknown> = {
+    access_token_encrypted: await tokEncrypt(t.access_token),
+    token_expires_at: new Date(Date.now() + Number(t.expires_in ?? 3600) * 1000).toISOString(),
+    status: "connected",
+    last_error: null,
+    updated_at: new Date().toISOString(),
+  };
+  if (t.refresh_token) patch.refresh_token_encrypted = await tokEncrypt(t.refresh_token);
+  await admin.from("integrations").update(patch).eq("id", connectionId);
+}
+
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -262,11 +350,7 @@ Deno.serve(async (req) => {
     const owner = String(body.from_owner ?? u.user.id);
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { data: cred } = await admin
-      .from("google_credentials")
-      .select("refresh_token, scopes")
-      .eq("owner_id", owner)
-      .maybeSingle();
+    const cred = await storedConnection(admin, owner, "google");
 
     if (!cred?.refresh_token) {
       return json({ error: "Google not connected for this account", failure: "not_connected", owner }, 400);

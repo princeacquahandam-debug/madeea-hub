@@ -246,14 +246,8 @@ async function accessToken(admin: Admin, owner: string): Promise<{ token: string
   }
 
   await storeRefreshed(admin, cred, t);
-  /* The legacy row too, while ten functions still read it. Dropped with the
-     table. */
-  await admin.from("microsoft_credentials").update({
-    access_token: t.access_token,
-    token_expiry: new Date(Date.now() + (t.expires_in ?? 3600) * 1000).toISOString(),
-    ...(t.refresh_token ? { refresh_token: t.refresh_token } : {}),
-    ...(typeof t.scope === "string" && t.scope.length ? { scopes: t.scope } : {}),
-  }).eq("owner_id", owner);
+  /* No plain-text copy in microsoft_credentials any more (CASA pre-check,
+     19 Nov 2026): the encrypted row above is the only place a token lives. */
 
   return { token: t.access_token as string, scopes: typeof t.scope === "string" ? t.scope : scopes };
 }

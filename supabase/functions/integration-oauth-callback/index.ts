@@ -486,24 +486,29 @@ Deno.serve(async (req) => {
       return finish(st, { ok: false, provider, code: "oauth_failed" });
     }
 
-    /* DUAL WRITE, temporarily. Ten functions still read the old per-person
-       tables; writing both keeps mail and chat working while they move over. */
-    if (provider === "google" && result.refresh_token) {
+    /* NO TOKENS IN THE OLD TABLES (CASA pre-check, 19 Nov 2026).
+       google_credentials / microsoft_credentials used to receive a plain-text
+       copy of both tokens. Every function now reads the encrypted row above,
+       and 0105 wiped the copies and added a check that refuses any token in
+       them. The rows themselves are still written, without tokens, because the
+       app reads their non-secret columns (connected_at, scopes, account_email)
+       for the connection cards, and 0093's PostHog trigger listens to them. */
+    if (provider === "google") {
       await admin.from("google_credentials").upsert({
         owner_id: st.user_id,
-        refresh_token: result.refresh_token,
-        access_token: result.access_token,
-        token_expiry: row.token_expires_at,
+        refresh_token: null,
+        access_token: null,
+        token_expiry: null,
         scopes: result.scopes,
         connected_at: new Date().toISOString(),
       }, { onConflict: "owner_id" });
     }
-    if (provider === "microsoft" && result.refresh_token) {
+    if (provider === "microsoft") {
       await admin.from("microsoft_credentials").upsert({
         owner_id: st.user_id,
-        refresh_token: result.refresh_token,
-        access_token: result.access_token,
-        token_expiry: row.token_expires_at,
+        refresh_token: null,
+        access_token: null,
+        token_expiry: null,
         scopes: result.scopes,
         account_email: result.account_email,
         connected_at: new Date().toISOString(),
