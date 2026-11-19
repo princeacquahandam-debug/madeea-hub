@@ -99,13 +99,30 @@ export async function connectAccount(
 
   return await new Promise<ConnectResult>((resolve) => {
     let done = false;
+    /* The second way back (see public/oauth-done.js): Google's sign-in pages
+       cut the popup off from this window, so the result can also arrive on a
+       same-origin BroadcastChannel. Only this origin can post on it. */
+    let channel: BroadcastChannel | null = null;
+    try { channel = new BroadcastChannel("madeea-oauth"); } catch { channel = null; }
     const finish = (r: ConnectResult) => {
       if (done) return;
       done = true;
       window.removeEventListener("message", onMessage);
       clearInterval(watch);
+      if (closedAt) clearTimeout(closedAt);
+      channel?.close();
       resolve(r);
     };
+    if (channel) {
+      channel.onmessage = (e: MessageEvent) => {
+        const d = e.data as { source?: string; ok?: boolean; provider?: string; account?: string; error?: string } | null;
+        if (!d || d.source !== "madeea-oauth") return;
+        // Tell the popup someone heard, so it closes instead of navigating back.
+        try { channel?.postMessage({ source: "madeea-oauth-ack" }); } catch { /* closing anyway */ }
+        finish({ ok: Boolean(d.ok), account: d.account, error: d.error });
+      };
+    }
+    let closedAt: ReturnType<typeof setTimeout> | null = null;
 
     function onMessage(e: MessageEvent) {
       /* Origin checked before the payload is looked at: any page can post to
@@ -129,8 +146,12 @@ export async function connectAccount(
     /* Closing the window IS an answer: people abandon a consent screen by
        shutting it, and without this the card would sit on "connecting…" for
        ever waiting for a message that is never coming. */
+    /* A short grace period after it closes: the channel message from the last
+       page can land just after the window shuts. */
     const watch = setInterval(() => {
-      if (popup.closed) finish({ ok: false, error: "The login window was closed before it finished." });
+      if (popup.closed && !closedAt && !done) {
+        closedAt = setTimeout(() => finish({ ok: false, error: "The login window was closed before it finished." }), 1500);
+      }
     }, 500);
   });
 }
