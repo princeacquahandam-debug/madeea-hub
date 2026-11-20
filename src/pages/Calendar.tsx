@@ -161,7 +161,12 @@ export default function Calendar() {
      choice it is as before: the calendar's own zone, then the computer's.
      The grid, the day buckets and every label below all take this one `tz`,
      so an event is positioned and labelled in the same zone. */
-  const tz = tzOverride ?? chosenTz ?? calendarTz ?? browserTz;
+  /* Your zone (Settings, else this computer) wins over the calendar's own.
+     The calendar's zone used to come first when nothing was chosen, so an
+     assistant in Manila with a Denver client saw the whole grid in Denver time
+     while Settings said Manila (QA BUG-005). The calendar's zone is still one
+     click away on the zone button. */
+  const tz = tzOverride ?? browserTz;
   const today = todayKey(tz);
 
   /* Weekends is a filter on COLUMNS, not on data. Hiding Saturday removes the

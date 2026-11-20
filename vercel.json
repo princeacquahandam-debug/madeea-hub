@@ -25,6 +25,18 @@
       "destination": "/terms.html"
     },
     {
+      "source": "/(\\.(?!well-known).*)",
+      "destination": "/__not_found"
+    },
+    {
+      "source": "/((?:wp-|cgi-bin|phpmyadmin).*)",
+      "destination": "/__not_found"
+    },
+    {
+      "source": "/(.*\\.(?:php|asp|aspx|env|ini|bak|sql|yml|yaml|log))",
+      "destination": "/__not_found"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

@@ -1,5 +1,5 @@
-import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { lazy, Suspense, useEffect, useRef } from "react";
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { useClientUser } from "@/hooks/useClientUser";
@@ -59,6 +59,22 @@ function Gate() {
   const { user, loading, recovering } = useAuth();
   const { data: clientId, isLoading: clientLoading } = useClientUser(!!user);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+
+  /* Signing out lands on the sign-in page's own address. The view changed but
+     the address stayed on /inbox (or wherever), so the screen and the address
+     disagreed (QA BUG-007). Only on an actual sign-out: opening a page while
+     signed out keeps its address, so you land there after signing in. */
+  const hadUser = useRef(false);
+  useEffect(() => {
+    if (user) { hadUser.current = true; return; }
+    if (hadUser.current) {
+      hadUser.current = false;
+      if (pathname !== "/") navigate("/", { replace: true });
+    }
+    // Reacts to the sign-out itself, not to every page change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   /* ── PUBLIC, AND CHECKED BEFORE EVERY GATE BELOW ───────────────────────
      Not inside the routed tree, because that tree only renders once there is
@@ -91,6 +107,10 @@ function Gate() {
     return <div className="flex h-screen items-center justify-center text-faint">Loading…</div>;
   }
   if (clientId) {
+    /* The portal has one address. A client who opens a staff address (an old
+       link, a typo) sees their Overview, so the address says so too, rather
+       than reading /admin over the client's own page (QA BUG-007). */
+    if (pathname !== "/") return <Navigate to="/" replace />;
     return (
       <Suspense fallback={null}>
         <ClientPortal clientId={clientId} />
@@ -161,9 +181,22 @@ function StaffApp() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/changelog" element={<Changelog />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* A page, not a silent jump to the Dashboard: a typo or a stale
+            bookmark should say so (QA BUG-006). Removed pages listed above
+            land here too, with a way back. */}
+        <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
+  );
+}
+
+function NotFound() {
+  return (
+    <div className="mx-auto mt-16 max-w-sm text-center">
+      <h1 className="text-lg font-semibold">Page not found</h1>
+      <p className="mt-1.5 text-sm text-muted">This address isn't a page in the Hub. It may be a typo or an old link.</p>
+      <Link to="/" className="btn-primary mt-5 inline-flex">Go to the Dashboard</Link>
+    </div>
   );
 }
 

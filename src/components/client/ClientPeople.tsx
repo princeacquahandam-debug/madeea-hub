@@ -296,8 +296,11 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
                   </div>
                   <div className="text-faint mt-0.5 text-xs">
                     {p.role === "primary" ? "Full access" : p.role === "member" ? "Staff" : "View only"}
-                    {" · added "}
-                    {dayLabel(dateOnly(localDayKey(p.created_at)))}
+                    {/* Only with a real date: a row still arriving has none, and
+                        printed "added Invalid Date" for a moment (QA BUG-023). */}
+                    {p.created_at && !Number.isNaN(Date.parse(p.created_at))
+                      ? <>{" · added "}{dayLabel(dateOnly(localDayKey(p.created_at)))}</>
+                      : null}
                   </div>
                 </div>
                 {!readOnly && p.role !== "primary" && p.email ? (

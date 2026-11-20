@@ -72,18 +72,22 @@ export default function Login() {
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-accent">Executive OS</p>
         </div>
 
+        {/* Hidden while resetting: two forms on one card read as "fill both in",
+            and the password box is the one thing a reset doesn't need (QA BUG-015). */}
         <form className="space-y-3" onSubmit={submit}>
           <div>
             <label className="field-label">Email</label>
             <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
-          <div>
-            <label className="field-label">Password</label>
-            <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          </div>
+          {!resetting && (
+            <div>
+              <label className="field-label">Password</label>
+              <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            </div>
+          )}
           {error && <p className="text-xs text-red-400">{error}</p>}
           {resetNote && <p className="text-xs text-emerald-300">{resetNote}</p>}
-          <button className="btn-primary w-full" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+          {!resetting && <button className="btn-primary w-full" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>}
         </form>
 
         {resetting ? (

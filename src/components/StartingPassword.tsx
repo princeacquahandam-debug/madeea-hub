@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Copy, RefreshCw } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { MIN_PASSWORD, suggestPassword } from "@/lib/password";
 
 /**
@@ -36,6 +36,12 @@ export function StartingPassword({
   hint?: string;
 }) {
   const [copied, setCopied] = useState(false);
+  /* Hidden until asked for (QA BUG-009, 20 Nov 2026). The field is filled in
+     the moment the form opens, so it sat in plain view of anyone behind the
+     screen, on a shared call or in a screenshot, before anybody needed it.
+     Show is one click when it's time to read it out, and Copy works either
+     way. Still a text field, not type="password", for the reasons above. */
+  const [shown, setShown] = useState(false);
   const short = value.length > 0 && value.length < MIN_PASSWORD;
 
   async function copy() {
@@ -53,17 +59,40 @@ export function StartingPassword({
     <div>
       <label className="field-label" htmlFor={id}>{label}</label>
       <div className="flex gap-2">
-        <input
-          id={id}
-          className="input flex-1 font-mono"
-          type="text"
-          autoComplete="off"
-          spellCheck={false}
-          autoCapitalize="none"
-          autoCorrect="off"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        />
+        {shown ? (
+          <input
+            id={id}
+            className="input flex-1 font-mono"
+            type="text"
+            autoComplete="off"
+            spellCheck={false}
+            autoCapitalize="none"
+            autoCorrect="off"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        ) : (
+          <input
+            id={id}
+            className="input flex-1 cursor-pointer font-mono"
+            type="text"
+            readOnly
+            aria-label={`${label} (hidden, click Show to see or edit it)`}
+            value={value ? "•".repeat(Math.min(value.length, 16)) : ""}
+            placeholder="Hidden"
+            onClick={() => setShown(true)}
+          />
+        )}
+        <button
+          type="button"
+          className="btn-ghost border border-border"
+          onClick={() => setShown((s) => !s)}
+          title={shown ? "Hide the password" : "Show the password"}
+          aria-label={shown ? "Hide the password" : "Show the password"}
+          aria-pressed={shown}
+        >
+          {shown ? <EyeOff size={15} /> : <Eye size={15} />}
+        </button>
         <button
           type="button"
           className="btn-ghost border border-border"

@@ -725,6 +725,11 @@
   outline-offset: 2px;
   border-radius: 0.5rem;
 }
+/* An accent ring around an accent button disappears into it, so the Sign in
+   button looked unfocused when tabbed to (QA BUG-018). Text colour instead. */
+.btn-primary:focus-visible {
+  outline-color: rgb(var(--c-text));
+}
 
 /* AI quick actions on a page (13 Oct 2026): a soft pulsing ring until someone
    has tried one, so they are noticed rather than ignored. */

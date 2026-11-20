@@ -76,9 +76,9 @@ export function ClientStaffReport() {
           </button>
         </div>
         <div className="grid gap-3 md:grid-cols-3">
-          <Field label="Completed today" value={done} onChange={setDone} placeholder={"- Cleared the support inbox\n- Updated 40 CRM contacts"} />
-          <Field label="Blockers" value={blocked} onChange={setBlocked} placeholder="Anything you need from the account owner" />
-          <Field label="Plan for tomorrow" value={next} onChange={setNext} placeholder="What you'll pick up tomorrow" />
+          <Field label="Completed today" value={done} onChange={setDone} placeholder={"e.g. cleared the support inbox, updated 40 CRM contacts"} />
+          <Field label="Blockers" value={blocked} onChange={setBlocked} placeholder="e.g. waiting on login details from the account owner" />
+          <Field label="Plan for tomorrow" value={next} onChange={setNext} placeholder="e.g. finish the CRM clean-up" />
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <button className="btn-primary" disabled={!done.trim() || send.isPending} onClick={() => { setSent(""); send.mutate(); }}>
