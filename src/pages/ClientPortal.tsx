@@ -161,16 +161,22 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
   /* primary is the client. viewer is a colleague they added, who may read the
      account and nothing else (0074). Everything below reads this rather than
      testing the string in six places. */
-  const { data: clientRole } = useQuery({
+  const { data: clientRole, isPending: rolePending } = useQuery({
     queryKey: ["client-portal", "role"],
     staleTime: Infinity,
     queryFn: async () => {
       const { data, error } = await supabase!.rpc("my_client_role");
       if (error) throw error;
-      return (data as string | null) ?? "primary";
+      /* This portal only opens for an account my_client() already found, so
+         NULL here means the call went out before the session was attached, not
+         "primary". Defaulting to primary is what showed a staff account the
+         owner's portal and then flipped it back (QA, 20 Nov 2026). Retry. */
+      if (!data) throw new Error("Client role not ready.");
+      return data as string;
     },
   });
-  const isViewer = clientRole === "viewer";
+  // Still unknown after the retries: the read-only view, never the owner's.
+  const isViewer = clientRole === "viewer" || (!rolePending && !clientRole);
   const isMember = clientRole === "member";
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("overview");
@@ -197,7 +203,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
     if (clientRole === "member") setTab("mywork");
   }, [clientRole]);
 
-  const { data: header } = useQuery({
+  const { data: header, isPending: headerPending } = useQuery({
     queryKey: ["client-portal", "header"],
     queryFn: async () => {
       const { data, error } = await supabase!
@@ -205,6 +211,10 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
         .select("client_name, company, assistant_name")
         .maybeSingle();
       if (error) throw error;
+      /* A client always has an overview row. An empty answer means the request
+         beat the session, and drawing it showed a signed-in client "Your
+         account" with no assistant and no tasks (QA BUG-003). Retry instead. */
+      if (!data) throw new Error("Client account not ready.");
       return data as { client_name: string; company: string | null; assistant_name: string | null } | null;
     },
   });
@@ -281,6 +291,14 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
   const meta = tab === "settings"
     ? SETTINGS_META
     : (tabs.find((t) => t.id === tab) ?? tabs[0]);
+
+  /* Nothing until we know who this is and whose account it is. The role sets
+     the menu and the landing tab; guessing first and correcting later is the
+     flip the QA run saw. A load that still fails after retries renders with
+     the fallbacks above. */
+  if (rolePending || headerPending) {
+    return <div className="flex h-screen items-center justify-center text-faint">Loading…</div>;
+  }
 
   return (
     <ClientShell

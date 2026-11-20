@@ -1,3 +1,4 @@
+import { getSessionUser } from "@/lib/sessionUser";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, Loader2, Sparkles, UserPlus, Users } from "lucide-react";
@@ -84,7 +85,7 @@ export function DelegationSort({
     queryKey: ["client-portal", "delegation-context"],
     enabled: isSupabaseConfigured,
     queryFn: async () => {
-      const { data: u } = await supabase!.auth.getUser();
+      const { data: u } = await getSessionUser();
       const id = u.user?.id ?? "";
       const [{ data: me }, { data: last }] = await Promise.all([
         supabase!.from("client_users").select("focus_areas, desk_items").eq("user_id", id).maybeSingle(),

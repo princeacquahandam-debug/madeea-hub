@@ -93,7 +93,7 @@ const segBtn = (on: boolean) =>
 export default function EodReports() {
   const { data: reports = [], isLoading: eodLoading, isError: eodError, error: eodErr, refetch: refetchEod } = useEodReports();
   const { data: tasks = [] } = useTasks();
-  const { data: members = [] } = useWorkspaceMembers();
+  const { data: members = [], isPending: membersPending } = useWorkspaceMembers();
   const { data: clients = [] } = useClients();
   const submit = useSubmitEod();
   const remove = useDeleteEod();
@@ -341,6 +341,7 @@ export default function EodReports() {
         <>
           <TodayEod
             me={me?.name}
+            loadingMe={membersPending}
             draft={draft}
             onChange={editDraft}
             notes={notes}
@@ -720,6 +721,7 @@ function TeamTab({
  */
 function TodayEod({
   me,
+  loadingMe,
   draft,
   onChange,
   notes,
@@ -735,6 +737,8 @@ function TodayEod({
   listAi,
 }: {
   me?: string;
+  /** Still finding out who you are: not the same as being signed out. */
+  loadingMe?: boolean;
   draft: EodDraftState;
   onChange: (d: EodDraftState) => void;
   notes: string;
@@ -762,6 +766,9 @@ function TodayEod({
     return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
   })();
 
+  if (!me && loadingMe) {
+    return <div className="card p-4 text-xs text-faint">Loading your report…</div>;
+  }
   if (!me) {
     return <div className="card p-4 text-xs text-faint">Sign in to draft and submit your end-of-day report.</div>;
   }

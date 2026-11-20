@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { useClientUser } from "@/hooks/useClientUser";
+import { useMyRole } from "@/data/hooks";
 import { MadelineProvider } from "@/hooks/useMadeline";
 import { AppShell } from "@/components/layout/AppShell";
 // Login and Dashboard are eager: Login is the gate before the shell, and
@@ -101,6 +102,23 @@ function Gate() {
      forwards straight on to academy.madeea.io, signed in. */
   if (pathname === "/academy-sso") return <Suspense fallback={null}><AcademySso /></Suspense>;
 
+  return <StaffApp />;
+}
+
+/**
+ * The agency app, drawn once the person's role is known.
+ *
+ * The sidebar, the admin menus and half the pages branch on the role. Drawing
+ * them first and correcting a second later showed the owner a team member's
+ * menu, and an EOD page that said "Sign in" (QA, 20 Nov 2026). A role that
+ * still fails after its retries falls through: atLeast() is false for an
+ * unknown role, so nothing extra is shown.
+ */
+function StaffApp() {
+  const { isPending: rolePending } = useMyRole();
+  if (rolePending) {
+    return <div className="flex h-screen items-center justify-center text-faint">Loading…</div>;
+  }
   return (
     <Routes>
       <Route element={<AppShell />}>

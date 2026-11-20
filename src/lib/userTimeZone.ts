@@ -16,6 +16,7 @@
  * Cached in localStorage so the first paint after a reload is already right,
  * and so demo mode (supabase === null) works with no server at all.
  */
+import { getSessionUser } from "@/lib/sessionUser";
 import { useEffect } from "react";
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
@@ -95,7 +96,7 @@ export const useUserTimeZone = create<TzState>((set, get) => ({
     writeCache(next);
     if (!supabase) return null;
     try {
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await getSessionUser();
       const uid = auth.user?.id;
       if (!uid) return "Saved on this device only: you are not signed in.";
       const { error } = await supabase.from("profiles").update({ timezone: next }).eq("id", uid);

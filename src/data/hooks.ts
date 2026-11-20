@@ -1,3 +1,4 @@
+import { getSessionUser } from "@/lib/sessionUser";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
@@ -538,7 +539,7 @@ export function useGoogleConnection() {
     queryKey: ["google-connection"],
     queryFn: async () => {
       if (!supabase) return { connected: false, calendar: false };
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await getSessionUser();
       if (!auth.user) return { connected: false, calendar: false };
       /* refresh_token is revoked from `authenticated` (0016), so this reads the
          columns a browser is allowed to see and never the secret itself. */
@@ -1360,7 +1361,7 @@ export function useMyWorkspaceId() {
     staleTime: 5 * 60_000,
     queryFn: async () => {
       if (!supabase) return null;
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await getSessionUser();
       if (!auth.user?.id) return null;
       const { data } = await supabase.from("memberships").select("workspace_id").eq("user_id", auth.user.id)
         .order("created_at", { ascending: true }).limit(1).maybeSingle();
@@ -1381,9 +1382,12 @@ export function useMyRole() {
         try { const r = localStorage.getItem("madeea-demo-role"); if (r && r in ROLE_RANK) return r as MemberRole; } catch { /* storage blocked */ }
         return "admin";
       }
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await getSessionUser();
       const uid = auth.user?.id;
-      if (!uid) return "ea";
+      /* Throw, not "ea": no id here means the session hasn't been read yet, not
+         that this person is an assistant. Guessing the lowest role is what
+         showed the owner a team member's menu (QA, 20 Nov 2026). */
+      if (!uid) throw new Error("Session not ready.");
       const { data, error } = await supabase.from("memberships").select("role").eq("user_id", uid).limit(1).maybeSingle();
       /* THROW, do not assume the lowest role. This returned "ea" on any error,
          so one dropped request rendered an owner as an employee: the Admin
@@ -1406,8 +1410,11 @@ export function useWorkspaceMembers() {
     queryKey: ["members"],
     queryFn: async () => {
       if (!supabase) return applyDemo("members", demoMembers(), "user_id");
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await getSessionUser();
       const myId = auth.user?.id ?? "";
+      /* Without an id, no row would be marked is_me, and every page that looks
+         for "me" (EOD, the dashboard) would decide you are signed out. Retry. */
+      if (!myId) throw new Error("Session not ready.");
       const read = (cols: string) => supabase!.from("memberships").select(cols).order("created_at", { ascending: true });
       let res = await read("user_id, role, job_function, created_at");
       // 0098 not run yet: the column is missing, so read without it.
@@ -2212,7 +2219,7 @@ export function useFileMutations() {
          The folder does NOT decide the shelf: a team file and a personal one
          both live under their uploader. Which shelf it is on is the row's
          business, and the row is what read access is decided by. */
-      const { data: u } = await supabase.auth.getUser();
+      const { data: u } = await getSessionUser();
       const uid = u.user?.id;
       if (!uid) throw new Error("Sign in again before uploading.");
       const safe = file.name.replace(/[^\w.\-]+/g, "_");
@@ -2364,7 +2371,7 @@ export function useRecordingMutations() {
         });
         return;
       }
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await getSessionUser();
       const uid = auth.user?.id;
       if (!uid) throw new Error("Not signed in.");
       // Namespaced by user id because the storage policy checks the first path
@@ -2507,7 +2514,7 @@ export function useTimeEntries() {
 async function announceTimeIn(day: string): Promise<void> {
   if (!supabase) return;
   try {
-    const { data: u } = await supabase.auth.getUser();
+    const { data: u } = await getSessionUser();
     const uid = u.user?.id;
     if (!uid) return;
 
@@ -2796,7 +2803,7 @@ export function useAcademyAttempts() {
     queryKey: ["academy-attempts"],
     queryFn: async () => {
       if (!supabase) return loadDemoAttempts();
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await getSessionUser();
       const uid = auth.user?.id;
       if (!uid) return [];
       const { data, error } = await supabase
@@ -2854,7 +2861,7 @@ export function useAcademySubmissions(scope: "mine" | "team", enabled = true) {
         .select("id,user_id,lesson_id,body,status,feedback,reviewed_by,reviewed_at,submitted_at")
         .order("submitted_at", { ascending: true });
       if (scope === "mine") {
-        const { data: auth } = await supabase.auth.getUser();
+        const { data: auth } = await getSessionUser();
         if (!auth.user) return [];
         q = q.eq("user_id", auth.user.id);
       }
@@ -2973,7 +2980,7 @@ export function useAcademyMutations() {
     mutationFn: async ({ lessonId, done }: { lessonId: string; done: boolean }) => {
       if (!supabase) { setDemoProgress(lessonId, done); return; }
       if (done) {
-        const { data: auth } = await supabase.auth.getUser();
+        const { data: auth } = await getSessionUser();
         // upsert, so re-marking a finished lesson is a no-op rather than a
         // duplicate-key error the user would see as a failure.
         const { error } = await supabase
@@ -3035,7 +3042,7 @@ export function useAcademyMutations() {
         setDemoProgress(lessonId, true);
         return;
       }
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await getSessionUser();
       // The database forces status back to 'submitted' whatever is sent.
       const { error } = existing
         ? await supabase.from("academy_submissions").update({ body }).eq("id", existing.id)
@@ -3209,7 +3216,7 @@ export function useMyClients() {
 
   useEffect(() => {
     if (!supabase) { setUid("demo"); return; }
-    supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
+    getSessionUser().then(({ data }) => setUid(data.user?.id ?? null));
   }, []);
 
   return useMemo(() => {
@@ -3293,7 +3300,7 @@ export function useMyEmail(): string | null {
   const [email, setEmail] = useState<string | null>(null);
   useEffect(() => {
     if (!supabase) return;
-    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+    getSessionUser().then(({ data }) => setEmail(data.user?.email ?? null));
   }, []);
   return email;
 }
@@ -3311,7 +3318,7 @@ export function useEffectiveTimeSettings() {
   const [uid, setUid] = useState<string | null>(null);
   useEffect(() => {
     if (!supabase) return;
-    supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
+    getSessionUser().then(({ data }) => setUid(data.user?.id ?? null));
   }, []);
 
   return useQuery({
@@ -3639,7 +3646,7 @@ export function useSaveTimeSettings() {
   return useMutation({
     mutationFn: async (patch: Partial<Pick<TimeSettings, "daily_hours" | "auto_break_minutes" | "auto_break_after_hours">>) => {
       if (!supabase) return;
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await getSessionUser();
       const { data: m, error: mErr } = await supabase.from("memberships").select("workspace_id").eq("user_id", auth.user?.id ?? "").limit(1).maybeSingle();
       if (mErr || !m?.workspace_id) throw new Error("Couldn't find your workspace.");
       const { error } = await supabase.from("time_settings").upsert({ workspace_id: m.workspace_id, ...patch, updated_at: new Date().toISOString() });

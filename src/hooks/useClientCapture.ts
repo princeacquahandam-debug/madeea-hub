@@ -1,3 +1,4 @@
+import { getSessionUser } from "@/lib/sessionUser";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
@@ -76,7 +77,7 @@ export function useClientCapture(entryId: string | null, clientId: string | null
       const blob: Blob | null = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.7));
       if (!blob) return;
 
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await getSessionUser();
       const uid = auth.user?.id;
       if (!uid) return;
 

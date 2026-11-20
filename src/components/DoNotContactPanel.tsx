@@ -1,3 +1,4 @@
+import { getSessionUser } from "@/lib/sessionUser";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Ban, Plus, Search } from "lucide-react";
@@ -110,7 +111,7 @@ export function DoNotContactPanel() {
 
   const add = useMutation({
     mutationFn: async () => {
-      const { data: u } = await supabase!.auth.getUser();
+      const { data: u } = await getSessionUser();
       const { error } = await supabase!.from("do_not_contact").insert({
         kind, value: value.trim(), source: "manual", reason: note.trim() || null, created_by: u.user?.id,
       });

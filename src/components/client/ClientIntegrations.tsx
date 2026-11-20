@@ -1,3 +1,4 @@
+import { getSessionUser } from "@/lib/sessionUser";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, Check, Loader2, Mail, RefreshCw, ShieldCheck, Unplug } from "lucide-react";
@@ -54,7 +55,7 @@ export function lastSync(p: CalendarProvider): number {
 
 /** Is this provider connected for the signed-in client? */
 export async function isConnected(p: CalendarProvider): Promise<boolean> {
-  const { data: auth } = await supabase!.auth.getUser();
+  const { data: auth } = await getSessionUser();
   if (!auth.user) return false;
   const { data } = await supabase!.from(PROVIDERS[p].table).select("owner_id").eq("owner_id", auth.user.id).maybeSingle();
   return !!data;
@@ -117,7 +118,7 @@ function ProviderCard({ provider, who }: { provider: CalendarProvider; who: stri
   const { data: conn, isLoading } = useQuery({
     queryKey: key,
     queryFn: async () => {
-      const { data: auth } = await supabase!.auth.getUser();
+      const { data: auth } = await getSessionUser();
       if (!auth.user) return null;
       const { data } = await supabase!.from(cfg.table).select(cfg.columns).eq("owner_id", auth.user.id).maybeSingle();
       return (data as { connected_at: string | null; account_email?: string | null } | null) ?? null;

@@ -1,3 +1,4 @@
+import { getSessionUser } from "@/lib/sessionUser";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -25,7 +26,7 @@ export function WorkspaceGate() {
     queryKey: ["has-workspace"],
     queryFn: async () => {
       if (!supabase) return true;
-      const { data } = await supabase.auth.getUser();
+      const { data } = await getSessionUser();
       if (!data.user) return true;   // signed out is the login screen's problem
       /* RLS on memberships already limits this to the caller's own workspace,
          so a count is enough: zero means no seat, not an empty table. */

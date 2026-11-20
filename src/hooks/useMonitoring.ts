@@ -1,3 +1,4 @@
+import { getSessionUser } from "@/lib/sessionUser";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
@@ -345,7 +346,7 @@ export function useMonitoring(opts: {
     const blob = await toJpegBlob(canvas, 0.6);
     if (!blob) { setError("Couldn't save the screenshot."); return; }
 
-    const { data: u } = await supabase.auth.getUser();
+    const { data: u } = await getSessionUser();
     const uid = u.user?.id;
     if (!uid) return;
 

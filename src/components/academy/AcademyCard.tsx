@@ -1,3 +1,4 @@
+import { getSessionUser } from "@/lib/sessionUser";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, GraduationCap } from "lucide-react";
@@ -19,7 +20,7 @@ export function AcademyCard() {
     queryFn: async (): Promise<Summary | null> => {
       const { data: paths, error } = await supabase!.from("acad_paths").select("id").eq("status", "published");
       if (error) return null; // migration 0103 not run yet
-      const { data: u } = await supabase!.auth.getUser();
+      const { data: u } = await getSessionUser();
       const progress = await Promise.all((paths ?? []).map((p) => supabase!.rpc("acad_path_progress", { p_path: p.id })));
       const { count } = await supabase!.from("acad_certificates").select("id", { count: "exact", head: true }).eq("user_id", u.user?.id ?? "");
       let done = 0, total = 0;
