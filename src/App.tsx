@@ -107,10 +107,9 @@ function Gate() {
     return <div className="flex h-screen items-center justify-center text-faint">Loading…</div>;
   }
   if (clientId) {
-    /* The portal has one address. A client who opens a staff address (an old
-       link, a typo) sees their Overview, so the address says so too, rather
-       than reading /admin over the client's own page (QA BUG-007). */
-    if (pathname !== "/") return <Navigate to="/" replace />;
+    /* The portal reads its own sections from the address (/tasks, /people…)
+       and sends anything else, such as a staff address, back to / (QA BUG-007,
+       BUG-022). See ClientPortal. */
     return (
       <Suspense fallback={null}>
         <ClientPortal clientId={clientId} />

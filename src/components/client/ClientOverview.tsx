@@ -106,7 +106,7 @@ export function ClientOverview({
   const [due, setDue] = useState("");
   const [error, setError] = useState("");
 
-  const { data: overview } = useQuery({
+  const { data: overview, isLoading: loadingOverview } = useQuery({
     queryKey: ["client-portal", "overview"],
     queryFn: async () => {
       const { data, error } = await supabase!.from("client_overview").select("*").maybeSingle();
@@ -117,7 +117,7 @@ export function ClientOverview({
 
   /* Seven days, because the only thing read off this is the seven-day total.
      Activity is where the per-day record lives, and it asks for its own. */
-  const { data: days = [] } = useQuery({
+  const { data: days = [], isLoading: loadingDays } = useQuery({
     queryKey: ["client-portal", "week"],
     queryFn: async () => {
       const { data, error } = await supabase!
@@ -131,7 +131,7 @@ export function ClientOverview({
   });
 
   // Same key and query as ClientBoard, so the board opens already filled.
-  const { data: tasks = [] } = useQuery({
+  const { data: tasks = [], isLoading: loadingTasks } = useQuery({
     queryKey: ["client-portal", "tasks"],
     queryFn: async () => {
       const { data, error } = await supabase!
@@ -233,6 +233,13 @@ export function ClientOverview({
       // itself, so whatever the database said is what gets shown.
       setError(e instanceof Error ? e.message : "Could not send that request.");
     }
+  }
+
+  /* Until the summary, hours and tasks are in, the sentence below read "No
+     assistant is assigned to your account yet" with 0 hours and 0 tasks, for a
+     client who has both (QA re-test NEW-08). */
+  if (loadingOverview || loadingDays || loadingTasks) {
+    return <p className="py-10 text-center text-sm text-faint">Loading your account…</p>;
   }
 
   return (

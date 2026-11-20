@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AlertTriangle, Check, LogOut, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { AccountCard } from "@/components/AccountCard";
 
 /**
  * The client's own account settings: their password, and the way out.
@@ -68,24 +69,18 @@ export function ClientSettings({ email, name, addedByOwner = false }: { email?: 
 
   return (
     <div className="space-y-5">
-      <section className="card p-5">
-        <h2 className="mb-3 text-[15px] font-semibold">Your account</h2>
-        <div className="rounded-lg border border-border p-3">
-          {name ? (
-            <>
-              <p className="field-label mb-0.5">Name</p>
-              <p className="mb-2 truncate text-sm">{name}</p>
-            </>
-          ) : null}
-          <p className="field-label mb-0.5">Signed in as</p>
-          <p className="truncate text-sm">{email ?? "-"}</p>
-        </div>
-        <p className="mt-3 text-sm text-muted">
+      {/* Your name and sign-in address, with Edit name (QA re-test, 20 Nov
+          2026): a login made from an email address was named after it
+          ("Desolocthelbert3") with no way to fix it. The same card as the Hub's
+          Settings, so both save a name the same way. */}
+      <div>
+        <AccountCard hint="Shown at the top of your portal and on the work and reports you send from now on." />
+        <p className="mt-2 px-1 text-sm text-muted">
           {addedByOwner
-            ? "This is the address the account owner added you with. Ask them if it needs to change."
+            ? "Your email address is the one the account owner added you with. Ask them if it needs to change."
             : "Your email address is how your assistant reaches you. Ask them if it needs to change."}
         </p>
-      </section>
+      </div>
 
       <section className="card p-5">
         <h2 className="mb-1 text-[15px] font-semibold">Password</h2>

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Send, ShieldCheck, MessageSquare, LayoutDashboard,
@@ -179,8 +180,6 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
   const isViewer = clientRole === "viewer" || (!rolePending && !clientRole);
   const isMember = clientRole === "member";
   const qc = useQueryClient();
-  const [tab, setTab] = useState<Tab>("overview");
-  const landed = useRef(false);
 
   /* A viewer has no channels at all, and that is the point of there being two
      of them: the escalation channel is where a client raises something about
@@ -190,18 +189,34 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
     if (isMember) return MEMBER_NAV;
     return isViewer ? TABS.filter((t) => PANES[t.id] && t.id !== "team" && t.id !== "accounts" && t.id !== "staffchat") : TABS;
   }, [isViewer, isMember]);
+
+  /* Each section has its own address: /tasks, /people, /settings…
+     (QA BUG-022, 20 Nov 2026). The section was only in memory, so the address
+     stayed on / for everything: a reload always went back to the home page, a
+     section couldn't be bookmarked or sent to someone, and Back left the portal.
+     The home page (Overview, or My work for a staff member, who has no rows for
+     an account summary) lives at / itself. */
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const home: Tab = clientRole === "member" ? "mywork" : "overview";
+  const allowed = useMemo(() => new Set<string>([...tabs.map((t) => t.id), "settings"]), [tabs]);
+  const fromPath = pathname.replace(/^\/+|\/+$/g, "");
+  const tab: Tab = (fromPath && allowed.has(fromPath) ? fromPath : home) as Tab;
+  const setTab = useCallback(
+    (id: Tab) => navigate(id === home ? "/" : `/${id}`),
+    [navigate, home],
+  );
+  /* An address that isn't one of this person's sections (a staff page, an old
+     link, a section their role doesn't have) goes home and says so in the
+     address bar, rather than showing home under the wrong address (BUG-007). */
+  useEffect(() => {
+    if (!clientRole || !fromPath || allowed.has(fromPath)) return;
+    navigate("/", { replace: true });
+  }, [clientRole, fromPath, allowed, navigate]);
+
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  /* Once, when the role first resolves. A member opening on Overview would see
-     an account summary they have no rows for, which reads as an empty account
-     rather than as the wrong page. */
-  useEffect(() => {
-    if (landed.current || !clientRole) return;
-    landed.current = true;
-    if (clientRole === "member") setTab("mywork");
-  }, [clientRole]);
 
   const { data: header, isPending: headerPending } = useQuery({
     queryKey: ["client-portal", "header"],
