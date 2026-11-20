@@ -39,13 +39,13 @@ export default function Dashboard() {
      doesn't get the two Dashboard pieces that only lead there. */
   const { data: role } = useMyRole();
   const canVault = atLeast(role, "manager");
-  const { data: tasks = [] } = useTasks();
+  const { data: tasks = [], isLoading: tasksLoading } = useTasks();
   const { clientId: scopeId } = useClientContext();
-  const { data: meetings = [] } = useMeetings({ mine: true });
+  const { data: meetings = [], isLoading: meetingsLoading } = useMeetings({ mine: true });
   const { data: google } = useGoogleConnection();
-  const { data: clients = [] } = useClients();
-  const { data: messages = [] } = useMessages();
-  const { data: automations = [] } = useAutomations();
+  const { data: clients = [], isLoading: clientsLoading } = useClients();
+  const { data: messages = [], isLoading: messagesLoading } = useMessages();
+  const { data: automations = [], isLoading: automationsLoading } = useAutomations();
   const [prepFor, setPrepFor] = useState<Meeting | null>(null);
   // Deep link from the client activity timeline: /?meeting=<id>. Meetings have no
   // page of their own, so the prep packet IS the detail view.
@@ -60,7 +60,7 @@ export default function Dashboard() {
     }
   }, [params, meetings, setParams]);
   const cfg = useSlaSettings((s) => s.config);
-  const { flags } = useFollowUps();
+  const { flags, loading: flagsLoading } = useFollowUps();
   /* The ✦ quick actions beside the greeting (AI quick actions deck, 6 Nov
      2026). "Open meeting" in the plan opens the same prep packet as Details. */
   const ai = useHomeAi({ onOpenMeeting: setPrepFor });
@@ -121,13 +121,16 @@ export default function Dashboard() {
      Dashboard said 7 while her board showed 5, because this counted the whole
      team's unfinished tasks). Deleted tasks are in Recently deleted, not here. */
   const activeCount = tasks.filter((t) => t.status !== "done" && isMine(t, user?.id) && (!scopeId || t.client_id === scopeId)).length;
-  const kpis: { label: string; value: number; onClick?: () => void; alert?: boolean }[] = [
-    { label: "Your active tasks", value: activeCount, onClick: () => nav("/tasks?who=mine") },
-    { label: "Meetings today", value: meetingsToday, onClick: () => nav("/calendar") },
-    { label: "Emails to answer", value: messages.filter((m) => m.direction !== "outbound" && !m.first_reply_at).length, onClick: () => nav("/inbox") },
-    ...(canVault ? [{ label: "Clients at risk", value: atRisk.length, onClick: () => nav("/clients"), alert: atRisk.length > 0 }] : []),
-    { label: "Needs follow-up", value: flags.length, alert: flags.length > 0 },
-    { label: "Automations running", value: automations.filter((a) => a.status === "active").length },
+  /* null = still loading, shown as "—". An empty list printed as 0 for a second
+     before the real number, which read as "the Hub lost everything" (QA re-test,
+     20 Nov 2026). */
+  const kpis: { label: string; value: number | null; onClick?: () => void; alert?: boolean }[] = [
+    { label: "Your active tasks", value: tasksLoading ? null : activeCount, onClick: () => nav("/tasks?who=mine") },
+    { label: "Meetings today", value: meetingsLoading ? null : meetingsToday, onClick: () => nav("/calendar") },
+    { label: "Emails to answer", value: messagesLoading ? null : messages.filter((m) => m.direction !== "outbound" && !m.first_reply_at).length, onClick: () => nav("/inbox") },
+    ...(canVault ? [{ label: "Clients at risk", value: clientsLoading || messagesLoading ? null : atRisk.length, onClick: () => nav("/clients"), alert: atRisk.length > 0 }] : []),
+    { label: "Needs follow-up", value: flagsLoading ? null : flags.length, alert: flags.length > 0 },
+    { label: "Automations running", value: automationsLoading ? null : automations.filter((a) => a.status === "active").length },
   ];
   const followDays = useFollowUpSettings((s) => s.config.taskDays);
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -183,7 +186,9 @@ export default function Dashboard() {
           <AiActionBar actions={ai.actions} page="/" />
         </div>
         <p className="mt-1 text-sm text-muted">
-          You have {plural(activeCount, "active task", "active tasks")} and {plural(flags.length, "item that needs", "items that need")} a follow-up.
+          {tasksLoading || flagsLoading
+            ? "Loading your day…"
+            : <>You have {plural(activeCount, "active task", "active tasks")} and {plural(flags.length, "item that needs", "items that need")} a follow-up.</>}
         </p>
       </div>
 
@@ -200,7 +205,7 @@ export default function Dashboard() {
               className={`-mb-px -mr-px border-b border-r border-border px-4 py-3.5 text-left ${kpi.onClick ? "transition-colors hover:bg-[var(--chip-bg)]" : ""}`}
             >
               <span className="block text-xs text-muted">{kpi.label}</span>
-              <span className={`mt-1 block text-[22px] font-semibold leading-tight tabular-nums ${kpi.alert ? "text-accent" : ""}`}>{kpi.value}</span>
+              <span className={`mt-1 block text-[22px] font-semibold leading-tight tabular-nums ${kpi.value === null ? "text-faint" : kpi.alert ? "text-accent" : ""}`}>{kpi.value ?? "—"}</span>
             </Cell>
           );
         })}

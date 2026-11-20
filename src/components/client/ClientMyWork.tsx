@@ -40,12 +40,12 @@ export function ClientMyWork({ clientId, onNavigate }: { clientId: string; onNav
   const qc = useQueryClient();
 
   const { data: tasks = [], isLoading: loadingTasks } = useQuery({ queryKey: MY_TASKS_KEY, queryFn: fetchMyTasks });
-  const { data: reports = [] } = useQuery({ queryKey: TEAM_REPORTS_KEY, queryFn: fetchTeamReports });
+  const { data: reports = [], isLoading: loadingReports } = useQuery({ queryKey: TEAM_REPORTS_KEY, queryFn: fetchTeamReports });
   const reportSent = reports.some((r) => r.is_you && r.work_date === localToday());
 
   /* The next thing on the account's calendar (client_calendar: account
      meetings only; the owner's own calendar is theirs, 0085). */
-  const { data: nextMeeting } = useQuery({
+  const { data: nextMeeting, isLoading: loadingMeeting } = useQuery({
     queryKey: ["client-portal", "next-meeting"],
     refetchInterval: 300_000,
     queryFn: async () => {
@@ -121,14 +121,15 @@ export function ClientMyWork({ clientId, onNavigate }: { clientId: string; onNav
       {/* ---- today at a glance: one strip with dividers (12 Oct 2026, UI
           review deck slides 2-3); each cell opens the page it summarises ---- */}
       <div className="card grid grid-cols-2 overflow-hidden lg:grid-cols-4">
-        <Tile label="Open tasks" value={String(open.length)}
-          note={stuck ? `${stuck} stuck` : open.length ? "Nothing stuck" : "All clear"} warn={stuck > 0} onClick={() => onNavigate?.("mytasks")} />
-        <Tile label="Done today" value={String(done.filter((t) => t.completed_at && new Date(t.completed_at).toDateString() === new Date().toDateString()).length)}
+        {/* "—" while each one loads. They read "0 · All clear", then 1 (QA re-test NEW-02). */}
+        <Tile label="Open tasks" value={loadingTasks ? "—" : String(open.length)}
+          note={loadingTasks ? "Loading…" : stuck ? `${stuck} stuck` : open.length ? "Nothing stuck" : "All clear"} warn={!loadingTasks && stuck > 0} onClick={() => onNavigate?.("mytasks")} />
+        <Tile label="Done today" value={loadingTasks ? "—" : String(done.filter((t) => t.completed_at && new Date(t.completed_at).toDateString() === new Date().toDateString()).length)}
           note="Finished tasks" onClick={() => onNavigate?.("mytasks")} />
-        <Tile label="Next meeting" value={nextMeeting ? (nextMeeting.all_day ? "All day" : clockTime(nextMeeting.starts_at)) : "None"}
-          note={nextMeeting ? nextMeeting.title : "Nothing booked"} onClick={() => onNavigate?.("calendar")} />
-        <Tile label="Daily report" value={reportSent ? "Sent" : "Not yet"}
-          note={reportSent ? "Update it any time today" : "Send before you finish"} warn={!reportSent && !!running} onClick={() => onNavigate?.("myreport")} />
+        <Tile label="Next meeting" value={loadingMeeting ? "—" : nextMeeting ? (nextMeeting.all_day ? "All day" : clockTime(nextMeeting.starts_at)) : "None"}
+          note={loadingMeeting ? "Loading…" : nextMeeting ? nextMeeting.title : "Nothing booked"} onClick={() => onNavigate?.("calendar")} />
+        <Tile label="Daily report" value={loadingReports ? "—" : reportSent ? "Sent" : "Not yet"}
+          note={loadingReports ? "Loading…" : reportSent ? "Update it any time today" : "Send before you finish"} warn={!loadingReports && !reportSent && !!running} onClick={() => onNavigate?.("myreport")} />
       </div>
 
       {/* ---- the clock ---- */}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Building2, ChevronsUpDown, Search, Check, Undo2, Users } from "lucide-react";
-import { atLeast, useMyClients, useMyRole } from "@/data/hooks";
+import { atLeast, useClients, useMyClients, useMyRole } from "@/data/hooks";
 import { useClientContext } from "@/store/clientContext";
 import { cn, initials } from "@/lib/utils";
 
@@ -27,6 +27,8 @@ import { cn, initials } from "@/lib/utils";
  */
 export function ClientSwitcher({ collapsed }: { collapsed?: boolean }) {
   const clients = useMyClients();
+  // "0 assigned to you" for a second before the real count (QA re-test NEW-02).
+  const { isLoading: clientsLoading } = useClients();
   const { data: role } = useMyRole();
   const canVault = atLeast(role, "manager");
   const { clientId, setClient } = useClientContext();
@@ -123,7 +125,7 @@ export function ClientSwitcher({ collapsed }: { collapsed?: boolean }) {
             {active ? active.name : "All clients"}
           </span>
           <span className="block truncate text-[11px] text-faint">
-            {active ? active.company || active.title || "Client" : `${clients.length} assigned to you`}
+            {active ? active.company || active.title || "Client" : clientsLoading ? "Loading…" : `${clients.length} assigned to you`}
           </span>
         </span>
         <ChevronsUpDown size={15} className="shrink-0 text-faint" />

@@ -28,7 +28,11 @@ import { useAuth } from "@/hooks/useAuth";
 
 const MIN_LEN = 8;
 
-export function ClientSettings({ email }: { email?: string }) {
+/* addedByOwner: a staff member or colleague the client added themselves. Their
+   login came from the account owner, not from the assistant, and the wording
+   said otherwise (QA re-test NEW-03, 20 Nov 2026). */
+export function ClientSettings({ email, name, addedByOwner = false }: { email?: string; name?: string; addedByOwner?: boolean }) {
+  const giver = addedByOwner ? "the account owner" : "your assistant";
   const { updatePassword, signOut, demo } = useAuth();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -67,12 +71,19 @@ export function ClientSettings({ email }: { email?: string }) {
       <section className="card p-5">
         <h2 className="mb-3 text-[15px] font-semibold">Your account</h2>
         <div className="rounded-lg border border-border p-3">
+          {name ? (
+            <>
+              <p className="field-label mb-0.5">Name</p>
+              <p className="mb-2 truncate text-sm">{name}</p>
+            </>
+          ) : null}
           <p className="field-label mb-0.5">Signed in as</p>
           <p className="truncate text-sm">{email ?? "-"}</p>
         </div>
         <p className="mt-3 text-sm text-muted">
-          Your email address is how your assistant reaches you. Ask them if it needs
-          to change.
+          {addedByOwner
+            ? "This is the address the account owner added you with. Ask them if it needs to change."
+            : "Your email address is how your assistant reaches you. Ask them if it needs to change."}
         </p>
       </section>
 
@@ -80,7 +91,7 @@ export function ClientSettings({ email }: { email?: string }) {
         <h2 className="mb-1 text-[15px] font-semibold">Password</h2>
         <p className="mb-4 text-sm text-muted">
           Change the password you use to sign in. You will need your current one &mdash;
-          the password your assistant gave you when they set this account up, unless you
+          the password {giver} gave you when this account was set up, unless you
           have already changed it.
         </p>
 

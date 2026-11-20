@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Menu, X, Sun, Handshake, MessagesSquare, Settings, Briefcase, ChevronRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 /**
  * The client portal, wearing the same clothes as the rest of the product.
@@ -94,8 +95,13 @@ export function ClientShell({
   const activeGroup = nav.find((n) => n.id === active)?.group;
   const isOpen = (g: string) => (g in openGroups ? openGroups[g] : g === activeGroup);
   const toggleGroup = (g: string) => setOpenGroups((o) => ({ ...o, [g]: !isOpen(g) }));
-  const initials = (clientName || "?")
-    .split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  /* The signed-in person's initials, the same as the avatar at the top. This
+     row shows who you are (your email, your role), but took its initials from
+     the client's name: "BS" here and "BC" at the top for the same person, and
+     "BS" for a staff member who isn't Bryan at all (QA re-test NEW-06). */
+  const { user } = useAuth();
+  const initials = (user?.name || user?.email || clientName || "?")
+    .split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
 
   const rail = (hover: boolean) => (
     <aside

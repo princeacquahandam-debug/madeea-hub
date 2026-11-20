@@ -17,11 +17,14 @@ import {
 const PERIODS = [7, 30, 90];
 
 export default function Scoreboard() {
-  const { data: tasks = [] } = useTasks();
-  const { data: messages = [] } = useMessages();
-  const { data: meetings = [] } = useMeetings();
-  const { data: clients = [] } = useClients();
-  const { data: members = [] } = useWorkspaceMembers();
+  const { data: tasks = [], isLoading: l1 } = useTasks();
+  const { data: messages = [], isLoading: l2 } = useMessages();
+  const { data: meetings = [], isLoading: l3 } = useMeetings();
+  const { data: clients = [], isLoading: l4 } = useClients();
+  const { data: members = [], isLoading: l5 } = useWorkspaceMembers();
+  /* Every number here is computed from these lists, so with any of them still
+     arriving the page read "No clients yet" and all zeros (QA re-test NEW-01). */
+  const loading = l1 || l2 || l3 || l4 || l5;
   const cfg = useSlaSettings((s) => s.config);
 
   const [periodDays, setPeriodDays] = useState(7);
@@ -55,6 +58,15 @@ export default function Scoreboard() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (loading) {
+    return (
+      <div>
+        <PageHeader title="Client Scoreboard" subtitle="How the desk actually performed. Measured, not estimated." />
+        <p className="py-10 text-center text-sm text-faint">Loading the scoreboard…</p>
+      </div>
+    );
   }
 
   return (

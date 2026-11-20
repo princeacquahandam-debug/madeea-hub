@@ -145,14 +145,15 @@ export default function Admin() {
       {/* Stats */}
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: "Team members", value: members.length, icon: Users },
-          { label: "Admins & owners", value: adminCount, icon: ShieldCheck },
-          { label: "EAs", value: eaCount, icon: Users },
-          { label: "Open tasks", value: openTasks, icon: ArrowUpCircle },
+          /* "—" until the team has loaded: it read 0 members, then 12 (QA re-test). */
+          { label: "Team members", value: isLoading ? null : members.length, icon: Users },
+          { label: "Admins & owners", value: isLoading ? null : adminCount, icon: ShieldCheck },
+          { label: "EAs", value: isLoading ? null : eaCount, icon: Users },
+          { label: "Open tasks", value: isLoading ? null : openTasks, icon: ArrowUpCircle },
         ].map((s) => (
           <div key={s.label} className="card p-4">
             <s.icon size={16} className="text-accent-soft" />
-            <p className="mt-2 font-display text-2xl">{s.value}</p>
+            <p className={`mt-2 font-display text-2xl ${s.value === null ? "text-faint" : ""}`}>{s.value ?? "—"}</p>
             <p className="text-xs text-faint">{s.label}</p>
           </div>
         ))}

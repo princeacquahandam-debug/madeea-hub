@@ -342,7 +342,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
           {tab === "people" ? <ClientPeople readOnly={isViewer} /> : null}
           {tab === "team" ? <ClientTeam /> : null}
           {tab === "mywork" ? <ClientMyWork clientId={clientId} onNavigate={(id) => setTab(id as Tab)} /> : null}
-          {tab === "settings" ? <ClientSettings email={user?.email} /> : null}
+          {tab === "settings" ? <ClientSettings email={user?.email} name={user?.name} addedByOwner={isMember || isViewer} /> : null}
           {tab === "accounts" && !isViewer && !isMember ? <ClientIntegrations assistantName={header?.assistant_name} /> : null}
         </>
       ) : (

@@ -1483,6 +1483,19 @@ export function useMemberMutations() {
 }
 
 /** The signed-in person's job function (0098); undefined until known. */
+/**
+ * The signed-in person's title ("Owner · Operations"), or null until both the
+ * role and the job are known. Built from two lists that arrive at different
+ * moments, it read "Owner", then "Owner · Operations", or "Team member", then
+ * "AI Specialist" (QA re-test NEW-02). Callers leave the line blank meanwhile.
+ */
+export function useMyTitle(): string | null {
+  const { data: role, isLoading: roleLoading } = useMyRole();
+  const { data: members = [], isLoading: membersLoading } = useWorkspaceMembers();
+  if (roleLoading || membersLoading) return null;
+  return memberTitle(role, members.find((m) => m.is_me)?.job_function);
+}
+
 export function useMyFunction(): JobFunction | undefined {
   const { data: members = [] } = useWorkspaceMembers();
   return members.find((m) => m.is_me)?.job_function;

@@ -19,11 +19,14 @@ import { isMine } from "@/lib/taskSort";
 import { useFollowUpSettings } from "@/store/followupSettings";
 import { findFollowUps, type Flag } from "@/lib/followups";
 
-export function useFollowUps(): { flags: Flag[]; byId: (id: string) => Flag | undefined } {
-  const { data: messages = [] } = useMessages();
-  const { data: allTasks = [] } = useTasks();
-  const { data: clients = [] } = useClients();
-  const { data: snoozes = [] } = useSnoozes();
+export function useFollowUps(): { flags: Flag[]; byId: (id: string) => Flag | undefined; loading: boolean } {
+  const { data: messages = [], isLoading: l1 } = useMessages();
+  const { data: allTasks = [], isLoading: l2 } = useTasks();
+  const { data: clients = [], isLoading: l3 } = useClients();
+  const { data: snoozes = [], isLoading: l4 } = useSnoozes();
+  /* Until the lists arrive the flags are an empty list, which a page would
+     print as "0" (QA re-test, 20 Nov 2026). Callers show a placeholder instead. */
+  const loading = l1 || l2 || l3 || l4;
   const { data: role } = useMyRole();
   const { user } = useAuth();
   const cfg = useFollowUpSettings((s) => s.config);
@@ -39,7 +42,7 @@ export function useFollowUps(): { flags: Flag[]; byId: (id: string) => Flag | un
   );
 
   return useMemo(
-    () => ({ flags, byId: (id: string) => flags.find((f) => f.itemId === id) }),
-    [flags],
+    () => ({ flags, byId: (id: string) => flags.find((f) => f.itemId === id), loading }),
+    [flags, loading],
   );
 }

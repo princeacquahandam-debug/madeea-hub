@@ -334,17 +334,37 @@ export default function Calendar() {
 
         {/* The zone, stated. Google puts it in the corner of the grid, and it is
             the whole difference between 8pm and 5am. */}
-        <button
-          onClick={() => setTzOverride(tz === browserTz ? (calendarTz ?? browserTz) : browserTz)}
-          title={
-            tz === browserTz
-              ? `Showing your time zone (${tz}${chosenTz ? ", from Settings" : ", this computer's"}).${calendarTz && calendarTz !== tz ? ` Click to use the calendar's (${calendarTz}).` : ""}`
-              : `Showing the calendar's timezone (${tz}). Click to use yours (${browserTz}).`
+        {/* A list, not a button that switches on a click. One curious click
+            moved the whole grid from Manila to Denver with nothing saying why
+            (QA re-test NEW-04, 20 Nov 2026). Only shown as a list when there is
+            more than one zone to choose. */}
+        {(() => {
+          const zones: { tz: string; note: string }[] = [
+            { tz: browserTz, note: chosenTz ? "yours, from Settings" : "this computer" },
+          ];
+          if (calendarTz && !zones.some((z) => z.tz === calendarTz)) zones.push({ tz: calendarTz, note: "the calendar's" });
+          if (deviceTz && !zones.some((z) => z.tz === deviceTz)) zones.push({ tz: deviceTz, note: "this computer" });
+          const text = (z: string) => `${zoneLabel(z, anchor)} · ${zoneCity(z)}`;
+          if (zones.length === 1) {
+            return (
+              <span className="rounded-full border border-border px-2 py-1 text-[11px] text-faint" title={`Times are shown in ${tz} (${zones[0].note}).`}>
+                {text(tz)}
+              </span>
+            );
           }
-          className="rounded-full border border-border px-2 py-1 text-[11px] text-faint hover:text-text"
-        >
-          {zoneLabel(tz, anchor)} · {tz.split("/").pop()?.replace(/_/g, " ")}
-        </button>
+          return (
+            <select
+              aria-label="Time zone for this calendar"
+              value={tz}
+              onChange={(e) => setTzOverride(e.target.value === browserTz ? null : e.target.value)}
+              className="rounded-full border border-border bg-transparent px-2 py-1 text-[11px] text-faint hover:text-text"
+            >
+              {zones.map((z) => (
+                <option key={z.tz} value={z.tz}>{text(z.tz)} ({z.note})</option>
+              ))}
+            </select>
+          );
+        })()}
 
         <div className="relative ml-auto" ref={menuRef}>
           <button
