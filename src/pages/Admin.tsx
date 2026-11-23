@@ -29,7 +29,7 @@ export default function Admin() {
   const { setRole, remove, setFunction } = useMemberMutations();
   const invite = useInviteMember();
   const [inviteRole, setInviteRole] = useState<MemberRole>("employee");
-  const { data: tasks = [] } = useTasks();
+  const { data: tasks = [], isLoading: tasksLoading } = useTasks();
   const workload = teamWorkload(members, tasks);
   const unclaimed = unassignedCount(tasks);
 
@@ -168,7 +168,11 @@ export default function Admin() {
             <span className="pill bg-amber-500/15 text-amber-400">{unclaimed} unassigned</span>
           )}
         </div>
-        {workload.length === 0 ? (
+        {/* Loading first: it said "No team members yet" before the 12 arrived,
+            and each person's counts would read 0 until the tasks did (QA round 2). */}
+        {isLoading || tasksLoading ? (
+          <p className="text-sm text-faint">Loading the team…</p>
+        ) : workload.length === 0 ? (
           <p className="text-sm text-faint">No team members yet.</p>
         ) : (
           <div className="space-y-2">
