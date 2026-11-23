@@ -20,6 +20,7 @@ const Tasks = lazy(() => import("@/pages/Tasks"));
 const EodReports = lazy(() => import("@/pages/EodReports"));
 const Inbox = lazy(() => import("@/pages/Inbox"));
 const ClientMessages = lazy(() => import("@/pages/ClientMessages"));
+const Approvals = lazy(() => import("@/pages/Approvals"));
 const Screenshots = lazy(() => import("@/pages/Screenshots"));
 const ClientVault = lazy(() => import("@/pages/ClientVault"));
 const Sops = lazy(() => import("@/pages/Sops"));
@@ -152,6 +153,8 @@ function StaffApp() {
         <Route path="/inbox" element={<Inbox />} />
         {/* The agency side of the portal's two channels (QA write test WA-03). */}
         <Route path="/client-messages" element={<ClientMessages />} />
+        {/* Sign-off for "Needs approval" work (QA write test WA-14, 0110). */}
+        <Route path="/approvals" element={<Approvals />} />
         {/* Kept, and redirecting rather than removed. Notifications, saved
             links, the command palette and anything a person bookmarked all
             point at the old path, and a rename that 404s them is not a rename,

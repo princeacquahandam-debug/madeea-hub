@@ -94,6 +94,10 @@ export interface Task {
   requires_approval?: boolean;
   /** Asked for by the client from their portal (0074). */
   requested_by_client?: boolean;
+  /** Sent back by an approver (0110): when, by whom, and why. Cleared on approval. */
+  returned_at?: string | null;
+  returned_by?: string | null;
+  return_reason?: string | null;
   approved_by?: string | null;
   approved_at?: string | null;
   /**

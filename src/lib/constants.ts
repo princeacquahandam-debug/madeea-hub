@@ -119,6 +119,9 @@ export const NAV: NavItem[] = [
      and escalations to agency leads. Saved but read by nobody until 23 Nov
      2026 (QA write test WA-03). Who sees which is decided by the database. */
   { to: "/client-messages", label: "Client messages", icon: MessagesSquare, group: "Work" },
+  /* Work that needs an owner's or admin's sign-off before it can be completed
+     (0030, 0110). Owners and admins approve; the database checks the same. */
+  { to: "/approvals", label: "Approvals", icon: ShieldCheck, group: "Work", minRole: "admin" },
   { to: "/calendar", label: "Calendar", icon: CalendarDays, group: "Today" },
   // What a meeting produced belongs beside when it happened.
   { to: "/meeting-intelligence", label: "Meeting Intelligence", icon: Brain, group: "Today", parent: "/calendar" },

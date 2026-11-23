@@ -57,6 +57,9 @@ const mapTask = (r: TaskRow): Task => ({
   /* Dropped here before, so the bell's "Client request" alert never fired
      (QA write re-test WA-16, 23 Nov 2026). */
   requested_by_client: (r as { requested_by_client?: boolean }).requested_by_client ?? false,
+  returned_at: (r as { returned_at?: string | null }).returned_at ?? null,
+  returned_by: (r as { returned_by?: string | null }).returned_by ?? null,
+  return_reason: (r as { return_reason?: string | null }).return_reason ?? null,
   approved_by: (r as { approved_by?: string | null }).approved_by ?? null,
   approved_at: (r as { approved_at?: string | null }).approved_at ?? null,
   // Migration 0026. Defaulted, so the app works before the migration is run.
@@ -352,7 +355,21 @@ export function useTaskMutations() {
     onSettled: invalidate,
   });
 
-  return { setStatus, create, update, remove, approve };
+  /* Not yet: back to In progress with a reason (0110). Owners and admins;
+     the database checks again. */
+  const sendBack = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      if (!supabase) {
+        updateDemoTask(id, { status: "in_progress", approved_at: null, returned_at: new Date().toISOString(), return_reason: reason } as Partial<Task>);
+        return;
+      }
+      const { error } = await supabase.rpc("return_task_for_changes", { p_task_id: id, p_reason: reason });
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  return { setStatus, create, update, remove, approve, sendBack };
 }
 
 // ---------------- clients ----------------

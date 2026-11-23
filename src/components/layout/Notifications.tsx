@@ -2,9 +2,9 @@ import { useMemo, useState } from "react";
 import { track } from "@/lib/analytics";
 import { createPortal } from "react-dom";
 import { useAnchoredPanel, ANCHORED_PANEL_CLASS } from "@/hooks/useAnchoredPanel";
-import { Bell, AlertCircle, CheckSquare, CalendarClock, Clock, Plus, X, BellOff, MailQuestion, Clock3, MessagesSquare, ShieldAlert, Inbox as InboxIcon } from "lucide-react";
+import { Bell, AlertCircle, CheckSquare, CalendarClock, Clock, Plus, X, BellOff, MailQuestion, Clock3, MessagesSquare, ShieldAlert, ShieldCheck, RotateCcw, Inbox as InboxIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useMessages, useTasks, useReminders, useReminderMutations, useSnoozeMutations, useWorkspaceMembers } from "@/data/hooks";
+import { useMessages, useTasks, useReminders, useReminderMutations, useSnoozeMutations, useWorkspaceMembers, useMyRole, atLeast } from "@/data/hooks";
 import { loadSeen, useClientConversations, useClientMessages } from "@/data/clientMessages";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { useFollowUpSettings } from "@/store/followupSettings";
@@ -64,6 +64,8 @@ export function Notifications() {
   const { data: clientMsgs = [] } = useClientMessages();
   const { data: members = [] } = useWorkspaceMembers();
   const meId = members.find((m) => m.is_me)?.user_id;
+  const { data: myRole } = useMyRole();
+  const canApprove = atLeast(myRole, "admin");
   const snoozeDays = useFollowUpSettings((s) => s.config.snoozeDays);
 
   const [adding, setAdding] = useState(false);
@@ -143,9 +145,20 @@ export function Notifications() {
       if (meId && t.assignee_id && t.assignee_id !== meId) continue;
       out.push({ id: `creq-${t.id}`, icon: InboxIcon, title: "Client request", desc: t.title, path: "/tasks" });
     }
+    /* Approvals (0110). Approvers: work submitted for review that needs
+       sign-off. Whoever did it: work sent back, with the reason. */
+    for (const t of tasks) {
+      if (!t.requires_approval || t.approved_at || t.status === "done") continue;
+      if (canApprove && t.status === "review") {
+        out.push({ id: `appr-${t.id}-${t.updated_at ?? ""}`, icon: ShieldCheck, title: "Waiting for approval", desc: t.title, path: "/approvals" });
+      }
+      if (t.returned_at && t.status !== "review" && meId && (t.assignee_id ?? t.owner_id) === meId) {
+        out.push({ id: `back-${t.id}-${t.returned_at}`, icon: RotateCcw, title: "Sent back", desc: `${t.title} · ${t.return_reason ?? ""}`, path: `/tasks?task=${t.id}` });
+      }
+    }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, tasks, flags, clientMsgs, convs, meId]);
+  }, [messages, tasks, flags, clientMsgs, convs, meId, canApprove]);
 
   const dueReminders = reminders.filter((r) => new Date(r.remind_at).getTime() <= now);
   const upcoming = reminders.filter((r) => new Date(r.remind_at).getTime() > now);

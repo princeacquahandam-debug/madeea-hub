@@ -215,6 +215,12 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, onSave, onToggl
             <ShieldCheck size={10} /> {task.approved_at ? "Approved" : "Needs approval"}
           </span>
         )}
+        {/* Sent back by an approver (0110), with the reason on hover. */}
+        {task.returned_at && !task.approved_at && (
+          <span className="pill bg-amber-500/15 text-amber-400" title={task.return_reason ? `Sent back: ${task.return_reason}` : "Sent back for changes"}>
+            Sent back
+          </span>
+        )}
         {/* Waiting on a dependency (derived from depends_on). */}
         {blocked && <span className="pill bg-amber-500/15 text-amber-400"><Lock size={10} /> Waiting on task</span>}
         {/* Someone said this is blocked and why. Feeds their EOD report. */}
@@ -525,7 +531,7 @@ const EMPTY_TASKS: Task[] = [];
 export default function Tasks() {
   const { data, isLoading } = useTasks();
   const tasks = data ?? EMPTY_TASKS;
-  const { setStatus, create, update, remove, approve } = useTaskMutations();
+  const { setStatus, create, update, remove, approve, sendBack } = useTaskMutations();
   const { data: clients = [] } = useClients();
   const { clientId: scopeId } = useClientContext();
   const { data: members = [] } = useWorkspaceMembers();
@@ -1293,9 +1299,26 @@ export default function Tasks() {
               );
             }
             return isAdmin ? (
-              <button className="btn-ghost w-full border border-violet-500/40 text-violet-300" onClick={() => approve.mutate(editingId)} disabled={approve.isPending}>
-                <ShieldCheck size={15} /> {approve.isPending ? "Approving…" : "Approve this work"}
-              </button>
+              <div className="space-y-2">
+                {t?.returned_at && t.return_reason ? (
+                  <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400">Sent back: {t.return_reason}</p>
+                ) : null}
+                <div className="flex gap-2">
+                  <button className="btn-ghost flex-1 border border-violet-500/40 text-violet-300" onClick={() => approve.mutate(editingId)} disabled={approve.isPending}>
+                    <ShieldCheck size={15} /> {approve.isPending ? "Approving…" : "Approve this work"}
+                  </button>
+                  <button className="btn-ghost border border-border" onClick={() => {
+                    const r = window.prompt("What needs changing? The task goes back to In progress with this note.");
+                    if (r && r.trim()) sendBack.mutate({ id: editingId, reason: r.trim() });
+                  }} disabled={sendBack.isPending}>
+                    Send back
+                  </button>
+                </div>
+              </div>
+            ) : t?.returned_at && t.return_reason ? (
+              <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400">
+                Sent back for changes: {t.return_reason}
+              </p>
             ) : (
               <p className="rounded-lg bg-violet-500/10 px-3 py-2 text-[12px] text-violet-300">
                 Waiting on an admin to sign this off before it can be completed.
