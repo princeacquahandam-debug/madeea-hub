@@ -124,10 +124,12 @@ export default function Time() {
   const breakRule: BreakRule | null = settings && settings.auto_break_minutes > 0
     ? { breakMinutes: settings.auto_break_minutes, afterHours: settings.auto_break_after_hours }
     : null;
+  /* Your own day. It summed every row the account can read, so an owner's
+     "Today" and the early-clock-out check counted the team's hours. */
   const todayTotal = useMemo(() => {
-    const rows = entries.filter((e) => e.work_date === today);
+    const rows = ownEntries.filter((e) => e.work_date === today);
     return dayTotal(rows, rows.reduce((a, e) => a + entrySeconds(e, now), 0), breakRule);
-  }, [entries, today, now, breakRule?.breakMinutes, breakRule?.afterHours]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ownEntries, today, now, breakRule?.breakMinutes, breakRule?.afterHours]); // eslint-disable-line react-hooks/exhaustive-deps
   const todaySeconds = todayTotal.net;
 
   /* Screen capture is tied to the running session, so it cannot outlive the
@@ -155,9 +157,17 @@ export default function Time() {
     : range === "week" ? [weekStart, today]
     : from <= to ? [from, to] : [to, from];
 
+  /* Whose timesheet. Admins read every row so they can correct one, but the
+     list had no names on it and its total read as theirs (QA write test,
+     23 Nov 2026). It is yours unless an admin picks somebody. */
+  const [whose, setWhose] = useState<string>("me");
+  const sheetEntries = useMemo(
+    () => (whose === "me" || !isAdmin ? ownEntries : entries.filter((e) => e.owner_id === whose)),
+    [whose, isAdmin, ownEntries, entries],
+  );
   const inRange = useMemo(
-    () => entries.filter((e) => e.work_date >= lo && e.work_date <= hi),
-    [entries, lo, hi],
+    () => sheetEntries.filter((e) => e.work_date >= lo && e.work_date <= hi),
+    [sheetEntries, lo, hi],
   );
 
   // Per day, so each day's break is judged on its own length.
@@ -617,6 +627,12 @@ export default function Time() {
               <input type="date" aria-label="To" className="input h-8 w-auto py-0 text-sm" value={to} onChange={(e) => setTo(e.target.value)} />
             </div>
           )}
+          {isAdmin && members.length > 1 ? (
+            <select className="input h-8 w-auto py-0 text-sm" aria-label="Whose timesheet" value={whose} onChange={(e) => setWhose(e.target.value)}>
+              <option value="me">You</option>
+              {members.filter((m) => !m.is_me).map((m) => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}
+            </select>
+          ) : null}
           <p className="ml-auto text-sm text-muted">
             Total <strong className="tabular-nums text-text">{hm(rangeSeconds)}</strong>
             <span className="tabular-nums text-faint"> / {hm(expectedSeconds)}</span>
