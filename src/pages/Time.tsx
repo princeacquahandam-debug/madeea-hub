@@ -398,6 +398,12 @@ export default function Time() {
           the first Clock in of the day opened an invisible dialog and did
           nothing (QA write test WA-01, 23 Nov 2026). */}
       {gate.dialog}
+      {/* A clock save that failed: say so and let them retry (QA short check S-01). */}
+      {(start.error || stop.error || pause.error || finishPaused.error) ? (
+        <p role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+          {(start.error || stop.error || pause.error || finishPaused.error)?.message} Check the clock below before trying again: if the connection dropped after it saved, it may already have changed.
+        </p>
+      ) : null}
       <PageHeader
         title="Time tracker"
         subtitle="Your clock-ins are used for attendance and payroll."

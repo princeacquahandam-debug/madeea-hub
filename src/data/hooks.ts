@@ -2596,6 +2596,19 @@ async function announceTimeIn(day: string): Promise<void> {
 /** Emitted subjects this browser session has already handled. */
 const announced = new Set<string>();
 
+/* A clock save gives up after 15 seconds instead of hanging. A dropped
+   connection left Clock out greyed out with the shift still running and no word
+   about it (QA short check S-01, 23 Nov 2026); now it fails, says so, and the
+   button works again. */
+const CLOCK_TIMEOUT_MS = 15_000;
+function clockError(error: { name?: string; message?: string; code?: string } | null): Error | null {
+  if (!error) return null;
+  const aborted = error.name === "AbortError" || error.name === "TimeoutError" || /abort|timed out|timeout|failed to fetch|network|connection/i.test(error.message ?? "") || error.code === "20";
+  return new Error(aborted
+    ? "The connection dropped before that saved. Check your internet and try again."
+    : error.message || "That didn't save. Try again.");
+}
+
 export function useTimeMutations() {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: ["time_entries"] });
@@ -2626,9 +2639,11 @@ export function useTimeMutations() {
         addDemoTime({ id: demoId(), owner_id: "demo", ended_at: null, ...row });
         return;
       }
-      const { error } = await supabase.from("time_entries").insert(row);
-      if (error) throw error;
-      await announceTimeIn(row.work_date);
+      const { error } = await supabase.from("time_entries").insert(row).abortSignal(AbortSignal.timeout(CLOCK_TIMEOUT_MS));
+      const err = clockError(error); if (err) throw err;
+      // Not awaited: telling the client the day started must never hold the
+      // clock-in itself (QA short check S-01). It catches its own errors.
+      void announceTimeIn(row.work_date);
     },
     onSettled: invalidate,
   });
@@ -2653,8 +2668,8 @@ export function useTimeMutations() {
         ...(eod_skipped_reason?.trim() ? { eod_skipped_reason: eod_skipped_reason.trim() } : {}),
       };
       if (!supabase) { updateDemoTime(id, patch); return; }
-      const { error } = await supabase.from("time_entries").update(patch).eq("id", id);
-      if (error) throw error;
+      const { error } = await supabase.from("time_entries").update(patch).eq("id", id).abortSignal(AbortSignal.timeout(CLOCK_TIMEOUT_MS));
+      const err = clockError(error); if (err) throw err;
     },
     onSettled: invalidate,
   });
@@ -2679,8 +2694,8 @@ export function useTimeMutations() {
     mutationFn: async (id: string) => {
       const patch = { ended_at: new Date().toISOString(), paused: true };
       if (!supabase) { updateDemoTime(id, patch); return; }
-      const { error } = await supabase.from("time_entries").update(patch).eq("id", id);
-      if (error) throw error;
+      const { error } = await supabase.from("time_entries").update(patch).eq("id", id).abortSignal(AbortSignal.timeout(CLOCK_TIMEOUT_MS));
+      const err = clockError(error); if (err) throw err;
     },
     onSettled: invalidate,
   });
@@ -2696,8 +2711,8 @@ export function useTimeMutations() {
         ...(input.eod_skipped_reason?.trim() ? { eod_skipped_reason: input.eod_skipped_reason.trim() } : {}),
       };
       if (!supabase) { updateDemoTime(input.id, patch); return; }
-      const { error } = await supabase.from("time_entries").update(patch).eq("id", input.id);
-      if (error) throw error;
+      const { error } = await supabase.from("time_entries").update(patch).eq("id", input.id).abortSignal(AbortSignal.timeout(CLOCK_TIMEOUT_MS));
+      const err = clockError(error); if (err) throw err;
     },
     onSettled: invalidate,
   });

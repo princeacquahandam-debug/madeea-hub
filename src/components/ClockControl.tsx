@@ -211,6 +211,14 @@ export function ClockControl() {
         </button>
       )}
 
+      {/* A clock save that failed says so instead of leaving the button dead
+          (QA short check S-01). Cleared by the next attempt. */}
+      {(start.error || stop.error || pause.error) ? (
+        <span role="alert" className="max-w-[14rem] text-xs leading-tight text-red-400" title={(start.error || stop.error || pause.error)?.message}>
+          Didn't save. Check your connection and try again.
+        </span>
+      ) : null}
+
       {/* Nothing renders until a gate actually stops somebody. */}
       {gate.dialog}
     </div>
