@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
    produce a task belonging to nobody, and the EOD is built from tasks assigned
    to you, so that work never reached anybody's report. If you did not say who
    it is for, it is yours. Migration 0037 covers routines created before this. */
-const mine = () => ({ ...BLANK, assigneeId: DEMO_ME });
+const mine = (me: string = DEMO_ME) => ({ ...BLANK, assigneeId: me });
 
 const BLANK = {
   name: "",
@@ -61,7 +61,13 @@ export default function Routines() {
   /* Preselected to you, not blank. Assignee is optional, and an unassigned
      routine used to produce a task belonging to nobody, which never reached
      anybody's EOD. If you did not say who it is for, it is yours. */
-  const [form, setForm] = useState(mine);
+  const [form, setForm] = useState(() => mine());
+  /* "You" is your real account id. It was always DEMO_ME ("demo-1"), which is
+     no user at all: the live database refused the routine with a 400, and the
+     form showed "Unassigned" because no option matched (QA write test WA-08,
+     23 Nov 2026). The demo keeps DEMO_ME, which is its own "me". */
+  const myId = members.find((m) => m.is_me)?.user_id ?? DEMO_ME;
+  const fresh = () => mine(myId);
 
   /* Materialisation moved to hooks/useRoutineRunner, mounted in AppShell, so it
      runs when anyone opens the app rather than only when somebody visits this
@@ -102,7 +108,7 @@ export default function Routines() {
       is_active: true,
       lead_days: form.leadDays,
     });
-    setForm(mine());
+    setForm(fresh());
     setModal(false);
     if (created?.is_active) materialize.mutate([created]);
   };
@@ -112,7 +118,7 @@ export default function Routines() {
       <PageHeader
         title="Routines"
         subtitle="Repetitive tasks. Set one up once and the task is created for you automatically, every time it's due."
-        action={<button className="btn-primary" onClick={() => { setForm(mine()); setModal(true); }}><Plus size={15} /> New repetitive task</button>}
+        action={<button className="btn-primary" onClick={() => { setForm(fresh()); setModal(true); }}><Plus size={15} /> New repetitive task</button>}
       />
 
       {/* How it works, in three steps (19 Oct 2026: "repetitive task, auto-create
@@ -143,7 +149,7 @@ export default function Routines() {
             {STARTERS.map((st) => (
               <button
                 key={st.label}
-                onClick={() => { setForm({ ...mine(), ...st.form }); setModal(true); }}
+                onClick={() => { setForm({ ...fresh(), ...st.form }); setModal(true); }}
                 className="flex items-center gap-2.5 rounded-lg border border-border px-3 py-2.5 text-left transition-colors hover:border-accent hover:bg-[var(--chip-bg)]"
               >
                 <Repeat size={15} className="shrink-0 text-accent" />

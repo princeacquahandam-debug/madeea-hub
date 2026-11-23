@@ -462,7 +462,7 @@ export function ClientDelegation({
               <ul className="space-y-1.5">
                 {generated.success_criteria.map((c, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm">
-                    <CheckCircle2 size={15} className="mt-0.5 shrink-0" style={{ color: "var(--c-accent)" }} />
+                    <CheckCircle2 size={15} className="mt-0.5 shrink-0" style={{ color: "rgb(var(--c-accent))" }} />
                     {c}
                   </li>
                 ))}

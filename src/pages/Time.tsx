@@ -24,6 +24,7 @@ import { useMonitoringContext } from "@/store/monitoringContext";
 import { useClockGate } from "@/components/ClockGates";
 import type { MonitoringStatus } from "@/hooks/useMonitoring";
 import { useClientContext } from "@/store/clientContext";
+import { useMyTimeEntries } from "@/hooks/useMyTimeEntries";
 import { surfaceLabel } from "@/components/client/format";
 import { fmtTime, isValidZone, useTimeZone, zoneCity } from "@/lib/userTimeZone";
 
@@ -65,10 +66,14 @@ export default function Time() {
   const { start, stop, remove, pause, finishPaused } = useTimeMutations();
   const isAdmin = atLeast(role, "admin");
 
-  const running = entries.find((e) => !e.ended_at);
+  /* Your own running or paused shift. `entries` also holds the team's for an
+     admin, and the first open row used to be taken as yours (QA write test,
+     23 Nov 2026; see useMyTimeEntries). */
+  const { data: ownEntries = [] } = useMyTimeEntries();
+  const running = ownEntries.find((e) => !e.ended_at);
   /* On a break (19 Oct 2026, 0088): nothing running, and today's latest
      session ended with Pause. Resume opens a new session for the same client. */
-  const paused = pausedSession(entries);
+  const paused = pausedSession(ownEntries);
   const now = useNow(running || paused ? 1000 : null);
 
   /* Seeded from the client you are working on, so clocking in while scoped to
@@ -76,11 +81,15 @@ export default function Time() {
      select afterwards: the context is a default, not a lock, because an EA can
      legitimately log a few minutes for someone else without switching. */
   const { clientId: scopeId } = useClientContext();
-  const [clientId, setClientId] = useState(scopeId ?? "");
+  /* With no client picked in the switcher, an EA with exactly one client books
+     to that one, as the header clock does: a shift left on "No client" never
+     reaches the client's hours or daily report (QA write test WA-04/WA-10). */
+  const soleClient = clients.length === 1 ? clients[0].id : "";
+  const [clientId, setClientId] = useState(scopeId ?? soleClient);
   const [touchedClient, setTouchedClient] = useState(false);
   useEffect(() => {
-    if (!touchedClient) setClientId(scopeId ?? "");
-  }, [scopeId, touchedClient]);
+    if (!touchedClient) setClientId(scopeId ?? soleClient);
+  }, [scopeId, soleClient, touchedClient]);
   const [note, setNote] = useState("");
   const [earlyReason, setEarlyReason] = useState("");
   const [askEarly, setAskEarly] = useState(false);
@@ -375,6 +384,10 @@ export default function Time() {
 
   return (
     <div>
+      {/* The day's-focus and end-of-day questions. Never drawn here before, so
+          the first Clock in of the day opened an invisible dialog and did
+          nothing (QA write test WA-01, 23 Nov 2026). */}
+      {gate.dialog}
       <PageHeader
         title="Time tracker"
         subtitle="Your clock-ins are used for attendance and payroll."

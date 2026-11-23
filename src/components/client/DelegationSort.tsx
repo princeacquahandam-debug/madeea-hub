@@ -278,7 +278,7 @@ export function DelegationSort({
             ? `Sorting with your organisation: ${assistant} and ${org.length} ${org.length === 1 ? "person" : "people"}`
             : `Only ${assistant} so far. Add who reports to you for better routing.`}
         </span>
-        <button type="button" onClick={onEditOrg} className="text-sm font-medium hover:underline" style={{ color: "var(--c-accent)" }}>
+        <button type="button" onClick={onEditOrg} className="text-sm font-medium hover:underline" style={{ color: "rgb(var(--c-accent))" }}>
           {org.length ? "Edit organisation" : "Add your organisation"}
         </button>
       </div>
@@ -354,7 +354,7 @@ function SortResult({
                     {p ? <div className="text-faint text-xs">To {p.name}{p.title ? `, ${p.title}` : ""}</div> : null}
                     <div className="text-faint mt-0.5 text-xs">{r.reason}</div>
                     {d === "new_role" && r.ea_part ? (
-                      <div className="mt-2 rounded-md p-2 text-xs" style={{ background: "var(--c-surface-2)" }}>
+                      <div className="mt-2 rounded-md p-2 text-xs" style={{ background: "rgb(var(--c-surface-2))" }}>
                         <span className="font-medium">Until then, {assistant} can:</span> {r.ea_part}
                       </div>
                     ) : null}
@@ -399,7 +399,7 @@ function SortResult({
               <ul className="mt-2 space-y-2">
                 {sorted.new_roles.map((n) => (
                   <li key={n.role} className="flex items-start gap-2 rounded-lg border border-dashed border-border p-3 text-sm">
-                    <UserPlus size={15} className="mt-0.5 shrink-0" style={{ color: "var(--c-accent)" }} />
+                    <UserPlus size={15} className="mt-0.5 shrink-0" style={{ color: "rgb(var(--c-accent))" }} />
                     <div>
                       <div className="font-medium">Consider a {n.role}</div>
                       <div className="text-faint text-xs">

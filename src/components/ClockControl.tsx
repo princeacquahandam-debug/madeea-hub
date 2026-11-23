@@ -1,7 +1,9 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Play, Pause, Square, CameraOff, Camera } from "lucide-react";
-import { entrySeconds, pausedSession, useClients, useTimeEntries, useTimeMutations, useEffectiveTimeSettings } from "@/data/hooks";
+import { entrySeconds, pausedSession, useClients, useMyClients, useTimeMutations, useEffectiveTimeSettings } from "@/data/hooks";
+import { useClientContext } from "@/store/clientContext";
+import { useMyTimeEntries } from "@/hooks/useMyTimeEntries";
 import { useMonitoringContext } from "@/store/monitoringContext";
 import { useClockGate } from "@/components/ClockGates";
 import { useNow } from "@/hooks/useNow";
@@ -22,7 +24,8 @@ import { cn } from "@/lib/utils";
  */
 export function ClockControl() {
   const nav = useNavigate();
-  const { data: entries = [] } = useTimeEntries();
+  // Your own shifts only: an owner can read the team's (see useMyTimeEntries).
+  const { data: entries = [] } = useMyTimeEntries();
   const { start, stop, pause } = useTimeMutations();
   const capture = useMonitoringContext();
   const { data: settings } = useEffectiveTimeSettings();
@@ -40,9 +43,21 @@ export function ClockControl() {
    * components/ClockGates, so this control and the Time page cannot drift into
    * two different sets of requirements for the same act.
    */
+  /* Which client the shift is for. It used to be none, always: every shift
+     started here read "No client", so the client's portal showed 0 hours and
+     no daily report (QA write test WA-10 / WA-04, 23 Nov 2026). The client
+     picked in the sidebar switcher, or the EA's only client. With several
+     clients and "All clients" picked it stays unset, and the Time page is
+     where to choose. */
+  const myClients = useMyClients();
+  const pickedClient = useClientContext((s) => s.clientId);
+  const shiftClient =
+    (pickedClient && myClients.some((c) => c.id === pickedClient) ? pickedClient : null) ??
+    (myClients.length === 1 ? myClients[0].id : null);
+
   const gate = useClockGate({
     onClockIn: (focus) => {
-      start.mutate({ focus });
+      start.mutate({ focus, client_id: shiftClient });
       /* The share is asked for on this same click. getDisplayMedia needs a live
          user gesture, and this runs inside the dialog's own button handler with
          nothing awaited before it, so the gesture is still there. */

@@ -113,7 +113,7 @@ export function ClientNotes({ readOnly = false, member = false }: { readOnly?: b
           </button>
         </div>
         {error ? (
-          <p className="mt-2 flex items-start gap-2 text-sm" style={{ color: "var(--c-danger)" }}>
+          <p className="mt-2 flex items-start gap-2 text-sm" style={{ color: "rgb(248 113 113)" }}>
             <AlertTriangle size={15} className="mt-0.5 shrink-0" /> {error}
           </p>
         ) : null}

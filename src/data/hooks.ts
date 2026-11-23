@@ -2461,7 +2461,11 @@ export function useTimeEntries() {
       if (!supabase) return loadDemoTime();
       const { data, error } = await supabase
         .from("time_entries")
-        .select("id,owner_id,task_id,client_id,started_at,ended_at,note,early_reason,work_date,tasks(title),clients(name)")
+        /* paused, focus and eod_skipped_reason were missing (QA write test
+           WA-02, 23 Nov 2026). Without `paused` a break read as "clocked out",
+           so Pause seemed to do nothing and the next clicks ended the shift;
+           without `focus` the day's focus was asked for on every clock-in. */
+        .select("id,owner_id,task_id,client_id,started_at,ended_at,note,early_reason,work_date,focus,eod_skipped_reason,paused,tasks(title),clients(name)")
         .order("started_at", { ascending: false })
         .limit(500);
       /* THROW, do not return an empty list.

@@ -172,7 +172,7 @@ export function ClientActivity() {
                   </span>
                 ) : null}
                 {day.row.running ? (
-                  <span className="flex items-center gap-1.5" style={{ color: "var(--c-accent)" }}>
+                  <span className="flex items-center gap-1.5" style={{ color: "rgb(var(--c-accent))" }}>
                     <CircleDot size={13} /> Working now
                   </span>
                 ) : null}
@@ -189,7 +189,7 @@ export function ClientActivity() {
                   <CheckCircle2
                     size={15}
                     className="mt-0.5 shrink-0"
-                    style={{ color: "var(--c-accent)" }}
+                    style={{ color: "rgb(var(--c-accent))" }}
                   />
                   <span className="min-w-0">
                     {t.title}

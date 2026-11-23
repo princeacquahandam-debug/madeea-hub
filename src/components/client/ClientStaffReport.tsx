@@ -85,7 +85,7 @@ export function ClientStaffReport() {
             {send.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
             {todays ? "Update report" : "Submit report"}
           </button>
-          {sent && <span className="text-sm" style={{ color: "var(--c-accent)" }}>{sent}</span>}
+          {sent && <span className="text-sm" style={{ color: "rgb(var(--c-accent))" }}>{sent}</span>}
           {send.error && (
             <span className="flex items-start gap-1.5 text-sm text-red-400"><AlertTriangle size={14} className="mt-0.5 shrink-0" /> {(send.error as Error).message}</span>
           )}

@@ -146,7 +146,13 @@ export default function ClientVault() {
                   <button className="text-faint hover:text-accent" onClick={() => startEdit(c)} aria-label="Edit client">
                     <Pencil size={14} />
                   </button>
-                  <button className="text-faint hover:text-red-400" onClick={() => remove.mutate(c.id)} aria-label="Delete client">
+                  <button className="text-faint hover:text-red-400" onClick={() => {
+                    /* Asked first, and says what goes with it (QA write test
+                       WA-05): it went at one click, with no word about the
+                       client's portal login. client_users cascades, so the
+                       login stops opening the portal. */
+                    if (window.confirm(`Delete ${c.name}? Their notes, portal messages and their own staff list are deleted, and anyone with a portal login for ${c.name} can no longer open it. Tasks and logged hours stay, with no client. This can't be undone.`)) remove.mutate(c.id);
+                  }} aria-label="Delete client">
                     <Trash2 size={14} />
                   </button>
                 </div>

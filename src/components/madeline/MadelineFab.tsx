@@ -11,7 +11,9 @@ export function MadelineFab() {
   const open = useMadeline((s) => s.open);
   const toggle = useMadeline((s) => s.toggle);
   return (
-    <div className="group fixed bottom-7 right-7 z-[86] hidden items-center gap-2 sm:flex" data-tour="madeline">
+    /* The wrapper lets clicks through; only the button takes them. The hidden
+       label's empty box sat over whatever was under it (QA write test WA-13). */
+    <div className="group pointer-events-none fixed bottom-7 right-7 z-[86] hidden items-center gap-2 sm:flex" data-tour="madeline">
       {!open && (
         <span className="pointer-events-none rounded-md bg-text px-2 py-1 text-xs font-semibold text-bg opacity-0 transition-opacity group-hover:opacity-100">
           Ask Madeline
@@ -21,7 +23,7 @@ export function MadelineFab() {
         onClick={toggle}
         aria-label={open ? "Close Madeline" : "Ask Madeline"}
         aria-expanded={open}
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-[rgb(var(--c-accent-strong))] text-white shadow-lg shadow-black/20 transition-transform hover:scale-105 focus-visible:outline-offset-4"
+        className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-[rgb(var(--c-accent-strong))] text-white shadow-lg shadow-black/20 transition-transform hover:scale-105 focus-visible:outline-offset-4"
       >
         {open ? <X size={24} /> : <Sparkles size={24} />}
       </button>

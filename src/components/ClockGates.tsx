@@ -4,7 +4,8 @@ import { Modal } from "@/components/ui";
 import { DraftList } from "@/components/EodDraftList";
 import { draftFromTasks, draftUse, type EodDraft } from "@/lib/eodDraft";
 import { eodForDay, focusForDay } from "@/lib/clockGates";
-import { useEodReports, useSubmitEod, useTasks, useTimeEntries, useWorkspaceMembers } from "@/data/hooks";
+import { useEodReports, useSubmitEod, useTasks, useWorkspaceMembers } from "@/data/hooks";
+import { useMyTimeEntries } from "@/hooks/useMyTimeEntries";
 import { workDate } from "@/lib/workday";
 import type { TimeEntry } from "@/types/db";
 
@@ -50,7 +51,8 @@ export function useClockGate(opts: {
   onClockOut: (skippedReason: string | null) => void;
 }): ClockGate {
   const { onClockIn, onClockOut } = opts;
-  const { data: entries = [] } = useTimeEntries();
+  // Your own shifts: the day's focus is yours, not a teammate's.
+  const { data: entries = [] } = useMyTimeEntries();
   const { data: reports = [] } = useEodReports();
   const { data: members = [] } = useWorkspaceMembers();
   const [asking, setAsking] = useState<{ kind: "focus" } | { kind: "eod"; entry: TimeEntry } | null>(null);

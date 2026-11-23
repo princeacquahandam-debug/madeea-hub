@@ -189,7 +189,7 @@ export function InviteClientLogin({
           ) : null}
           {done ? (
             <div className="mt-3 space-y-2">
-              <p className="flex items-start gap-2 text-sm" style={{ color: "var(--c-accent)" }}>
+              <p className="flex items-start gap-2 text-sm" style={{ color: "rgb(var(--c-accent))" }}>
                 <Check size={15} className="mt-0.5 shrink-0" /> {done}
               </p>
               {sent ? <CredentialsHandover email={sent.email} password={sent.password} /> : null}

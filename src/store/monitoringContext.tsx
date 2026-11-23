@@ -1,6 +1,7 @@
 import { createContext, useContext, useRef, type ReactNode } from "react";
 import { useMonitoring, type MonitoringStatus } from "@/hooks/useMonitoring";
-import { useTimeEntries, useEffectiveTimeSettings } from "@/data/hooks";
+import { useEffectiveTimeSettings } from "@/data/hooks";
+import { useMyTimeEntries } from "@/hooks/useMyTimeEntries";
 
 /**
  * Screen capture, owned above the router.
@@ -33,7 +34,9 @@ import { useTimeEntries, useEffectiveTimeSettings } from "@/data/hooks";
 const Ctx = createContext<MonitoringStatus | null>(null);
 
 export function MonitoringProvider({ children }: { children: ReactNode }) {
-  const { data: entries, isSuccess } = useTimeEntries();
+  /* Your own shift. An owner reads the team's too, and capture attached the
+     owner's screenshots to an EA's running shift (see useMyTimeEntries). */
+  const { data: entries, isSuccess } = useMyTimeEntries();
   const { data: effective } = useEffectiveTimeSettings();
 
   /* THE SESSION IS LATCHED, and this is the second half of the same bug.

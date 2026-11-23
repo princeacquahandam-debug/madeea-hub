@@ -1,4 +1,5 @@
 import {
+  MessagesSquare,
   Camera,
   LayoutDashboard,
   UserSquare,
@@ -114,6 +115,10 @@ export const NAV: NavItem[] = [
      only thing anyone sees, and renaming the path would buy nothing but a
      round of dead links. /communication already redirects here. */
   { to: "/inbox", label: "Inbox", icon: Mail, group: "Work" },
+  /* What clients send from their portal: the private channel to their lead EA
+     and escalations to agency leads. Saved but read by nobody until 23 Nov
+     2026 (QA write test WA-03). Who sees which is decided by the database. */
+  { to: "/client-messages", label: "Client messages", icon: MessagesSquare, group: "Work" },
   { to: "/calendar", label: "Calendar", icon: CalendarDays, group: "Today" },
   // What a meeting produced belongs beside when it happened.
   { to: "/meeting-intelligence", label: "Meeting Intelligence", icon: Brain, group: "Today", parent: "/calendar" },

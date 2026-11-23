@@ -2,9 +2,10 @@ import { useMemo, useState } from "react";
 import { track } from "@/lib/analytics";
 import { createPortal } from "react-dom";
 import { useAnchoredPanel, ANCHORED_PANEL_CLASS } from "@/hooks/useAnchoredPanel";
-import { Bell, AlertCircle, CheckSquare, CalendarClock, Clock, Plus, X, BellOff, MailQuestion, Clock3 } from "lucide-react";
+import { Bell, AlertCircle, CheckSquare, CalendarClock, Clock, Plus, X, BellOff, MailQuestion, Clock3, MessagesSquare, ShieldAlert, Inbox as InboxIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useMessages, useTasks, useReminders, useReminderMutations, useSnoozeMutations } from "@/data/hooks";
+import { useMessages, useTasks, useReminders, useReminderMutations, useSnoozeMutations, useWorkspaceMembers } from "@/data/hooks";
+import { loadSeen, useClientConversations, useClientMessages } from "@/data/clientMessages";
 import { useFollowUps } from "@/hooks/useFollowUps";
 import { useFollowUpSettings } from "@/store/followupSettings";
 
@@ -57,6 +58,12 @@ export function Notifications() {
   const { create, dismiss } = useReminderMutations();
   const { flags } = useFollowUps();
   const { snooze } = useSnoozeMutations();
+  /* Client portal activity (QA write test WA-16): the bell said "all caught
+     up" after a client sent three requests and two messages. */
+  const { data: convs = [] } = useClientConversations();
+  const { data: clientMsgs = [] } = useClientMessages();
+  const { data: members = [] } = useWorkspaceMembers();
+  const meId = members.find((m) => m.is_me)?.user_id;
   const snoozeDays = useFollowUpSettings((s) => s.config.snoozeDays);
 
   const [adding, setAdding] = useState(false);
@@ -106,9 +113,39 @@ export function Notifications() {
         else if (d <= soonUtc) out.push({ id: `due-${t.id}`, icon: CalendarClock, title: "Due soon", desc: t.title, path: "/tasks" });
       }
     }
+    // New client messages: one line per conversation, for its newest message
+    // from the other side that has not been opened past.
+    const seen = loadSeen();
+    const weekAgo = new Date(now - 7 * 864e5).toISOString();
+    const newest = new Map<string, (typeof clientMsgs)[number]>();
+    for (const m of clientMsgs) {
+      if (m.sender_id === meId || m.sent_at < weekAgo) continue;
+      if (seen[m.conversation_id] && m.sent_at <= seen[m.conversation_id]) continue;
+      if (!newest.has(m.conversation_id)) newest.set(m.conversation_id, m);
+    }
+    for (const [cid, m] of newest) {
+      const c = convs.find((x) => x.id === cid);
+      if (!c) continue;
+      const esc = c.kind === "escalation";
+      out.unshift({
+        id: `cmsg-${m.id}`,
+        icon: esc ? ShieldAlert : MessagesSquare,
+        title: esc ? `Escalation from ${c.client_name}` : `Message from ${c.client_name}`,
+        desc: m.body.slice(0, 120),
+        path: `/client-messages?c=${cid}`,
+      });
+    }
+    // Requests a client made from their portal in the last week, still open,
+    // for whoever they were assigned to (their lead EA) or anyone if unassigned.
+    for (const t of tasks) {
+      const r = t as typeof t & { requested_by_client?: boolean; created_at?: string | null };
+      if (!r.requested_by_client || t.status === "done" || !r.created_at || r.created_at < weekAgo) continue;
+      if (meId && t.assignee_id && t.assignee_id !== meId) continue;
+      out.push({ id: `creq-${t.id}`, icon: InboxIcon, title: "Client request", desc: t.title, path: "/tasks" });
+    }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, tasks, flags]);
+  }, [messages, tasks, flags, clientMsgs, convs, meId]);
 
   const dueReminders = reminders.filter((r) => new Date(r.remind_at).getTime() <= now);
   const upcoming = reminders.filter((r) => new Date(r.remind_at).getTime() > now);

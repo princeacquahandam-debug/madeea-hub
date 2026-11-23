@@ -206,7 +206,7 @@ export function ClientTeam() {
               </p>
             )}
             {done && (
-              <p className="mt-2 flex items-start gap-2 text-sm" style={{ color: "var(--c-accent)" }}>
+              <p className="mt-2 flex items-start gap-2 text-sm" style={{ color: "rgb(var(--c-accent))" }}>
                 <Check size={15} className="mt-0.5 shrink-0" /> {done}
               </p>
             )}

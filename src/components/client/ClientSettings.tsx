@@ -150,7 +150,7 @@ export function ClientSettings({ email, name, addedByOwner = false }: { email?: 
               </p>
             )}
             {done && (
-              <p className="flex items-start gap-2 text-sm" style={{ color: "var(--c-accent)" }}>
+              <p className="flex items-start gap-2 text-sm" style={{ color: "rgb(var(--c-accent))" }}>
                 <Check size={15} className="mt-0.5 shrink-0" /> Password updated.
               </p>
             )}

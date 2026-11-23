@@ -401,10 +401,12 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
           </div>
 
           {sendError ? (
-            <p className="px-4 pb-2 text-sm" style={{ color: "var(--c-danger)" }}>{sendError}</p>
+            <p className="px-4 pb-2 text-sm" style={{ color: "rgb(248 113 113)" }}>{sendError}</p>
           ) : null}
 
-          <div className="flex items-end gap-2 border-t border-border p-3">
+          {/* Right padding clears the floating "Ask Madeline" button, which sat
+              on top of Send so the click missed (QA write test WA-13). */}
+          <div className="flex items-end gap-2 border-t border-border p-3 pr-20 sm:pr-24">
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -424,7 +426,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
               onClick={() => void submit()}
               disabled={!active || !draft.trim() || send.isPending}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl disabled:opacity-40"
-              style={{ background: "var(--c-accent)", color: "#fff" }}
+              style={{ background: "rgb(var(--c-accent-strong))", color: "#fff" }}
               aria-label="Send message"
             >
               <Send size={17} />

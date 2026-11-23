@@ -199,7 +199,10 @@ export function ClientMadeline({ readOnly: readOnlyProp = false, member = false,
     <>
       {/* A floating button, bottom right, on every page (deck slide 10).
           Portalled so it isn't part of the header it is declared in. */}
-      {createPortal(<div className="group fixed bottom-5 right-5 z-[86] flex items-center gap-2 sm:bottom-7 sm:right-7">
+      {/* pointer-events-none on the wrapper, auto on the button: the hidden
+          "Ask Madeline" label still took up room, and that empty box caught the
+          clicks meant for the Send button beneath it (QA write test WA-13). */}
+      {createPortal(<div className="group pointer-events-none fixed bottom-5 right-5 z-[86] flex items-center gap-2 sm:bottom-7 sm:right-7">
         {!open && (
           <span className="pointer-events-none hidden rounded-md bg-text px-2 py-1 text-xs font-semibold text-bg opacity-0 transition-opacity group-hover:opacity-100 sm:block">
             Ask Madeline
@@ -210,7 +213,7 @@ export function ClientMadeline({ readOnly: readOnlyProp = false, member = false,
           aria-label={open ? "Close Madeline" : "Ask Madeline"}
           aria-expanded={open}
           className={cn(
-            "h-12 w-12 items-center justify-center rounded-full bg-[rgb(var(--c-accent-strong))] text-white shadow-lg shadow-black/20 transition-transform hover:scale-105 sm:h-14 sm:w-14",
+            "pointer-events-auto h-12 w-12 items-center justify-center rounded-full bg-[rgb(var(--c-accent-strong))] text-white shadow-lg shadow-black/20 transition-transform hover:scale-105 sm:h-14 sm:w-14",
             open ? "hidden sm:flex" : "flex",
           )}
         >

@@ -456,7 +456,7 @@ function BellPanel({ items, uid, seen, setSeen, onNavigate }: {
         <Bell size={17} />
         {unread > 0 ? (
           <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white"
-            style={{ background: "var(--c-accent)" }}>
+            style={{ background: "rgb(var(--c-accent-strong))" }}>
             {unread > 9 ? "9+" : unread}
           </span>
         ) : null}

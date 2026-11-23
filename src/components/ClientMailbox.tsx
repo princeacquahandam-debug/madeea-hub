@@ -228,7 +228,7 @@ function Reader({ m, clientId, onBack, onSent, onRead }: { m: Mail; clientId: st
             <button className="btn-primary" disabled={!reply.trim() || send.isPending} onClick={() => send.mutate()}>
               {send.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Send reply
             </button>
-            {send.isSuccess && <span className="text-sm" style={{ color: "var(--c-accent)" }}>Sent from the client's mailbox.</span>}
+            {send.isSuccess && <span className="text-sm" style={{ color: "rgb(var(--c-accent))" }}>Sent from the client's mailbox.</span>}
             {send.error && <span className="flex items-start gap-1.5 text-sm text-red-400"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{(send.error as Error).message}</span>}
           </div>
         </div>
