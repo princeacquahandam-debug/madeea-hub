@@ -120,6 +120,9 @@ export interface TaskComment {
   mentions?: string[];
   created_at: string;
   edited_at?: string | null;
+  /** Shown in the client portal (0108): everything a client writes, and agency
+      comments written with "Visible to client". */
+  client_visible?: boolean;
   /** Joined for display; never written. */
   author_name?: string | null;
 }

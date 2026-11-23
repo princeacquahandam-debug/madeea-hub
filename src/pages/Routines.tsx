@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Repeat, Plus, Trash2, Pause, Play, CalendarClock } from "lucide-react";
+import { Repeat, Plus, Trash2, Pause, Play, CalendarClock, Pencil } from "lucide-react";
 import { PageHeader, Modal, Badge } from "@/components/ui";
 import { useClients, useRoutineMutations, useRoutines, useWorkspaceMembers, DEMO_ME } from "@/data/hooks";
-import { DAY_LABELS, describe, nextOccurrences, toRRule, type Freq } from "@/lib/recurrence";
+import { DAY_LABELS, describe, nextOccurrences, parseRRule, toRRule, type Freq } from "@/lib/recurrence";
 import type { Priority, Routine } from "@/types/db";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +68,28 @@ export default function Routines() {
      23 Nov 2026). The demo keeps DEMO_ME, which is its own "me". */
   const myId = members.find((m) => m.is_me)?.user_id ?? DEMO_ME;
   const fresh = () => mine(myId);
+  /* Editing an existing routine (QA write test WA-09): the only controls were
+     Pause and Delete, so a wrong day meant deleting and starting again. */
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const startEdit = (r: Routine) => {
+    const rec = parseRRule(r.rrule);
+    setForm({
+      ...BLANK,
+      name: r.name,
+      title: r.task_template.title && r.task_template.title !== r.name ? r.task_template.title : "",
+      notes: r.task_template.notes ?? "",
+      priority: r.task_template.priority ?? "normal",
+      freq: rec?.freq ?? "WEEKLY",
+      interval: rec?.interval ?? 1,
+      byDay: rec?.byDay ?? [1],
+      byMonthDay: rec?.byMonthDay ?? 1,
+      clientId: r.client_id ?? "",
+      assigneeId: r.assignee_id ?? "",
+      leadDays: r.lead_days,
+    });
+    setEditingId(r.id);
+    setModal(true);
+  };
 
   /* Materialisation moved to hooks/useRoutineRunner, mounted in AppShell, so it
      runs when anyone opens the app rather than only when somebody visits this
@@ -98,6 +120,21 @@ export default function Routines() {
      seeing nothing happen is how a feature earns a reputation for not working. */
   const submit = async () => {
     if (!form.name.trim()) return;
+    if (editingId) {
+      await update.mutateAsync({
+        id: editingId,
+        name: form.name.trim(),
+        task_template: { title: form.title.trim() || form.name.trim(), priority: form.priority, notes: form.notes.trim() || undefined },
+        rrule: rule,
+        client_id: form.clientId || null,
+        assignee_id: form.assigneeId || null,
+        lead_days: form.leadDays,
+      });
+      setEditingId(null);
+      setForm(fresh());
+      setModal(false);
+      return;
+    }
     const created = await create.mutateAsync({
       name: form.name.trim(),
       task_template: { title: form.title.trim() || form.name.trim(), priority: form.priority, notes: form.notes.trim() || undefined },
@@ -118,7 +155,7 @@ export default function Routines() {
       <PageHeader
         title="Routines"
         subtitle="Repetitive tasks. Set one up once and the task is created for you automatically, every time it's due."
-        action={<button className="btn-primary" onClick={() => { setForm(fresh()); setModal(true); }}><Plus size={15} /> New repetitive task</button>}
+        action={<button className="btn-primary" onClick={() => { setEditingId(null); setForm(fresh()); setModal(true); }}><Plus size={15} /> New repetitive task</button>}
       />
 
       {/* How it works, in three steps (19 Oct 2026: "repetitive task, auto-create
@@ -178,8 +215,15 @@ export default function Routines() {
                   {r.is_active ? <Pause size={13} /> : <Play size={13} />}
                 </button>
                 <button
+                  className="icon-btn reveal-on-hover shrink-0 text-faint hover:text-accent"
+                  onClick={() => startEdit(r)}
+                  aria-label={`Edit ${r.name}`}
+                >
+                  <Pencil size={13} />
+                </button>
+                <button
                   className="icon-btn reveal-on-hover shrink-0 text-faint hover:text-red-400"
-                  onClick={() => remove.mutate(r.id)}
+                  onClick={() => { if (window.confirm(`Delete "${r.name}"? No more tasks will be created from it. Tasks it already made stay.`)) remove.mutate(r.id); }}
                   aria-label={`Delete ${r.name}`}
                 >
                   <Trash2 size={13} />
@@ -205,13 +249,13 @@ export default function Routines() {
         })}
       </div>
 
-      <Modal open={modal} onClose={() => setModal(false)}>
-        <h2 className="mb-1 text-lg font-semibold">New repetitive task</h2>
+      <Modal open={modal} onClose={() => { setModal(false); setEditingId(null); }}>
+        <h2 className="mb-1 text-lg font-semibold">{editingId ? "Edit repetitive task" : "New repetitive task"}</h2>
         <p className="mb-4 text-sm text-muted">The task is created for you automatically on every date it's due.</p>
         <div className="space-y-3">
           <div>
             <label className="field-label" htmlFor="r-name">Name</label>
-            <input id="r-name" className="input" placeholder="e.g. Update the attendance sheet" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            <input id="r-name" className="input" maxLength={120} placeholder="e.g. Update the attendance sheet" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -307,8 +351,8 @@ export default function Routines() {
             )}
           </div>
 
-          <button className="btn-primary w-full" onClick={() => void submit()} disabled={!form.name.trim() || invalid || create.isPending}>
-            {create.isPending ? "Creating…" : "Create repetitive task"}
+          <button className="btn-primary w-full" onClick={() => void submit()} disabled={!form.name.trim() || invalid || create.isPending || update.isPending}>
+            {editingId ? (update.isPending ? "Saving…" : "Save changes") : create.isPending ? "Creating…" : "Create repetitive task"}
           </button>
         </div>
       </Modal>

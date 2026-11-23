@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CalendarClock, CheckCircle2, Circle, Loader2, Play, RotateCcw, Undo2 } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, Circle, Loader2, MessageSquare, Play, RotateCcw, Undo2 } from "lucide-react";
+import { ClientTaskComments } from "./ClientTaskComments";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { clockTime, dayLabel, dateOnly, localDayKey } from "./format";
@@ -97,6 +98,8 @@ function Card({ t, busy, onMove, onFlag }: {
 }) {
   const [writing, setWriting] = useState(false);
   const [note, setNote] = useState("");
+  // Comments on this task with the account owner (QA write test WA-11, 0108).
+  const [talk, setTalk] = useState(false);
   const col = columnOf(t.status);
   const due = t.due_at ? `${dayLabel(dateOnly(localDayKey(t.due_at)))} ${clockTime(t.due_at)}` : t.due_label;
 
@@ -158,7 +161,11 @@ function Card({ t, busy, onMove, onFlag }: {
             <AlertTriangle size={12} /> I'm stuck
           </button>
         )}
+        <button onClick={() => setTalk((v) => !v)} className="btn-ghost px-2.5 py-1 text-xs" aria-expanded={talk}>
+          <MessageSquare size={12} /> {talk ? "Hide comments" : "Comments"}
+        </button>
       </div>
+      {talk ? <ClientTaskComments taskId={t.id} /> : null}
     </article>
   );
 }

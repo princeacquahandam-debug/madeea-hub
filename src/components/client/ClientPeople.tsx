@@ -58,6 +58,7 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
   const qc = useQueryClient();
   const [mode, setMode] = useState<"invite" | "reset">("invite");
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState(suggestPassword());
   const [role, setRole] = useState("viewer");
   const [error, setError] = useState("");
@@ -83,9 +84,9 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
   const full = seated >= CAP[role];
 
   const invite = useMutation({
-    mutationFn: async (input: { email: string; password: string; mode: "invite" | "reset" }) => {
+    mutationFn: async (input: { email: string; password: string; mode: "invite" | "reset"; full_name?: string }) => {
       const { data, error } = await supabase!.functions.invoke("invite-client-viewer", {
-        body: { email: input.email, password: input.password, role, mode: input.mode },
+        body: { email: input.email, password: input.password, role, mode: input.mode, ...(input.full_name ? { full_name: input.full_name } : {}) },
       });
       if (error) {
         /* The function's own sentence, not "non-2xx status code". It answers
@@ -142,9 +143,10 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
     setDone("");
     setSent(null);
     try {
-      await invite.mutateAsync({ email: addr, password, mode });
+      await invite.mutateAsync({ email: addr, password, mode, full_name: mode === "invite" ? fullName.trim() || undefined : undefined });
       setSent({ email: addr, password });
       setEmail("");
+      setFullName("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not set that up.");
     }
@@ -208,6 +210,17 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
           )}
 
           <div className="flex flex-col gap-2 sm:flex-row">
+            {mode === "invite" ? (
+              <input
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Their name"
+                aria-label="Their name"
+                maxLength={80}
+                disabled={full}
+                className="input sm:w-44 disabled:opacity-40"
+              />
+            ) : null}
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -314,7 +327,7 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
                       <KeyRound size={15} />
                     </button>
                     <button
-                      onClick={() => removePerson.mutate(p.email!)}
+                      onClick={() => { if (window.confirm(`Remove ${p.email} from this account? They lose access straight away. Any unfinished tasks of theirs come back to you.`)) removePerson.mutate(p.email!); }}
                       disabled={removePerson.isPending}
                       className="text-faint shrink-0 rounded-md p-1.5 hover:text-red-400"
                       title={`Remove ${p.email}`}

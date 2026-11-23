@@ -169,7 +169,9 @@ export default function Workspace() {
         </section>
 
         {isMe ? <MemoryPanel /> : <PrivatePanel icon={<Brain size={16} className="text-accent" />} title="Madeline's memory" who={firstName} />}
-        {isMe ? <KnowledgePanel userId={meId} /> : <PrivatePanel icon={<Upload size={16} className="text-accent" />} title="Personal knowledge base" who={firstName} />}
+        {/* Uploads is a manager-and-up page, so an EA was offered a link to
+            "isn't part of your access" (QA write test WA-28). */}
+        {isMe ? (canSeeTeam ? <KnowledgePanel userId={meId} /> : null) : <PrivatePanel icon={<Upload size={16} className="text-accent" />} title="Personal knowledge base" who={firstName} />}
       </div>
     </div>
   );

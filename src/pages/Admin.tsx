@@ -34,6 +34,8 @@ export default function Admin() {
   const unclaimed = unassignedCount(tasks);
 
   const [email, setEmail] = useState("");
+  // Their name (QA write test WA-07): it used to be guessed from the address.
+  const [fullName, setFullName] = useState("");
   /* The password the new teammate starts with. Suggested up front rather than
      left blank: this field is filled in by somebody inventing a password for
      another person under time pressure, which is how "Welcome123" gets typed
@@ -74,11 +76,17 @@ export default function Admin() {
   async function sendInvite(e: React.FormEvent) {
     e.preventDefault();
     const addr = email.trim();
-    if (!addr || password.length < MIN_PASSWORD) return;
+    /* Said out loud (QA write test WA-19): an empty or malformed address used
+       to do nothing at all when Create account was clicked. */
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr)) {
+      setNotice({ kind: "err", text: addr ? `"${addr}" isn't an email address.` : "Type their email address first." });
+      return;
+    }
+    if (password.length < MIN_PASSWORD) return;
     setNotice(null);
     setSent(null);
     try {
-      const res = await invite.mutateAsync({ email: addr, password, role: inviteRole, mode });
+      const res = await invite.mutateAsync({ email: addr, password, role: inviteRole, mode, full_name: mode === "invite" ? fullName : undefined });
       /* Names the role that was actually chosen. This said "They'll join as an
          EA" regardless, left over from when the function hardcoded that role,
          so choosing Owner and being told EA was the expected outcome. */
@@ -93,6 +101,7 @@ export default function Admin() {
       });
       setSent({ email: addr, password });
       setEmail("");
+      setFullName("");
     } catch (err) {
       /* Say what went wrong. The previous message was a fixed sentence claiming
          the invite function was not deployed, printed for every failure
@@ -249,6 +258,16 @@ export default function Admin() {
         </div>
 
         <form onSubmit={sendInvite} className="flex flex-col gap-2 sm:flex-row">
+          {mode === "invite" ? (
+            <input
+              className="input sm:w-48"
+              aria-label="Their name"
+              placeholder="Their name"
+              maxLength={80}
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
+          ) : null}
           <input
             type="email"
             className="input flex-1"

@@ -418,7 +418,7 @@ export default function ClientVault() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="field-label">Name</label><input className="input" autoFocus value={form.name} onChange={set("name")} placeholder="Full name" /></div>
+            <div><label className="field-label">Name</label><input className="input" autoFocus maxLength={120} value={form.name} onChange={set("name")} placeholder="Full name" /></div>
             <div><label className="field-label">Title</label><input className="input" value={form.title} onChange={set("title")} placeholder="e.g. CEO" /></div>
           </div>
           <div><label className="field-label">Company</label><input className="input" value={form.company} onChange={set("company")} placeholder="Company" /></div>

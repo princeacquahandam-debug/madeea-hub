@@ -134,6 +134,11 @@ serveWithOrigins(async (req) => {
     if (myRank < RANK.admin) return json({ error: "forbidden. Admins and owners only" }, 403);
 
     const body = await req.json().catch(() => ({}));
+    /* The person's name, typed by whoever creates the login (QA write test
+       WA-07). Without it the name was guessed from the address, so a "+qa"
+       login of Prince's arrived named "Prince Acquah Andam". handle_new_user
+       (0061) takes user_metadata.full_name first. Only for new accounts. */
+    const fullName = String((body as { full_name?: unknown }).full_name ?? "").trim().slice(0, 80);
     const addr = String(body.email ?? "").trim().toLowerCase();
     if (!EMAIL_RE.test(addr)) return json({ error: "a valid email is required" }, 400);
 
@@ -309,6 +314,7 @@ serveWithOrigins(async (req) => {
       email: addr,
       password: pw,
       email_confirm: true,
+      ...(fullName ? { user_metadata: { full_name: fullName } } : {}),
     });
     if (error) {
       await admin.from("invites").delete().eq("email", addr).is("accepted_at", null);

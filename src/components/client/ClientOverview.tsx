@@ -196,8 +196,14 @@ export function ClientOverview({
   const openTasks = useMemo(() => tasks.filter((t) => t.status !== "done"), [tasks]);
   const inProgress = tasks.filter((t) => t.status === "in_progress").length;
 
+  /* Counted as "open", with "in progress" called out when some are: it said
+     "nothing in progress" with two tasks still to do (QA write test WA-29). */
+  const openCount = openTasks.length;
   const summary = useMemo(() => {
-    const work = `${inProgress ? plural(inProgress, "task") : "nothing"} in progress and ${
+    const openPart = openCount
+      ? `${plural(openCount, "open task")}${inProgress ? ` (${inProgress} in progress)` : ""}`
+      : "nothing open";
+    const work = `${openPart} and ${
       waiting.length ? `${waiting.length} waiting on you` : "nothing waiting on you"}`;
     const first = overview?.assistant_name
       ? `Your assistant, ${overview.assistant_name}, has ${work}.`
@@ -206,7 +212,7 @@ export function ClientOverview({
       ? `${plural(upcoming.length, "meeting")} coming up.`
       : "No meetings coming up.";
     return `${first} ${meetings}`;
-  }, [overview, inProgress, waiting.length, upcoming.length]);
+  }, [overview, openCount, inProgress, waiting.length, upcoming.length]);
 
   const request = useMutation({
     mutationFn: async () => {
@@ -351,12 +357,14 @@ export function ClientOverview({
               }
             }}
             placeholder="What do you need done?"
+            maxLength={200}
             className="input flex-1"
           />
           <input
             value={due}
             onChange={(e) => setDue(e.target.value)}
             placeholder="When? (optional)"
+            maxLength={60}
             className="input sm:w-48"
           />
           <button

@@ -345,7 +345,7 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
       {PANES[tab] ? (
         <>
           {tab === "overview" ? <ClientOverview onSeeActivity={() => setTab("activity")} readOnly={isViewer} /> : null}
-          {tab === "tasks" ? <ClientBoard /> : null}
+          {tab === "tasks" ? <ClientBoard readOnly={isViewer} /> : null}
           {tab === "reports" ? <ClientReports /> : null}
           {tab === "activity" ? <ClientActivity /> : null}
           {tab === "calendar" ? <ClientCalendar /> : null}

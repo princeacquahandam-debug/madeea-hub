@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Loader2, Plus, StickyNote } from "lucide-react";
+import { AlertTriangle, Loader2, Pencil, Plus, StickyNote, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { clockTime, dateOnly, dayLabel, localDayKey } from "./format";
 
@@ -68,6 +68,31 @@ export function ClientNotes({ readOnly = false, member = false }: { readOnly?: b
     },
   });
 
+  /* Edit and delete the notes YOU wrote (QA write test WA-12, 0108). The
+     assistant's shared notes stay theirs to change. */
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [rowError, setRowError] = useState<{ id: string; msg: string } | null>(null);
+  const refresh = () => qc.invalidateQueries({ queryKey: ["client-portal", "notes"] });
+  const update = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase!.rpc("client_update_note", { p_id: id, p_title: editTitle.trim() || null, p_body: editBody.trim() });
+      if (error) throw error;
+    },
+    onSuccess: () => { setEditing(null); refresh(); },
+    onError: (e, id) => setRowError({ id, msg: e instanceof Error ? e.message : "Could not save." }),
+  });
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase!.rpc("client_delete_note", { p_id: id });
+      if (error) throw error;
+    },
+    onSuccess: refresh,
+    onError: (e, id) => setRowError({ id, msg: e instanceof Error ? e.message : "Could not delete." }),
+  });
+  const canEdit = (n: NoteRow) => n.author_is_client && !readOnly && !member;
+
   async function submit() {
     if (!body.trim() || add.isPending) return;
     setError("");
@@ -94,6 +119,7 @@ export function ClientNotes({ readOnly = false, member = false }: { readOnly?: b
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Title (optional)"
+            maxLength={200}
             className="input"
           />
           <textarea
@@ -101,6 +127,7 @@ export function ClientNotes({ readOnly = false, member = false }: { readOnly?: b
             onChange={(e) => setBody(e.target.value)}
             rows={3}
             placeholder="What should they know?"
+            maxLength={10000}
             className="input resize-none"
           />
           <button
@@ -140,14 +167,42 @@ export function ClientNotes({ readOnly = false, member = false }: { readOnly?: b
                 <div className="flex items-start gap-3">
                   <StickyNote size={15} className="text-faint mt-0.5 shrink-0" />
                   <div className="min-w-0 flex-1">
-                    {n.title ? <div className="text-sm font-medium">{n.title}</div> : null}
-                    <div className="mt-0.5 whitespace-pre-wrap break-words text-sm">{n.body}</div>
+                    {editing === n.id ? (
+                      <div className="space-y-2">
+                        <input className="input" aria-label="Note title" maxLength={200} value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                        <textarea className="input resize-none" aria-label="Note" rows={3} maxLength={10000} value={editBody} onChange={(e) => setEditBody(e.target.value)} />
+                        <div className="flex gap-2">
+                          <button className="btn-primary" disabled={!editBody.trim() || update.isPending} onClick={() => { setRowError(null); update.mutate(n.id); }}>
+                            {update.isPending ? <Loader2 size={15} className="animate-spin" /> : null} Save
+                          </button>
+                          <button className="btn-ghost border border-border" onClick={() => setEditing(null)}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {n.title ? <div className="break-words text-sm font-medium">{n.title}</div> : null}
+                        <div className="mt-0.5 whitespace-pre-wrap break-words text-sm">{n.body}</div>
+                      </>
+                    )}
+                    {rowError?.id === n.id ? <p className="mt-1 text-xs" style={{ color: "rgb(248 113 113)" }}>{rowError.msg}</p> : null}
                     <div className="text-faint mt-1.5 text-xs">
                       {n.author_is_client ? (member ? "The account owner" : "You") : (member ? "The account's assistant" : "Your assistant")}
                       {" · "}
                       {dayLabel(dateOnly(localDayKey(n.updated_at)))} at {clockTime(n.updated_at)}
                     </div>
                   </div>
+                  {canEdit(n) && editing !== n.id ? (
+                    <div className="flex shrink-0 gap-1">
+                      <button className="text-faint p-1 hover:text-accent" aria-label="Edit note"
+                        onClick={() => { setEditing(n.id); setEditTitle(n.title === "Note from client" ? "" : n.title); setEditBody(n.body); setRowError(null); }}>
+                        <Pencil size={14} />
+                      </button>
+                      <button className="text-faint p-1 hover:text-red-400" aria-label="Delete note" disabled={remove.isPending}
+                        onClick={() => { if (window.confirm("Delete this note? Your assistant will no longer see it.")) { setRowError(null); remove.mutate(n.id); } }}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </li>
             ))}

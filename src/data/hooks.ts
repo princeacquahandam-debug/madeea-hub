@@ -1519,15 +1519,15 @@ export function useInviteMember() {
        `mode: "reset"` sets a password on somebody already seated, for every
        account created before this and stuck exactly there. */
     mutationFn: async (
-      input: { email: string; password: string; role: MemberRole; mode?: "invite" | "reset" },
+      input: { email: string; password: string; role: MemberRole; mode?: "invite" | "reset"; full_name?: string },
       /* `reinstated` means they already had an account and got their seat back
          without an email. Saying "invitation sent" there would have somebody
          waiting on a message that was deliberately never sent. */
     ): Promise<{ ok: boolean; email?: string; reinstated?: boolean; reset?: boolean }> => {
-      const { email, password, role, mode } = input;
+      const { email, password, role, mode, full_name } = input;
       if (!supabase) return { ok: true, email };
       const { data, error } = await supabase.functions.invoke("invite-member", {
-        body: { email, password, role, mode: mode ?? "invite" },
+        body: { email, password, role, mode: mode ?? "invite", ...(full_name?.trim() ? { full_name: full_name.trim() } : {}) },
       });
       if (error) {
         /* The function's own words. It answers "That person is already a
@@ -1869,10 +1869,14 @@ export function useTaskComments(taskId: string | null) {
       if (!supabase) return loadDemoComments().filter((c) => c.task_id === taskId);
       const { data, error } = await supabase
         .from("task_comments")
-        .select("id,task_id,author_id,body,mentions,created_at,edited_at")
+        .select("id,task_id,author_id,body,mentions,created_at,edited_at,client_visible")
         .eq("task_id", taskId)
         .order("created_at");
-      if (error) return []; // migration not applied yet
+      if (error) {
+        // Before 0108 there is no client_visible column: read without it.
+        const old = await supabase.from("task_comments").select("id,task_id,author_id,body,mentions,created_at,edited_at").eq("task_id", taskId).order("created_at");
+        return (old.data ?? []) as TaskComment[];
+      }
       return data as TaskComment[];
     },
     retry: false,
@@ -1925,7 +1929,7 @@ export function useCommentMutations() {
   };
 
   const add = useMutation({
-    mutationFn: async ({ taskId, body }: { taskId: string; body: string }) => {
+    mutationFn: async ({ taskId, body, clientVisible = false }: { taskId: string; body: string; clientVisible?: boolean }) => {
       if (!supabase) {
         addDemoComment({
           id: demoId(), task_id: taskId, author_id: "demo", body,
@@ -1935,7 +1939,7 @@ export function useCommentMutations() {
       }
       // author_id defaults to auth.uid(); the write policy requires it to match,
       // so there is nothing here a client could forge.
-      const { error } = await supabase.from("task_comments").insert({ task_id: taskId, body });
+      const { error } = await supabase.from("task_comments").insert(clientVisible ? { task_id: taskId, body, client_visible: true } : { task_id: taskId, body });
       if (error) throw error;
     },
     onSuccess: (_d, v) => invalidate(v.taskId),
@@ -2048,7 +2052,22 @@ export function useCredentialMutations() {
     },
   });
 
-  return { initVault, save, remove, logAccess };
+  /* Editing a saved login (QA write test WA-06). The password is re-sealed in
+     the browser only when a new one is typed, which also marks it rotated. */
+  const update = useMutation({
+    mutationFn: async ({ id, ...patch }: Partial<Omit<Credential, "id" | "created_at">> & { id: string }) => {
+      if (!supabase) {
+        const rows: Credential[] = JSON.parse(localStorage.getItem("madeea-demo-credentials") || "[]");
+        localStorage.setItem("madeea-demo-credentials", JSON.stringify(rows.map((r) => (r.id === id ? { ...r, ...patch } : r))));
+        return;
+      }
+      const { error } = await supabase.from("credentials").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSettled: invalidate,
+  });
+
+  return { initVault, save, update, remove, logAccess };
 }
 
 // ---------------- routines (migration 0032) ----------------
@@ -3611,6 +3630,7 @@ export function useInviteClientLogin() {
       password: string;
       client_id: string;
       mode?: "invite" | "reset";
+      full_name?: string;
     }) => {
       if (!supabase) return { ok: true, email: input.email };
       const { data, error } = await supabase.functions.invoke("invite-client", {

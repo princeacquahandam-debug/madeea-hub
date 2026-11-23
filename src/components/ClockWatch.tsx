@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { atLeast, useMyRole } from "@/data/hooks";
+import { atLeast, entrySeconds, useMyRole, useTimeEntries, workDate } from "@/data/hooks";
 import { emitOnce } from "@/lib/alerts";
 import { cn } from "@/lib/utils";
 
@@ -71,6 +71,26 @@ export function ClockWatch({ className }: { className?: string }) {
     retry: false,
   });
 
+  /* Hours today and the client each person is on now (QA write test WA-31:
+     the owner saw "Clocked in" and nothing else). Read from the same shifts
+     list the timesheet uses, which RLS opens to managers and up. */
+  const { data: entries = [] } = useTimeEntries();
+  const today = workDate();
+  const nowMs = Date.now();
+  const byPerson = useMemo(() => {
+    const out: Record<string, { secs: number; client: string | null; running: boolean }> = {};
+    for (const e of entries) {
+      if (!e.owner_id || e.work_date !== today) continue;
+      const p = (out[e.owner_id] ??= { secs: 0, client: null, running: false });
+      p.secs += entrySeconds(e, nowMs);
+      if (!e.ended_at) { p.running = true; p.client = e.client_name ?? null; }
+    }
+    return out;
+    // nowMs changes every render; the 5-minute refetch is what moves this on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, today]);
+  const hm = (secs: number) => `${Math.floor(secs / 3600)}:${String(Math.floor((secs % 3600) / 60)).padStart(2, "0")}`;
+
   const missing = rows.filter((r) => !r.clocked_in_today);
   const late = new Date().getHours() >= EXPECT_BY_HOUR;
 
@@ -114,7 +134,15 @@ export function ClockWatch({ className }: { className?: string }) {
             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-surface-2 text-[10px] font-semibold text-muted">
               {initials(r.name)}
             </span>
-            <span className="min-w-0 flex-1 truncate">{r.name}</span>
+            <span className="min-w-0 flex-1 truncate">
+              {r.name}
+              {byPerson[r.user_id]?.running ? (
+                <span className="text-faint"> · {byPerson[r.user_id].client ?? "No client"}</span>
+              ) : null}
+            </span>
+            {byPerson[r.user_id]?.secs ? (
+              <span className="shrink-0 text-xs tabular-nums text-muted" title="Hours logged today">{hm(byPerson[r.user_id].secs)}</span>
+            ) : null}
             {/* The date beside the flag, because a clock-in that has not synced
                 and somebody absent for days look identical without it. */}
             <span className={cn("shrink-0 text-xs", r.clocked_in_today ? "text-emerald-500" : late ? "text-accent" : "text-faint")}>

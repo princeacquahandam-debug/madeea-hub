@@ -174,6 +174,7 @@ export function ClientTeam() {
                 onChange={(e) => setTitle(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void send(); } }}
                 placeholder="What needs doing?"
+                maxLength={200}
                 className="input flex-1"
               />
               <select
@@ -189,6 +190,7 @@ export function ClientTeam() {
                 value={due}
                 onChange={(e) => setDue(e.target.value)}
                 placeholder="When? (optional)"
+                maxLength={60}
                 className="input sm:w-40"
               />
               <button

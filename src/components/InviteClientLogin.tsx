@@ -52,6 +52,8 @@ export function InviteClientLogin({
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"invite" | "reset">("invite");
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+  const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const [password, setPassword] = useState(suggestPassword());
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
@@ -76,12 +78,12 @@ export function InviteClientLogin({
 
   async function send() {
     const addr = email.trim();
-    if (!addr || password.length < MIN_PASSWORD || invite.isPending) return;
+    if (!validEmail || password.length < MIN_PASSWORD || invite.isPending) return;
     setError("");
     setDone("");
     setSent(null);
     try {
-      const r = await invite.mutateAsync({ email: addr, password, client_id: clientId, mode });
+      const r = await invite.mutateAsync({ email: addr, password, client_id: clientId, mode, full_name: mode === "invite" ? fullName.trim() || undefined : undefined });
       setDone(
         r.reset
           ? `New password set for ${addr}. Tell them what it is.`
@@ -91,6 +93,7 @@ export function InviteClientLogin({
       );
       setSent({ email: addr, password });
       setEmail("");
+      setFullName("");
     } catch (e) {
       const err = e as Error & { missing?: boolean };
       setError(
@@ -151,13 +154,20 @@ export function InviteClientLogin({
               : "For a client who already has a login and cannot get in. Changes their password and nothing else."}
           </p>
 
-          {hasLogin && mode === "invite" ? (
+          {hasLogin && mode === "invite" && !done ? (
             <p className="mt-3 rounded-lg bg-surface-2 px-3 py-2 text-sm text-muted">
               Someone already holds a login for this client. Adding another address here
               gives a second person full access to the account.
             </p>
           ) : null}
 
+          {mode === "invite" ? (
+            <>
+              <label className="mt-4 block text-xs uppercase tracking-wider text-faint" htmlFor="client-login-name">Their name</label>
+              <input id="client-login-name" value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={80}
+                placeholder="As it should appear in their portal" className="input mt-1 w-full" />
+            </>
+          ) : null}
           <label className="mt-4 block text-xs uppercase tracking-wider text-faint">Their email</label>
           <input
             value={email}
@@ -165,8 +175,10 @@ export function InviteClientLogin({
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void send(); } }}
             placeholder="name@theircompany.com"
             className="input mt-1 w-full"
+            type="email"
             autoFocus
           />
+          {email.trim() && !validEmail ? <p className="mt-1 text-xs text-red-400">That isn't an email address yet.</p> : null}
 
           <div className="mt-3">
             <StartingPassword
@@ -203,7 +215,7 @@ export function InviteClientLogin({
             <button
               className="btn-primary whitespace-nowrap"
               onClick={() => void send()}
-              disabled={!email.trim() || password.length < MIN_PASSWORD || invite.isPending}
+              disabled={!validEmail || password.length < MIN_PASSWORD || invite.isPending}
             >
               {invite.isPending ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />}
               {mode === "reset" ? "Set password" : "Create login"}

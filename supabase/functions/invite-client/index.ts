@@ -129,6 +129,11 @@ serveWithOrigins(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
+    /* The person's name, typed by whoever creates the login (QA write test
+       WA-07). Without it the name was guessed from the address, so a "+qa"
+       login of Prince's arrived named "Prince Acquah Andam". handle_new_user
+       (0061) takes user_metadata.full_name first. Only for new accounts. */
+    const fullName = String((body as { full_name?: unknown }).full_name ?? "").trim().slice(0, 80);
     const addr = String(body.email ?? "").trim().toLowerCase();
     if (!EMAIL_RE.test(addr)) return json({ error: "a valid email is required" }, 400);
 
@@ -247,6 +252,7 @@ serveWithOrigins(async (req) => {
       email: addr,
       password: pw,
       email_confirm: false,
+      ...(fullName ? { user_metadata: { full_name: fullName } } : {}),
     });
     if (createErr) return json({ error: createErr.message }, 400);
 

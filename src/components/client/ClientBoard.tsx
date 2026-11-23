@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CalendarClock, CheckCircle2, Search, UserRound, Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { Badge } from "@/components/ui";
+import { Badge, Modal } from "@/components/ui";
+import { ClientTaskComments } from "./ClientTaskComments";
 import { cn } from "@/lib/utils";
 
 /**
@@ -76,8 +77,11 @@ function completedText(t: TaskRow): string | null {
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
-export function ClientBoard() {
+export function ClientBoard({ readOnly = false }: { readOnly?: boolean } = {}) {
   const [query, setQuery] = useState("");
+  /* The task opened from its card (QA write test WA-11): the cards did not
+     open at all, so there was nowhere to ask about one. */
+  const [openTask, setOpenTask] = useState<TaskRow | null>(null);
   const [waitingOnly, setWaitingOnly] = useState(false);
 
   const { data: tasks = [], isLoading } = useQuery({
@@ -199,7 +203,7 @@ export function ClientBoard() {
                   <span className="text-xs tabular-nums text-faint">{items.length}</span>
                 </div>
                 <div className="space-y-2 p-3">
-                  {items.map((t) => <TaskCard key={t.id} task={t} />)}
+                  {items.map((t) => <TaskCard key={t.id} task={t} onOpen={setOpenTask} />)}
                   {items.length === 0 ? (
                     <p className="rounded-lg border border-dashed border-border py-6 text-center text-xs text-faint">
                       No tasks
@@ -216,18 +220,43 @@ export function ClientBoard() {
           })}
         </div>
       )}
+
+      <Modal open={openTask !== null} onClose={() => setOpenTask(null)}>
+        {openTask ? (
+          <div>
+            <h2 className="break-words pr-10 text-lg font-semibold">{openTask.title}</h2>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-faint">
+              <span>{COLUMNS.find((c) => c.key === openTask.status)?.label ?? openTask.status}</span>
+              <Badge tone={openTask.priority}>{PRIORITY_LABEL[openTask.priority] ?? openTask.priority}</Badge>
+              {openTask.status !== "done" && dueText(openTask) ? <span>Due {dueText(openTask)}</span> : null}
+              {openTask.status === "done" && completedText(openTask) ? <span>Completed {completedText(openTask)}</span> : null}
+              {openTask.requested_by_client ? <span>Requested by you</span> : null}
+            </div>
+            {waitingOnClient(openTask) ? (
+              <p className="mt-3 rounded-md bg-amber-500/10 px-2 py-1.5 text-sm text-amber-400">Waiting on you: {openTask.client_visible_blocker}</p>
+            ) : null}
+            <ClientTaskComments taskId={openTask.id} readOnly={readOnly} />
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
 
-function TaskCard({ task: t }: { task: TaskRow }) {
+function TaskCard({ task: t, onOpen }: { task: TaskRow; onOpen?: (t: TaskRow) => void }) {
   const due = dueText(t);
   const waiting = waitingOnClient(t);
   return (
     <article
       className={cn(
         "rounded-lg border border-border bg-surface p-3",
+        onOpen && "cursor-pointer transition-colors hover:border-accent",
       )}
+      role={onOpen ? "button" : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      aria-label={onOpen ? `Open ${t.title}` : undefined}
+      onClick={onOpen ? () => onOpen(t) : undefined}
+      onKeyDown={onOpen ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(t); } } : undefined}
     >
       <p className="break-words text-sm font-medium">{t.title}</p>
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-faint">

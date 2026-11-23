@@ -133,6 +133,9 @@ export function StartingPassword({
  */
 export function CredentialsHandover({ email, password }: { email: string; password: string }) {
   const [copied, setCopied] = useState(false);
+  /* Dots until asked (QA write test WA-24): the panel stays up after the save,
+     which is exactly when a screen is shared or recorded. Copy works hidden. */
+  const [shown, setShown] = useState(false);
   const block = `Email: ${email}\nPassword: ${password}`;
 
   async function copy() {
@@ -147,7 +150,13 @@ export function CredentialsHandover({ email, password }: { email: string; passwo
     <div className="rounded-lg border border-border bg-surface-2 p-3">
       <p className="field-label mb-1">Send them these</p>
       <p className="break-all font-mono text-xs">{email}</p>
-      <p className="break-all font-mono text-xs">{password}</p>
+      <p className="flex items-center gap-2 break-all font-mono text-xs">
+        {shown ? password : "•".repeat(Math.min(password.length, 16))}
+        <button type="button" className="text-faint hover:text-accent" onClick={() => setShown((s) => !s)}
+          aria-label={shown ? "Hide the password" : "Show the password"} title={shown ? "Hide" : "Show"}>
+          {shown ? <EyeOff size={13} /> : <Eye size={13} />}
+        </button>
+      </p>
       <button type="button" className="btn-ghost mt-2 border border-border text-xs" onClick={() => void copy()}>
         {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Copy both"}
       </button>

@@ -476,9 +476,11 @@ function TeamTab({
   const kpis = [
     { label: "Reports submitted", value: String(scoped.length), foot: `from ${reporters.length} of ${scopePeople.length} EAs` },
     {
-      label: "Submission rate",
+      /* "Team", because the table below is per person and the two differed
+         (2% vs 3%) with nothing saying why (QA write test WA-30). */
+      label: ea === "all" ? "Team submission rate" : "Submission rate",
       value: pct(expected ? scoped.length / expected : 0),
-      foot: `${scoped.length} of ${expected} expected`,
+      foot: ea === "all" ? `${scoped.length} of ${expected} expected, across ${scopePeople.length} EAs` : `${scoped.length} of ${expected} expected`,
       // Was a banner above the table; now the tooltip on the number it explains.
       tip: "Counts the days each EA submitted an EOD report this month, out of every day in the month.",
     },

@@ -1,10 +1,23 @@
 import { useState } from "react";
-import { KeyRound, Lock, Unlock, Plus, Trash2, Copy, Eye, EyeOff, ShieldAlert, ExternalLink } from "lucide-react";
+import { KeyRound, Lock, Unlock, Plus, Trash2, Copy, Eye, EyeOff, ShieldAlert, ExternalLink, Pencil } from "lucide-react";
 import { PageHeader, Modal, Badge } from "@/components/ui";
 import { atLeast, useClients, useCredentialMutations, useCredentials, useMyRole, useVaultMeta } from "@/data/hooks";
 import { checkVerifier, deriveKey, KEY_VERSION, makeVerifier, newSalt, open as unseal, seal } from "@/lib/vault";
 import type { Credential } from "@/types/db";
 import { cn } from "@/lib/utils";
+
+/* "example.com" was saved as-is and the link opened hub.madeea.io/example.com
+   (QA write test WA-27). A bare address gets https://; anything that is not
+   http(s) is not linked at all. */
+const HTTP = /^https?:\/\//i;
+function normalizeUrl(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  if (HTTP.test(v)) return v;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return v; // another scheme: kept, never linked
+  return `https://${v}`;
+}
+const safeHref = (u: string | null) => (u && HTTP.test(u) ? u : null);
 
 /**
  * The credential vault.
@@ -21,7 +34,8 @@ export default function Credentials() {
   const { data: rows = [] } = useCredentials();
   const { data: clients = [] } = useClients();
   const { data: role } = useMyRole();
-  const { initVault, save, remove, logAccess } = useCredentialMutations();
+  const { initVault, save, update, remove, logAccess } = useCredentialMutations();
+  const [editingId, setEditingId] = useState<string | null>(null);
   const isAdmin = atLeast(role, "admin");
 
   const [key, setKey] = useState<CryptoKey | null>(null);
@@ -61,11 +75,29 @@ export default function Credentials() {
   }
 
   async function addCredential() {
+    if (editingId) {
+      if (!key || !form.label.trim()) return;
+      const sealed = form.secret ? await seal(key, form.secret) : null;
+      await update.mutateAsync({
+        id: editingId,
+        label: form.label.trim(),
+        url: normalizeUrl(form.url),
+        username: form.username.trim() || null,
+        notes: form.notes.trim() || null,
+        client_id: form.clientId || null,
+        ...(sealed ? { secret_ciphertext: sealed.ciphertext, secret_nonce: sealed.nonce, key_version: KEY_VERSION, rotated_at: new Date().toISOString() } : {}),
+      });
+      setShown((s) => { const n = { ...s }; delete n[editingId]; return n; });
+      setEditingId(null);
+      setForm({ label: "", url: "", username: "", secret: "", notes: "", clientId: "" });
+      setModal(false);
+      return;
+    }
     if (!key || !form.label.trim() || !form.secret) return;
     const sealed = await seal(key, form.secret);
     await save.mutateAsync({
       label: form.label.trim(),
-      url: form.url.trim() || null,
+      url: normalizeUrl(form.url),
       username: form.username.trim() || null,
       category: null,
       notes: form.notes.trim() || null,
@@ -189,8 +221,8 @@ export default function Credentials() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">
                 {c.label}
-                {c.url && (
-                  <a href={c.url} target="_blank" rel="noopener noreferrer" className="ml-1.5 inline-block text-faint hover:text-accent" aria-label={`Open ${c.label}`}>
+                {safeHref(c.url) && (
+                  <a href={safeHref(c.url)!} target="_blank" rel="noopener noreferrer" className="ml-1.5 inline-block text-faint hover:text-accent" aria-label={`Open ${c.label}`}>
                     <ExternalLink size={11} />
                   </a>
                 )}
@@ -213,7 +245,13 @@ export default function Credentials() {
               {shown[c.id] ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
             {isAdmin && (
-              <button className="icon-btn reveal-on-hover shrink-0 text-faint hover:text-red-400" onClick={() => remove.mutate(c.id)} aria-label={`Delete ${c.label}`}>
+              <button className="icon-btn reveal-on-hover shrink-0 text-faint hover:text-accent" aria-label={`Edit ${c.label}`}
+                onClick={() => { setEditingId(c.id); setForm({ label: c.label, url: c.url ?? "", username: c.username ?? "", secret: "", notes: c.notes ?? "", clientId: c.client_id ?? "" }); setModal(true); }}>
+                <Pencil size={14} />
+              </button>
+            )}
+            {isAdmin && (
+              <button className="icon-btn reveal-on-hover shrink-0 text-faint hover:text-red-400" onClick={() => { if (window.confirm(`Delete the login "${c.label}"? It can't be recovered.`)) remove.mutate(c.id); }} aria-label={`Delete ${c.label}`}>
                 <Trash2 size={14} />
               </button>
             )}
@@ -227,8 +265,8 @@ export default function Credentials() {
         revoking cannot un-know a password they already read.
       </p>
 
-      <Modal open={modal} onClose={() => setModal(false)}>
-        <h2 className="mb-4 text-lg font-semibold">Add a login</h2>
+      <Modal open={modal} onClose={() => { setModal(false); setEditingId(null); setForm({ label: "", url: "", username: "", secret: "", notes: "", clientId: "" }); }}>
+        <h2 className="mb-4 text-lg font-semibold">{editingId ? "Edit login" : "Add a login"}</h2>
         <div className="space-y-3">
           <div>
             <label className="field-label" htmlFor="c-label">What is it</label>
@@ -247,7 +285,7 @@ export default function Credentials() {
           <div>
             <label className="field-label" htmlFor="c-secret">Password</label>
             <input id="c-secret" type="password" className="input" autoComplete="new-password" value={form.secret} onChange={(e) => setForm((f) => ({ ...f, secret: e.target.value }))} />
-            <p className="mt-1 text-[11px] text-faint">Encrypted on this device before it leaves the page.</p>
+            <p className="mt-1 text-[11px] text-faint">{editingId ? "Leave empty to keep the current password. A new one is encrypted on this device and marks the login as rotated." : "Encrypted on this device before it leaves the page."}</p>
           </div>
           <div>
             <label className="field-label">Client</label>
@@ -260,8 +298,8 @@ export default function Credentials() {
             <label className="field-label" htmlFor="c-notes">Notes (not encrypted)</label>
             <input id="c-notes" className="input" placeholder="e.g. 2FA codes go to the client's phone" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
           </div>
-          <button className={cn("btn-primary w-full")} onClick={() => void addCredential()} disabled={!form.label.trim() || !form.secret || save.isPending}>
-            {save.isPending ? "Saving…" : "Save login"}
+          <button className={cn("btn-primary w-full")} onClick={() => void addCredential()} disabled={!form.label.trim() || (!editingId && !form.secret) || save.isPending || update.isPending}>
+            {save.isPending || update.isPending ? "Saving…" : editingId ? "Save changes" : "Save login"}
           </button>
         </div>
       </Modal>

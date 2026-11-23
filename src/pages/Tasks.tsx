@@ -168,7 +168,7 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, onSave, onToggl
         </div>
       )}
       <div className="flex items-start gap-2">
-        <p className="min-w-0 flex-1 text-sm font-medium">{task.title}</p>
+        <p className="min-w-0 flex-1 break-words text-sm font-medium">{task.title}</p>
         {/* Who this is for. Click to reassign; the drag preview gets a plain
             avatar, since a menu inside a drag preview makes no sense. */}
         {overlay ? <AssigneeAvatar member={null} /> : <AssigneePicker task={task} />}
@@ -430,20 +430,25 @@ const VERB_TEXT: Record<string, (a: TaskActivity) => string> = {
  * One panel rather than two tabs: "Bryan asked a question" and "Bryan moved it
  * to Done" are the same story, and splitting them makes you read it twice.
  */
-function TaskThread({ taskId }: { taskId: string }) {
+function TaskThread({ taskId, hasClient = false }: { taskId: string; hasClient?: boolean }) {
   const { data: comments = [] } = useTaskComments(taskId);
   const { data: activity = [] } = useTaskActivity(taskId);
   const { data: members = [] } = useWorkspaceMembers();
   const { add, remove } = useCommentMutations();
   const [body, setBody] = useState("");
+  /* Off by default: this thread is the agency's (0108). Ticked, the comment
+     also shows on the task in the client's portal. */
+  const [toClient, setToClient] = useState(false);
 
+  /* Not a team member: on a client's task that is the client or their staff,
+     writing from the portal. */
   const nameOf = (id: string | null) =>
-    members.find((m) => m.user_id === id)?.name ?? (id === "demo" ? "You" : "Someone");
+    members.find((m) => m.user_id === id)?.name ?? (id === "demo" ? "You" : hasClient ? "Client" : "Someone");
 
   const send = () => {
     const b = body.trim();
     if (!b) return;
-    add.mutate({ taskId, body: b });
+    add.mutate({ taskId, body: b, clientVisible: hasClient && toClient });
     setBody("");
   };
 
@@ -457,6 +462,7 @@ function TaskThread({ taskId }: { taskId: string }) {
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-semibold">{c.author_name ?? nameOf(c.author_id)}</span>
               <span className="text-[10.5px] text-faint">{ago(c.created_at)}</span>
+              {c.client_visible ? <span className="pill bg-accent/15 text-[10px] text-accent-soft" title="Shown in the client's portal">Client sees this</span> : null}
               <button
                 className="ml-auto icon-btn reveal-on-hover text-faint hover:text-red-400"
                 onClick={() => remove.mutate({ id: c.id, taskId })}
@@ -497,6 +503,12 @@ function TaskThread({ taskId }: { taskId: string }) {
           <Send size={14} /> Send
         </button>
       </div>
+      {hasClient ? (
+        <label className="mt-1.5 flex items-center gap-2 text-xs text-muted">
+          <input type="checkbox" checked={toClient} onChange={(e) => setToClient(e.target.checked)} />
+          Visible to client (shows on this task in their portal)
+        </label>
+      ) : null}
     </div>
   );
 }
@@ -1114,7 +1126,7 @@ export default function Tasks() {
         <div className="space-y-3">
           <div>
             <label className="field-label">Title</label>
-            <input className="input" autoFocus value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. Draft investor update" />
+            <input className="input" autoFocus maxLength={200} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. Draft investor update" />
           </div>
           <div className="grid grid-cols-3 gap-3">
             {/* Status was only changeable by dragging, which meant no way to move
@@ -1293,7 +1305,7 @@ export default function Tasks() {
 
           {/* Only on a task that exists. There is nothing to comment on, and no
               id to hang a comment from, until it has been created. */}
-          {editingId && <TaskThread taskId={editingId} />}
+          {editingId && <TaskThread taskId={editingId} hasClient={!!tasks.find((t) => t.id === editingId)?.client_id} />}
         </div>
       </Modal>
 
