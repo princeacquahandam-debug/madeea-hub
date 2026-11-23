@@ -216,7 +216,9 @@ export function ClientShell({
             {initials}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium" title={email}>{email ?? clientName}</p>
+            {/* Their name now that they can set one (Edit name, 20 Nov), the
+                address on hover. It showed the address even after a rename. */}
+            <p className="truncate text-sm font-medium" title={email}>{user?.name || email || clientName}</p>
             <p className="truncate text-xs text-faint">
               {isViewer ? "View only" : isMember ? "Staff member" : "Primary contact"}
             </p>
