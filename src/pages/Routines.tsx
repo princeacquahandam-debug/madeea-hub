@@ -251,7 +251,7 @@ export default function Routines() {
 
       <Modal open={modal} onClose={() => { setModal(false); setEditingId(null); }}>
         <h2 className="mb-1 text-lg font-semibold">{editingId ? "Edit repetitive task" : "New repetitive task"}</h2>
-        <p className="mb-4 text-sm text-muted">The task is created for you automatically on every date it's due.</p>
+        <p className="mb-4 text-sm text-muted">The task is created for you automatically on every date it's due. If today is one of those dates, today's task is created as soon as you save.</p>
         <div className="space-y-3">
           <div>
             <label className="field-label" htmlFor="r-name">Name</label>

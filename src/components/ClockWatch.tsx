@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { atLeast, entrySeconds, useMyRole, useTimeEntries, workDate } from "@/data/hooks";
+import { atLeast, entrySeconds, useMyRole, workDate } from "@/data/hooks";
+import type { TimeEntry } from "@/types/db";
 import { emitOnce } from "@/lib/alerts";
 import { cn } from "@/lib/utils";
 
@@ -71,24 +72,45 @@ export function ClockWatch({ className }: { className?: string }) {
     retry: false,
   });
 
-  /* Hours today and the client each person is on now (QA write test WA-31:
-     the owner saw "Clocked in" and nothing else). Read from the same shifts
-     list the timesheet uses, which RLS opens to managers and up. */
-  const { data: entries = [] } = useTimeEntries();
+  /* Hours today, and where each person is right now: on shift (and for which
+     client), on a break, or clocked out (QA write tests WA-31 and N-02).
+     staff_clock_status only says somebody clocked in at some point today, so it
+     kept saying "Clocked in" after they left. Today's shifts, read on their own
+     every minute (RLS opens them to managers and up). */
   const today = workDate();
+  const { data: todays = [] } = useQuery({
+    queryKey: ["team-shifts-today", today],
+    enabled: allowed,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      if (!supabase) return [] as TimeEntry[];
+      const { data, error } = await supabase
+        .from("time_entries")
+        .select("id,owner_id,started_at,ended_at,work_date,paused,clients(name)")
+        .eq("work_date", today);
+      if (error) return [] as TimeEntry[];
+      return ((data ?? []) as unknown as (TimeEntry & { clients: { name: string } | null })[])
+        .map((r) => ({ ...r, client_name: r.clients?.name ?? null }));
+    },
+  });
   const nowMs = Date.now();
   const byPerson = useMemo(() => {
-    const out: Record<string, { secs: number; client: string | null; running: boolean }> = {};
-    for (const e of entries) {
-      if (!e.owner_id || e.work_date !== today) continue;
-      const p = (out[e.owner_id] ??= { secs: 0, client: null, running: false });
+    const out: Record<string, { secs: number; client: string | null; state: "on" | "break" | "off"; lastStart: string }> = {};
+    for (const e of todays) {
+      if (!e.owner_id) continue;
+      const p = (out[e.owner_id] ??= { secs: 0, client: null, state: "off", lastStart: "" });
       p.secs += entrySeconds(e, nowMs);
-      if (!e.ended_at) { p.running = true; p.client = e.client_name ?? null; }
+      if (!e.ended_at) { p.state = "on"; p.client = e.client_name ?? null; }
+      // The latest session decides "on a break": it ended with Pause.
+      if (e.started_at > p.lastStart) {
+        p.lastStart = e.started_at;
+        if (p.state !== "on") p.state = e.paused ? "break" : "off";
+      }
     }
     return out;
-    // nowMs changes every render; the 5-minute refetch is what moves this on.
+    // nowMs moves with the one-minute refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, today]);
+  }, [todays]);
   const hm = (secs: number) => `${Math.floor(secs / 3600)}:${String(Math.floor((secs % 3600) / 60)).padStart(2, "0")}`;
 
   const missing = rows.filter((r) => !r.clocked_in_today);
@@ -121,7 +143,7 @@ export function ClockWatch({ className }: { className?: string }) {
     <section className={cn("card overflow-hidden", className)} aria-label="Team today">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold">Team today</h2>
-        <span className="pill bg-surface-2 text-muted">{clockedIn} of {rows.length} clocked in</span>
+        <span className="pill bg-surface-2 text-muted">{clockedIn} of {rows.length} started today</span>
         {rows.length > PREVIEW && (
           <button className="ml-auto text-xs font-medium text-accent-soft hover:underline" onClick={() => setAll(!all)}>
             {all ? "Show less" : "View all"}
@@ -136,7 +158,7 @@ export function ClockWatch({ className }: { className?: string }) {
             </span>
             <span className="min-w-0 flex-1 truncate">
               {r.name}
-              {byPerson[r.user_id]?.running ? (
+              {byPerson[r.user_id]?.state === "on" ? (
                 <span className="text-faint"> · {byPerson[r.user_id].client ?? "No client"}</span>
               ) : null}
             </span>
@@ -145,9 +167,16 @@ export function ClockWatch({ className }: { className?: string }) {
             ) : null}
             {/* The date beside the flag, because a clock-in that has not synced
                 and somebody absent for days look identical without it. */}
-            <span className={cn("shrink-0 text-xs", r.clocked_in_today ? "text-emerald-500" : late ? "text-accent" : "text-faint")}>
-              {r.clocked_in_today
-                ? "Clocked in"
+            <span className={cn("shrink-0 text-xs",
+              byPerson[r.user_id]?.state === "on" ? "text-emerald-500"
+                : byPerson[r.user_id]?.state === "break" ? "text-amber-500"
+                : r.clocked_in_today ? "text-muted" : late ? "text-accent" : "text-faint")}>
+              {byPerson[r.user_id]?.state === "on"
+                ? "On shift"
+                : byPerson[r.user_id]?.state === "break"
+                ? "On a break"
+                : r.clocked_in_today
+                ? "Clocked out"
                 : r.last_worked
                   ? `Last worked ${new Date(`${r.last_worked}T00:00:00`).toLocaleDateString([], { month: "short", day: "numeric" })}`
                   : "Never logged"}

@@ -54,6 +54,9 @@ const mapTask = (r: TaskRow): Task => ({
   client_visible_blocker: (r as { client_visible_blocker?: string | null }).client_visible_blocker ?? null,
   // Migration 0030. Defaulted, so the board works before it is applied.
   requires_approval: (r as { requires_approval?: boolean }).requires_approval ?? false,
+  /* Dropped here before, so the bell's "Client request" alert never fired
+     (QA write re-test WA-16, 23 Nov 2026). */
+  requested_by_client: (r as { requested_by_client?: boolean }).requested_by_client ?? false,
   approved_by: (r as { approved_by?: string | null }).approved_by ?? null,
   approved_at: (r as { approved_at?: string | null }).approved_at ?? null,
   // Migration 0026. Defaulted, so the app works before the migration is run.
@@ -1505,7 +1508,10 @@ export function useMyFunction(): JobFunction | undefined {
 // the service role server-side. If it isn't deployed yet, callers get a clear
 // fallback message (the page still works for monitoring + role management).
 export function useInviteMember() {
+  const qc = useQueryClient();
   return useMutation({
+    // The new account shows in Admin at once, not after a reload (QA N-07).
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["members"] }); },
     /* Takes a role as well as an address. It used to take only the address,
        which matched a function that hardcoded the role anyway, so the two were
        consistently wrong together.

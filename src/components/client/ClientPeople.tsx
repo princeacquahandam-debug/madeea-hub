@@ -39,6 +39,8 @@ interface Person {
   created_at: string;
   is_you: boolean;
   email: string | null;
+  /** 0109. The name given when they were added; null for older logins. */
+  name?: string | null;
 }
 
 const CAP: Record<string, number> = { viewer: 5, member: 10 };
@@ -72,7 +74,7 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
     queryFn: async () => {
       const { data, error } = await supabase!
         .from("client_people")
-        .select("role, created_at, is_you, email")
+        .select("role, created_at, is_you, email, name")
         .order("role", { ascending: true })
         .order("created_at", { ascending: true });
       if (error) throw error;
@@ -304,9 +306,11 @@ export function ClientPeople({ readOnly = false }: { readOnly?: boolean }) {
                   <div className="truncate text-sm">
                     {/* A viewer is not shown colleague addresses (0074), so the
                         row still has to read as somebody without one. */}
-                    {p.email ?? (p.role === "primary" ? "Primary contact" : p.role === "member" ? "Staff member" : "Colleague")}
+                    {p.name ?? p.email ?? (p.role === "primary" ? "Primary contact" : p.role === "member" ? "Staff member" : "Colleague")}
                     {p.is_you ? <span className="text-faint"> · you</span> : null}
                   </div>
+                  {/* The name leads now (0109); the address stays visible to the primary. */}
+                  {p.name && p.email ? <div className="text-faint truncate text-xs">{p.email}</div> : null}
                   <div className="text-faint mt-0.5 text-xs">
                     {p.role === "primary" ? "Full access" : p.role === "member" ? "Staff" : "View only"}
                     {/* Only with a real date: a row still arriving has none, and

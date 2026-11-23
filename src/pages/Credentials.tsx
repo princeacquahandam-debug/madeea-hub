@@ -230,6 +230,8 @@ export default function Credentials() {
               <p className="truncate text-xs text-faint">
                 {c.username || "no username"}
                 {c.client_id && <> · {clients.find((x) => x.id === c.client_id)?.name}</>}
+                {/* The edit dialog promised this mark (QA write re-test N-05). */}
+                {c.rotated_at && <> · password changed {new Date(c.rotated_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</>}
                 {shown[c.id] && <> · <span className="font-mono text-zinc-200">{shown[c.id]}</span></>}
               </p>
             </div>

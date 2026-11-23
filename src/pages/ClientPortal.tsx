@@ -293,11 +293,15 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
     const body = draft.trim();
     if (!body || !active || send.isPending) return;
     setSendError("");
+    /* Cleared at once, not after the round trip: a send can take seconds, and a
+       box that still held the text read as "didn't go", so it was sent again
+       (QA write re-test N-03). Put back if the send fails. */
+    setDraft("");
     try {
       await send.mutateAsync(body);
-      setDraft("");
     } catch (e) {
       // The draft survives a failure. Retyping a message is worse than a full box.
+      setDraft((d) => d || body);
       setSendError(e instanceof Error ? e.message : "Could not send that message.");
     }
   }
@@ -402,6 +406,8 @@ export default function ClientPortal({ clientId }: { clientId: string }) {
 
           {sendError ? (
             <p className="px-4 pb-2 text-sm" style={{ color: "rgb(248 113 113)" }}>{sendError}</p>
+          ) : send.isPending ? (
+            <p className="px-4 pb-2 text-sm text-faint">Sending…</p>
           ) : null}
 
           {/* Right padding clears the floating "Ask Madeline" button, which sat

@@ -76,12 +76,16 @@ export default function ClientMessages() {
   }
 
   async function submit() {
-    if (!selected || !draft.trim()) return;
+    if (!selected || !draft.trim() || send.isPending) return;
     setError("");
+    // Cleared at once and put back on failure: a slow send read as "didn't go"
+    // and was sent twice (QA write re-test N-03).
+    const body = draft;
+    setDraft("");
     try {
-      await send.mutateAsync({ conversationId: selected.id, body: draft });
-      setDraft("");
+      await send.mutateAsync({ conversationId: selected.id, body });
     } catch (e) {
+      setDraft((d) => d || body);
       setError(e instanceof Error ? e.message : "Couldn't send. Try again.");
     }
   }
@@ -157,7 +161,8 @@ export default function ClientMessages() {
                 })}
                 <div ref={endRef} />
               </div>
-              {error && <p className="px-4 pb-2 text-sm text-red-400">{error}</p>}
+              {error ? <p className="px-4 pb-2 text-sm text-red-400">{error}</p>
+                : send.isPending ? <p className="px-4 pb-2 text-sm text-faint">Sending…</p> : null}
               <form
                 className="flex items-end gap-2 border-t border-border p-3 pr-20 sm:pr-24"
                 onSubmit={(e) => { e.preventDefault(); void submit(); }}

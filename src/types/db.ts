@@ -92,6 +92,8 @@ export interface Task {
    * by the button.
    */
   requires_approval?: boolean;
+  /** Asked for by the client from their portal (0074). */
+  requested_by_client?: boolean;
   approved_by?: string | null;
   approved_at?: string | null;
   /**

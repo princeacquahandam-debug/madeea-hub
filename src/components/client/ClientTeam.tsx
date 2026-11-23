@@ -23,7 +23,7 @@ import { ReportView } from "./ClientStaffReport";
  * being useful to either side.
  */
 
-interface Person { role: string; email: string | null; }
+interface Person { role: string; email: string | null; name?: string | null; }
 /* client_tasks under the Board's key and select (it reads "*"), so the two
    panes share one cache entry. staff_email marks a task as with their staff. */
 interface TeamTask {
@@ -53,12 +53,17 @@ export function ClientTeam() {
   const { data: people = [] } = useQuery({
     queryKey: ["client-portal", "people"],
     queryFn: async () => {
-      const { data, error } = await supabase!.from("client_people").select("role, email");
+      /* Same columns as the People page: the two share this cache key, and a
+         narrower select here dropped the names there (0109). */
+      const { data, error } = await supabase!.from("client_people").select("role, created_at, is_you, email, name");
       if (error) throw error;
       return (data ?? []) as Person[];
     },
   });
   const members = people.filter((p) => p.role === "member" && p.email);
+  // A staff member by name where they have one (QA write re-test N-04).
+  const nameOf = (email: string | null | undefined) =>
+    (email && people.find((p) => p.email === email)?.name) || email || "Staff member";
 
   const { data: days = [] } = useQuery({
     queryKey: ["client-portal", "team-time"],
@@ -144,7 +149,7 @@ export function ClientTeam() {
       .from("client-screenshots")
       .createSignedUrl(s.storage_path, 60);
     if (error || !data?.signedUrl) { setError(error?.message ?? "Could not open that image."); return; }
-    setShotUrl({ url: data.signedUrl, who: s.email, at: new Date(s.captured_at).toLocaleString() });
+    setShotUrl({ url: data.signedUrl, who: nameOf(s.email), at: new Date(s.captured_at).toLocaleString() });
   }
 
   const byPerson = useMemo(() => {
@@ -184,7 +189,7 @@ export function ClientTeam() {
                 aria-label="Assign to"
               >
                 <option value="">Assign to…</option>
-                {members.map((m) => <option key={m.email} value={m.email!}>{m.email}</option>)}
+                {members.map((m) => <option key={m.email} value={m.email!}>{nameOf(m.email)}</option>)}
               </select>
               <input
                 value={due}
@@ -264,7 +269,7 @@ export function ClientTeam() {
           <p className="text-sm text-faint">No reports yet. Staff send one from their Daily report page.</p>
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
-            {reports.slice(0, 12).map((r) => <ReportView key={r.id} r={r} who={r.email} />)}
+            {reports.slice(0, 12).map((r) => <ReportView key={r.id} r={r} who={nameOf(r.email)} />)}
           </div>
         )}
       </section>
@@ -278,7 +283,7 @@ export function ClientTeam() {
             {byPerson.map((p) => (
               <div key={p.email}>
                 <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3">
-                  <span className="text-sm font-medium">{p.email}</span>
+                  <span className="text-sm font-medium">{nameOf(p.email)}</span>
                   <span className="text-xs text-faint">{hm(p.minutes)} total</span>
                 </div>
                 <div className="space-y-1">
@@ -321,7 +326,7 @@ export function ClientTeam() {
                 className="rounded-lg border border-border p-3 text-left transition-colors hover:bg-[var(--chip-bg)]"
               >
                 <Camera size={14} className="mb-2 text-faint" />
-                <p className="truncate text-xs font-medium">{s.email}</p>
+                <p className="truncate text-xs font-medium">{nameOf(s.email)}</p>
                 <p className="mt-0.5 text-[11px] text-faint">
                   {new Date(s.captured_at).toLocaleString()}
                 </p>
