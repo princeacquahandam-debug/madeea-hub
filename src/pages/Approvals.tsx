@@ -89,9 +89,17 @@ export default function Approvals() {
           {t.due_at ? ` · due ${new Date(t.due_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : ""}
         </p>
         {t.returned_at && t.return_reason ? (
-          <p className="mt-1 text-xs text-amber-400">
-            Sent back by {nameOf(t.returned_by)} {when(t.returned_at)}: {t.return_reason}
-          </p>
+          !t.approved_at && t.status === "review" ? (
+            /* Back in Review after changes (QA AP-04): the earlier note is history. */
+            <p className="mt-1 text-xs text-muted">
+              <span className="pill mr-1.5 bg-violet-500/15 text-violet-400">Resubmitted</span>
+              Earlier sent back by {nameOf(t.returned_by)} {when(t.returned_at)}: {t.return_reason}
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-amber-400">
+              Sent back by {nameOf(t.returned_by)} {when(t.returned_at)}: {t.return_reason}
+            </p>
+          )
         ) : null}
         {t.approved_at ? (
           <p className="mt-1 text-xs text-emerald-500">Approved by {nameOf(t.approved_by)} {when(t.approved_at)}</p>

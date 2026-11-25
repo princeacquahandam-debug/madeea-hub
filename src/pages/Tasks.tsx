@@ -216,11 +216,16 @@ function CardBody({ task, blocked, onDelete, onEdit, onComplete, onSave, onToggl
           </span>
         )}
         {/* Sent back by an approver (0110), with the reason on hover. */}
-        {task.returned_at && !task.approved_at && (
+        {/* Once it is in Review again it says Resubmitted (QA AP-04, 25 Nov 2026). */}
+        {task.returned_at && !task.approved_at && (task.status === "review" ? (
+          <span className="pill bg-violet-500/15 text-violet-400" title={task.return_reason ? `Resubmitted after changes. Earlier feedback: ${task.return_reason}` : "Resubmitted after changes"}>
+            Resubmitted
+          </span>
+        ) : (
           <span className="pill bg-amber-500/15 text-amber-400" title={task.return_reason ? `Sent back: ${task.return_reason}` : "Sent back for changes"}>
             Sent back
           </span>
-        )}
+        ))}
         {/* Waiting on a dependency (derived from depends_on). */}
         {blocked && <span className="pill bg-amber-500/15 text-amber-400"><Lock size={10} /> Waiting on task</span>}
         {/* Someone said this is blocked and why. Feeds their EOD report. */}
@@ -1333,7 +1338,11 @@ export default function Tasks() {
             return isAdmin ? (
               <div className="space-y-2">
                 {t?.returned_at && t.return_reason ? (
-                  <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400">Sent back: {t.return_reason}</p>
+                  t.status === "review" ? (
+                    <p className="rounded-lg bg-violet-500/10 px-3 py-2 text-[12px] text-violet-300">Resubmitted after changes. Earlier feedback: {t.return_reason}</p>
+                  ) : (
+                    <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400">Sent back: {t.return_reason}</p>
+                  )
                 ) : null}
                 <div className="flex gap-2">
                   <button className="btn-ghost flex-1 border border-violet-500/40 text-violet-300" onClick={() => approve.mutate(editingId)} disabled={approve.isPending}>
@@ -1347,6 +1356,10 @@ export default function Tasks() {
                   </button>
                 </div>
               </div>
+            ) : t?.returned_at && t.return_reason && t.status === "review" ? (
+              <p className="rounded-lg bg-violet-500/10 px-3 py-2 text-[12px] text-violet-300">
+                Resubmitted. Waiting on an admin to sign this off. Earlier feedback: {t.return_reason}
+              </p>
             ) : t?.returned_at && t.return_reason ? (
               <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400">
                 Sent back for changes: {t.return_reason}
