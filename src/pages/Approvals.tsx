@@ -141,7 +141,7 @@ export default function Approvals() {
           {section("Waiting for approval", <Clock3 size={15} className="text-violet-400" />, waiting,
             "Nothing is waiting. Tick \"Needs approval\" on a task to route it here.", true)}
           {section("Sent back", <RotateCcw size={15} className="text-amber-400" />, returned,
-            "Nothing sent back.", true)}
+            "Nothing sent back. Work that needs changes waits here until the assistant moves it to Review again.", false)}
           {section("Approved in the last 30 days", <CheckCircle2 size={15} className="text-emerald-500" />, approved,
             "Nothing approved yet.", false)}
         </>

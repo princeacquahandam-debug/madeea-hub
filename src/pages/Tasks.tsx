@@ -568,6 +568,22 @@ export default function Tasks() {
   const [bd, setBd] = useState<{ taskId: string; state: "loading" | "steps" | "question" | "error"; steps?: Step[]; question?: string; error?: string } | null>(null);
   const [bdAnswer, setBdAnswer] = useState("");
   const [toast, setToast] = useState<{ message: string; undo: () => void } | null>(null);
+  /* Said out loud when a "Needs approval" task is moved to Done before anyone
+     approved it (QA Approvals check AP-01, 25 Nov 2026). The database refused it
+     quietly and the card slid back, so it looked like a glitch. */
+  const [gateNote, setGateNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!gateNote) return;
+    const t = window.setTimeout(() => setGateNote(null), 7000);
+    return () => window.clearTimeout(t);
+  }, [gateNote]);
+  const awaitingSignOff = (id: string, status: TaskStatus) => {
+    if (status !== "done") return false;
+    const t = tasks.find((x) => x.id === id);
+    if (!t?.requires_approval || t.approved_at) return false;
+    setGateNote(`"${t.title}" needs an owner or admin to approve it before it can be marked Done. Move it to Review and they'll see it in Approvals.`);
+    return true;
+  };
   const [tried, setTried] = useState(() => { try { return localStorage.getItem("madeea-ai-actions-tried") === "1"; } catch { return true; } });
   const markTried = () => { try { localStorage.setItem("madeea-ai-actions-tried", "1"); } catch { /* storage blocked */ } setTried(true); };
   const [q, setQ] = useState("");
@@ -691,7 +707,7 @@ export default function Tasks() {
   /** Write the checked changes; Undo puts every one back for ten seconds. */
   function applyChanges(rows: RankedRow[]) {
     const write = (id: string, patch: Partial<Task>) =>
-      patch.status ? setStatus.mutate({ id, status: patch.status, method: "ai" }) : update.mutate({ id, ...patch } as Parameters<typeof update.mutate>[0]);
+      patch.status ? (awaitingSignOff(id, patch.status) ? undefined : setStatus.mutate({ id, status: patch.status, method: "ai" })) : update.mutate({ id, ...patch } as Parameters<typeof update.mutate>[0]);
     for (const r of rows) if (r.change) write(r.task.id, r.change.patch);
     panelSettled.current = true;
     track("ai_result_applied", { action: "prioritize_board", changes_suggested: panel?.result.changes ?? rows.length, changes_applied: rows.length });
@@ -881,7 +897,11 @@ export default function Tasks() {
       });
     }
     const serverTask = tasks.find((t) => t.id === active.id);
-    if (serverTask && col && serverTask.status !== col) setStatus.mutate({ id: serverTask.id, status: col, method: "drag" });
+    if (serverTask && col && serverTask.status !== col) {
+      // Not yet approved: back to its own column at once, with the reason.
+      if (awaitingSignOff(serverTask.id, col)) { setBoard(group(visible)); return; }
+      setStatus.mutate({ id: serverTask.id, status: col, method: "drag" });
+    }
   }
 
   /* `status` comes from whichever column's Add was clicked, so a task created
@@ -915,6 +935,11 @@ export default function Tasks() {
       progress: form.progress,
       attachments: form.attachments,
     };
+    /* Done picked in the edit window before approval: save the other changes,
+       keep the status it had, and say why (AP-01). */
+    if (editingId && awaitingSignOff(editingId, payload.status)) {
+      payload.status = tasks.find((t) => t.id === editingId)?.status ?? payload.status;
+    }
     if (editingId) update.mutate({ id: editingId, ...payload });
     else create.mutate(payload);
     setForm(BLANK); setEditingId(null); setModal(false);
@@ -1078,7 +1103,7 @@ export default function Tasks() {
           {/* One row of five on wide screens (deck slide 5). */}
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
             {COLUMNS.map((col) => (
-              <Column key={col.key} status={col.key} label={col.label} dot={col.dot} wash={col.wash} edge={col.edge} items={board[col.key]} blockedIds={blockedIds} onDelete={(t) => setConfirmDel(t)} onToggleSub={(t, subId) => update.mutate({ id: t.id, subtasks: t.subtasks.map((s) => (s.id === subId ? { ...s, done: !s.done } : s)) } as Parameters<typeof update.mutate>[0])} onEdit={startEdit} onComplete={(id) => setStatus.mutate({ id, status: "done" })} onAdd={startCreate} onSave={(t) => saveToggle.mutate({ kind: "task", targetId: t.id, label: t.title, saved: savedIds.has(t.id) })} savedIds={savedIds} commentCounts={commentCounts} focusId={focusId} justDroppedId={justDroppedId} dropActive={activeId !== null && overCol === col.key} />
+              <Column key={col.key} status={col.key} label={col.label} dot={col.dot} wash={col.wash} edge={col.edge} items={board[col.key]} blockedIds={blockedIds} onDelete={(t) => setConfirmDel(t)} onToggleSub={(t, subId) => update.mutate({ id: t.id, subtasks: t.subtasks.map((s) => (s.id === subId ? { ...s, done: !s.done } : s)) } as Parameters<typeof update.mutate>[0])} onEdit={startEdit} onComplete={(id) => { if (!awaitingSignOff(id, "done")) setStatus.mutate({ id, status: "done" }); }} onAdd={startCreate} onSave={(t) => saveToggle.mutate({ kind: "task", targetId: t.id, label: t.title, saved: savedIds.has(t.id) })} savedIds={savedIds} commentCounts={commentCounts} focusId={focusId} justDroppedId={justDroppedId} dropActive={activeId !== null && overCol === col.key} />
             ))}
           </div>
           <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
@@ -1108,6 +1133,13 @@ export default function Tasks() {
         />
       )}
       {toast && <UndoToast message={toast.message} onUndo={toast.undo} onDone={() => setToast(null)} />}
+      {gateNote && (
+        <div role="alert" className="fixed bottom-6 left-1/2 z-[90] flex max-w-md -translate-x-1/2 items-start gap-2 rounded-xl border border-violet-500/40 bg-surface px-4 py-3 text-sm shadow-lg">
+          <ShieldCheck size={16} className="mt-0.5 shrink-0 text-violet-400" />
+          <span className="min-w-0 flex-1">{gateNote}</span>
+          <button className="shrink-0 text-faint hover:text-text" onClick={() => setGateNote(null)} aria-label="Dismiss">×</button>
+        </div>
+      )}
 
       <DeleteTaskDialog
         task={confirmDel}
